@@ -1,0 +1,7 @@
+*.png
+*.bmp
+*.emf
+*.mat
+*.asv
+ofdm/trash/
+*.tikz
