@@ -3,8 +3,7 @@ classdef soa
         Gain % Gain in linear units
         Fn   % noise figure (dB)
         lamb % wavelength of operation (m)
-        maxGain % maximum gain (dB)
-        noise_stats % shot noise statistics: {'off', 'Gaussian', 'Chi2'}, default = Gaussian
+        maxGaindB % maximum gain (dB)
     end
     properties (Dependent)
         N0
@@ -17,37 +16,22 @@ classdef soa
     
     methods
         %% constructor
-        function obj = soa(Gain, Fn, lamb, noise_stats, maxGain)
+        function obj = soa(Gain, Fn, lamb, maxGaindB)
             obj.Gain = Gain;
             obj.Fn = Fn;
             obj.lamb = lamb;
-            
+                        
             if nargin == 4
-                obj.noise_stats = noise_stats;
+                obj.maxGaindB = maxGaindB;
             else
-                obj.noise_stats = 'Gaussian';
-            end
-            
-            if nargin == 5
-                obj.maxGain = maxGain;
-            else
-                obj.maxGain = Inf;
+                obj.maxGaindB = Inf;
             end
         end
         
         function N0 = get.N0(obj)
             N0 = (obj.Gain - 1)*10^(obj.Fn/10)/2*(obj.h*obj.c/obj.lamb); % one-sided PSD
         end
-        
-        %% Set noise statistics
-        function obj = set.noise_stats(obj, str)
-            if strcmp(str, 'Gaussian') || strcmp(str, 'DoublyStoch') || strcmp(str, 'off')
-                obj.noise_stats = str;
-            else
-                error('Invalid option: noise_stats should be either off, Gaussian or DoublyStoch');
-            end
-        end
-        
+               
         %% Amplification
         % Ein = received electric field in one pol; fs = sampling frequency
         function [output, w] = amp(obj, Ein, fs)
@@ -58,7 +42,8 @@ classdef soa
             w = sqrt(1/2*obj.N0*fs/2)*(randn(N, 1) + 1j*randn(N, 1));
             
             output = Ein*sqrt(obj.Gain) + w;         
-        end        
+        end
+            
     end
 end
             

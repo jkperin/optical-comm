@@ -7,7 +7,8 @@ addpath f
 mpam.M = 4;
 mpam.Rb = 100e9;
 mpam.Rs = mpam.Rb/log2(mpam.M);
-sim.Me = 32;
+sim.Me = 32; % Number of eigenvalues
+sim.verbose = true;
 
 % Simulation parameters
 sim.M = 2; % Ratio of optical filter BW and electric filter BW (must be integer)
@@ -19,24 +20,19 @@ dt = 1/sim.fs;
 t = (0:dt:(sim.N-1)*dt).';
 df = 1/(dt*sim.N);
 f = (-sim.fs/2:df:sim.fs/2-df).';
+f = f/sim.fs;
+
+sim.t = t;
+sim.f = f;
 
 % Electric Lowpass Filter
-EleFilt.type = 'gaussian';
-EleFilt.order = 4;
-EleFilt.BW = 1.25*mpam.Rs; % single-sided BW
-[be, ae] = design_filter(EleFilt.type, EleFilt.order, EleFilt.BW/(sim.fs/2), sim.Mct);
-EleFilt.grpdelay = grpdelay(be, ae, 1);
-He = @(f) freqz(be, ae, f, sim.fs).*exp(1j*2*pi*f/sim.fs*EleFilt.grpdelay);
-% He = @(f) freqz(be, ae, f, sim.fs);
+rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
+He = rx.elefilt.H;
 
 % Optical Bandpass Filter
-OptFilt.type = 'gaussian';
-OptFilt.order = 4;
-OptFilt.BW = sim.M*EleFilt.BW; % single-sided BW
-[bo, ao] = design_filter(OptFilt.type, OptFilt.order, OptFilt.BW/(sim.fs/2), sim.Mct);
-OptFilt.grpdelay = grpdelay(bo, ao, 1);
-Ho = @(f) freqz(bo, ao, f, sim.fs).*exp(1j*2*pi*f/sim.fs*OptFilt.grpdelay);
-% Ho = @(f) freqz(bo, ao, f, sim.fs);
+rx.optfilt = design_filter('gaussian', 4, sim.M*rx.elefilt.fcnorm);
+Ho = rx.optfilt.H;
+
 % 
 tx.lamb = 1310e-9;
 soa.Fn = 9; % dB
@@ -69,29 +65,11 @@ eo = ifft(fft(et).*ifftshift(Ho(f)));
 yt = real(ifft(fft(abs(eo).^2).*ifftshift(He(f))));
 
 figure
-plot(f/sim.fs, abs(He(f)).^2, f/sim.fs, abs(Ho(f)).^2)
+plot(f, abs(He(f)).^2, f, abs(Ho(f)).^2)
 legend('electric', 'optical')
 
 % KL series expansion in the frequency domain
-Fmax = 1.5*OptFilt.BW/sim.fs;
-
-[nu,w] = lgwt(sim.Me, -Fmax, Fmax);
-
-Kf = @(f1, f2) Ho(f1).*He(f1-f2).*Ho(f2);
-
-K = zeros(length(nu)*[1 1]);
-for k = 1:length(nu)
-    K(:, k) = Kf(sim.fs*nu(k)*ones(length(nu), 1), sim.fs*nu);
-end
-
-W = diag(w);
-
-A = sqrt(W)*K*sqrt(W);
-
-[B, D] = eig(A);
-D = real(diag(D));
-
-Phi = sqrt(diag(1./w))*B;
+[D, Phi, nu, w] = klse_freq(rx, sim);
 
 en = zeros(sim.N, sim.Me);
 yy = 0;
@@ -103,8 +81,8 @@ for k = 1:sim.Me
     if k <= 3
         figure(100), hold on, box on
         plot(t, abs(phi).^2)
-        xlabel('Time (s)', 'FontSize', 12)
-        ylabel('|\phi_n(f)|^2', 'FontSize', 12)
+        xlabel('f/f_s', 'FontSize', 12)
+        ylabel('|\phi_n(f/f_s)|^2', 'FontSize', 12)
     end
     legend('n = 1', 'n = 2', 'n = 3')
 

@@ -30,8 +30,8 @@ td = t(sim.Mct/2:sim.Mct:end);
 sim.t = t;
 sim.f = f;
 
+% Transmitter paramters
 tx.rex = 10;  % extinction ratio in dB
-rx.N0 = (30e-12).^2;
 
 % Electric Lowpass Filter
 EleFilt.type = 'gaussian';
@@ -51,6 +51,11 @@ OptFilt.grpdelay = grpdelay(bo, ao, 1);
 Ho = @(f) freqz(bo, ao, f, sim.fs).*exp(1j*2*pi*f/sim.fs*OptFilt.grpdelay);
 % Ho = @(f) freqz(bo, ao, f, sim.fs);
  
+% Receiver
+rx.N0 = (30e-12).^2;
+rx.OptFilt = OptFilt;
+rx.EleFilt = EleFilt;
+
 % SOA
 soa = soa(5, 20, 1310e-9, 'Chi2', 20);
 
