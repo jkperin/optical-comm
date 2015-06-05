@@ -76,7 +76,11 @@ end
 
 % Auxiliary variables. They're used to check approximations and validate
 % the code
-aux.delta1th = delta1th;
-aux.delta2th = delta2th;
-aux.varQ1th = varQ1th;
-aux.varQ2th = varQ2th;
+if sim.quantiz
+    aux.delta1th = delta1th;
+    aux.delta2th = delta2th;
+    aux.varQ1th = varQ1th;
+    aux.varQ2th = varQ2th;
+else
+    aux = [];
+end

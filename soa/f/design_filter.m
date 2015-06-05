@@ -117,9 +117,15 @@ switch type
             warning('fiber Bragg grating filter did not converge to desired bandwidth')
         end
         
-        N = 2^10;
+        N = 2^14;
         df = 1/N;
-        f = -0.5:df:0.5-df;     
+        f = -0.5:df:0.5-df; 
+        
+        figure, 
+        subplot(211)
+        plot(f, abs(Hf(f, vg).^2))
+        subplot(212)
+        plot(f, unwrap(angle(Hf(f, vg))))
         
         den = 1;
         num = fftshift(ifft(ifftshift(Hf(f, vg))));  
@@ -128,10 +134,15 @@ switch type
         assert(false, 'Unknown option!')
 end
 
-filt.den = den;
 filt.num = num;
+filt.den = den;
 filt.grpdelay = grpdelay(num, den, 1);
 filt.fcnorm = fcnorm;
 filt.H = @(f) freqz(num, den, 2*pi*f).*exp(1j*2*pi*f*filt.grpdelay);
-filt.noisebw = @(fs) noisebw(num, den, 2^15, fs); % equivalent two-sided noise bandwidth over larger number of samples 2^15 (large number) given a sampling frequency fs 
+filt.noisebw = @(fs) noisebw(num, den, 2^15, fs); % equivalent two-sided noise bandwidth over larger number of samples (2^15) given a sampling frequency fs 
 
+% figure, 
+% subplot(211)
+% plot(f, abs(filt.H(f).^2))
+% subplot(212)
+% plot(f, unwrap(angle(filt.H(f))))

@@ -10,10 +10,10 @@ addpath f
 
 % Simulation parameters
 sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
-sim.Mct = 10;      % Oversampling ratio to simulate continuous time  
-sim.Me = 64; % Number of eigenvalues of KL expansion
+sim.Mct = 8;      % Oversampling ratio to simulate continuous time  
+sim.Me = 32; % Number of eigenvalues of KL expansion
 sim.L = 4; % de Bruijin sub-sequence length (ISI symbol length)
-sim.M = 2; % Ratio of optical filter BW and electric filter BW (must be integer)
+sim.M = 1; % Ratio of optical filter BW and electric filter BW (must be integer)
 sim.levelSpacing = 'uniform'; % M-PAM level spacing ## non-uniform to be implemented
 sim.verbose = ~true; % show stuff
 sim.BERtarget = 1e-4; 
@@ -50,7 +50,7 @@ rx.N0 = (30e-12).^2;
 rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
 
 % Optical Bandpass Filter
-rx.optfilt = design_filter('lorentzian', 0, sim.M*rx.elefilt.fcnorm);
+rx.optfilt = design_filter('butter', 5, sim.M*rx.elefilt.fcnorm);
 
 if rx.optfilt.fcnorm > 0.5
     warning(sprintf('Oversampling ratio for continuous time simulation might not be high enough to model optical bandpass filter accurately: f3dB = %g GHz, fs = %g GHz', rx.optfilt.fcnorm*sim.fs/2e9, sim.fs/1e9));
@@ -70,7 +70,7 @@ sim.t = t;
 sim.f = f;
 
 % Calculate KL series expansion in the frequency domain
-[D, Phi, nu] = klse_freq(rx, sim);
+[D, Phi, Fmax] = klse_freq(rx, sim);
 
 if ~sim.verbose
     figure, hold on
@@ -91,7 +91,7 @@ for k = 1:length(Ptx)
     ber_mc(k) = ber_soa_montecarlo(mpam, tx, soa, rx, sim);
     
     % approx ber
-    ber_tail(k) = ber_soa_klse_freq(D, Phi, nu, mpam, tx, soa, rx, sim);
+    ber_tail(k) = ber_soa_klse_freq(D, Phi, Fmax, mpam, tx, soa, rx, sim);
     1;
 end
 

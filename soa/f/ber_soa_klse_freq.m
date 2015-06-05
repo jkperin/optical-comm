@@ -4,10 +4,10 @@
 % However, it's much faster
 % berpdf (optional) = calculate BER using saddlepoint approximation for the
 % pdf, and then calculate tail probability using numerical integration
-function [bertail, berpdf] = ber_soa_klse_freq(D, Phi, nu, mpam, tx, soa, rx, sim)
+function [bertail, berpdf] = ber_soa_klse_freq(D, Phi, Fmax, mpam, tx, soa, rx, sim)
 
 % Maximum frequency (same as used in klse_freq.m)
-Fmax = min(1.5*rx.optfilt.fcnorm/2, 0.5);
+[nu,~] = lgwt(sim.Me, -Fmax, Fmax);
 
 Mct = round(2*Fmax*sim.Mct); % redefine oversampling ratio to simulate 
 Fmax = 1/2*Mct/sim.Mct;

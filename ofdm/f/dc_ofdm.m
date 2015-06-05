@@ -227,6 +227,14 @@ for navg = 1:sim.Navg
     
     % Calculate equivalent transmitted power
     Ptx  = mean(Pt);   % measured
+    
+    %% Adjust transmitted power
+    if isfield(tx, 'Ptx') % if Ptx was provided, then scale signal to desired Ptx
+        Pt = Pt*tx.Ptx/Ptx;
+        Pn = (tx.Ptx/Ptx)^2*Pn;
+        Ptx = tx.Ptx;
+        warning('Average power readjusted')
+    end
 
     %% Add intensity noise
     varrin = 0;

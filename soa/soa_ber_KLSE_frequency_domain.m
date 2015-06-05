@@ -43,7 +43,7 @@ He = @(f) freqz(be, ae, f, sim.fs).*exp(1j*2*pi*f/sim.fs*EleFilt.grpdelay);
 % He = @(f) freqz(be, ae, f, sim.fs);
 
 % Optical Bandpass Filter
-OptFilt.type = 'gaussian';
+OptFilt.type = fbg';
 OptFilt.order = 4;
 OptFilt.BW = sim.M*EleFilt.BW; % single-sided BW
 [bo, ao] = design_filter(OptFilt.type, OptFilt.order, OptFilt.BW/(sim.fs/2), sim.Mct);
