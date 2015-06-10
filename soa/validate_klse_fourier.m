@@ -7,12 +7,11 @@ addpath f
 mpam.M = 4;
 mpam.Rb = 100e9;
 mpam.Rs = mpam.Rb/log2(mpam.M);
-sim.Me = 64; % Number of eigenvalues
 sim.verbose = true;
 
 % Simulation parameters
-sim.M = 2; % Ratio of optical filter BW and electric filter BW (must be integer)
-sim.Mct = 8;
+sim.M = 2; % Ratio of optical filter BW and electric filter BW
+sim.Mct = 16;
 sim.N = 512;
 sim.fs = mpam.Rs*sim.Mct;
 
@@ -20,27 +19,30 @@ dt = 1/sim.fs;
 t = (0:dt:(sim.N-1)*dt).';
 df = 1/(dt*sim.N);
 f = (-sim.fs/2:df:sim.fs/2-df).';
-f = f/sim.fs;
 
 sim.t = t;
 sim.f = f;
+
+f = f/sim.fs;
 
 % Electric Lowpass Filter
 rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
 He = rx.elefilt.H;
 
 % Optical Bandpass Filter
-rx.optfilt = design_filter('bessel', 5, sim.M*rx.elefilt.fcnorm);
+rx.optfilt = design_filter('butter', 5, sim.M*rx.elefilt.fcnorm);
 Ho = rx.optfilt.H;
 
 % Generate optical signal
 Nsymb = sim.N/sim.Mct;
+Nzero = 2*sim.Mct;
 dataTX = randi([0 mpam.M-1], [Nsymb 1]);
 Pd = pammod(dataTX, mpam.M, 0, 'gray');
 pt = ones(1, sim.Mct);
 Pt = reshape(kron(Pd, pt).', sim.N, 1);
 Pt = Pt + (mpam.M - 1);
 x = sqrt(Pt);
+x([1:Nzero end-Nzero+1:end]) = 0;
 X = fftshift(fft(x));
 
 % Noise
@@ -54,55 +56,45 @@ eo = ifft(fft(et).*ifftshift(Ho(f)));
 
 yt = real(ifft(fft(abs(eo).^2).*ifftshift(He(f))));
 
-figure
-subplot(211)
-plot(f, abs(He(f)).^2, f, abs(Ho(f)).^2)
-legend('electric', 'optical')
-
-subplot(212)
-plot(f, unwrap(angle(He(f))), f, unwrap(angle(Ho(f))))
-legend('electric', 'optical')
+% figure
+% subplot(211)
+% plot(f, abs(He(f)).^2, f, abs(Ho(f)).^2)
+% legend('electric', 'optical')
+% 
+% subplot(212)
+% plot(f, unwrap(angle(He(f))), f, unwrap(angle(Ho(f))))
+% legend('electric', 'optical')
 
 % KL series expansion in the frequency domain
-[D, Phi, Fmax, nu] = klse_freq(rx, sim);
-
-D
-
-en = zeros(sim.N, sim.Me);
-yy = 0;
-for k = 1:sim.Me
-    phi = Phi(:, k);
-%     plot(nu, phi)
-    phi = spline(nu, phi, f);
-    
-    % Rescale after interpolation
-    a = trapz(f, abs(phi).^2);
-    phi = 1/sqrt(a)*phi;
-    
-    if k <= 3
-        figure(100), hold on, box on
-        plot(f, abs(phi).^2)
-        xlabel('f/f_s', 'FontSize', 12)
-        ylabel('|\phi_n(f/f_s)|^2', 'FontSize', 12)
-    end
-    legend('n = 1', 'n = 2', 'n = 3', 'n = 4', 'n = 5')
-
-       
-    en(:, k) = ifft(ifftshift(Ef.*conj(phi)));
-   
-    yy = yy + D(k).*abs(en(:, k)).^2;
-end
+[ck, D, yk] = klse_fourier(x, rx, sim);
 
 figure, hold on
 plot(yt)
 plot(Pt)
-plot(yy, '--k')
-legend('numerical', 'Transmitted power', 'KL-SE')
+plot(yk, '--k')
+legend('numerical', 'Transmitted power', 'KL-SE Fourier')
+
+% Discard zeros and downsample
+ix = Nzero+sim.Mct/2:sim.Mct:sim.N-Nzero;
+yd = yk(ix);
+ck = ck(:, ix);
+x = x(ix);
+
+% plot
+plot(ix, yd, 'o')
+
+% SOA
+soa = soa(10^(10/10), 9, 1310e-9, 20);
+varASE = 1e5*(soa.N0*sim.fs/2)/sim.N;
+varTher = 0;
+
+px = pdf_saddlepoint_approx(linspace(0, 2*max(Pt)), D, ck, varASE, varTher, true);
+
 
 % Sampling
-yd = yt(sim.Mct/2:sim.Mct:end);
-Pd = Pt(sim.Mct/2:sim.Mct:end);
-yyd = yy(sim.Mct/2:sim.Mct:end);
+% yd = yt(sim.Mct/2:sim.Mct:end);
+% Pd = Pt(sim.Mct/2:sim.Mct:end);
+% yyd = yy(sim.Mct/2:sim.Mct:end);
 
 % en = zeros(sim.N/sim.Mct, sim.Me);
 % yyd= 0;
@@ -114,12 +106,12 @@ yyd = yy(sim.Mct/2:sim.Mct:end);
 %    
 %     yyd = yyd + D(k).*abs(en(:, k)).^2;
 % end
-
-figure, hold on
-stem(yd)
-stem(Pd)
-stem(yyd, 'x')
-legend('numerical', 'Transmitted power', 'KL-SE')
+% 
+% figure, hold on
+% stem(yd)
+% stem(Pd)
+% stem(yyd, 'x')
+% legend('numerical', 'Transmitted power', 'KL-SE')
 
 
     

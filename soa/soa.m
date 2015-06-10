@@ -6,6 +6,7 @@ classdef soa
         maxGaindB % maximum gain (dB)
     end
     properties (Dependent)
+        GaindB
         N0
     end
     properties (Constant)
@@ -16,8 +17,8 @@ classdef soa
     
     methods
         %% constructor
-        function obj = soa(Gain, Fn, lamb, maxGaindB)
-            obj.Gain = Gain;
+        function obj = soa(GaindB, Fn, lamb, maxGaindB)
+            obj.Gain = 10^(GaindB/10);
             obj.Fn = Fn;
             obj.lamb = lamb;
                         
@@ -30,6 +31,10 @@ classdef soa
         
         function N0 = get.N0(obj)
             N0 = (obj.Gain - 1)*10^(obj.Fn/10)/2*(obj.h*obj.c/obj.lamb); % one-sided PSD
+        end
+        
+        function GaindB = get.GaindB(obj)
+            GaindB = 10*log10(obj.Gain); % one-sided PSD
         end
                
         %% Amplification

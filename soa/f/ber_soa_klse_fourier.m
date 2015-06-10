@@ -1,24 +1,21 @@
 %% Calculate BER for amplified IM-DD link
-% bertail = calculate BER using saddlepoint approximation for the tail
-% probability. Can't be innacurate because of singularity at origin.
-% However, it's much faster
+% bertail = BER using saddlepoint approximation for the tail probability. 
+% Although it's much faster than using the pdf, it can be innacurate due to
+% the singularity at the origin.
+
+% bergauss = BER using gaussian approximation
+
 % berpdf (optional) = calculate BER using saddlepoint approximation for the
 % pdf, and then calculate tail probability using numerical integration
-function [bertail, berpdf] = ber_soa_klse_freq(D, Phi, Fmax, mpam, tx, soa, rx, sim)
+function [bertail, bergauss, berpdf] = ber_soa_klse_fourier(U, D, Fmax, mpam, tx, soa, rx, sim)
 
-% Maximum frequency (same as used in klse_freq.m)
-[nu, ~] = lgwt(sim.Me, -Fmax, Fmax);
-nu = nu(end:-1:1); % put in right order
-
-% 'continuous time' so it matches the maximum frequency Fmax
 Nsymb = mpam.M^sim.L; % number of data symbols 
 Nzero = sim.L; % number of zero symbols pad to begin and end of sequnece.
 N = sim.Mct*(Nsymb + 2*Nzero); % total number of points 
 
-% Define time and frequency 
+% Frequency
 df = 1/N;
 f = (-0.5:df:0.5-df).';
-fm = f(abs(f) <= Fmax);
 
 % Generate optical signal
 try 
@@ -52,45 +49,30 @@ end
 % Calculate electric field (no chirp)
 x = sqrt(Pt);
 x = [zeros(Nzero*sim.Mct, 1); x; zeros(Nzero*sim.Mct, 1)]; % zero pad
-X = fftshift(fft(x));
 
-%%
-yk = 0;
-xn = zeros(N, sim.Me);
-for k = 1:sim.Me
-    phi = Phi(:, k);
+% Fourier series coefficients for periodic extension of x
+xn = fftshift(fft(x))/length(x);
+xn = xn(abs(f) <= Fmax);
 
-    % Interpolate before converting to time domain
-    phi = interp1(nu, phi, fm, 'pchip');
-    
-    % Renormalize
-    a = trapz(fm, abs(phi).^2);
-    phi = 1/sqrt(a)*phi;
-    
-    if sim.verbose && k <= 5
-        figure(101)
-        subplot(211), hold on, box on
-        plot(fm, abs(phi).^2)
-        xlabel('f/f_s', 'FontSize', 12)
-        ylabel('|\phi_n(f/f_s)|^2', 'FontSize', 12)
-        
-        subplot(212), hold on, box on
-        plot(fm, unwrap(angle(phi)))
-        xlabel('f/f_s', 'FontSize', 12)
-        ylabel('phase', 'FontSize', 12)
-    end
-    
-    phi = [zeros(sum(f < -Fmax), 1); phi; zeros(sum(f > Fmax), 1)];
-    
-    % xn in 'continuous' time
-    xn(:, k) = ifft(ifftshift(X.*conj(phi)));
-       
-    yk = yk + D(k).*abs(xn(:, k)).^2;
+fm = f(abs(f) <= Fmax);
+
+% Calculate output
+xk = zeros(length(fm), N);
+yk = zeros(length(x), 1); % output signal (noiseless)
+for k = 1:length(x)
+    xk(:, k) = (xn.*exp(1j*2*pi*fm*(k-1)));
+    yk(k) = real(xk(:, k)'*(U*diag(D)*U')*xk(:, k));
 end
+
+% Used to calculate non-centrality parameter of Chi-Squared distributions
+% ck(i, j) = ith chi-square distribution at jth time sample. |ck(i, j)|^2
+% is the non-centrality parameter of that chi-square distribution
+ck = U'*xk; 
+
 % Discard zeros and downsample
 ix = sim.Mct*Nzero+sim.Mct/2:sim.Mct:N-sim.Mct*Nzero;
 yd = yk(ix);
-xnd = xn(ix, :);
+ck = ck(:, ix);
 
 if sim.verbose
     figure(102), hold on
@@ -101,30 +83,50 @@ if sim.verbose
 end
 
 %%
-varASE = soa.N0*sim.fs/2; % variance of circularly complex Gaussain noise 
-varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2;
+varASE = (soa.N0*sim.fs/2)/N; % variance in each dimension of the circularly symmetric Gaussian noise
+% Note: factor 1/N appears because in this derivation we assume signal 
+% component is periodic with period N.
+varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
 
 pe = 0;
+pe_gauss = 0;
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
+    alphan = D.*abs(ck(:, k)).^2;
+    betan = D*varASE;
+    mu = sum(alphan+betan); % mean of output random variable
+    sig = sqrt(sum(betan.*(2*alphan + betan)) + varTherm); % std of output random variable (including thermal noise)
+    
     if dat(k) == mpam.M-1
-        pe = pe + tail_saddlepoint_approx(Pthresh(end), D, xnd(k, :).', varASE, varTherm, 'left');
+        pe = pe + tail_saddlepoint_approx(Pthresh(end), D, ck(:, k), varASE, varTherm, 'left');
+        
+        % Error probability using Gaussian approximation
+        pe_gauss = pe_gauss + qfunc((mu-Pthresh(end))/sig);
     elseif dat(k) == 0;
-        pe = pe + tail_saddlepoint_approx(Pthresh(1), D, xnd(k, :).', varASE, varTherm, 'right');
+        pe = pe + tail_saddlepoint_approx(Pthresh(1), D, ck(:, k), varASE, varTherm, 'right');
+        
+        % Error probability using Gaussian approximation
+        pe_gauss = pe_gauss + qfunc((Pthresh(1)-mu)/sig);
     else 
-        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, xnd(k, :).', varASE, varTherm, 'right');
-        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k)), D, xnd(k, :).', varASE, varTherm, 'left');
+        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, ck(:, k), varASE, varTherm, 'right');
+        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k)), D, ck(:, k), varASE, varTherm, 'left');
+        
+        % Error probability using Gaussian approximation
+        pe_gauss = pe_gauss + qfunc((Pthresh(dat(k) + 1) - mu)/sig);
+        pe_gauss = pe_gauss + qfunc((mu - Pthresh(dat(k)))/sig);
     end
 end
 
 pe = real(pe)/Nsymb;
+pe_gauss = real(pe_gauss)/Nsymb;
 
 bertail = pe/log2(mpam.M);
+bergauss = pe_gauss/log2(mpam.M);
 
 %% Calculate pdfs using saddlepoint approximation
-if nargout == 2
+if nargout == 3
     y = linspace(0, 2*max(abs(x).^2), 100);
-    px = pdf_saddlepoint_approx(y, D, xnd.', varASE, varTherm, sim.verbose);
+    px = pdf_saddlepoint_approx(y, D, ck, varASE, varTherm, sim.verbose);
     if sim.verbose
         for k = 1:length(Pthresh)
             plot(Pthresh(k)*[1 1], [0, 5e4])
@@ -152,7 +154,3 @@ if nargout == 2
     
     berpdf = pe2/log2(mpam.M);   
 end
-
-
-
-    

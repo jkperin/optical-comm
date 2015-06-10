@@ -3,11 +3,11 @@
 % Input:
 % pX(x)
 % D (Nx1) = weights of noncentral chi square with 2 degrees of freedom.
-% xn (Nsymb x N) = equivalent to noncetrality parameter of individual chi squares
-% distributions. Each row of xn corresponds to a symbol, and each column 
+% xn (N x Nsymb) = used to calculate the noncetrality parameter of individual chi squares
+% distributions. Each column of xn corresponds to a symbol, and each row 
 % corresponds to a chi square distribution. xn = mu1 + 1jmu2, where mu1 and
 % mu2 are the means of the original gaussian r.v.s.
-% var (1x1) = 
+% varASE (1x1) = 
 % varTher = variance of Gaussian r.v. 
 
 % Output
@@ -15,21 +15,20 @@
 
 function px = pdf_saddlepoint_approx(x, D, xn, varASE, varTher, verbose)
     if nargin == 6 && verbose
-        figure, hold on
+        figure(100), hold on
     end
-    Nsymb = size(xn, 1);
+    Nsymb = size(xn, 2);
     px = zeros(length(x), Nsymb);
     for k = 1:Nsymb
         for kk = 1:length(x)
-            [shat, ~, exitflag] = fzero(@(s) d1expoent(s, x(kk), D, xn(k, :).', varASE, varTher), 1e-3);
+            [shat, ~, exitflag] = fzero(@(s) d1expoent(s, x(kk), D, xn(:, k), varASE, varTher), 1e-3);
 
             if exitflag ~= 1
                 warning('(%d, %g) resulted in exitflag = %d\n', k, x(kk), exitflag);
-                dataTX(k)
             end
 
-            Ksx = expoent(shat, x(kk), D, xn(k, :).', varASE, varTher);
-            d2Ksx = d2expoent(shat, D, xn(k, :).', varASE, varTher);
+            Ksx = expoent(shat, x(kk), D, xn(:, k), varASE, varTher);
+            d2Ksx = d2expoent(shat, D, xn(:, k), varASE, varTher);
             
 %             if d2Ksx < 0
 %                 warning('(%d, %g) resulted in kp2 < 0\n', k, x(kk));

@@ -3,7 +3,7 @@
 % Input:
 % P(X > x)
 % D (Nx1) = weights of noncentral chi square with 2 degrees of freedom.
-% xn (Nsymb x N) = equivalent to noncetrality parameter of individual chi squares
+% xn (N x Nsymb) = equivalent to noncetrality parameter of individual chi squares
 % distributions. Each row of xn corresponds to a symbol, and each column 
 % corresponds to a chi square distribution. xn = mu1 + 1jmu2, where mu1 and
 % mu2 are the means of the original gaussian r.v.s.

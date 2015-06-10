@@ -3,5 +3,13 @@
 *.emf
 *.mat
 *.asv
-ofdm/trash/
 *.tikz
+ofdm/trash/
+soa/trash/
+apd/trash/
+mpam/trash/
+ofdm/tex/
+soa/tex/
+apd/tex/
+mpam/tex/
+
