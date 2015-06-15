@@ -1,9 +1,12 @@
 *.png
 *.bmp
+*.jpg
+*.eps
 *.emf
 *.mat
 *.asv
 *.tikz
+*.zip
 ofdm/trash/
 soa/trash/
 apd/trash/

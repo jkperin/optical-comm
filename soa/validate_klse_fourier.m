@@ -66,7 +66,26 @@ yt = real(ifft(fft(abs(eo).^2).*ifftshift(He(f))));
 % legend('electric', 'optical')
 
 % KL series expansion in the frequency domain
-[ck, D, yk] = klse_fourier(x, rx, sim);
+[U, D, Fmax] = klse_fourier(rx, sim, sim.N);
+
+% Fourier series coefficients for periodic extension of x
+xn = fftshift(fft(x))/length(x);
+xn = xn(abs(f) <= Fmax);
+
+fm = f(abs(f) <= Fmax);
+
+% Calculate output
+xk = zeros(length(fm), sim.N);
+yk = zeros(length(x), 1); % output signal (noiseless)
+for k = 1:length(x)
+    xk(:, k) = (xn.*exp(1j*2*pi*fm*(k-1)));
+    yk(k) = real(xk(:, k)'*(U*diag(D)*U')*xk(:, k));
+end
+
+% Used to calculate non-centrality parameter of Chi-Squared distributions
+% ck(i, j) = ith chi-square distribution at jth time sample. |ck(i, j)|^2
+% is the non-centrality parameter of that chi-square distribution
+ck = U'*xk; 
 
 figure, hold on
 plot(yt)

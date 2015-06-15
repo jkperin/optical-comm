@@ -1,55 +1,75 @@
-%% clear, clc, close all
+%% Calculate noise distribution using doubly-stochastic random process, gaussian approximation, and heuristic pdf
 clear, clc, close all
 
 format compact
 addpath f
 
-% Simulation
-sim.BERtarget = 1.8e-4; % Target BER and SER
-sim.Nsymb = 2^12;
-sim.Mct = 1;    % Oversampling ratio for continuous-time simulation
-sim.rin = 'off';
-sim.levelSpacing = 'uniform';
-sim.N0 = (20e-12)^2;
+%% Simulation
+Nsamples = 2^12;
 
-% M-PAM
-mpam.M = 8;
+%% M-PAM
+mpam.M = 4;
 mpam.Rb = 100e9;
-mpam.bw = mpam.Rb/log2(mpam.M);
 mpam.Rs = mpam.Rb/log2(mpam.M);
 
-% TX
-PrecdBm = -30;
-Prec = 1e-3*10.^(PrecdBm/10)
-tx.RIN = -150;
-tx.lamb = 1310e-9;
+%% APD
+% class apd(GainBW, ka, Gain, noise_stats)
+apd = apd(10*log10(300e9/mpam.Rs), 0.09, 300e9);
 
-% RX
-% apd
-% calss apd(GainBW, ka, Gain, noise_stats)
-apd_gauss = apd(300e9, 0.09, 300e9/mpam.Rs, 'Gaussian');
-apd_doubl = apd(300e9, 0.09, 300e9/mpam.Rs, 'DoublyStoch');
+PlevelsdBm = -30;
+Plevels = 1e-3*10.^(PlevelsdBm/10);
 
-Pin = Prec*ones(1, sim.Nsymb);
+pdfs = apd.levels_pdf(Plevels, mpam.Rs);
 
-out_gauss = apd_gauss.detect(Pin, 1/mpam.Rs);
-out_doubl = apd_doubl.detect(Pin, 1/mpam.Rs);
+for k = 1:length(Plevels)
+   
+    Pin = Plevels(k)*ones(1, Nsamples);
 
+    % Get heuristic pdfs
+    out_gauss = apd.detect(Pin, mpam.Rs, 'gaussian');
+    out_doubl = apd.detect(Pin, mpam.Rs, 'gaussian');
+    
+%     out_doubl = out_doubl + sqrt(mpam.Rs/2*(20e-12)^2)*randn(size(out_doubl));
 
-figure, hist(out_gauss, 50);
-figure, hist(out_doubl, 50);
+    [p_hist, Ihist] = hist(out_doubl, 50);
+    p_hist = p_hist/trapz(Ihist, p_hist);
+    
+    dt = 1/(mpam.Rs);
+    lambda = (apd.R*Plevels(k) + apd.Id)*dt/apd.q;
+    [px, x] = apd.output_pdf_saddlepoint(lambda, mpam.Rs, (20e-12)^2);
+    for kk = 1:length(x)
+        [cdf_left(kk), shat_left(kk)] = apd.tail_saddlepoint_approx(x(kk), lambda, mpam.Rs, (20e-12)^2, 'left');
+        [cdf_right(kk), shat_right(kk)] = apd.tail_saddlepoint_approx(x(kk), lambda, mpam.Rs, (20e-12)^2, 'right');
+    end
+%     
+    figure(1), hold on
+    plot(1e3*pdfs(k).I, pdfs(k).p)
+    plot(1e3*pdfs(k).I, pdfs(k).p_gauss)
+    bar(1e3*Ihist, p_hist)
+    plot(x*1e3, px, 'k')
+    legend('doubly-stochastic', 'gaussian', 'histogram')
+    xlabel('Current (mA)', 'FontSize', 12)
+    ylabel('pdf', 'FontSize', 12)
+%     axis([0 1e3*pdfs(k).I(end) 0 5e5])
 
-[mean(out_gauss) mean(out_doubl)]
-[var(out_gauss) var(out_doubl)]
+    figure, hold on
+    plot(x, cumtrapz(x, px))
+    plot(x, cdf_left)
+    plot(x, cdf_right)
+    axis([x(1) x(end) 0 1])
+    legend('true', 'left', 'right')
+    
+    figure, hold on
+    plot(x, shat_left)
+    plot(x, shat_right)
 
-pdf = apd_gauss.levels_pdf(unique(Pin), 1/mpam.Rs)
-
-
-plot(pdf.I, pdf.p, pdf.I, pdf.p_gauss)
-legend('accurate', 'gauss')
-
-figure
-plot(pdf.I, log10(pdf.p), pdf.I, log10(pdf.p_gauss))
-legend('accurate', 'gauss')
+%     figure(2), hold on
+%     plot(1e3*pdfs(k).I, log10(pdfs(k).p), 'k')
+%     plot(1e3*pdfs(k).I, log10(pdfs(k).p_gauss), '--r')
+%     legend('doubly-stochastic', 'gaussian', 'Location', 'SouthEast')
+%     xlabel('Current (mA)', 'FontSize', 12)
+%     ylabel('log(pdf)', 'FontSize', 12)
+%     axis([0 0.08 -10 8])
+end
 
 

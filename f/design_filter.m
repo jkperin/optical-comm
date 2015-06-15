@@ -41,7 +41,15 @@ switch type
         stopband_att = 50;
         
         [num, den] = ellip(order, ripple, stopband_att, fcnorm);
-
+        
+    case 'matched'
+        % order = pulse shape function
+        % fcnorm = 1 / oversampling factor
+        pshape = order;
+        num = conj(fliplr(pshape(1:ceil(1/fcnorm))));
+        num = num/length(num);
+        den = 1;
+    
     case 'fir'
         % FIR
         imp_length = 100;
@@ -118,7 +126,7 @@ switch type
             warning('fiber Bragg grating filter did not converge to desired bandwidth')
         end
         
-        N = 2^10;
+        N = 2^8;
         df = 1/N;
         f = -0.5:df:0.5-df; 
                

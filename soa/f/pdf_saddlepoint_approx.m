@@ -30,11 +30,6 @@ function px = pdf_saddlepoint_approx(x, D, xn, varASE, varTher, verbose)
             Ksx = expoent(shat, x(kk), D, xn(:, k), varASE, varTher);
             d2Ksx = d2expoent(shat, D, xn(:, k), varASE, varTher);
             
-%             if d2Ksx < 0
-%                 warning('(%d, %g) resulted in kp2 < 0\n', k, x(kk));
-%                 d2Ksx
-%             end
-
             px(kk, k) = real(exp(Ksx)/sqrt(2*pi*d2Ksx)); 
 
         end
