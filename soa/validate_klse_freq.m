@@ -1,6 +1,7 @@
 %% Calulate MGF for the system with SOA
 clear, clc, close all
 
+addpath ../f
 addpath f
 
 % M-PAM

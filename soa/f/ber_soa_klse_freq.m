@@ -21,15 +21,7 @@ f = (-0.5:df:0.5-df).';
 fm = f(abs(f) <= Fmax);
 
 % Generate optical signal
-try 
-    dataTX = debruijn_generator(mpam.M, sim.L).' - 1;
-catch e % can fail for some states of the random number generator
-    warning(e.message)
-    load rng_state  % state that works
-    rng(rng_state);
-    dataTX = debruijn_generator(mpam.M, sim.L).' - 1;
-    rng('shuffle')
-end
+dataTX = debruijn_sequence(mpam.M, sim.L).';
 
 % Generate symbols
 Pd = mpam.a(gray2bin(dataTX, 'pam', mpam.M) + 1);

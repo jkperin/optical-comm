@@ -30,6 +30,7 @@ classdef soa
         end
         
         function N0 = get.N0(obj)
+            % assumming Gain >> 1
             N0 = (obj.Gain - 1)*10^(obj.Fn/10)/2*(obj.h*obj.c/obj.lamb); % one-sided PSD
         end
         

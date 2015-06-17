@@ -11,7 +11,7 @@ addpath ../apd
 addpath ../apd/f
 
 % Simulation parameters
-sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
 sim.Mct = 8;     % Oversampling ratio to simulate continuous time (must be even)  
 sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.M = 4; % Ratio of optical filter BW and electric filter BW (must be integer)
@@ -56,12 +56,12 @@ pin = apd(0, 0, Inf, rx.R, rx.Id);
 % (GaindB, ka, GainBW, R, Id) 
 % finite Gain x BW
 apd_fin = apd(8.2761, 0.09, 340e9, rx.R, rx.Id); % gain optimized for uniformly-spaced 4-PAM with matched filter
-% apd_fin.optimize_gain(mpam, tx, rx, sim);
+apd_fin.optimize_gain(mpam, tx, rx, sim);
 
 if strcmp(mpam.level_spacing, 'uniform')
      % uniform, infinite Gain x BW (4-PAM)
     apd_inf = apd(11.0075, 0.09, Inf, 1, 10e-9); % gain optimized for 4-PAM with matched filter
-%     apd_inf.optimize_gain(mpam, tx, rx, sim);
+    apd_inf.optimize_gain(mpam, tx, rx, sim);
 
 %     apd_inf = apd(8.4888, 0.09, Inf, rx.R, rx.Id); % uniform, infinite Gain x BW (8-PAM)
 elseif strcmp(mpam.level_spacing, 'nonuniform')
@@ -83,8 +83,9 @@ ber_pin = apd_ber(mpam, tx, pin, rx, sim);
 %% Figures
 figure, hold on, grid on, box on
 plot(tx.PtxdBm, log10(ber_soa.est), '-b')
-plot(tx.PtxdBm, log10(ber_apd_fin.est), '--r')
-plot(tx.PtxdBm, log10(ber_apd_inf.est), '--m')
+
+plot(tx.PtxdBm, log10(ber_apd_fin.gauss), '-r')
+plot(tx.PtxdBm, log10(ber_apd_inf.gauss), '-m')
 plot(tx.PtxdBm, log10(ber_pin.gauss), '-k')
 
 plot(tx.PtxdBm, log10(ber_soa.count), '-ob')
@@ -93,8 +94,8 @@ plot(tx.PtxdBm, log10(ber_apd_inf.count), '-om')
 plot(tx.PtxdBm, log10(ber_pin.count), '-ok')
 
 plot(tx.PtxdBm, log10(ber_soa.gauss), '--b')
-plot(tx.PtxdBm, log10(ber_apd_fin.gauss), '-r')
-plot(tx.PtxdBm, log10(ber_apd_inf.gauss), '-m')
+% plot(tx.PtxdBm, log10(ber_apd_fin.est), '--r')
+% plot(tx.PtxdBm, log10(ber_apd_inf.est), '--m')
 
 xlabel('Received Power (dBm)')
 ylabel('log(BER)')

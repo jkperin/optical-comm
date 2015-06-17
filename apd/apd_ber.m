@@ -4,8 +4,6 @@
 
 function [ber, mpam] = apd_ber(mpam, tx, apd, rx, sim)
 
-addpath f
-
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
 %% Time and frequency

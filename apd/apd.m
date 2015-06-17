@@ -12,7 +12,7 @@ classdef apd < handle
         GaindB
     end
     
-    properties (Constant)
+    properties (Constant, Hidden)
         h = 6.62606957e-34; % Planck
         q = 1.60217657e-19; % electron charge
         c = 299792458;      % speed of light
@@ -27,6 +27,21 @@ classdef apd < handle
     properties (Dependent, GetAccess=private)
         a % auxiliary variable G = 1/(1-ab)
         b % auxiliary variable b = 1/(1-ka)
+    end
+    
+    methods (Access=private)        
+        function M = Ms(this, s)
+            options = optimoptions('fsolve', 'Display', 'off');
+            exitflag = 2;
+            k = 1;
+            while exitflag ~= 1 && k < 10
+                [M, ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s), 4*randn(1), options);
+                k = k + 1;
+            end
+            if exitflag ~= 1 
+                warning('Calculation of M did not converge');
+            end  
+        end       
     end
     
     methods
@@ -50,21 +65,32 @@ classdef apd < handle
            
         end
                            
-        %% Excess noise factor
-        function Fa = get.Fa(this) % Excess noise
+        %% Get Methods
+        function Fa = get.Fa(this) % excess noise factor
             Fa = this.ka*this.Gain + (1 - this.ka)*(2 - 1/this.Gain); % Agrawal 4.4.18 (4th edition)
         end
                
-        function GaindB = get.GaindB(this) % Excess noise
+        function GaindB = get.GaindB(this) % excess noise factor
             GaindB = 10*log10(this.Gain);
         end
         
-        function b = get.b(this)
+        function b = get.b(this) % implicit relations of APD: beta = 1/(1 - ka)
             b = 1/(1-this.ka);
         end
         
-        function a = get.a(this)
+        function a = get.a(this) % implicit relations of APD: G = 1/(1 - ab)
             a =  1/this.b*(1-1/this.Gain);
+        end
+        
+        %% Set methods
+        function set.GaindB(this, GdB)
+            this.Gain = 10^(GdB/10); % set Gain, since GaindB is dependent
+        end
+        
+        %% Tate of Possion process for a given P in a interval dt
+        function l = lambda(this, P, dt) 
+            % From Personick, "Statistics of a General Class of Avalanche Detectors With Applications to Optical Communication"
+            l = (this.R*P + this.Id)*dt/this.q; 
         end
                      
         %% Detection
@@ -88,14 +114,10 @@ classdef apd < handle
             % output distributed according to that pmf
             elseif  strcmp(noise_stats, 'doubly-stochastic')  
                 Plevels = unique(Pin);
-                
-                % pulse width
-                dt = 1/fs; 
-               
+                               
                 output = zeros(size(Pin));
                 for k = 1:length(Plevels)
-                    lambda = (this.R*Plevels(k) + this.Id)*dt/this.q; % Personick, "Statistics of a General Class of Avalanche Detectors With Applications to Optical Communication"
-                    [px, x] = this.output_pdf_saddlepoint(lambda, fs, 0); % doesn't include thermal noise here
+                    [px, x] = this.output_pdf_saddlepoint(this.lambda(Plevels(k), 1/fs), fs, 0); % doesn't include thermal noise here
                     
                     cdf = cumtrapz(x, px);
                                                    
@@ -106,7 +128,6 @@ classdef apd < handle
                     dist = abs(bsxfun(@minus, u, cdf));
                     [~, ix] = min(dist, [], 2);
                     output(pos) = x(ix); % distributed accordingly to px
-
                 end
                 
                 output = output + sqrt(N0*fs/2).*randn(size(Pin)); % includes thermal noise
@@ -117,6 +138,7 @@ classdef apd < handle
         
         % Optimize apd gain for a given system
         function optimize_gain(this, mpam, tx, rx, sim)
+            disp('Optimizing APD gain...')
 
             if strcmp(mpam.level_spacing, 'uniform')
                 % Optmize gain for uniform spacing: find Gapd that minimizes the required
@@ -248,46 +270,20 @@ classdef apd < handle
             dMds = @(M) M*(1 + a*(M-1))/((1 + a*(M-1) - a*b*M)); 
 
             %% Calculate Saddlepoint
-            shat = -sgn;
-            exitflag = 2;
-            while sign(shat) ~= sgn && exitflag ~= 1
-                % Solve value of M(e^s) at the saddlepoint 
-                % Can't use fzero because M(e^s) might be complex
-                [Mhat, 	~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M))...
-                    + varTherm*(log(M) - b*log(1 + a*(M-1))) - nthresh - 1/(log(M) - b*log(1 + a*(M-1))), 2*randn(1), options);
+            % Solve value of s 
+            % Can't use fzero because objective function might be complex
+            % Use real(s) instead of s to force real solution
+            [shat, ~, exitflag] = fsolve(@(s) lambda*(this.Ms(real(s))*...
+                (1 + a*(this.Ms(real(s))-1))/(1 + a*(this.Ms(real(s))-1) - a*b*this.Ms(real(s))))...
+                + varTherm*(log(this.Ms(real(s))) - b*log(1 + a*(this.Ms(real(s))-1)))...
+                - nthresh - 1/(log(this.Ms(real(s))) - b*log(1 + a*(this.Ms(real(s))-1))), 0.7*sgn, options);
 
-                if exitflag ~= 1
-                    warning('tail_saddlepoint_approx: Did not converge to a solution of M (1)');
-                end
-
-                % From M(e^s) at the saddlepoint calculate real part of s
-                shat = real(log(Mhat) - b*log(1 + a*(Mhat-1)));
+            if exitflag ~= 1
+                warning('tail_saddlepoint_approx: Did not converge to a solution of M (1)');
             end
             
-%             if sign(shat) ~= sgn
-%                 % Solve value of M(e^s) at the saddlepoint 
-%                 % Can't use fzero because M(e^s) might be complex
-%                 [Mhat, fval, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M))...
-%                     + varTherm*(log(M) - b*log(1 + a*(M-1))) - nthresh - 1/(log(M) - b*log(1 + a*(M-1))), sgn*2, options);
-% 
-%                 if exitflag ~= 1 % if didn't converge try again with opposite sgn
-%                     [Mhat, fval, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M))...
-%                         + varTherm*(log(M) - b*log(1 + a*(M-1))) - nthresh - 1/(log(M) - b*log(1 + a*(M-1))), -sgn*2, options);
-% 
-%                     if exitflag ~= 1
-%                         warning('tail_saddlepoint_approx: Did not converge to a solution of M (2)');
-%                     end
-%                 end
-%             end
-% 
-%             % From M(e^s) at the saddlepoint calculate real part of s
-%             shat = real(log(Mhat) - b*log(1 + a*(Mhat-1)));
-        
-            % Get new M(shat)
-            [Mhat, ~, exitflag] = fsolve(@(M) M*(1 + a*(M-1))^(-b) - exp(shat), real(Mhat), options);
-            if exitflag ~= 1 
-                warning('Calculation of M at the saddlepoint did not converge');
-            end            
+            shat = real(shat);
+            Mhat = this.Ms(shat);                 
 
             % First derivative of M(s) at the saddlepoint
             dMhat = dMds(Mhat);
@@ -416,7 +412,7 @@ classdef apd < handle
 
                 % Second derivative of M(e^s)
                 d2M = (pprime.*qq - qprime.*p)./qq.^2;
-            end
+            end            
         end
         
         % Calculate noise pdf for a sgnal levels Plevels with duration dt.
@@ -436,9 +432,7 @@ classdef apd < handle
                     continue
                 end
                 
-                lambda = (this.R*Plevels(k) + this.Id)*dt/this.q; % Personick, "Statistics of a General Class of Avalanche Detectors With Applications to Optical Communication"
-                
-                [lpdf(k).p, lpdf(k).I] = this.output_pdf_saddlepoint(lambda, fs, 0);
+                [lpdf(k).p, lpdf(k).I] = this.output_pdf_saddlepoint(this.lambda(Plevels(k), dt), fs, 0);
                                                
                 lpdf(k).mean = trapz(lpdf(k).I, lpdf(k).I.*lpdf(k).p);
                 lpdf(k).mean_gauss = Plevels(k)*this.Gain;
