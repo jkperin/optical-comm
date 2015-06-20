@@ -92,35 +92,15 @@ tx.kappa = 1;                         % current to optical power conversion (dc 
 
 % tx.dlamb = 20e-9;                      % WDM channel spacing (m)
 
-% Interpolation type. Could be one of the following
-% {'ideal', 'butter', 'cheby1', 'ellipt', 'gaussian', 'bessel', 'fir'}
-% Ideal is the ideal FIR interpolator design by interp
-% The others refer to the type of filter that is used after ZOH
-tx.filter = 'bessel';
-tx.filter_order = 5;                % filter order
-tx.filter_cutoff = 1/ofdm.Ms;       % Cut-off frequency normalized by ofdm.fs
-tx.imp_length = 512;                % length of the impulse response of the filter
+% Transmitter filter (ZOH + filter)
+tx.filter = design_filter('bessel', 5, 1/(ofdm.Ms*sim.Mct));
 
-[bfilt, afilt] = design_filter(tx.filter, tx.filter_order, tx.filter_cutoff, sim.Mct);
-                 
-switch tx.filter
-    case 'ideal'
-        tx.gdac = bfilt/sum(bfilt);       
-        tx.gdac_delay = grpdelay(bfilt, afilt, 1);
-    otherwise
-        bzoh = ones(1, sim.Mct);    % Grp delay = (Mct-1)/2
-        bdac = conv(bfilt, bzoh);   % numerator of DAC transfer function (Gzoh x Gfilt) 
-        adac = afilt;               % denominator of DAC transfer function (Gzoh x Gfilt) ZOH is FIR
-        tx.gdac = impz(bdac, adac, tx.imp_length).';    
-
-        tx.gdac = tx.gdac/sum(tx.gdac);
-        tx.gdac_delay = grpdelay(bdac, adac, 1);    % calculates the group delay by approximating the filter as an FIR filter
-                                                    % whose impulse response is given by tx.gdac   
-
-        % Check if number of points used is high enough to attain desired
-        % resolution
-        assert(abs(tx.gdac(end)) < imp_resolution, 'tx.gdac length is not high enough');
-end
+% Convolve with ZOH
+bzoh = ones(1, sim.Mct);
+tx.filter.num = conv(tx.filter.num, bzoh);
+tx.filter.grpdelay = grpdelay(tx.filter.num, tx.filter.den, 1);
+tx.filter.H = @(f) freqz(tx.filter.num, tx.filter.den, 2*pi*f).*exp(1j*2*pi*f*tx.filter.grpdelay);
+tx.filter.noisebw = @(fs) noisebw(tx.filter.num, tx.filter.den, 2^15, fs); % equivalent two-sided noise bandwidth over larger number of samples (2^15) given a sampling frequency fs 
 
 %% Receiver parameters
 rx.R = 1;                           % responsivity
@@ -128,20 +108,7 @@ rx.NEP = 30e-12;                    % Noise equivalent power of the TIA at the r
 rx.Sth = rx.R^2*rx.NEP^2/2;            % two-sided psd of thermal noise at the receiver (Sth = N0/2)
 
 % Antialiasing filter
-rx.filter = 'gaussian';
-rx.filter_order = 4;                            % filter order
-rx.filter_cutoff = 1/ofdm.Ms;                   % Cut-off frequency normalized by ofdm.fs
-rx.imp_length = 512;                            % length of the impulse response of the filter
-
-[bfilt, afilt] = design_filter(rx.filter, rx.filter_order, rx.filter_cutoff, sim.Mct);
-
-rx.gadc = impz(bfilt, afilt, rx.imp_length).';  % impulse response
-rx.gadc = rx.gadc/sum(rx.gadc);                 % normalize so frequency response at 0 Hz is 0 dB
-rx.gadc_delay = grpdelay(bfilt, afilt, 1);
-
-% Check if number of points used is high enough to attain desired
-% resolution
-assert(abs(rx.gadc(end)) < imp_resolution, 'rx.gadc length is not high enough');
+rx.filter = design_filter('gaussian', 4, 1/(ofdm.Ms*sim.Mct));
 
 %% Calculate cyclic prefix
 [ofdm.Npre_os, ofdm.Nneg_os, ofdm.Npos_os] = cyclic_prefix(ofdm, tx, rx, sim);
