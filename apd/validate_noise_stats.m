@@ -29,19 +29,17 @@ for k = 1:length(Plevels)
     out_gauss = apd.detect(Pin, mpam.Rs, 'gaussian');
     out_doubl = apd.detect(Pin, mpam.Rs, 'gaussian');
     
-%     out_doubl = out_doubl + sqrt(mpam.Rs/2*(20e-12)^2)*randn(size(out_doubl));
+    out_doubl = out_doubl + sqrt(mpam.Rs/2*(20e-12)^2)*randn(size(out_doubl));
 
     [p_hist, Ihist] = hist(out_doubl, 50);
     p_hist = p_hist/trapz(Ihist, p_hist);
     
-    dt = 1/(mpam.Rs);
-    lambda = (apd.R*Plevels(k) + apd.Id)*dt/apd.q;
-    [px, x] = apd.output_pdf_saddlepoint(lambda, mpam.Rs, (20e-12)^2);
+    [px, x] = apd.output_pdf_saddlepoint(Plevels(k), mpam.Rs, (20e-12)^2);
     for kk = 1:length(x)
-        [cdf_left(kk), shat_left(kk)] = apd.tail_saddlepoint_approx(x(kk), lambda, mpam.Rs, (20e-12)^2, 'left');
-        [cdf_right(kk), shat_right(kk)] = apd.tail_saddlepoint_approx(x(kk), lambda, mpam.Rs, (20e-12)^2, 'right');
+        [cdf_left(kk), shat_left(kk)] = apd.tail_saddlepoint_approx(x(kk), Plevels(k), mpam.Rs, (20e-12)^2, 'left');
+        [cdf_right(kk), shat_right(kk)] = apd.tail_saddlepoint_approx(x(kk), Plevels(k), mpam.Rs, (20e-12)^2, 'right');
     end
-%     
+    
     figure(1), hold on
     plot(1e3*pdfs(k).I, pdfs(k).p)
     plot(1e3*pdfs(k).I, pdfs(k).p_gauss)
@@ -50,7 +48,7 @@ for k = 1:length(Plevels)
     legend('doubly-stochastic', 'gaussian', 'histogram')
     xlabel('Current (mA)', 'FontSize', 12)
     ylabel('pdf', 'FontSize', 12)
-%     axis([0 1e3*pdfs(k).I(end) 0 5e5])
+    axis([0 1e3*pdfs(k).I(end) 0 5e5])
 
     figure, hold on
     plot(x, cumtrapz(x, px))

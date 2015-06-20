@@ -29,19 +29,32 @@ classdef apd < handle
         b % auxiliary variable b = 1/(1-ka)
     end
     
-    methods (Access=private)        
+    methods (Access=public)        
+%         function M = Ms(this, s)
+%             options = optimoptions('fsolve', 'Display', 'off');
+%             exitflag = 2;
+%             k = 1;
+%             while exitflag ~= 1 && k < 10
+%                 [M, ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s), 4*randn(1), options);
+%                 k = k + 1;
+%             end
+%             if exitflag ~= 1 
+%                 warning('Calculation of M did not converge');
+%             end  
+%         end       
+
         function M = Ms(this, s)
             options = optimoptions('fsolve', 'Display', 'off');
-            exitflag = 2;
-            k = 1;
-            while exitflag ~= 1 && k < 10
-                [M, ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s), 4*randn(1), options);
-                k = k + 1;
-            end
-            if exitflag ~= 1 
-                warning('Calculation of M did not converge');
+            for k = 1:length(s)
+                [M(k), ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s(k)), 2*sign(s(k)), options);
+                if exitflag ~= 1 
+                    warning('Calculation of M(s) did not converge');
+    %                 [s, M]
+                end
             end  
+%             [s, M]
         end       
+
     end
     
     methods
@@ -87,7 +100,7 @@ classdef apd < handle
             this.Gain = 10^(GdB/10); % set Gain, since GaindB is dependent
         end
         
-        %% Tate of Possion process for a given P in a interval dt
+        %% Rate of Possion process for a given P in a interval dt
         function l = lambda(this, P, dt) 
             % From Personick, "Statistics of a General Class of Avalanche Detectors With Applications to Optical Communication"
             l = (this.R*P + this.Id)*dt/this.q; 
@@ -117,13 +130,13 @@ classdef apd < handle
                                
                 output = zeros(size(Pin));
                 for k = 1:length(Plevels)
-                    [px, x] = this.output_pdf_saddlepoint(this.lambda(Plevels(k), 1/fs), fs, 0); % doesn't include thermal noise here
+                    [px, x] = this.output_pdf_saddlepoint(Plevels(k), fs, 0); % doesn't include thermal noise here
                     
                     cdf = cumtrapz(x, px);
                                                    
                     pos = (Pin == Plevels(k));
                     
-                    % Sample according to pmf pk_P
+                    % Sample according to pmf px
                     u = rand(sum(pos), 1); % uniformly-distributed
                     dist = abs(bsxfun(@minus, u, cdf));
                     [~, ix] = min(dist, [], 2);
@@ -182,55 +195,6 @@ classdef apd < handle
             end
 
         end
-
-        %% Output sgnal pmf (without thermal noise)
-        % pn = probability of observing n electrons at the output
-        % lambda = rate of the Poisson process
-        function pn = output_pmf(this, lambda)          
-            pn = exp(-lambda); % n = 0;
-            
-            psum = pn;
-            k = 0; % current iteration   
-            r = 0;
-            mr1 = this.calc_mr(r+1);
-            while psum  < this.cdf_accuracy && k < this.Niterations              
-                pn(k+2) = lambda/(k+1)*sum((r+1).*mr1.*fliplr(pn(r+1)));
-                
-                psum = psum + pn(k+2);
-                
-                k = k + 1;
-                
-                r = [r k];
-                
-                mr1 = [mr1 calc_mr(k+1)];
-            end
-            
-            if k >= this.Niterations
-                warning(sprintf('output_pmf(this, lambda): max number of iterations exceeded. pmf accounts only for %f of probability', psum));
-            end
-            
-            % Calculate mr given in C. Helstrom "Computattion of Output
-            % Electron Distributions in Avalanche Photodiodes"
-            function mr = calc_mr(r)
-
-                P2 = (r-1)*log(this.a);
-                P3 = (r*(this.b-1)+1)*log(1 - this.a);
-                P4 = sum(log(1:r)); % P4 = log(factorial(r));
-
-                if r < 100 % calculate exactly
-                    P1 = log(gamma(this.b*r + 1));
-                    P5 = log(gamma(r*(this.b-1) + 2));
-                else % use Stirling's formula for the factorial and Gamma functions
-                    stirling_approx = @(z) log(sqrt(2*pi/z)) + z*log(z/exp(1));
-                    P1 = stirling_approx(this.b*r + 1);
-                    P5 = stirling_approx(r*(this.b-1) + 2);                
-                end      
-
-                P = P1 + P2 + P3 - P4 - P5;
-
-                mr = exp(P);
-            end
-        end
                 
         %% Output sgnal distribution including thermal noise using the saddlepoint approximation
         % px = output sgnal pdf
@@ -238,25 +202,27 @@ classdef apd < handle
         % lambda = rate of the Poisson process
         % N0 = thermal noise psd
         % fs = sampling frequency
-        function [px, shat] = tail_saddlepoint_approx(this, xthresh, lambda, fs, N0, tail)
+        function [px, shat] = tail_saddlepoint_approx(this, xthresh, P, fs, N0, tail)
             options = optimoptions('fsolve', 'Display', 'off');
             
             % From implicit relations of APD: beta = 1/(1 - ka) and G = 1/(1 - ab)
             a = this.a;
             b = this.b;
 
-            if lambda == 0
+            if P == 0
                 px = 1;
                 return;
             end
+            
+            lambda = this.lambda(P, 1/fs);
 
-            if strcmp(tail, 'right')
-                sgn = 1;
-            elseif strcmp(tail, 'left')
-                sgn = -1;
-            else
-                error('invalid option');
-            end
+%             if strcmp(tail, 'right')
+%                 sgn = 1;
+%             elseif strcmp(tail, 'left')
+%                 sgn = -1;
+%             else
+%                 error('invalid option');
+%             end
            
             dt = 1/fs; % pulse width
             
@@ -273,18 +239,29 @@ classdef apd < handle
             % Solve value of s 
             % Can't use fzero because objective function might be complex
             % Use real(s) instead of s to force real solution
-            [shat, ~, exitflag] = fsolve(@(s) lambda*(this.Ms(real(s))*...
-                (1 + a*(this.Ms(real(s))-1))/(1 + a*(this.Ms(real(s))-1) - a*b*this.Ms(real(s))))...
-                + varTherm*(log(this.Ms(real(s))) - b*log(1 + a*(this.Ms(real(s))-1)))...
-                - nthresh - 1/(log(this.Ms(real(s))) - b*log(1 + a*(this.Ms(real(s))-1))), 0.7*sgn, options);
+            % Solve value of M(e^s) at the saddlepoint 
+            % Can't use fzero because M(e^s) might be complex
+            [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M))...
+                + varTherm*(log(M) - b*log(1 + a*(M-1))) - nthresh - 1/(log(M) - b*log(1 + a*(M-1))), 1e-2, options);
 
-            if exitflag ~= 1
-                warning('tail_saddlepoint_approx: Did not converge to a solution of M (1)');
+            if exitflag ~= 1 % if didn't converge try again with opposite sgn
+                [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M))...
+                    + varTherm*(log(M) - b*log(1 + a*(M-1))) - nthresh - 1/(log(M) - b*log(1 + a*(M-1))), -1e-2, options);
+                if exitflag ~= 1
+                    warning('Calculation of M at the saddlepoint did not converge');
+                end
             end
             
-            shat = real(shat);
-            Mhat = this.Ms(shat);                 
+            % From M(e^s) at the saddlepoint calculate real part of s
+            shat = real(log(Mhat) - b*log(1 + a*(Mhat-1)));
+            
+            % Get new M(shat)
+            [Mhat, ~, exitflag] = fsolve(@(M) M*(1 + a*(M-1))^(-b) - exp(shat), real(Mhat), options);
+            if exitflag ~= 1 
+                warning('Calculation of M at the saddlepoint did not converge');
+            end          
 
+            
             % First derivative of M(s) at the saddlepoint
             dMhat = dMds(Mhat);
 
@@ -320,28 +297,33 @@ classdef apd < handle
         % lambda = rate of the Poisson process
         % N0 = thermal noise psd
         % fs = sampling frequency
-        function [px, x] = output_pdf_saddlepoint(this, lambda, fs, N0)
+        function [px, x] = output_pdf_saddlepoint(this, P, fs, N0)
             options = optimoptions('fsolve', 'Display', 'off');
             
             % From implicit relations of APD: beta = 1/(1 - ka) and G = 1/(1 - ab)
             a = this.a;
             b = this.b;
 
-            if lambda == 0
+            if P == 0
                 px = 1;
                 x = 0;
                 return;
             end
+            
+            % Rate of Poisson process
+            lambda = this.lambda(P, 1/fs);
 
             dt = 1/fs; % pulse width
             
             % Calculate electron number variance corresponding to thermal noise
             varTherm = (N0*fs/2)*(dt/this.q)^2;
 
-            % 
-            dMds = @(M) M*(1 + a*(M-1))/((1 + a*(M-1) - a*b*M)); %  dM(e^s)/ds
+            % dM(e^s)/ds
+            dMds = @(M) M*(1 + a*(M-1))/((1 + a*(M-1) - a*b*M));
 
             % Uses gaussian appproximation to estimate number of points sufficient to obtain great part of the pdf
+            % this.Ptail is the probability of the tails not spanned by the
+            % calculated pdf
             nmean = lambda*this.Gain;
             nvar = this.Gain^2*this.Fa*lambda + varTherm;
             npos = ceil(sqrt(nvar)*qfuncinv(this.Ptail));
@@ -351,13 +333,13 @@ classdef apd < handle
             px = zeros(size(N));
             for k = 1:length(N)
                 n = N(k);
-
-                % Solve value of M(e^s) at the saddlepoint 
+                
+               % Solve value of M(e^s) at the saddlepoint 
                 % Can't use fzero because M(e^s) might be complex
-                [Mhat, fval, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M)) + varTherm*(log(M) - b*log(1 + a*(M-1))) - n, 1, options);
+                [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M)) + varTherm*(log(M) - b*log(1 + a*(M-1))) - n, 1, options);
 
                 if exitflag ~= 1 % if didn't converge try again with opposite sgn
-                    [Mhat, fval, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M)) + varTherm*(log(M) - b*log(1 + a*(M-1))) - n, -1, options);
+                    [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M)) + varTherm*(log(M) - b*log(1 + a*(M-1))) - n, -1, options);
                     if exitflag ~= 1
                         warning('Calculation of M at the saddlepoint did not converge');
                         continue
@@ -366,13 +348,15 @@ classdef apd < handle
                
                 % From M(e^s) at the saddlepoint calculate real part of s
                 shat = real(log(Mhat) - b*log(1 + a*(Mhat-1)));
-                               
+                
+%                 Mhat = this.Ms(shat);
+
                 % Get new M(shat)
                 [Mhat, ~, exitflag] = fsolve(@(M) M*(1 + a*(M-1))^(-b) - exp(shat), real(Mhat), options);
                 if exitflag ~= 1 
                     warning('Calculation of M at the saddlepoint did not converge');
-                end            
-
+                end  
+                
                 % First derivative of M(s) at the saddlepoint
                 dMhat = dMds(Mhat);
 
@@ -432,7 +416,7 @@ classdef apd < handle
                     continue
                 end
                 
-                [lpdf(k).p, lpdf(k).I] = this.output_pdf_saddlepoint(this.lambda(Plevels(k), dt), fs, 0);
+                [lpdf(k).p, lpdf(k).I] = this.output_pdf_saddlepoint(Plevels(k), fs, 0);
                                                
                 lpdf(k).mean = trapz(lpdf(k).I, lpdf(k).I.*lpdf(k).p);
                 lpdf(k).mean_gauss = Plevels(k)*this.Gain;
@@ -442,6 +426,56 @@ classdef apd < handle
                 lpdf(k).p_gauss = pdf('normal', lpdf(k).I, lpdf(k).mean_gauss, sqrt(lpdf(k).var_gauss));
             end
         end
+        
+        %% Output sgnal pmf (without thermal noise)
+        % pn = probability of observing n electrons at the output
+        % lambda = rate of the Poisson process
+        function pn = output_pmf(this, lambda)          
+            pn = exp(-lambda); % n = 0;
+            
+            psum = pn;
+            k = 0; % current iteration   
+            r = 0;
+            mr1 = this.calc_mr(r+1);
+            while psum  < this.cdf_accuracy && k < this.Niterations              
+                pn(k+2) = lambda/(k+1)*sum((r+1).*mr1.*fliplr(pn(r+1)));
+                
+                psum = psum + pn(k+2);
+                
+                k = k + 1;
+                
+                r = [r k];
+                
+                mr1 = [mr1 calc_mr(k+1)];
+            end
+            
+            if k >= this.Niterations
+                warning(sprintf('output_pmf(this, lambda): max number of iterations exceeded. pmf accounts only for %f of probability', psum));
+            end
+            
+            % Calculate mr given in C. Helstrom "Computattion of Output
+            % Electron Distributions in Avalanche Photodiodes"
+            function mr = calc_mr(r)
+
+                P2 = (r-1)*log(this.a);
+                P3 = (r*(this.b-1)+1)*log(1 - this.a);
+                P4 = sum(log(1:r)); % P4 = log(factorial(r));
+
+                if r < 100 % calculate exactly
+                    P1 = log(gamma(this.b*r + 1));
+                    P5 = log(gamma(r*(this.b-1) + 2));
+                else % use Stirling's formula for the factorial and Gamma functions
+                    stirling_approx = @(z) log(sqrt(2*pi/z)) + z*log(z/exp(1));
+                    P1 = stirling_approx(this.b*r + 1);
+                    P5 = stirling_approx(r*(this.b-1) + 2);                
+                end      
+
+                P = P1 + P2 + P3 - P4 - P5;
+
+                mr = exp(P);
+            end
+        end
+        
         
     end
 end

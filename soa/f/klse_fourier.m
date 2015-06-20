@@ -13,7 +13,7 @@ function [U, D, Fmax] = klse_fourier(rx, sim, N)
 % Bandwidth to account for great part of energy
 H = rx.optfilt.H(sim.f/sim.fs);
 H = cumtrapz(sim.f/sim.fs, abs(H).^2)/trapz(sim.f/sim.fs, abs(H).^2);
-Fmax = sim.f(find(H >= 1-1e-6, 1, 'first'))/sim.fs;
+Fmax = sim.f(find(H >= 1-1e-4, 1, 'first'))/sim.fs;
 
 % Redefine frequency
 df = 1/N;
@@ -22,24 +22,30 @@ f = ft(abs(ft) <= Fmax);
 L = length(f);
 
 % Annonymous functions of frequency response H(f/fs)
-Ho = rx.optfilt.H; 
 He = rx.elefilt.H;
-Kf = @(f1, f2) Ho(f1).*He(f1-f2).*conj(Ho(f2));
+Ho = rx.optfilt.H(f); 
 
+% !! Since the frequency response functions are in discrete time, Fmax <= 0.25,
+% otherwise He(f) might be calculated up to [-1, 1]. A warning is issued if
+% Fmax > 0.25. This was also changed in klse_freq.
 A = zeros(L);
 for k = 1:L
-    A(:, k) = Kf(ones(L, 1)*f(k), f);
+    A(:, k) = Ho(k)*He(f(k)-f).*conj(Ho);
 end
 
 % Calcualte eigenvalues
-% [U, D] = eigs(A, sim.Me);
-[U, D] = eig(A);
+[U, D] = eigs(A, min(sim.Me, L));
+% [U, D] = eig(A);
 
 % check
 % norm(A - U*D*U')
 
-% Rearrenge eigenvalues and eigenvectors in descending order
+% 
 D = real(diag(D));
+
+%
+disp('klse_fourier: ratio between first and last eigenvalues in dB')
+DU = 20*log10(abs(D(1)/D(end)))
 
 %% Expansion using different bases for noise and signal (reduces number
 % of eigenvalues)

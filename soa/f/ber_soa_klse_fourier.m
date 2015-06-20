@@ -50,10 +50,8 @@ fm = f(abs(f) <= Fmax);
 
 % Calculate output
 xk = zeros(length(fm), N);
-yk = zeros(length(x), 1); % output signal (noiseless)
 for k = 1:length(x)
     xk(:, k) = (xn.*exp(1j*2*pi*fm*(k-1)));
-    yk(k) = real(xk(:, k)'*(U*diag(D)*U')*xk(:, k));
 end
 
 % Used to calculate non-centrality parameter of Chi-Squared distributions
@@ -63,10 +61,17 @@ ck = U'*xk;
 
 % Discard zeros and downsample
 ix = sim.Mct*Nzero+sim.Mct/2:sim.Mct:N-sim.Mct*Nzero;
-yd = yk(ix);
 ck = ck(:, ix);
 
 if sim.verbose
+    A = U*diag(D)*U';
+    yk = zeros(length(x), 1); % output signal (noiseless)
+    for k = 1:legnth(x)
+        yk(k) = real(xk(:, k)'*A*xk(:, k));
+    end
+    
+    yd = yk(ix);
+    
     figure(102), hold on
     plot([zeros(Nzero*sim.Mct, 1); Pt; zeros(Nzero*sim.Mct, 1)])
     plot(yk, '-k')

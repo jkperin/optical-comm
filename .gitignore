@@ -7,6 +7,7 @@
 *.asv
 *.tikz
 *.zip
+*.pdf
 ofdm/trash/
 soa/trash/
 apd/trash/

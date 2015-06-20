@@ -12,26 +12,23 @@ function [D, Phi, Fmax, nu] = klse_freq(rx, sim)
 % Calculate Legendre-Gauss nodes and weights
 H = rx.optfilt.H(sim.f/sim.fs);
 H = cumtrapz(sim.f/sim.fs, abs(H).^2)/trapz(sim.f/sim.fs, abs(H).^2);
-Fmax = sim.f(find(H >= 1-1e-4, 1, 'first'))/sim.fs;
+Fmax = sim.f(find(H >= 1-1e-5, 1, 'first'))/sim.fs;
 
 % Legendre-Gauss quadrature
 [nu,w] = lgwt(sim.Me, -Fmax, Fmax);
 nu = nu(end:-1:1); % put in the right order
 w = w(end:-1:1);
 
-Ho = rx.optfilt.H; % annonymous functions of frequency response H(f/fs)
+% Annonymous functions of frequency response H(f/fs)
 He = rx.elefilt.H;
-Kf = @(f1, f2) Ho(f1).*He(f1-f2).*conj(Ho(f2));
+Ho = rx.optfilt.H(nu); 
 
-% % Check accuracy
-% ff = linspace(-Fmax, Fmax, 2^14);
-% log(trapz(ff, abs(Ho(ff)).^2)) - log(sum(w.*abs(Ho(nu)).^2))
-% log(trapz(ff, abs(He(ff)).^2)) - log(sum(w.*abs(He(nu).^2)))
-
-
-K = zeros(sim.Me*[1 1]);
+% !! Since the frequency response functions are in discrete time, Fmax <= 0.25,
+% otherwise He(f) might be calculated up to [-1, 1]. A warning is issued if
+% Fmax > 0.25. This was also changed in klse_freq.
+K = zeros(sim.Me);
 for k = 1:sim.Me
-    K(:, k) = Kf(nu(k)*ones(sim.Me, 1), nu);
+    K(:, k) = Ho(k)*He(nu(k)-nu).*conj(Ho);
 end
 
 % Calculate eigenvalues
@@ -45,6 +42,10 @@ D = real(diag(D));
 % Rearrenge eigenvalues and eigenvectors in descending order
 [D, ix] = sort(abs(D), 'descend');
 B = B(:, ix);
+
+%
+disp('klse_fourier: ratio between first and last eigenvalues in dB')
+DU = 20*log10(abs(D(1)/D(end)))
 
 Phi = diag(sqrt(1./w))*B; % eigenfunctions (not necessarily normalized)
 

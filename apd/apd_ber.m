@@ -6,15 +6,6 @@ function [ber, mpam] = apd_ber(mpam, tx, apd, rx, sim)
 
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
-%% Time and frequency
-dt = 1/sim.fs;
-t = (0:dt:(sim.N-1)*dt).';
-df = 1/(dt*sim.N);
-f = (-sim.fs/2:df:sim.fs/2-df).';
-
-sim.t = t;
-sim.f = f;
-
 % Generate unipolar PAM signal
 if strcmp(mpam.level_spacing, 'uniform')
     mpam.a = (0:2:2*(mpam.M-1)).';

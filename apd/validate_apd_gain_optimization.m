@@ -22,8 +22,16 @@ mpam.Rb = 100e9;
 mpam.Rs = mpam.Rb/log2(mpam.M);
 mpam.pshape = @(n) ones(size(n)); % pulse shape
 
-% 
+%% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
+
+dt = 1/sim.fs;
+t = (0:dt:(sim.N-1)*dt).';
+df = 1/(dt*sim.N);
+f = (-sim.fs/2:df:sim.fs/2-df).';
+
+sim.t = t;
+sim.f = f;
 
 %% Transmitter
 tx.PtxdBm = -25:0.5:-15;

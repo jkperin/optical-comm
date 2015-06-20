@@ -16,10 +16,10 @@ addpath ../f % general functions
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
 sim.Mct = 8;      % Oversampling ratio to simulate continuous time (must be even)  
-sim.Me = 64; % Number of eigenvalues used only in klse_freq
-sim.L = 2; % de Bruijin sub-sequence length (ISI symbol length)
+sim.Me = 8; % Number of used eigenvalues
+sim.L = 3; % de Bruijin sub-sequence length (ISI symbol length)
 sim.M = 4; % Ratio of optical filter BW and electric filter BW (must be integer)
 sim.verbose = ~true; % show stuff
 sim.BERtarget = 1e-4; 
@@ -35,8 +35,16 @@ mpam.Rb = 100e9;
 mpam.Rs = mpam.Rb/log2(mpam.M);
 mpam.pshape = @(n) ones(size(n)); % pulse shape
 
-% 
+%% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
+
+dt = 1/sim.fs;
+t = (0:dt:(sim.N-1)*dt).';
+df = 1/(dt*sim.N);
+f = (-sim.fs/2:df:sim.fs/2-df).';
+
+sim.t = t;
+sim.f = f;
 
 %% Transmitter
 PtxdBm = -25:-15;
@@ -52,7 +60,7 @@ rx.R = 1; % responsivity
 % rx.elefilt = design_filter('bessel', 5, 0.5*mpam.Rs/(sim.fs/2));
 rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 % Optical Bandpass Filter
-rx.optfilt = design_filter('fbg', 5, sim.M*rx.elefilt.fcnorm);
+rx.optfilt = design_filter('butter', 4, sim.M*rx.elefilt.fcnorm);
 
 %% SOA
 soa = soa(20, 9, 1310e-9, 20); % soa(GaindB, NF, lambda, maxGaindB)
@@ -109,7 +117,7 @@ for k = 1:length(Ptx)
 %     [ber_klse_freq(k), ber_pdf(k)] = ber_soa_klse_freq(D_freq, Phi_freq, Fmax_freq, mpam, tx, soa, rx, sim);
 %     [ber_klse_fourier(k), ber_gauss(k), ber_pdf(k)] = ber_soa_klse_fourier(U_fourier, D_fourier, Fmax_fourier, mpam, tx, soa, rx, sim);
 
-    ber_klse_freq(k) = ber_soa_klse_freq(D_freq, Phi_freq, Fmax_freq, mpam, tx, soa, rx, sim);
+%     ber_klse_freq(k) = ber_soa_klse_freq(D_freq, Phi_freq, Fmax_freq, mpam, tx, soa, rx, sim);
     [ber_klse_fourier(k), ber_gauss(k)] = ber_soa_klse_fourier(U_fourier, D_fourier, Fmax_fourier, mpam, tx, soa, rx, sim);
     1;
 end
@@ -117,11 +125,11 @@ end
 figure, hold on
 plot(PtxdBm, log10(ber_mc), '-o')
 plot(PtxdBm, log10(ber_klse_fourier))
-plot(PtxdBm, log10(ber_klse_freq))
+% plot(PtxdBm, log10(ber_klse_freq))
 plot(PtxdBm, log10(ber_gauss))
 % plot(PtxdBm, log10(ber_pdf))
-legend('Monte Carlo', 'KLSE Frequency Domain & Saddlepoint Approx', ...
-    'KLSE Fourier & Saddlepoint Approx', 'Gaussian Approximation',...
+legend('Monte Carlo', 'KLSE Fourier & Saddlepoint Approx',... %  'KLSE Frequency Domain & Saddlepoint Approx',...
+        'Gaussian Approximation',...
     'Location', 'SouthWest')
 axis([PtxdBm(1) PtxdBm(end) -10 0])
     

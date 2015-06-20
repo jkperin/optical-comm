@@ -12,6 +12,7 @@ sim.verbose = true;
 
 % Simulation parameters
 sim.M = 2; % Ratio of optical filter BW and electric filter BW
+sim.Me = 16;
 sim.Mct = 16;
 sim.N = 512;
 sim.fs = mpam.Rs*sim.Mct;
@@ -104,11 +105,11 @@ x = x(ix);
 plot(ix, yd, 'o')
 
 % SOA
-soa = soa(10^(10/10), 9, 1310e-9, 20);
-varASE = 1e5*(soa.N0*sim.fs/2)/sim.N;
-varTher = 0;
-
-px = pdf_saddlepoint_approx(linspace(0, 2*max(Pt)), D, ck, varASE, varTher, true);
+% soa = soa(10^(10/10), 9, 1310e-9, 20);
+% varASE = 1e5*(soa.N0*sim.fs/2)/sim.N;
+% varTher = 0;
+% 
+% px = pdf_saddlepoint_approx(linspace(0, 2*max(Pt)), D, ck, varASE, varTher, true);
 
 
 % Sampling
