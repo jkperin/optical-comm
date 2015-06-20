@@ -42,13 +42,7 @@ tx.RIN = -150;                      % RIN in dB/Hz. Only used if sim.RIN is true
 verbose = false;                    % Show all plots? It'll slow donw simulation
 
 % sim.Navg = 3;                     % Number of noise realizations
-
-%% Simulation
-% Additional parameters
-imp_resolution = 1e-9;  % Minimum resolution of the impulse response of the filters
-                        % the last value of the truncated, normalized
-                        % impulse response must be smaller than this value.
-                        
+                     
 
 %%
 %% Simulation parameters
@@ -58,18 +52,15 @@ sim.Pb = 1.8e-4;                    % Target BER
 % sim.Nsymb = 2^14;                   % number of OFDM symbols
 sim.Mct = 8;                       % oversampling rate for emulation of continuous time 
                                     % Note: Mct has to be at least 4 so DT filter design approximates CT well enough./
-                                                                      
-%% Modulation parameters 
-ofdm.ofdm = 'dc_ofdm';             % ofdm type
-ofdm.full_dc = false;
-ofdm.Nc = 64;                       % total number of subcarriers = FFT size (must be even)
-ofdm.Nu = 52;                       % number of nonzero subcarriers (including complex conjugate)
-% ofdm.CS = 16;                       % constellation size
-ofdm.Rb = 107e9;                    % bit rate (total over two polarizations) (b/s)
+  
+sim.full_dc = false;
 
-ofdm.Ms = ofdm.Nc/ofdm.Nu;       % oversampling ratio
-ofdm.Rs = 2*ofdm.Rb/log2(ofdm.CS);   % Symbol rate  
-ofdm.B = ofdm.Nu/2*log2(ofdm.CS);    % Total number of bits per symbol
+
+%% Modulation parameters 
+% Number of subcarriers, Number of used subcarriers, Constellation size,
+% bit rate
+ofdm = ofdm(64, 52, 16, 107e9);
+ofdm.ofdm = 'dc_ofdm';             % ofdm type
 
 %% Fiber
 fiber.att = 0.35;        % attenuation in dB/km
@@ -109,9 +100,6 @@ rx.Sth = rx.R^2*rx.NEP^2/2;            % two-sided psd of thermal noise at the r
 
 % Antialiasing filter
 rx.filter = design_filter('gaussian', 4, 1/(ofdm.Ms*sim.Mct));
-
-%% Calculate cyclic prefix
-[ofdm.Npre_os, ofdm.Nneg_os, ofdm.Npos_os] = cyclic_prefix(ofdm, tx, rx, sim);
 
 %% Time and frequency scales
 ofdm.fs = ofdm.Rs*(ofdm.Nc + ofdm.Npre_os)/ofdm.Nu;               % sampling rate (Hz)
