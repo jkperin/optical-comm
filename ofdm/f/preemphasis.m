@@ -1,16 +1,35 @@
-function [Pn, CS, aux] = preemphasis(ofdm, tx, fiber, rx, Gch, sim)
+function [Pn, CS] = preemphasis(ofdm, tx, fiber, rx, sim)
 Nit_piterative = 50;            % Number of iterations used to estimate required power at subcarriers to achieve target BER for the case of quantization.
 
 Nc = ofdm.Nc; 
 Nu = ofdm.Nu;
-
+fc = ofdm.fc;
 CS = ofdm.CS*ones(1,Nu/2);
 
-K = 1 - 2*qfunc(sim.rcliptx);                % Amplitude attenuation due to clipping = (1-Q(r))
+K = 1 - 2*qfunc(tx.rclip);  % Amplitude attenuation due to clipping = (1-Q(r))
 
-% SNR to achieve target BER sim.Pb
-snrdB = fzero(@(x) berqam(ofdm.CS, x) - sim.Pb, 20);
+% SNR to achieve target BER sim.BERtarget
+snrdB = fzero(@(x) berqam(ofdm.CS, x) - sim.BERtarget, 20);
 snrl = 10^(snrdB/10);
+
+% Remove group delay of modulator frequency response
+Hmod = tx.kappa*tx.modulator.H(fc);
+Hmod = Hmod.*exp(1j*2*pi*fc*tx.modulator.grpdelay);
+
+% The group delay is removed from the frequency response of the ADC and DAC
+Gdac = tx.filter.H(fc/sim.fs);                    
+Gadc = rx.filter.H(fc/sim.fs); 
+
+Hfiber = fiber.Hfiber(fc, tx);
+
+% Frequency response of the channel at the subcarriers
+Gch = K*Gdac.*tx.kappa.*Hmod.*Hfiber.*rx.R.*Gadc;            
+
+if isfield(sim, 'full_dc') && sim.full_dc
+    dc_bias = @(Pn) tx.rclip*sqrt(sum(2*Pn));
+else
+    dc_bias = @(Pn) tx.rclip*sqrt(sum(2*Pn.*abs(Gdac).^2));
+end
 
 % Iterate to get correct power. For kk = 1, it assumes that the
 % power is zero i.e., there is no noise due to quantization
@@ -24,53 +43,52 @@ Pn1 = 0;
 % Iterante until power changes is less than .1% or when maximum
 % number of iterations is reached.
 while Pchange > 1e-3 && kk < Nit_piterative
-    Pnrx = snrl*(ofdm.fs*rx.Sth*abs(rx.Gadc).^2 + varQ1th*abs(Gch).^2 + varQ2th + varshot + varrin)/Nc;                                               
+    Pnrx = snrl*(ofdm.fs*rx.Sth*abs(Gadc).^2 + varQ1th*abs(Gch).^2 + varQ2th + varshot + varrin)/Nc;                                               
 
-    Pn = Pnrx./(K^2*abs(Gch).^2);
+    Pn = Pnrx./(abs(Gch).^2);
 
     % Signal std at transmitter and receiver
     sigtx = sqrt(2*sum(Pn));
-    sigrx = sqrt(2*sum(Pn.*K^2.*abs(Gch).^2));
-    Ptx_est = tx.kappa*ofdm.dc_bias(Pn);
+    sigrx = sqrt(2*sum(Pnrx));
+    Ptx_est = tx.kappa*dc_bias(Pn);
     
     %% Add additional dc-bias due to finite exctinction ratio
-    if isfield(tx, 'rexdB') % check if exctinction ratio (rex) was defined
-        rex = 10^(tx.rexdB/10);
-        
-        Pmin_rex = 2*sim.rcliptx*sigtx/(rex - 1); %% additional dc bias
-        
-        Ptx_est = Ptx_est + Pmin_rex; 
-                                                
-    end
-    
+    rex = 10^(tx.rexdB/10);
 
+    Pmin_rex = 2*tx.rclip*sigtx/(rex - 1); %%additional dc bias
+
+    Ptx_est = Ptx_est + Pmin_rex; 
+
+    %% Quantization 
     if sim.quantiz
         % Quantization noise variance
-        delta1th = 2*sim.rcliptx*sigtx/(2^sim.ENOB-1);
-        delta2th = 2*sim.rcliprx*sigrx/(2^sim.ENOB-1); 
-        varQ1th = (1 - 2*qfunc(sim.rcliptx))*delta1th^2/12; % quantization at the transmitter
-        varQ2th = (1 - 2*qfunc(sim.rcliprx))*delta2th^2/12; % quantization at the receiver
+        delta1th = 2*tx.rclip*sigtx/(2^sim.ENOB-1);
+        delta2th = 2*rx.rclip*sigrx/(2^sim.ENOB-1); 
+        varQ1th = (1 - 2*qfunc(tx.rclip))*delta1th^2/12; % quantization at the transmitter
+        varQ2th = (1 - 2*qfunc(rx.rclip))*delta2th^2/12; % quantization at the receiver
     end
 
+    %% Shot noise
     if sim.shot
         q = 1.60217657e-19;      % electron charge (C)
         Id = 0;                  % dark current
 
-        Prx_est = Ptx_est/10^(fiber.att*fiber.L/1e4);
+        Prx_est = Ptx_est/(10^(fiber.att(tx.lamb)*fiber.L/1e4));
 
         % Shot noise psd (one-sided)
         Sshot = 2*q*(rx.R*Prx_est + Id);
 
         % Shot noise variance. ofdm.fs/2 because Sshot is one-sided
-        varshot = Sshot*ofdm.fs/2*abs(rx.Gadc).^2;    
+        varshot = Sshot*ofdm.fs/2*abs(Gadc).^2;    
     end
 
+    %% RIN
     if sim.RIN                
         % Calculate double-sided RIN PSD, which depends on the average power
         Srin = 10^(tx.RIN/10)*Ptx_est.^2;
 
-        % RIN variance. ofdm.fs because Srin is double-sided.
-        varrin = Srin*ofdm.fs.*abs(10^(-fiber.att*fiber.L/1e4)*fiber.Hcd.*rx.R.*rx.Gadc).^2;
+        % RIN variance. sim.fs because Srin is double-sided.
+        varrin = Srin*ofdm.fs.*abs(Hfiber.*rx.R.*Gadc).^2;
     end                
 
     Pchange = sum(abs(Pn - Pn1)./Pn);
@@ -82,11 +100,11 @@ end
 
 % Auxiliary variables. They're used to check approximations and validate
 % the code
-if sim.quantiz
+if sim.verbose && sim.quantiz
     aux.delta1th = delta1th;
     aux.delta2th = delta2th;
     aux.varQ1th = varQ1th;
     aux.varQ2th = varQ2th;
-else
-    aux = [];
+    
+    aux
 end

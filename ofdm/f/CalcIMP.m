@@ -1,4 +1,5 @@
-%% Calculate intermodulation products
+%% Calculate intermodulation products 
+%% ## DEPRECATED
 
 function [IMP, S1] = CalcIMP(Pn, ofdm, tx, fiber, rx, sim)
 

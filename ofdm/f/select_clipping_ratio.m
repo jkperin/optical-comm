@@ -1,8 +1,8 @@
 %% Select appropriate optimized clipping ratio
+function [rcliptx, rcliprx] = select_clipping_ratio(type, CS, f3dB, ENOB)
+if nargin == 4 % ENOB defined
 
-if sim.quantiz
-
-    casestr = ['ENOB = ' num2str(sim.ENOB) ', ' sim.type ', CS = ' num2str(ofdm.CS)];
+    casestr = ['ENOB = ' num2str(ENOB) ', ' type ', CS = ' num2str(CS)];
        
     switch casestr
         case 'ENOB = 5, preemphasis, CS = 16'
@@ -45,18 +45,17 @@ if sim.quantiz
             error('invalid option!')
     end
     
-    if isfield(tx, 'fnl')
-        loc = find(tx.fnl == Fnl);
+    loc = find(f3dB == Fnl);
 
-        if isempty(loc)
-            error('No clipping ratio for selected frequency')
-        else
-            sim.rcliptx = RCLIPTX(loc);
-            sim.rcliprx = RCLIPRX(loc); 
-        end
+    if isempty(loc)
+        error('No clipping ratio for selected frequency')
+    else
+        rcliptx = RCLIPTX(loc);
+        rcliprx = RCLIPRX(loc); 
     end
+
 else
-    casestr = [sim.type ', CS = ' num2str(ofdm.CS)];
+    casestr = [type ', CS = ' num2str(CS)];
     
     switch casestr
         case 'preemphasis, CS = 16'
@@ -82,14 +81,13 @@ else
             error('invalid option!');
     end
 
-    if isfield(tx, 'fnl')
-        loc = find(tx.fnl == Fnl);
+    loc = find(f3dB == Fnl);
 
-        if isempty(loc)
-            error('No clipping ratio for selected frequency')
-        else
-            sim.rcliptx = RCLIPTX(loc);
-        end
+    if isempty(loc)
+        error('No clipping ratio for selected frequency')
+    else
+        rcliptx = RCLIPTX(loc);
+        rcliprx = RCLIPTX(loc);
     end
 end
 
