@@ -12,7 +12,11 @@ classdef fiber
     methods
         %% Constructor
         function obj = fiber(L, att, D)
-            obj.L = L;
+            if nargin >=1
+                obj.L = L;
+            else
+                obj.L = 0;
+            end
             
             if nargin >= 2
                 obj.att = att;
@@ -32,19 +36,37 @@ classdef fiber
         
         %% Linear propagation
         function Eout = linear_propagation(this, Ein, f, lambda)
-            Dispersion =  fiber.D(lambda);
+            Dispersion =  this.D(lambda);
             beta2 = this.D2beta2(Dispersion, lambda);
             w = 2*pi*ifftshift(f);
             
             % Electric field after fiber propagation
             Dw = -1j*1/2*beta2*(w.^2);
-            Eout = ifft(exp(fiber.L*Dw).*fft(Ein));
+            Eout = ifft(exp(this.L*Dw).*fft(Ein));
 
             % Received power 
-            Eout = Eout*sqrt(10^(-fiber.att(lambda)*fiber.L/1e4));
+            Eout = Eout*sqrt(10^(-this.att(lambda)*this.L/1e4));
         end       
+        
+        function H = Hfiber(this, f, tx)
+            beta2 = this.D2beta2(this.D(tx.lamb), tx.lamb);
+
+            % CD frequency response
+            theta = -1/2*beta2*(2*pi*f).^2*this.L; % theta = -1/2*beta2*w.^2*L
+
+            if isfield(tx, 'alpha') % if chirp parameter is defined
+                alpha = tx.alpha;
+            else
+                alpha = 0;
+            end
+            
+            H = cos(theta) - alpha*sin(theta);  % fiber small-signal frequency response
+            
+            % Include attenuation
+            H = H.*10^(-this.att(tx.lamb)*this.L/1e4);
+        end  
     end
-    
+
     methods(Access=private)
         function beta2 = D2beta2(this, D, lamb)
             beta2 = -D*lamb^2/(2*pi*this.c); 
