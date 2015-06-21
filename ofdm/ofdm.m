@@ -4,21 +4,26 @@ classdef ofdm < handle
         Nu % number of used subcarriers 
         CS % nominal constellation size
         Rb % bit rate
+        Npos % positive cyclic prefix length after oversampling
+        Nneg % negative cyclic prefix length after oversampling
+        Pn   % power allocation
+        CSn  % bit loading
     end
-    
+
     properties (Dependent)
+        fs % sampling rate
         Rs % symbol rate
         Ms % OFDM oversampling ratio
         fc % subcarrier frequencies
     end
     
-    properties (Dependent, GetAccess=protected)
-        Pn
+    properties (GetAccess=private)
         dataTX
         dataRX
     end
     
     properties(Dependent, Hidden)
+        Npre_os
         B       % Total number of bits per symbol
         Pqam    % Average power of generated OFDM symbol with qammod
     end
@@ -31,17 +36,37 @@ classdef ofdm < handle
     
     methods
         %% Constructor
-        function obj = ofdm(Nc, Nu, CS, Rs)
+        function obj = ofdm(Nc, Nu, CS, Rb, Npos, Nneg)
             obj.Nc = Nc;
             obj.Nu = Nu;
             obj.CS = CS;
-            obj.Rs = Rs;          
+            obj.Rb = Rb;     
+            if nargin >= 5
+                obj.Npos = Npos;
+                obj.Nneg = Nneg;
+            end
+            
         end
         
         %% Get methods
+        % OFDM sampling rate
+        function fs = get.fs(this)
+            try
+                fs = this.Rs*(this.Nc + this.Npre_os)/this.Nu;
+            catch e
+                disp('Cyclic prefix was not calculated yet.')
+                disp(e.message)
+            end
+        end
+        
         % OFDM oversampling ratio
         function Ms = get.Ms(this)
             Ms = this.Nc/this.Nu;
+        end
+        
+        % frequency at which subcarriers are located
+        function fc = get.fc(this)
+            fc = this.fs/this.Nc*(1:this.Nu/2);      
         end
         
         % Symbol rate
@@ -49,8 +74,14 @@ classdef ofdm < handle
             Rs = 2*this.Rb/log2(this.CS); 
         end
         
+        % Total number of bits
         function B = get.B(this)
             B = this.Nu/2*log2(this.CS);    
+        end
+        
+        % Cyclic prefix length
+        function Npre_os = get.Npre_os(this)
+            Npre_os = this.Npos + this.Nneg;
         end
         
         % Calculate the average power of a CS-QAM constellation with dmin = 2 (used
@@ -58,7 +89,7 @@ classdef ofdm < handle
         function Pqam = get.Pqam(this)
             Pqam = zeros(1, this.Nu/2);
             for k = 1:this.Nu/2
-                Pqam(k) = mean(abs(qammod(0:this.CS(k)-1, this.CS(k), 0, 'gray')).^2);
+                Pqam(k) = mean(abs(qammod(0:this.CSn(k)-1, this.CSn(k), 0, 'gray')).^2);
             end
         end
         
@@ -67,10 +98,10 @@ classdef ofdm < handle
             %% Preemphasis at the transmitter
             switch sim.type
                 case 'preemphasis'
-                    [this.Pn, this.CS] = preemphasis(this, tx, fiber, rx, sim);
+                    [this.Pn, this.CSn] = preemphasis(this, tx, fiber, rx, sim);
                 %% Optimal power allocation and bit loading   
                 case 'palloc'
-                    [this.Pn, this.CS] = palloc(this, tx, fiber, rx, sim);
+                    [this.Pn, this.CSn] = palloc(this, tx, fiber, rx, sim);
                 otherwise 
                     error('power_allocation: invalid option') 
             end
@@ -81,11 +112,11 @@ classdef ofdm < handle
             Nsymb = sim.Nsymb;
             
             %% Generate OFDM signal at chip rate (done in DSP)
-            this.dataTX = zeros(Nu/2, Nsymb);
-            dataTXm = zeros(Nu/2, Nsymb);
-            for kk = 1:Nu/2
-                this.dataTX(kk,:) = randi([0 this.CS(kk)-1], [1 Nsymb]);              % data to be encoded (symbols columnwise)
-                dataTXm(kk,:) = qammod(this.dataTX(kk,:), this.CS(kk), 0, 'gray');    % encoded QAM symbols to be modulated onto subcarriers
+            this.dataTX = zeros(this.Nu/2, Nsymb);
+            dataTXm = zeros(this.Nu/2, Nsymb);
+            for kk = 1:this.Nu/2
+                this.dataTX(kk,:) = randi([0 this.CSn(kk)-1], [1 Nsymb]);              % data to be encoded (symbols columnwise)
+                dataTXm(kk,:) = qammod(this.dataTX(kk,:), this.CSn(kk), 0, 'gray');    % encoded QAM symbols to be modulated onto subcarriers
                 dataTXm(kk,:) = sqrt(this.Pn(kk))*dataTXm(kk,:)/sqrt(this.Pqam(kk));  % scale constellation so that Pn is the power at nth subcarrier (E(|Xn|^2) = Pn)
             end          
             
@@ -98,23 +129,20 @@ classdef ofdm < handle
                           zeros((this.Nc-this.Nu)/2 - 1, Nsymb)], 1);   % zero-pad pos. frequencies
 
             % Perform ifft (Nc-IDFT) columnwise
-            xn = Nc*ifft(Xn, this.Nc, 1); 
+            xn = this.Nc*ifft(Xn, this.Nc, 1); 
 
-            % Insert cyclic prefix
-            Npre_os = this.cyclic_prefix(this, tx, rx, sim);
-            xncp = [xn(end-Npre_os+1:end, :); xn]; % insert cyclic prefix
+            % Insert cyclic prefix           
+            xncp = [xn(end-this.Npre_os+1:end, :); xn]; % insert cyclic prefix
 
             % Parallel to serial
-            xncp = reshape(xncp, 1, (Nc + Npre_os)*Nsymb); % time-domain ofdm signal w/ cyclic prefix
+            xncp = reshape(xncp, 1, (this.Nc + this.Npre_os)*Nsymb); % time-domain ofdm signal w/ cyclic prefix
 
             %% Clipping
+            sigtx = sqrt(2*sum(this.Pn));
             % Note: both positive and negative tails are clipped
             xncpc = xncp;
             xncpc(xncp < -tx.rclip*sigtx) = -tx.rclip*sigtx;
             xncpc(xncp > tx.rclip*sigtx) = tx.rclip*sigtx;
-
-            % Check approximations
-            approx.clip_prob = 2*[qfunc(tx.rclip) mean(xncp > tx.rclip*sigtx)]; % Clipping probability
 
             %% Quantize at the transmitter
             if sim.quantiz
@@ -131,17 +159,17 @@ classdef ofdm < handle
 
             %% Interpolation
             % Sampling rate expansion
-            xt = zeros(1, sim.Mct*Nsymb*(Npre_os + this.Nc));
+            xt = zeros(1, sim.Mct*Nsymb*(this.Npre_os + this.Nc));
             xt(1:sim.Mct:end) = xncpq;
 
             % Filter (interpolator + ZOH)
-            xt = real(ifft(ifftshift(sim.Mct*tx.filter(sim.f/sim.fs)).*fft(xt)));
+            xt = real(ifft(ifftshift(sim.Mct*tx.filter.H(sim.f/sim.fs)).*fft(xt.')));
             % Note: multiply by sim.Mct because DAC filter should have gain sim.Mct
             % to compensate for 1/sim.Mct due sampling rate expansion
 
         end
         
-        function ber = detect(this, It, rx, sim)
+        function ber = detect(this, It, Gch, rx, sim)
             % Antialiasing filter of the ADC
             It = real(ifft(fft(It).*ifftshift(rx.filter.H(sim.f/sim.fs)))); % signal + noise
             % Note: we will treat noise separately as it makes it easier to estimate
@@ -154,6 +182,9 @@ classdef ofdm < handle
             
             %% Quantize at the receiver
             if sim.quantiz    
+                % signal std
+                sigrx = std(It);
+                
                 % remove dc bias
                 yncp = yncp - mean(yncp);
 
@@ -175,53 +206,37 @@ classdef ofdm < handle
 
             %%
             % reshape into matrix form
-            yncpq = reshape(yncpq, Nc + Npre_os, Nsymb);      % signal + noise
+            yncpq = reshape(yncpq, this.Nc + this.Npre_os, sim.Nsymb);      % signal + noise
 
             % Remove cyclic prefix
-            yn = circshift(yncpq(Npos_os+1:end-Nneg_os, :), -Nneg_os);  % signal + noise
+            yn = circshift(yncpq(this.Npos+1:end-this.Nneg, :), -this.Nneg);  % signal + noise
 
             % Demodulate symbols 1/N*DFT()
-            Yn = fft(yn, Nc, 1)/Nc;             % signal + noise      
+            Yn = fft(yn, this.Nc, 1)/this.Nc;             % signal + noise      
 
             % used subcarrier amplitudes (complex conjugate subcarriers are ignored)
-            dataRXm = Yn(1 + (1:Nu/2), this.Ndis+1:end-this.Ndis);            
-
-            % % AGC caculates what should be the scaling factor to normalize all
-            % constellations so that dmin = 2 (value expected by qamdemod)
-            K = 1 - qfunc(tx.rclip) - qfunc(rx.rclip);
-            
-            % Remove group delay of modulator frequency response           
-            Hmod = tx.kappa*tx.modulator.H(this.fc);
-            Hmod = Hmod.*exp(1j*2*pi*this.fc*tx.modulator.grpdelay);
-
-            % The group delay is removed from the frequency response of the ADC and DAC
-            Gdac = tx.filter.H(this.fc/sim.fs);                    
-            Gadc = rx.filter.H(this.fc/sim.fs);   
-
-            % Frequency response of the channel at the subcarriers
-            Gch = K*Gdac.*tx.kappa.*Hmod.*Hfiber.*rx.R.*Gadc;         
-            
-            AGCn = sqrt(this.Pqam)./(K*sqrt(this.Pn).*Gch);
+            dataRXm = Yn(1 + (1:this.Nu/2), this.Ndis+1:end-this.Ndis);            
+          
+            AGCn = sqrt(this.Pqam)./(sqrt(this.Pn).*Gch);
             % Note: Factor of K appears due to clipping
 
-            this.dataTX = this.dataTX(:, this.Ndis+1:end-this.Ndis);
             this.dataRX = zeros(this.Nu/2, sim.Nsymb-2*this.Ndis);
-            numerr = zeros(1, Nu/2);
-            bn = log2(this.CS);
-            for kk = 1:Nu/2
-            %     scatterplot(dataRXm(kk,:))
+            numerr = zeros(1, this.Nu/2);
+            bn = log2(this.CSn);
+            for kk = 1:this.Nu/2
+%                 scatterplot(dataRXm(kk,:))
                 dataRXm(kk,:) = AGCn(kk)*dataRXm(kk,:);
-            %     scatterplot(dataRXm(kk,:))
-                this.dataRX(kk, :) = qamdemod(dataRXm(kk,:), this.CS(kk), 0, 'gray');         % encoded QAM symbols to be modulated onto subcarriers
-                numerr(kk) = biterr(this.dataTX(kk, :), this.dataRX(kk,:), bn(kk));
+%                 scatterplot(dataRXm(kk,:))
+                this.dataRX(kk, :) = qamdemod(dataRXm(kk,:), this.CSn(kk), 0, 'gray');         % encoded QAM symbols to be modulated onto subcarriers
+                numerr(kk) = biterr(this.dataTX(kk, this.Ndis+1:end-this.Ndis), this.dataRX(kk,:), bn(kk));
             end
 
             % average BER
-            ber.count(navg) = sum(numerr)/(sim.Nsymb*sum(bn));
+            ber.count = sum(numerr)/(sim.Nsymb*sum(bn));
 
             % 95% confidence intervals for the counted BER
             [~, interval] = berconfint(numerr, sim.Nsymb*bn);
-            ber.interval(navg, :) = [min(interval(:,1)), max(interval(:,2))];
+            ber.interval = [min(interval(:,1)), max(interval(:,2))];
 
             % Estimate BER from the SNR at each subcarrier
             % Note that to estimate the BER we use SNRn which is calculated from the
@@ -243,24 +258,24 @@ classdef ofdm < handle
         % 2. From k, it calculates the new sampling rate fs
         % 3. Calculate the number of samples at both sides (Nneg and Npos) that 
         % contains the desired fraction of energy
-        % 4. From that calculates Npre_os = Npos + Neg; (zero is not included)
-        % 5. If Npre_os == k end simulation, otherwise increment k and repeat
+        % 4. From that calculates this.Npre_os = Npos + Neg; (zero is not included)
+        % 5. If this.Npre_os == k end simulation, otherwise increment k and repeat
 
-        function [Npre_os, Nneg, Npos] = cyclic_prefix(this, tx, rx, sim)
+        function cyclic_prefix(this, tx, rx, sim)
         
             Mct = sim.Mct;
             Ntot = 1024;
 
-            Nd = ceil(this.N/this.ros);
+            Nd = ceil(this.Nc/this.Ms);
             
-            gdac = impz(tx.filter.den, tx.filter.num);
-            gadc = impz(rx.filter.den, rx.filter.num);
+            gdac = impz(tx.filter.num, tx.filter.den);
+            gadc = impz(rx.filter.num, rx.filter.den);
 
             k = 0;
-            Npre_os = Inf;
-            while Npre_os > k && k < this.max_iterations
-                fs = this.Rs*(this.Nc + k)/Nd;
-                fsct = Mct*fs;
+            Ncp = Inf; % cyclic prefix length
+            while Ncp > k && k < this.max_iterations
+                fs_temp = this.Rs*(this.Nc + k)/Nd;
+                fsct = Mct*fs_temp;
                 dt = 1/fsct;
 
                 % Group delay of modulator in samples
@@ -268,7 +283,7 @@ classdef ofdm < handle
 
                 % Channel impulse response
                 tct = (0:Ntot-1)*dt;
-                hct = tx.hl(tct);
+                hct = tx.modulator.h(tct);
                 
                 % Total impulse response in continuous time
                 pct = conv(conv(gdac, hct, 'full'), gadc, 'full');
@@ -287,16 +302,29 @@ classdef ofdm < handle
 
                 % CP based on energy
                 en_frac = cumsum(p.^2)/sum(p.^2);
-                Nneg = sum(en_frac >= (1 - this.frac_incl)/2 & t < 0);
-                Npos = sum(en_frac <= (1 + this.frac_incl)/2 & t > 0);
+                this.Nneg = sum(en_frac >= (1 - this.frac_incl)/2 & t < 0);
+                this.Npos = sum(en_frac <= (1 + this.frac_incl)/2 & t > 0);
 
-                % Number of samples necessary to attain desired fraction of energy
-                Npre_os = Nneg + Npos;
-
+                Ncp = this.Nneg + this.Npos;
+                
                 k = k + 1;
-            end
+            end         
 
-            assert(k ~= max_it, 'CP calculation did not converge');
+            assert(k ~= this.max_iterations, 'CP calculation did not converge');
+            
+            if sim.verbose
+                figure, grid on, hold on, box on
+                plot(tct, pct)
+                stem(t, p, 'fill')
+                plot(-this.Nneg/this.fs*[1 1], [-1 1], 'k')
+                plot(this.Npos/this.fs*[1 1], [-1 1], 'k')
+                text(-(this.Nneg)/this.fs, 0.7, sprintf('N_{neg} = %d', this.Nneg))
+                text((this.Npos+0.1)/this.fs, 0.7, sprintf('N_{pos} = %d', this.Npos))
+                axis([1.5*this.Npre_os*[-1 1]*1/this.fs -0.5 1])
+                xlabel('t (s)')
+                ylabel('p(t)')
+                title('Impulse response of the channel (DAC * Laser * ADC)')
+            end            
         end
     end
 end

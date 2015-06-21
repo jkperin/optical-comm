@@ -70,7 +70,7 @@ switch type
         h = real(fftshift(ifft(ifftshift(H))));
 
         den = 1;
-        num = h;
+        num = h/sum(h).^2;
         
     case 'bessel'       
         % Generates CT Bessel filter prototype and convert it to DT using

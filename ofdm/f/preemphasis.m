@@ -18,15 +18,17 @@ Hmod = Hmod.*exp(1j*2*pi*fc*tx.modulator.grpdelay);
 
 % The group delay is removed from the frequency response of the ADC and DAC
 Gdac = tx.filter.H(fc/sim.fs);                    
-Gadc = rx.filter.H(fc/sim.fs);   
+Gadc = rx.filter.H(fc/sim.fs); 
+
+Hfiber = fiber.Hfiber(fc, tx);
 
 % Frequency response of the channel at the subcarriers
-Gch = K*Gdac.*kappa.*Hmod.*Hfiber.*rx.R.*Gadc;            
+Gch = K*Gdac.*tx.kappa.*Hmod.*Hfiber.*rx.R.*Gadc;            
 
-if sim.full_dc
-    dc_bias = @(Pn) sim.rcliptx*sqrt(sum(2*this.Pn));
+if isfield(sim, 'full_dc') && sim.full_dc
+    dc_bias = @(Pn) tx.rclip*sqrt(sum(2*Pn));
 else
-    dc_bias = @(Pn) sim.rcliptx*sqrt(sum(2*Pn.*abs(Gdac).^2));
+    dc_bias = @(Pn) tx.rclip*sqrt(sum(2*Pn.*abs(Gdac).^2));
 end
 
 % Iterate to get correct power. For kk = 1, it assumes that the
@@ -71,7 +73,7 @@ while Pchange > 1e-3 && kk < Nit_piterative
         q = 1.60217657e-19;      % electron charge (C)
         Id = 0;                  % dark current
 
-        Prx_est = Ptx_est/10^(fiber.att*fiber.L/1e4);
+        Prx_est = Ptx_est/10^(fiber.att(tx.lamb)*fiber.L/1e4);
 
         % Shot noise psd (one-sided)
         Sshot = 2*q*(rx.R*Prx_est + Id);
@@ -85,8 +87,8 @@ while Pchange > 1e-3 && kk < Nit_piterative
         % Calculate double-sided RIN PSD, which depends on the average power
         Srin = 10^(tx.RIN/10)*Ptx_est.^2;
 
-        % RIN variance. ofdm.fs because Srin is double-sided.
-        varrin = Srin*ofdm.fs.*abs(10^(-fiber.att*fiber.L/1e4)*Hfiber.*rx.R.*rx.Gadc).^2;
+        % RIN variance. sim.fs because Srin is double-sided.
+        varrin = Srin*sim.fs.*abs(10^(fiber.att(tx.lamb)*fiber.L/1e4)*Hfiber.*rx.R.*Gadc).^2;
     end                
 
     Pchange = sum(abs(Pn - Pn1)./Pn);
@@ -98,7 +100,7 @@ end
 
 % Auxiliary variables. They're used to check approximations and validate
 % the code
-if sim.verbose
+if sim.verbose && sim.quantiz
     aux.delta1th = delta1th;
     aux.delta2th = delta2th;
     aux.varQ1th = varQ1th;

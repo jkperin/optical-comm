@@ -45,8 +45,8 @@ if sim.quantiz
             error('invalid option!')
     end
     
-    if isfield(tx, 'fnl')
-        loc = find(tx.fnl == Fnl);
+    if isfield(tx.modulator, 'fc')
+        loc = find(tx.modulator.fc == Fnl);
 
         if isempty(loc)
             error('No clipping ratio for selected frequency')
@@ -82,8 +82,8 @@ else
             error('invalid option!');
     end
 
-    if isfield(tx, 'fnl')
-        loc = find(tx.fnl == Fnl);
+    if isfield(tx.modulator, 'fc')
+        loc = find(tx.modulator.fc == Fnl);
 
         if isempty(loc)
             error('No clipping ratio for selected frequency')
