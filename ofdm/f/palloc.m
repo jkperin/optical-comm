@@ -40,14 +40,14 @@ Pn1 = 0;
 % number of iterations is reached.
 while Pchange > 1e-3 && kk < Nit_piterative
     % Gain-to-noise ratio
-    GNR = K^2*Nc*abs(Gch).^2./(ofdm.fs*rx.Sth*abs(Gadc).^2 + varQ1th*abs(Gch).^2 + varQ2th + varshot + varrin); 
+    GNR = Nc*abs(Gch).^2./(ofdm.fs*rx.Sth*abs(Gadc).^2 + varQ1th*abs(Gch).^2 + varQ2th + varshot + varrin); 
 
     % Run Levin-Campello algorithm to determine optimal power allocation
-    [~, CS, Pn] = Levin_Campello_MA(ofdm.B, 1, sim.Pb, GNR); 
+    [~, CS, Pn] = Levin_Campello_MA(ofdm.B, 1, sim.BERtarget, GNR); 
 
     % Signal std at transmitter and receiver
     sigtx = sqrt(2*sum(Pn));
-    sigrx = sqrt(2*sum(Pn.*K^2.*abs(Gch).^2));
+    sigrx = sqrt(2*sum(Pn.*abs(Gch).^2));
     Ptx_est = tx.kappa*dc_bias(Pn);
 
     %% Add additional dc-bias due to finite exctinction ratio
@@ -85,8 +85,8 @@ while Pchange > 1e-3 && kk < Nit_piterative
         % Calculate double-sided RIN PSD, which depends on the average power
         Srin = 10^(tx.RIN/10)*Ptx_est.^2;
 
-        % RIN variance. ofdm.fs because Srin is double-sided.
-        varrin = Srin*ofdm.fs.*abs(10^(fiber.att(tx.lamb)*fiber.L/1e4)*Hfiber.*rx.R.*Gadc).^2;
+        % RIN variance. sim.fs because Srin is double-sided.
+        varrin = Srin*ofdm.fs.*abs(Hfiber.*rx.R.*Gadc).^2;
     end  
 
     Pchange = sum(abs(Pn - Pn1)./Pn);
@@ -103,4 +103,6 @@ if sim.verbose && sim.quantiz
     aux.delta2th = delta2th;
     aux.varQ1th = varQ1th;
     aux.varQ2th = varQ2th;
+    
+    aux
 end

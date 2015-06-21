@@ -7,13 +7,14 @@
 % sim (simulation parameters)
 
 % output:
-% ber: counted (including 95%-confidence intervals), and estimated
+% ber : counted (including 95%-confidence intervals), and estimated
+% Ptx : measured transmitted power
 
 % Function assumes variable number of input arguments just to be compatible
 % with previous codes
-function ber = dc_ofdm(ofdm, tx, fiber, rx, sim)       
+function [ber, Ptx, Ptx_est] = dc_ofdm(ofdm, tx, fiber, rx, sim)       
        
-%% Inserts cyclic prefix ##!! fiber has to be included here
+%% Calculate cyclic prefix ##!! fiber has to be included here
 ofdm.cyclic_prefix(tx, rx, sim);
 
 %% Time and frequency scales
@@ -80,6 +81,8 @@ xtc = xtc + clip_level;
 %% Apply frequency response of the laser
 Et = optical_modulator(xtc, tx, sim);
 
+Ptx = mean(abs(Et).^2);
+
 %% Fiber propagation
 Et = fiber.linear_propagation(Et, sim.f, tx.lamb);
 
@@ -98,6 +101,10 @@ if sim.shot
     ws = sqrt(Sshot*sim.fs/2).*randn(size(It));
 
     It = It + ws;
+    
+    varshot = mean(Sshot)*sim.fs/2*abs(Gadc).^2/sim.Mct; % referred to after the ADC
+else
+    varshot = 0;
 end
 
 %% Add thermal noise
@@ -107,20 +114,28 @@ It = It + wt;
 %% OFDM detection
 % If power was readjusted (i.e., Ptx was defined) then calculate scaling
 % factor
+rex = 10^(tx.rexdB/10);  % defined as Pmin/Pmax     
+
 if isfield(tx, 'Ptx') % if Ptx was provided, then scale signal to desired Ptx
-    % Calculate equivalent transmitted power
-    Ptx  = tx.kappa*clip_level;   % = Ptx if Hmod(f=0) = 1
-
-    rex = 10^(tx.rexdB/10);  % defined as Pmin/Pmax      
-
-    % Scale and add additional dc bias corresponding to finite
-    % extinction ratio
-    A = (tx.Ptx*(1 - 2*rex))/Ptx;
+    A = (tx.Ptx*(1 - 2*rex))/(tx.kappa*clip_level); % Scale between desired power and actual power
+    
+    Ptx_est = tx.Ptx;     % Calculate equivalent transmitted power
 else
     A = 1;
+    
+    Ptx_est = tx.kappa*clip_level*(1 + 2*rex);
 end
 
 ber = ofdm.detect(It, A*Gch, rx, sim);
+
+if sim.RIN
+    Srin = 10^(tx.RIN/10)*Ptx.^2;
+    varrin = Srin*sim.fs*abs(Hfiber.*Gadc).^2/sim.Mct; % referred to after the ADC
+else
+    varrin = 0;
+end
+% estimate_ber(A, varthermal, varshot, varrin, Gch)
+ber.est = ofdm.estimate_ber(A, rx.Sth*sim.fs*abs(Gadc).^2/sim.Mct, varshot, varrin, Gch);
 
 
 %% Frequency response

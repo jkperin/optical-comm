@@ -13,16 +13,16 @@ function [Et, Pt] = optical_modulator(xt, tx, sim)
     %% Modulator Nonlinearity
     %## To be implemented
  
+    rex = 10^(tx.rexdB/10);  % defined as Pmin/Pmax    
+    
+    Ptx  = mean(Pt);   % measured
+    
     %% Adjust transmitted power
-    if isfield(tx, 'Ptx') % if Ptx was provided, then scale signal to desired Ptx
-        % Calculate equivalent transmitted power
-        Ptx  = mean(Pt);   % measured
-        
-        rex = 10^(tx.rexdB/10);  % defined as Pmin/Pmax      
-        
-        % Scale and add additional dc bias corresponding to finite
-        % extinction ratio
-        Pt = Pt*tx.Ptx*(1 - 2*rex)/Ptx + 2*tx.Ptx*rex;      
+    if isfield(tx, 'Ptx') % if Ptx was provided, then scale signal to desired Ptx      
+        % Scale and add additional dc bias due to finite extinction ratio
+        Pt = Pt*tx.Ptx*(1 - 2*rex)/Ptx + 2*tx.Ptx*rex; 
+    else % just add additional dc bias due to finite extinction ratio
+        Pt = Pt + 2*Ptx*rex; 
     end
 
     %% Add intensity noise
@@ -35,6 +35,9 @@ function [Et, Pt] = optical_modulator(xt, tx, sim)
         
         Pt = Pt + wrin;
     end 
+    
+    % Ensures signal is non-negative
+    Pt(Pt < 0) = 0;
     
     if isfield(tx, 'alpha')
         %% Add chirp

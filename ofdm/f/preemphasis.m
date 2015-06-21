@@ -8,8 +8,8 @@ CS = ofdm.CS*ones(1,Nu/2);
 
 K = 1 - 2*qfunc(tx.rclip);  % Amplitude attenuation due to clipping = (1-Q(r))
 
-% SNR to achieve target BER sim.Pb
-snrdB = fzero(@(x) berqam(ofdm.CS, x) - sim.Pb, 20);
+% SNR to achieve target BER sim.BERtarget
+snrdB = fzero(@(x) berqam(ofdm.CS, x) - sim.BERtarget, 20);
 snrl = 10^(snrdB/10);
 
 % Remove group delay of modulator frequency response
@@ -45,11 +45,11 @@ Pn1 = 0;
 while Pchange > 1e-3 && kk < Nit_piterative
     Pnrx = snrl*(ofdm.fs*rx.Sth*abs(Gadc).^2 + varQ1th*abs(Gch).^2 + varQ2th + varshot + varrin)/Nc;                                               
 
-    Pn = Pnrx./(K^2*abs(Gch).^2);
+    Pn = Pnrx./(abs(Gch).^2);
 
     % Signal std at transmitter and receiver
     sigtx = sqrt(2*sum(Pn));
-    sigrx = sqrt(2*sum(Pn.*K^2.*abs(Gch).^2));
+    sigrx = sqrt(2*sum(Pnrx));
     Ptx_est = tx.kappa*dc_bias(Pn);
     
     %% Add additional dc-bias due to finite exctinction ratio
@@ -73,7 +73,7 @@ while Pchange > 1e-3 && kk < Nit_piterative
         q = 1.60217657e-19;      % electron charge (C)
         Id = 0;                  % dark current
 
-        Prx_est = Ptx_est/10^(fiber.att(tx.lamb)*fiber.L/1e4);
+        Prx_est = Ptx_est/(10^(fiber.att(tx.lamb)*fiber.L/1e4));
 
         % Shot noise psd (one-sided)
         Sshot = 2*q*(rx.R*Prx_est + Id);
@@ -88,7 +88,7 @@ while Pchange > 1e-3 && kk < Nit_piterative
         Srin = 10^(tx.RIN/10)*Ptx_est.^2;
 
         % RIN variance. sim.fs because Srin is double-sided.
-        varrin = Srin*sim.fs.*abs(10^(fiber.att(tx.lamb)*fiber.L/1e4)*Hfiber.*rx.R.*Gadc).^2;
+        varrin = Srin*ofdm.fs.*abs(Hfiber.*rx.R.*Gadc).^2;
     end                
 
     Pchange = sum(abs(Pn - Pn1)./Pn);
@@ -105,4 +105,6 @@ if sim.verbose && sim.quantiz
     aux.delta2th = delta2th;
     aux.varQ1th = varQ1th;
     aux.varQ2th = varQ2th;
+    
+    aux
 end

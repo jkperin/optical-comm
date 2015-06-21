@@ -18,6 +18,8 @@ classdef ofdm < handle
     end
     
     properties (GetAccess=private)
+        varQtx
+        varQrx
         dataTX
         dataRX
     end
@@ -45,54 +47,8 @@ classdef ofdm < handle
                 obj.Npos = Npos;
                 obj.Nneg = Nneg;
             end
-            
         end
-        
-        %% Get methods
-        % OFDM sampling rate
-        function fs = get.fs(this)
-            try
-                fs = this.Rs*(this.Nc + this.Npre_os)/this.Nu;
-            catch e
-                disp('Cyclic prefix was not calculated yet.')
-                disp(e.message)
-            end
-        end
-        
-        % OFDM oversampling ratio
-        function Ms = get.Ms(this)
-            Ms = this.Nc/this.Nu;
-        end
-        
-        % frequency at which subcarriers are located
-        function fc = get.fc(this)
-            fc = this.fs/this.Nc*(1:this.Nu/2);      
-        end
-        
-        % Symbol rate
-        function Rs = get.Rs(this)
-            Rs = 2*this.Rb/log2(this.CS); 
-        end
-        
-        % Total number of bits
-        function B = get.B(this)
-            B = this.Nu/2*log2(this.CS);    
-        end
-        
-        % Cyclic prefix length
-        function Npre_os = get.Npre_os(this)
-            Npre_os = this.Npos + this.Nneg;
-        end
-        
-        % Calculate the average power of a CS-QAM constellation with dmin = 2 (used
-        % to normalize symbol power after qammod)
-        function Pqam = get.Pqam(this)
-            Pqam = zeros(1, this.Nu/2);
-            for k = 1:this.Nu/2
-                Pqam(k) = mean(abs(qammod(0:this.CSn(k)-1, this.CSn(k), 0, 'gray')).^2);
-            end
-        end
-        
+               
         %% Power allocation and bit loading
         function power_allocation(this, tx, fiber, rx, sim)
             %% Preemphasis at the transmitter
@@ -105,9 +61,22 @@ classdef ofdm < handle
                 otherwise 
                     error('power_allocation: invalid option') 
             end
+            
+            if sim.verbose
+                figure
+                subplot(211), box on, grid on
+                stem(1:length(this.CSn), log2(this.CSn))
+                xlabel('Subcarrier')
+                ylabel('log_2(CS)')
+                
+                subplot(212), box on, grid on
+                stem(1:length(this.CSn), this.Pn, 'fill')
+                xlabel('Subcarrier')
+                ylabel('Power (W)');
+            end
         end
         
-        %% 
+        %% Generate OFDM signal
         function xt = generate_signal(this, tx, sim)
             Nsymb = sim.Nsymb;
             
@@ -150,10 +119,11 @@ classdef ofdm < handle
                 % Quantiz
                 yqtx = linspace(-tx.rclip*sigtx, tx.rclip*sigtx, 2^sim.ENOB);     % Quantization levels
                 delta1 = abs(yqtx(2)-yqtx(1));              % tx.rclip*sigtx/(2^sim.ENOB-1);        % (2^sim.ENOB-1) because of clipping done before
-                [~, xncpq] = quantiz(xncpc, yqtx(1:end-1) + delta1/2, yqtx);
+                [~, xncpq, this.varQtx] = quantiz(xncpc, yqtx(1:end-1) + delta1/2, yqtx); 
             else 
                 % Without quantization (clip -> interp)
                 % No quantization
+                this.varQtx = 0;
                 xncpq = xncpc;
             end
 
@@ -169,6 +139,7 @@ classdef ofdm < handle
 
         end
         
+        %% Detect OFDM signal and calculate BER
         function ber = detect(this, It, Gch, rx, sim)
             % Antialiasing filter of the ADC
             It = real(ifft(fft(It).*ifftshift(rx.filter.H(sim.f/sim.fs)))); % signal + noise
@@ -198,9 +169,10 @@ classdef ofdm < handle
                 yncpc(yncp > yqrx(end)) = yqrx(end);
 
                 % Quantize
-                [~, yncpq] = quantiz(yncpc, yqrx(1:end-1) + delta2/2, yqrx);
+                [~, yncpq, this.varQrx] = quantiz(yncpc, yqrx(1:end-1) + delta2/2, yqrx);
             else
                 % No quantization
+                this.varQrx = 0;
                 yncpq = yncp - mean(yncp);
             end
 
@@ -236,18 +208,7 @@ classdef ofdm < handle
 
             % 95% confidence intervals for the counted BER
             [~, interval] = berconfint(numerr, sim.Nsymb*bn);
-            ber.interval = [min(interval(:,1)), max(interval(:,2))];
-
-            % Estimate BER from the SNR at each subcarrier
-            % Note that to estimate the BER we use SNRn which is calculated from the
-            % data measured in the simulation. If we had used SNRnest (calculated from
-            % the theoretical values) the results would match the target BER perfectly
-%             berest = zeros(size(SNRn));
-%             for kk = 1:length(SNRn)
-%                 berest(kk) = berqam(this.CS(kk), SNRn(kk));
-%             end
-% 
-%             ber.est(navg) = sum(berest.*bn)/sum(bn);
+            ber.interval = [min(interval(:,1)), max(interval(:,2))];     
         end
                
         %% Calculate the cyclic prefix length after oversampling 
@@ -326,5 +287,71 @@ classdef ofdm < handle
                 title('Impulse response of the channel (DAC * Laser * ADC)')
             end            
         end
+        
+        % Estimate BER from the SNR at each subcarrier
+        % A = signal power at each subcarrier
+        % varthermal = thermal noise variance of each carrier after ADC filter
+        % varshot = shot noise variance of each carrier after ADC filter
+        % varrin  = RIN noise variance of each carrier after ADC filter
+        % Gch = total channel frequency response
+        function ber_est = estimate_ber(this, A, varthermal, varshot, varrin, Gch)
+            SNRn = 10*log10(this.Nc*(A^2)*this.Pn.*abs(Gch).^2./...
+                (varthermal + varshot + varrin + this.varQtx*abs(Gch).^2 + this.varQrx)); % Measured SNR
+            
+            berest = zeros(size(SNRn));
+            for kk = 1:length(SNRn)
+                berest(kk) = berqam(this.CSn(kk), SNRn(kk));
+            end
+
+            bn = log2(this.CSn);
+            ber_est = sum(berest.*bn)/sum(bn);    
+        end
+    end
+    
+    %% Get Methods
+    methods 
+        % OFDM sampling rate
+        function fs = get.fs(this)
+            try
+                fs = this.Rs*(this.Nc + this.Npre_os)/this.Nu;
+            catch e
+                disp('Cyclic prefix was not calculated yet.')
+                disp(e.message)
+            end
+        end        
+        
+        % OFDM oversampling ratio
+        function Ms = get.Ms(this)
+            Ms = this.Nc/this.Nu;
+        end
+        
+        % frequency at which subcarriers are located
+        function fc = get.fc(this)
+            fc = this.fs/this.Nc*(1:this.Nu/2);      
+        end
+        
+        % Symbol rate
+        function Rs = get.Rs(this)
+            Rs = 2*this.Rb/log2(this.CS); 
+        end
+        
+        % Total number of bits
+        function B = get.B(this)
+            B = this.Nu/2*log2(this.CS);    
+        end
+        
+        % Cyclic prefix length
+        function Npre_os = get.Npre_os(this)
+            Npre_os = this.Npos + this.Nneg;
+        end
+        
+        % Calculate the average power of a CS-QAM constellation with dmin = 2 (used
+        % to normalize symbol power after qammod)
+        function Pqam = get.Pqam(this)
+            Pqam = zeros(1, this.Nu/2);
+            for k = 1:this.Nu/2
+                Pqam(k) = mean(abs(qammod(0:this.CSn(k)-1, this.CSn(k), 0, 'gray')).^2);
+            end
+        end   
     end
 end
