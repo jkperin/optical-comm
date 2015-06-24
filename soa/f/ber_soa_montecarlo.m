@@ -27,7 +27,7 @@ end
 
 % Modulated PAM signal in discrete-time
 xd = Plevels(gray2bin(dataTX, 'pam', mpam.M) + 1);
-xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(1:sim.Mct)).', sim.N, 1);
+xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(0:sim.Mct-1)).', sim.N, 1);
 
 % Generate optical signal
 [Et, ~] = optical_modulator(xt, tx, sim);

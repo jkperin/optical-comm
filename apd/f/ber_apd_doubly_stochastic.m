@@ -42,7 +42,7 @@ end
 % Modulated PAM signal in discrete-time
 xd = Plevels(gray2bin(dataTX, 'pam', mpam.M) + 1);
 xd = [zeros(Nzero, 1); xd; zeros(Nzero, 1)]; % zero pad
-xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(1:sim.Mct)).', N, 1);
+xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(0:sim.Mct-1)).', N, 1);
 
 % Generate optical signal
 [Et, ~] = optical_modulator(xt, tx, sim);
@@ -65,9 +65,9 @@ yd(yd < 0) = 0;
 
 if sim.verbose
     figure(102), hold on
-    plot([zeros(Nzero*sim.Mct, 1); Pt; zeros(Nzero*sim.Mct, 1)])
+    plot(link_gain*xt)
     plot(ix, yd, 'o')
-    legend('Transmitted power', 'KL-SE Fourier')
+    legend('Transmitted power', 'Sampled received signal')
 end
 
 %%

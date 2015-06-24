@@ -42,10 +42,10 @@ end
 % Modulated PAM signal in discrete-time
 xd = Plevels(gray2bin(dataTX, 'pam', mpam.M) + 1);
 xd = [zeros(Nzero, 1); xd; zeros(Nzero, 1)]; % zero pad
-xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(1:sim.Mct)).', N, 1);
+xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(0:sim.Mct-1)).', N, 1);
 
 % Generate optical signal
-[Et, ~] = optical_modulator(xt, tx, sim);
+[Et, Pt] = optical_modulator(xt, tx, sim);
 
 % Fiber propagation
 Et = fiber.linear_propagation(Et, sim.f, tx.lamb);
@@ -77,14 +77,14 @@ ck = ck(:, ix);
 if sim.verbose
     A = U*diag(D)*U';
     yk = zeros(length(x), 1); % output signal (noiseless)
-    for k = 1:legnth(x)
+    for k = 1:length(x)
         yk(k) = real(xk(:, k)'*A*xk(:, k));
     end
     
     yd = yk(ix);
     
     figure(102), hold on
-    plot([zeros(Nzero*sim.Mct, 1); Pt; zeros(Nzero*sim.Mct, 1)])
+    plot(link_gain*Pt)
     plot(yk, '-k')
     plot(ix, yd, 'o')
     legend('Transmitted power', 'KL-SE Fourier')

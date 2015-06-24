@@ -45,9 +45,13 @@ switch type
     case 'matched'
         % order = pulse shape function
         % fcnorm = 1 / oversampling factor
+        nmax = 256; % more than enough 
         pshape = order;
-        num = conj(fliplr(pshape(1:ceil(1/fcnorm))));
-        num = num/length(num);
+        cumenergy = cumsum(abs(pshape(0:nmax-1)).^2)/sum(abs(pshape(0:nmax-1)).^2);
+        nlength = find(cumenergy >= 0.9999, 1, 'first');
+        
+        num = conj(fliplr(pshape(0:nlength-1)));
+        num = num/sum(num); % ensures unit gain at DC
         den = 1;
     
     case 'fir'

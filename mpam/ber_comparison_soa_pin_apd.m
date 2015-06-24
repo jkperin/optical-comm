@@ -26,10 +26,10 @@ sim.RIN = true; % include RIN noise in montecarlo simulation
 
 % M-PAM
 mpam.level_spacing = 'uniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
-mpam.M = 4;
+mpam.M = 8;
 mpam.Rb = 100e9;
 mpam.Rs = mpam.Rb/log2(mpam.M);
-mpam.pshape = @(n) ones(size(n)); % pulse shape
+mpam.pshape = @(n) double(n >= 0 & n < sim.Mct); % pulse shape
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -50,16 +50,16 @@ else
 end
 
 tx.lamb = 1310e-9; % wavelength
-tx.alpha = 2; % chirp parameter
+tx.alpha = 0; % chirp parameter
 tx.RIN = -150;  % dB/Hz
 tx.rexdB = -Inf;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response
 tx.kappa = 1; % controls attenuation of I to P convertion
-% tx.modulator.fc = 2*mpam.Rs; % modulator cut off frequency
-% tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-% tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
-% tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
+tx.modulator.fc = 30e9; % modulator cut off frequency
+tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
+tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
 %% Fiber
 fiber = fiber(); % fiber(L, att(lamb), D(lamb))
@@ -69,8 +69,9 @@ rx.N0 = (20e-12).^2; % thermal noise psd
 rx.Id = 10e-9; % dark current
 rx.R = 1; % responsivity
 % Electric Lowpass Filter
-% rx.elefilt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
-rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
+rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
+% rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
+% rx.elefilt = design_filter('matched', @(t) conv(mpam.pshape(t), 1/sim.fs*tx.modulator.h(t/sim.fs), 'full') , 1/sim.Mct);
 % Optical Bandpass Filter
 rx.optfilt = design_filter('butter', 4, sim.M*rx.elefilt.fcnorm);
 
@@ -104,7 +105,7 @@ end
 
 %% SOA
 % soa(GaindB, NF, lambda, maxGaindB)
-soa = soa(20, 9, 1310e-9, 20); 
+soa = soa(10, 9, 1310e-9, 20); 
 
 % BER
 disp('BER with SOA')
