@@ -5,12 +5,14 @@ clear, clc, close all
 addpath ../f % general functions
 addpath f
 
+profile on
+
 % Simulation parameters
 sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
 sim.Mct = 8;     % Oversampling ratio to simulate continuous time (must be even)  
-sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
+sim.L = 3;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.M = 4; % Ratio of optical filter BW and electric filter BW (must be integer)
-sim.Me = 16; % Number of used eigenvalues
+sim.Me = 8; % Number of used eigenvalues
 sim.verbose = ~true; % show stuff
 sim.BERtarget = 1e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
@@ -37,10 +39,22 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -25:-10;
-tx.rex = 10;  % extinction ratio in dB
+if mpam.M == 8
+    tx.PtxdBm = -22:2:-4;
+else
+    tx.PtxdBm = -26:1:-10;
+end
+
+tx.lamb = 1310e-9; % wavelength
+tx.alpha = 2; % chirp parameter
 tx.RIN = -150;  % dB/Hz
-tx.rex = 10;  % extinction ratio in dB
+tx.rexdB = -Inf;  % extinction ratio in dB. Defined as Pmin/Pmax
+
+tx.kappa = 1;
+% tx.modulator.fc = 2*mpam.Rs; % modulator cut off frequency
+% tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+% tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
+% tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
 %% Receiver
 rx.N0 = (20e-12).^2; % thermal noise psd
@@ -50,24 +64,32 @@ rx.R = 1; % responsivity
 % rx.elefilt = design_filter('bessel', 5, 0.5*mpam.Rs/(sim.fs/2));
 rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 % Optical Bandpass Filter
-rx.optfilt = design_filter('fbg', 0, sim.M*rx.elefilt.fcnorm);
+rx.optfilt = design_filter('butter', 4, sim.M*rx.elefilt.fcnorm);
 
 % KLSE Fourier Series Expansion (done here because depends only on filters
 % frequency response)
 [rx.U_fourier, rx.D_fourier, rx.Fmax_fourier] = klse_fourier(rx, sim, sim.Mct*(mpam.M^sim.L + 2*sim.L)); 
+%% SOA
+% soa(GaindB, NF, lambda, maxGaindB)
+soa_opt = soa(10, 9, tx.lamb, Inf);
+soa_opt.optimize_gain(mpam, tx, fiber, rx, sim)
 
-GainsdB = 5:2.5:20;
+profile off
+profile viewer
+
+GainsdB = [5:2.5:20 soa_opt.GaindB];
+
+soaG = soa(10, 9, 1310e-9, 20); 
 
 figure, hold on, grid on
 legends = {};
 for k= 1:length(GainsdB)
 
-    %% SOA
-    % soa(GaindB, NF, lambda, maxGaindB)
-    soaG = soa(GainsdB(k), 9, 1310e-9, 20); 
+    % Selected gain
+    soaG.GaindB = GainsdB(k);
 
     % BER
-    ber_soa = soa_ber(mpam, tx, soaG, rx, sim);
+    ber_soa = soa_ber(mpam, tx, fiber, soaG, rx, sim);
     
 %     plot(tx.PtxdBm, log10(ber_soa.count), '-o')
     plot(tx.PtxdBm, log10(ber_soa.est), '-')

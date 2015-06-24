@@ -2,7 +2,7 @@
 % BER is calculated via montecarlo simulation and through saddlepoint approximation
 % to calculate tail probabilities given the moment generating funcion.
 
-function [ber, mpam] = apd_ber(mpam, tx, apd, rx, sim)
+function [ber, mpam] = apd_ber(mpam, tx, fiber, apd, rx, sim)
 
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
@@ -11,7 +11,13 @@ if strcmp(mpam.level_spacing, 'uniform')
     mpam.a = (0:2:2*(mpam.M-1)).';
     mpam.b = (1:2:(2*(mpam.M-1)-1)).';
 elseif strcmp(mpam.level_spacing, 'nonuniform')
+   % optimized levels at the receiver
    [mpam.a, mpam.b] = level_spacing_optm_gauss_approx(mpam, tx, apd, rx, sim);
+   
+   % Refer to transmitter
+   link_gain = tx.kappa*fiber.link_attenuation(tx.lamb)*apd.R*apd.Gain;
+   mpam.a = mpam.a/link_gain;
+   mpam.b = mpam.b/link_gain;
 else
     error('Invalide Option!')
 end
@@ -34,10 +40,10 @@ for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
          
     % Montecarlo simulation
-    ber.count(k) = ber_apd_montecarlo(mpam, tx, apd, rx, sim);
+    ber.count(k) = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim);
     
     % approx ber
-    [~, ber.gauss(k)] = ber_apd_doubly_stochastic(mpam, tx, apd, rx, sim);
+    [~, ber.gauss(k)] = ber_apd_doubly_stochastic(mpam, tx, fiber, apd, rx, sim);
 end
 
 if sim.verbose

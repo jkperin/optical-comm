@@ -1,52 +1,47 @@
 %% Calculate BER of amplified IM-DD system through montecarlo simulation
-function ber = ber_soa_montecarlo(mpam, tx, soa, rx, sim)
+function ber = ber_soa_montecarlo(mpam, tx, fiber, soa, rx, sim)
 
-% time and frequency measures
+% Frequency
 f = sim.f/sim.fs;
 
 % Random sequence
 dataTX = randi([0 mpam.M-1], 1, sim.Nsymb);
 
-% Modulated PAM signal in discrete-time
-Pd = mpam.a(gray2bin(dataTX, 'pam', mpam.M) + 1);
-
-% Add pulse 
-Pt = reshape(kron(Pd, mpam.pshape(1:sim.Mct)).', sim.N, 1);
-
 % Rescale to desired power
-if strcmp(mpam.level_spacing, 'uniform') % adjust levels to include extinction ratio penalty
-    Pmin = mean(Pt)/(10^(abs(tx.rex)/10)-1); % minimum power 
-    Plevels = (mpam.a + Pmin)*soa.Gain*tx.Ptx/(mean(Pt) + Pmin); % levels at the receiver
-    Pthresh = (mpam.b + Pmin)*soa.Gain*tx.Ptx/(mean(Pt) + Pmin); % decision thresholds at the receiver
-    Pt = (Pt + Pmin)*tx.Ptx/(mean(Pt) + Pmin); % after rescaling E(Pt) = tx.Ptx
+rex = 10^(-abs(tx.rexdB)/10); % extinction ratio. Defined as Pmin/Pmaxl
+link_gain = tx.kappa*soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
+if strcmp(mpam.level_spacing, 'uniform') 
+    % Adjust levels to desired transmitted power and include additional dc bias due to finite extinction ratio
+    Pmin = 2*tx.Ptx*rex/(1 + rex); % power of the lowest level 
+    Plevels = mpam.a*(tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + Pmin; % levels at the transmitter
+   
+    Pthresh = mpam.b*(link_gain*tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + link_gain*Pmin; % decision thresholds at the #receiver#
 elseif strcmp(mpam.level_spacing, 'nonuniform') % already includes extinction ratio penalty, so just scale
-    Plevels = mpam.a*soa.Gain*tx.Ptx/mean(Pt);
-    Pthresh = mpam.b*soa.Gain*tx.Ptx/mean(Pt);
-    Pt = Pt*tx.Ptx/mean(Pt);
-end   
+    % Adjust levels to desired transmitted power.
+    % Extinction ratio penalty was already included in the level
+    % optimization
+    Plevels = mpam.a*tx.Ptx/mean(mpam.a); % levels at the transmitter
+    
+    Pthresh = mpam.b*link_gain*tx.Ptx/mean(mpam.a); % decision thresholds at the #receiver#
+end  
 
-%% Add intensity noise
-if isfield(sim, 'RIN') && sim.RIN
-    % Calculate RIN PSD, which depends on the instantaneous power
-    Srin = 10^(tx.RIN/10)*Pt.^2;
+% Modulated PAM signal in discrete-time
+xd = Plevels(gray2bin(dataTX, 'pam', mpam.M) + 1);
+xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(1:sim.Mct)).', sim.N, 1);
 
-    % noise. Srin is two-sided psd
-    wrin = sqrt(Srin.*sim.fs).*randn(size(Pt));
+% Generate optical signal
+[Et, ~] = optical_modulator(xt, tx, sim);
 
-    Pt = Pt + wrin;
-end 
-
-% Calculate electric field (no chirp) before amplifier
-x = sqrt(Pt);
+% Fiber propagation
+Et = fiber.linear_propagation(Et, sim.f, tx.lamb);
 
 % Amplifier
-et = soa.amp(x, sim.fs);
-Ef = fftshift(fft(et));
+et = soa.amp(Et, sim.fs);
 
 % Optical bandpass filter
 eo = ifft(fft(et).*ifftshift(rx.optfilt.H(f)));
 
-% Direct detection and add thermal noise
+%% Direct detection and add thermal noise
 %% Add shot noise
 if isfield(sim, 'shot') && sim.shot
     q = 1.60217657e-19;      % electron charge (C)
@@ -81,7 +76,6 @@ end
 % Discard first and last sim.Ndiscard symbols
 ndiscard = [1:sim.Ndiscard sim.Nsymb-sim.Ndiscard+1:sim.Nsymb];
 yd(ndiscard) = []; 
-Pd(ndiscard) = []; 
 dataTX(ndiscard) = [];
 
 % Demodulate

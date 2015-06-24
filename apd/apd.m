@@ -150,16 +150,21 @@ classdef apd < handle
         end
         
         % Optimize apd gain for a given system
-        function optimize_gain(this, mpam, tx, rx, sim)
+        function optimize_gain(this, mpam, tx, fiber, rx, sim)
             disp('Optimizing APD gain...')
+            
+            originalGain = this.Gain;
 
             if strcmp(mpam.level_spacing, 'uniform')
                 % Optmize gain for uniform spacing: find Gapd that minimizes the required
                 % average power (Prec) to achieve a certain target SER.
-                [Gapd_opt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) calc_apd_ber(PtxdBm, Gapd, mpam, tx, this, rx, sim) - sim.BERtarget, -20), 1, min(this.GainBW/mpam.Rs, 100));    
+                [Gapd_opt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, this, rx, sim) - sim.BERtarget, -20), 1, min(this.GainBW/mpam.Rs, 100));    
 
             elseif strcmp(mpam.level_spacing, 'nonuniform')
                 % Optimal level spacing
+                % Doesn't include fiber attenuation. Minimizing average
+                % optical power at the receiver is equivalent to minimizing
+                % average power at the transmitter
                 [Gapd_opt, ~, exitflag] = fminbnd(@(Gapd) mean(calc_level_spacing(Gapd, mpam, tx, this, rx, sim))/Gapd, 1, min(this.GainBW/mpam.Rs, 100));
                 1;
             else
@@ -170,27 +175,33 @@ classdef apd < handle
                 warning(sprintf('APD gain optimization did not converge (exitflag = %d)\n', exitflag))
             end 
 
-            if ~isnan(Gapd_opt) && ~isinf(Gapd_opt)
+            if ~isnan(Gapd_opt) && ~isinf(Gapd_opt) && Gapd_opt >= 1
                 this.Gain = Gapd_opt;
             else
+                this.Gain = originalGain;
                 warning('apd_gain_optmization: APD gain was not changed')
             end
 
-            function ber = calc_apd_ber(PtxdBm, Gapd, mpam, tx, apd, rx, sim)
+            function ber = calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, apd, rx, sim)
                 % Set power level
-                tx.PtxdBm = PtxdBm;
+                tx.Ptx = 1e-3*10^(PtxdBm/10);
 
                 % Set APD gain
                 apd.Gain = Gapd; % linear units
+                
+                % Uniform level spacing
+                mpam.a = (0:2:2*(mpam.M-1)).';
+                mpam.b = (1:2:(2*(mpam.M-1)-1)).';
 
-                ber_struct = apd_ber(mpam, tx, apd, rx, sim);
-
-                ber = ber_struct.gauss;
+                % Estimated BER using KLSE Fourier and saddlepoint approximation of
+                % tail probabilities
+                [~, ber] = ber_apd_doubly_stochastic(mpam, tx, fiber, apd, rx, sim);
             end
 
             function a = calc_level_spacing(Gapd, mpam, tx, apd, rx, sim)
                 apd.Gain = Gapd; % linear units
-
+                
+                % level spacing at the receiver (after amplification)
                 a = level_spacing_optm_gauss_approx(mpam, tx, apd, rx, sim);
             end
 
@@ -202,7 +213,8 @@ classdef apd < handle
         % lambda = rate of the Poisson process
         % N0 = thermal noise psd
         % fs = sampling frequency
-        function [px, shat] = tail_saddlepoint_approx(this, xthresh, P, fs, N0, tail)
+        %% NOT FINISHED !!!
+        function [px, shat] = tail_saddlepoint_approx(this, xthresh, P, fs, N0, tail) 
             options = optimoptions('fsolve', 'Display', 'off');
             
             % From implicit relations of APD: beta = 1/(1 - ka) and G = 1/(1 - ab)
@@ -402,9 +414,7 @@ classdef apd < handle
         % Calculate noise pdf for a sgnal levels Plevels with duration dt.
         % The Gaussian approximation is compared with the distribution 
         % calculated using the saddlepoint approximation
-        function lpdf = levels_pdf(this, Plevels, fs)
-            dt = 1/fs; % pulse width
-            
+        function lpdf = levels_pdf(this, Plevels, fs)           
             % Struct of levels pdf: 
             lpdf = struct('p', 0, 'p_gauss', 0, 'I', 0,... % p(I) = true pdf, p_gauss(I) = pdf under Gaussian approximation
                 'mean', 0, 'mean_gauss', 0,... % true mean and mean under Gaussian approximation

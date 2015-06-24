@@ -1,6 +1,7 @@
 %% Level spacing (a) and decision threshold (b) optmization
 % Assumes infinite extinction ratio at first, then corrects power and
 % optmize levels again
+% The calculated levels and thresholds are at the receiver
 function [a, b] = level_spacing_optm(mpam, tx, soa, rx, sim)
 
 % Error probability under a single tail for a given symbol
@@ -22,7 +23,7 @@ varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2;
 a = zeros(mpam.M, 1);
 b = zeros(mpam.M-1, 1);
 
-rex = 10^(tx.rex/10);
+rex = 10^(-abs(tx.rexdB)/10);
 
 maxtol = 1e-6; % maximum tolerance for convergence
 maxit = 20; % maximum number of iteratios
@@ -32,7 +33,7 @@ k = 1;
 while tol(end) > maxtol && k < maxit
 
     apast = a;
-    a(1) = mean(a)/(rex-1);
+    a(1) = a(end)*rex;
 
     for level = 1:mpam.M-1
         % Find decision threshold

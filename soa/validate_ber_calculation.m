@@ -49,8 +49,14 @@ sim.f = f;
 %% Transmitter
 PtxdBm = -25:-15;
 Ptx = 1e-3*10.^(PtxdBm/10);
+
+tx.kappa = 1;
+tx.lamb = 1310e-9;
 tx.RIN = -150;  % dB/Hz
-tx.rex = 10;  % extinction ratio in dB
+tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
+
+%% fiber
+fiber = fiber(); % back-to-back
 
 %% Receiver
 rx.N0 = (20e-12).^2; % thermal noise psd
@@ -111,14 +117,14 @@ for k = 1:length(Ptx)
 %     tx.Ptx = mean(mpam.a)/soa.Gain; % for testing level spacing optimization
     
     % Montecarlo simulation
-    ber_mc(k) = ber_soa_montecarlo(mpam, tx, soa, rx, sim);
+    ber_mc(k) = ber_soa_montecarlo(mpam, tx, fiber, soa, rx, sim);
     
     % approx ber
 %     [ber_klse_freq(k), ber_pdf(k)] = ber_soa_klse_freq(D_freq, Phi_freq, Fmax_freq, mpam, tx, soa, rx, sim);
 %     [ber_klse_fourier(k), ber_gauss(k), ber_pdf(k)] = ber_soa_klse_fourier(U_fourier, D_fourier, Fmax_fourier, mpam, tx, soa, rx, sim);
 
 %     ber_klse_freq(k) = ber_soa_klse_freq(D_freq, Phi_freq, Fmax_freq, mpam, tx, soa, rx, sim);
-    [ber_klse_fourier(k), ber_gauss(k)] = ber_soa_klse_fourier(U_fourier, D_fourier, Fmax_fourier, mpam, tx, soa, rx, sim);
+    [ber_klse_fourier(k), ber_gauss(k)] = ber_soa_klse_fourier(U_fourier, D_fourier, Fmax_fourier, mpam, tx, fiber, soa, rx, sim);
     1;
 end
 

@@ -2,16 +2,19 @@
 % Calculate eigenvectors and eigenvalues for KLSE Fourier Series Expansion 
 % Both noise and signal are expanded on the same basis.
 % N = sequence length
-function [U, D, Fmax] = klse_fourier(rx, sim, N)
-
+% Hdisp (optional) = dispersion frequency response
+function [U, D, Fmax] = klse_fourier(rx, sim, N, Hdisp)
 %% Expansion using same basis for noise and signal. 
 % % Input signal x is considered periodic with period L = length(x). Both
 % % noise and signal are expanded over the same Fourier Series basis.
 % % Problem: !! has to calculate eigenvalues of L x L matrix
 %
-
+if nargin < 4 % if fiber is not included
+    Hdisp = @(f) 1;
+end
+    
 % Bandwidth to account for great part of energy
-H = rx.optfilt.H(sim.f/sim.fs);
+H = rx.optfilt.H(sim.f/sim.fs).*Hdisp(sim.f);
 H = cumtrapz(sim.f/sim.fs, abs(H).^2)/trapz(sim.f/sim.fs, abs(H).^2);
 Fmax = sim.f(find(H >= 1-1e-4, 1, 'first'))/sim.fs;
 
@@ -23,7 +26,7 @@ L = length(f);
 
 % Annonymous functions of frequency response H(f/fs)
 He = rx.elefilt.H;
-Ho = rx.optfilt.H(f); 
+Ho = rx.optfilt.H(f).*Hdisp(f*sim.fs); 
 
 % !! Since the frequency response functions are in discrete time, Fmax <= 0.25,
 % otherwise He(f) might be calculated up to [-1, 1]. A warning is issued if
@@ -32,6 +35,9 @@ A = zeros(L);
 for k = 1:L
     A(:, k) = Ho(k)*He(f(k)-f).*conj(Ho);
 end
+
+% Include photodiode responsivity
+A = rx.R*A;
 
 % Calcualte eigenvalues
 [U, D] = eigs(A, min(sim.Me, L));
