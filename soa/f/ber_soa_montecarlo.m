@@ -4,10 +4,7 @@ function ber = ber_soa_montecarlo(mpam, tx, fiber, soa, rx, sim)
 % Frequency
 f = sim.f/sim.fs;
 
-% Random sequence
-dataTX = randi([0 mpam.M-1], 1, sim.Nsymb);
-
-% Rescale to desired power
+% Rescale levels to desired power
 rex = 10^(-abs(tx.rexdB)/10); % extinction ratio. Defined as Pmin/Pmaxl
 link_gain = tx.kappa*soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
 if strcmp(mpam.level_spacing, 'uniform') 
@@ -24,6 +21,9 @@ elseif strcmp(mpam.level_spacing, 'nonuniform') % already includes extinction ra
     
     Pthresh = mpam.b*link_gain*tx.Ptx/mean(mpam.a); % decision thresholds at the #receiver#
 end  
+
+% Random sequence
+dataTX = randi([0 mpam.M-1], 1, sim.Nsymb);
 
 % Modulated PAM signal in discrete-time
 xd = Plevels(gray2bin(dataTX, 'pam', mpam.M) + 1);

@@ -52,7 +52,7 @@ end
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
 tx.RIN = -150;  % dB/Hz
-tx.rexdB = -Inf;  % extinction ratio in dB. Defined as Pmin/Pmax
+tx.rexdB = -5;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response
 tx.kappa = 1; % controls attenuation of I to P convertion
@@ -71,7 +71,7 @@ rx.R = 1; % responsivity
 % Electric Lowpass Filter
 rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
 % rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
-% rx.elefilt = design_filter('matched', @(t) conv(mpam.pshape(t), 1/sim.fs*tx.modulator.h(t/sim.fs), 'full') , 1/sim.Mct);
+rx.elefilt = design_filter('matched', @(t) conv(mpam.pshape(t), 1/sim.fs*tx.modulator.h(t/sim.fs), 'full') , 1/sim.Mct);
 % Optical Bandpass Filter
 rx.optfilt = design_filter('butter', 4, sim.M*rx.elefilt.fcnorm);
 
