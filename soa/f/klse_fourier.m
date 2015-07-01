@@ -40,14 +40,18 @@ end
 A = rx.R*A;
 
 % Calcualte eigenvalues
-[U, D] = eigs(A, min(sim.Me, L));
+if sim.Me >= L - 1
+    [U, D] = eig(A);
+else
+    [U, D] = eigs(A, sim.Me);
+end
 % [U, D] = eig(A);
 
 % check
 % norm(A - U*D*U')
 
-% 
 D = real(diag(D));
+
 
 %
 disp('klse_fourier: ratio between first and last eigenvalues in dB')
