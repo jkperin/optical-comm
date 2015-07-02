@@ -32,7 +32,7 @@ end
 function [Prx_uniform, Prx_nonuniform] = calc_power_sensitivity(M, FndB)
     % Simulation parameters
     sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
-    sim.Mct = 32;     % Oversampling ratio to simulate continuous time (must be even)  
+    sim.Mct = 17;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
     sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
     sim.M = 4; % Ratio of optical filter BW and electric filter BW (must be integer)
     sim.Me = 16; % number of used eigenvalues

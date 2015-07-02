@@ -9,7 +9,7 @@ profile on
 
 % Simulation parameters
 sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
-sim.Mct = 8;     % Oversampling ratio to simulate continuous time (must be even)  
+sim.Mct = 9;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.L = 3;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.M = 4; % Ratio of optical filter BW and electric filter BW (must be integer)
 sim.Me = 8; % Number of used eigenvalues

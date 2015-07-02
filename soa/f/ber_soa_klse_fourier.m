@@ -71,7 +71,7 @@ end
 ck = U'*xk; 
 
 % Discard zeros and downsample
-ix = sim.Mct*Nzero+sim.Mct/2:sim.Mct:N-sim.Mct*Nzero;
+ix = sim.Mct*Nzero+1+(sim.Mct-1)/2:sim.Mct:N-sim.Mct*Nzero; % sampling points
 ck = ck(:, ix);
 
 if sim.verbose

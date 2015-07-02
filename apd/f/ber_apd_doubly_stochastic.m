@@ -57,7 +57,7 @@ yt = apd.R*apd.Gain*Pt;
 yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));
 
 % Discard zeros and downsample
-ix = sim.Mct*Nzero+sim.Mct/2:sim.Mct:N-sim.Mct*Nzero;
+ix = sim.Mct*Nzero+1+(sim.Mct-1)/2:sim.Mct:N-sim.Mct*Nzero;
 yd = yt(ix);
 
 % Ensures signal is non-negative

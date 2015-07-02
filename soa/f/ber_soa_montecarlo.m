@@ -63,7 +63,17 @@ yt = yt + wshot + sqrt(rx.N0*sim.fs/2)*randn(size(eo));
 yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));
 
 % Sample
-yd = yt(sim.Mct/2:sim.Mct:end);
+ix = (sim.Mct-1)/2+1:sim.Mct:length(yt); % sampling points
+
+yd = yt(ix);
+
+if sim.verbose   
+    figure(102), hold on
+    plot(link_gain*Pt)
+    plot(yt, '-k')
+    plot(ix, yd, 'o')
+    legend('Transmitted power', 'Received signal', 'Samples')
+end
 
 % Heuristic pdf for a level
 if sim.verbose

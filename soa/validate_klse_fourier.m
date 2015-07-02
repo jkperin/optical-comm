@@ -12,8 +12,8 @@ sim.verbose = true;
 
 % Simulation parameters
 sim.M = 2; % Ratio of optical filter BW and electric filter BW
-sim.Me = 16;
-sim.Mct = 16;
+sim.Me = 16; 
+sim.Mct = 17; % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.N = 512;
 sim.fs = mpam.Rs*sim.Mct;
 
