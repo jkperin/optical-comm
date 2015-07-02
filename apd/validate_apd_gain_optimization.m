@@ -6,7 +6,7 @@ addpath f
 
 % Simulation parameters
 sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
-sim.Mct = 8;     % Oversampling ratio to simulate continuous time (must be even)  
+sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.shot = true; % include shot noise. Only included in montecarlo simulation (except for APD)
 sim.rin = true; % include RIN noise. Only included in montecarlo simulation

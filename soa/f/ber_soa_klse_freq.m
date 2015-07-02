@@ -80,7 +80,7 @@ for k = 1:sim.Me
     yk = yk + D(k).*abs(xn(:, k)).^2;
 end
 % Discard zeros and downsample
-ix = sim.Mct*Nzero+sim.Mct/2:sim.Mct:N-sim.Mct*Nzero;
+ix = sim.Mct*Nzero+(sim.Mct-1)/2:sim.Mct:N-sim.Mct*Nzero;
 yd = yk(ix);
 xnd = xn(ix, :);
 
