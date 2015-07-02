@@ -10,9 +10,9 @@ PrxdBm = -10:-4;
 Prx = 1e-3*10.^(PrxdBm/10);
 
 %% Simulation parameters
-sim.ENOB = 6;                       % Effective number of bits for DAC and ADC (only used if sim.quantiz is true)
+sim.ENOB = 5;                       % Effective number of bits for DAC and ADC (only used if sim.quantiz is true)
 sim.quantiz = false;                 % include quantization at both transmitter and receiver
-sim.shot = false;                    % Include shot noise?
+sim.shot = true;                    % Include shot noise?
 sim.RIN = true;                     % Include intensity noise?
 sim.verbose = false;                    % Show all plots? It'll slow donw simulation
 sim.Navg = 1;                     % Number of noise realizations
@@ -56,7 +56,7 @@ fiber = fiber(); % back-to-back
 %% Receiver parameters
 rx.R = 1;                           % responsivity
 rx.NEP = 20e-12;                    % Noise equivalent power of the TIA at the receiver (A/sqrt(Hz))
-rx.Sth = 2*rx.R^2*rx.NEP^2/2;       % two-sided psd of thermal noise at the receiver (Sth = N0/2)
+rx.Sth = rx.R^2*rx.NEP^2/2;       % two-sided psd of thermal noise at the receiver (Sth = N0/2)
 
 % Antialiasing filter
 rx.filter = design_filter('gaussian', 4, 1/(ofdm.Ms*sim.Mct));        
