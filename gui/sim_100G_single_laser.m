@@ -1,5 +1,18 @@
 function sim_100G_single_laser2
-    close all
+    addpath f
+    addpath ../f % general functions
+    addpath ../soa
+    addpath ../soa/f
+    addpath ../apd
+    addpath ../apd/f
+    addpath ../ofdm
+    addpath ../ofdm/f/
+
+    getValue = @(h) str2double(get(h, 'String'));
+    getLogicalValue = @(h) logical(get(h, 'Value'));
+    
+   %% GUI layout
+   close all
    %  Create and then hide the GUI as it is being constructed.
    fSize_norm = [1 1];    
    f = figure('Visible','off', 'Units', 'Normalized', 'Position',[0 0 fSize_norm]);
@@ -7,195 +20,229 @@ function sim_100G_single_laser2
    fSize = getpixelposition(f);
    fSize = fSize(3:4);
    
-   BlockHeigth = 30/fSize(2);
-   if fSize(2) <= 1080
+   panelWidht = 0.24;
+   
+   if fSize(2) < 1080
         HeaderFontSize = 10;
        FontSize = 9;
+       BlockHeigth = 20/fSize(2);
    else
        HeaderFontSize = 12;
        FontSize = 11;
+       BlockHeigth = 25/fSize(2);
    end
    
-   % Simulation Panel
-   hpanel_sim_height = 0.07;
-   maxY = 1 - hpanel_sim_height;
-   hpanel_sim = uipanel('Title', 'Simulation', 'FontSize', HeaderFontSize,...
-       'Position', [0 maxY 1 hpanel_sim_height]);
-   htext_modulation = uicontrol('Parent', hpanel_sim, 'Style', 'text', 'String', 'Modulation Type:',...
+   %% Simulation Panel
+   h.panel.sim_height = 0.06;
+   maxY = 1 - h.panel.sim_height;
+   h.panel.sim = uipanel('Title', 'Simulation', 'FontSize', HeaderFontSize,...
+       'Position', [0 maxY 1 h.panel.sim_height]);
+   h.text.modulation = uicontrol('Parent', h.panel.sim, 'Style', 'text', 'String', 'Modulation Type:',...
        'Units', 'normalized', 'Position', [0 0 0.07 1], 'FontSize', FontSize);
-   hpopup_modulation = uicontrol('Parent', hpanel_sim, 'Style','popupmenu', 'Units', 'normalized',...
+   h.popup.modulation = uicontrol('Parent', h.panel.sim, 'Style','popupmenu', 'Units', 'normalized',...
        'String', {'M-PAM', 'M-CAP', 'DMT/OFDM'}, 'Position', [1 0 0.06 1],...
        'FontSize', FontSize-1, 'Callback',@popup_modulation_Callback);
-   htext_system = uicontrol('Parent', hpanel_sim, 'Style', 'text', 'String', 'System:',...
+   h.text.system = uicontrol('Parent', h.panel.sim, 'Style', 'text', 'String', 'System:',...
        'Units', 'normalized', 'Position', [1 0 0.05 1], 'FontSize', FontSize);
-   hpopup_system = uicontrol('Parent', hpanel_sim, 'Style','popupmenu','Units', 'normalized',...
+   h.popup.system = uicontrol('Parent', h.panel.sim, 'Style','popupmenu','Units', 'normalized',...
        'String', {'Basic', 'APD', 'SOA'}, 'Position', [1 0 0.06 1],...
        'FontSize', FontSize, 'Callback',@popup_system_Callback);
-   htext_results = uicontrol('Parent', hpanel_sim, 'Style', 'text', 'String', 'Results:',...
+   h.text.results = uicontrol('Parent', h.panel.sim, 'Style', 'text', 'String', 'Results:',...
        'Units', 'normalized', 'Position', [1 0 0.05 1], 'FontSize', FontSize);
-   hpopup_results = uicontrol('Parent', hpanel_sim, 'Style','popupmenu', 'Units', 'normalized',...
+   h.popup.results = uicontrol('Parent', h.panel.sim, 'Style','popupmenu', 'Units', 'normalized',...
        'String', {'BER vs Transmitted Power', 'Power Penalty vs Modulator Cutoff Frequency',...
-       'SOA/APD Gain'}, 'Position', [1 0 0.15 1],...
+       'Power Penalty vs Fiber Length'}, 'Position', [1 0 0.15 1],...
        'FontSize', FontSize, 'Callback', @popup_results_Callback);
-   hrun = uicontrol('Parent', hpanel_sim, 'Style', 'pushbutton', 'Units', 'normalized',...
+   h.button.run = uicontrol('Parent', h.panel.sim, 'Style', 'pushbutton', 'Units', 'normalized',...
        'String', 'Run Simulation', 'Position', [1-0.1 0 0.1 1],...
        'FontSize', FontSize, 'Callback', @run_Callback);
-   align([htext_modulation, hpopup_modulation, hpopup_system, htext_results,...
-       hpopup_results, htext_system, hrun], 'None', 'Top');
-   align([htext_modulation, hpopup_modulation], 'Fixed', 10, 'None')
-   align([hpopup_modulation, htext_system], 'Fixed', 200, 'None')
-   align([htext_system, hpopup_system], 'Fixed', 10, 'None')
-   align([hpopup_system, htext_results], 'Fixed', 200, 'None')
-   align([htext_results, hpopup_results], 'Fixed', 10, 'None')
+   align([h.text.modulation, h.popup.modulation, h.popup.system, h.text.results,...
+       h.popup.results, h.text.system, h.button.run], 'None', 'Top');
+   align([h.text.modulation, h.popup.modulation], 'Fixed', 10, 'None')
+   align([h.popup.modulation, h.text.system], 'Fixed', 200, 'None')
+   align([h.text.system, h.popup.system], 'Fixed', 10, 'None')
+   align([h.popup.system, h.text.results], 'Fixed', 200, 'None')
+   align([h.text.results, h.popup.results], 'Fixed', 10, 'None')
    
-   
-   
+
    %% Block diagram  
-   hpanel_blockdiagram = uipanel('Title', 'Block Diagram', 'FontSize', HeaderFontSize,...
-       'Position', [0.5 1-hpanel_sim_height-.2 0.5 .2]);
-   block_diagram = axes('Parent', hpanel_blockdiagram, 'Units', 'Pixels',...
-       'Position', [5 5 fSize(1) 120], 'Color', 'w', 'Box', 'off');
+   h.panel.blockdiagram = uipanel('Title', 'Block Diagram', 'BackGroundColor', 'w', 'FontSize', HeaderFontSize,...
+       'Position', [0.5 maxY-0.2 0.5 0.2]);
+   h.axes.block_diagram = axes('Parent', h.panel.blockdiagram, 'Units', 'normalized',...
+       'Position', [0 0.05 1 0.95], 'Color', 'w', 'Box', 'off');
    
    %% Results
-   hpanel_results = uipanel('Title', 'Results', 'FontSize', HeaderFontSize,...
-       'Position', [0.5 0 0.5 1-hpanel_sim_height-.2]);
-   results = axes('Parent', hpanel_results, 'Units', 'Normalized', 'Position', [0.15 0.15 0.8 0.8], 'Box', 'on');
+   h.panel.results = uipanel('Title', 'Results', 'BackGroundColor', 'w', 'FontSize', HeaderFontSize,...
+       'Position', [0.5 0 0.5 maxY-0.2]);
+   h.axes.results = axes('Parent', h.panel.results, 'Units', 'Normalized', 'Position', [0.15 0.15 0.8 0.8], 'Box', 'on');
    
-   %% Modulation Panel
    %% Transmitter Panel
-   scale = 8;
-   dH = 1/6;
-   hpanel_tx = uipanel('Title', 'Transmitter', 'FontSize', HeaderFontSize,...
-       'Position', [0 1-hpanel_sim_height-scale*BlockHeigth 0.35 scale*BlockHeigth]); 
-   maxY = 1-hpanel_sim_height-scale*BlockHeigth;
+   scale = 10; %9.5
+   dH = 1/7;
+   maxY = 1-h.panel.sim_height-scale*BlockHeigth;
+   h.panel.tx = uipanel('Title', 'Transmitter', 'FontSize', HeaderFontSize,...
+       'Position', [0 maxY panelWidht scale*BlockHeigth]); 
    
-   [htext_lambda, hlambda] = table_entry(hpanel_tx, [0 6*dH 1/scale], 'Wavelength (nm):', 1310);
-   [htext_fc, hfc] = table_entry(hpanel_tx, [0 5*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 30);
-   [htext_kappa, hkappa] = table_entry(hpanel_tx, [0 4*dH 1/scale], 'Insertion Loss (dB):', 0);
-   [hcheck_rex, htext_rex, hrex] = table_entry(hpanel_tx, [0 3*dH 1/scale], 'Extinction Ratio (dB):', -15, true);
-   [hcheck_rin, htext_rin, hrin] = table_entry(hpanel_tx, [0 2*dH 1/scale], 'RIN (dB/Hz):', -150, true);
-   [hcheck_chirp, htext_chirp, hchirp] = table_entry(hpanel_tx, [0 dH/4 1/scale], 'Modulator chirp (alpha):', -2);
-   align([htext_lambda htext_fc htext_kappa hcheck_rex hcheck_rin hcheck_chirp], 'None', 'Fixed', 6);
-   align([htext_lambda htext_fc htext_kappa htext_rex htext_rin htext_chirp], 'Left', 'Fixed', 6)
-   align([hlambda hfc hkappa hrex hrin hchirp], 'Right', 'Fixed', 6);
+   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 7*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10');
+   [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 30);
+   [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Wavelength (nm):', 1310);
+   [h.text.kappa, h.kappa] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'Insertion Loss (dB):', 0);
+   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'Extinction Ratio (dB):', -15, true);
+   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'RIN (dB/Hz):', -150, true);
+   [h.check.chirp, h.text.chirp, h.chirp] = table_entry(h.panel.tx, [0 dH/4 1/scale], 'Modulator chirp (alpha):', 2, false);
+   align([h.text.Ptx h.text.lamb h.text.fc h.text.kappa h.check.rex h.check.rin h.check.chirp], 'None', 'Fixed', 6);
+   align([h.text.Ptx h.text.lamb h.text.fc h.text.kappa h.text.rex h.text.rin h.text.chirp], 'Left', 'Fixed', 6)
+   align([h.Ptx h.lamb h.fc h.kappa h.rex h.rin h.chirp], 'Right', 'Fixed', 6);
     
    %% Modulation Panel
-   scale = 6;
-   dH = 1/3;
-   hpanel_mod = uipanel('Title', 'Modulation', 'FontSize', HeaderFontSize,...
-       'Position', [0 maxY-scale*BlockHeigth 0.35 scale*BlockHeigth]); 
+   scale = 11;
+   dH = 1/8;
+   h.panel.mod = uipanel('Title', 'Modulation', 'FontSize', HeaderFontSize,...
+       'Position', [0 maxY-scale*BlockHeigth panelWidht scale*BlockHeigth]); 
    maxY = maxY - scale*BlockHeigth;
    
-   [htext_M, hM] = table_entry(hpanel_mod, [0 2*dH 1/scale], 'Constellation Size:', 16);
-   [htext_Nc, hNc] = table_entry(hpanel_mod, [0 dH 1/scale], 'Number of Subcarriers: ', 64);
-   [htext_Nu, hNu] = table_entry(hpanel_mod, [0 dH/4 1/scale], 'Number of Used Subcarriers: ', 52);
-   [htext_palloc, hpalloc] = table_entry(hpanel_mod, [0 dH/4 1/scale], 'Power Allocation: ', 0);
-   set(hpalloc, 'Style', 'popupmenu');
-   set(hpalloc, 'String', {'Preemphasis', 'Opt. Bit Loading & Power allocation'});
-   set(hpalloc, 'Position', get(hpalloc, 'Position') + [-0.1 0 0.1 0])
-   set(hpalloc, 'FontSize', FontSize-1)
-   align([htext_palloc, hpalloc], 'None', 'Center');
-   set_property([hNc, htext_Nc, hNu, htext_Nu, htext_palloc, hpalloc], 'Enable', 'off');
-   align([htext_M htext_Nc htext_Nu htext_palloc], 'None', 'Fixed', 6);
-   align([hM hNc hNu hpalloc], 'Right', 'Fixed', 6)
+   [h.text.M, h.M] = table_entry(h.panel.mod, [0 7*dH 1/scale], 'Constellation Size:', 4);
+   [h.text.pshape, h.pshape] = table_entry(h.panel.mod, [0 6*dH 1/scale], 'Pulse Shape:', 16);
+   set(h.pshape, 'Style', 'popupmenu');
+   set(h.pshape, 'String', {'Rectangular', 'Root-Raised Cosine'});
+   set(h.pshape, 'Position', get(h.pshape, 'Position') + [-0.1 0 0.1 0])
+   set(h.pshape, 'FontSize', FontSize-1);
+   align([h.text.pshape, h.pshape], 'None', 'Center');
+   
+   [h.text.level, h.level] = table_entry(h.panel.mod, [0 5*dH 1/scale], 'Level Spacing:', 16);
+   set(h.level, 'Style', 'popupmenu');
+   set(h.level, 'String', {'Uniform', 'Non-Uniform'});
+   set(h.level, 'Position', get(h.level, 'Position') + [-0.1 0 0.1 0])
+   set(h.level, 'FontSize', FontSize-1);
+   align([h.text.level, h.level], 'None', 'Center');
+   
+   [h.text.ros, h.ros] = table_entry(h.panel.mod, [0 4*dH 1/scale], 'Oversampling Ratio (ros):', 1);
+   
+   [h.text.Nc, h.Nc] = table_entry(h.panel.mod, [0 3*dH 1/scale], 'Number of Subcarriers: ', 64);
+   [h.text.Nu, h.Nu] = table_entry(h.panel.mod, [0 2*dH 1/scale], 'Number of Used Subcarriers: ', 52);
+   [h.text.palloc, h.palloc] = table_entry(h.panel.mod, [0 dH 1/scale], 'Power Allocation: ', 0);
+   set(h.palloc, 'Style', 'popupmenu');
+   set(h.palloc, 'String', {'Preemphasis', 'Opt. Bit Loading & Power allocation'});
+   set(h.palloc, 'Position', get(h.palloc, 'Position') + [-0.1 0 0.1 0])
+   set(h.palloc, 'FontSize', FontSize-1)
+   align([h.text.palloc, h.palloc], 'None', 'Center');
+   
+   [h.check.clip, h.text.rclip, h.rclip] = table_entry(h.panel.mod, [0 dH/4 1/scale], 'Clipping ratio (dB): ', 12);
+   
+   set_property([h.Nc, h.text.Nc, h.Nu, h.text.Nu, h.text.palloc, h.palloc, h.text.rclip, h.rclip, h.check.clip], 'Enable', 'off');
+   align([h.text.M h.text.pshape, h.text.level h.text.ros h.text.Nc h.text.Nu h.text.palloc, h.text.rclip], 'None', 'Fixed', 6);
+   align([h.M h.pshape h.level h.ros h.Nc h.Nu h.palloc, h.rclip], 'Right', 'Fixed', 6)
    
    %% Fiber
-   scale = 4;
+   scale = 4.5; % 4
    dH = 1/3;
-   hpanel_fiber = uipanel('Title', 'Fiber', 'FontSize', HeaderFontSize,...
-       'Position', [0 maxY-scale*BlockHeigth 0.35 scale*BlockHeigth]); 
+   h.panel.fiber = uipanel('Title', 'Fiber', 'FontSize', HeaderFontSize,...
+       'Position', [0 maxY-scale*BlockHeigth panelWidht scale*BlockHeigth]); 
    maxY = maxY - scale*BlockHeigth;
   
-   [htext_L, hL] = table_entry(hpanel_fiber, [0 2*dH 1/scale], 'Length (km):', 0);
-   [htext_att, hatt] = table_entry(hpanel_fiber, [0 dH 1/scale], 'Attenuation (dB/km): ', 0.35);
-   [htext_D, hD] = table_entry(hpanel_fiber, [0 dH/4 1/scale], 'Dispersion: (ps/(nm.km)', 0);
-    align([htext_L htext_att htext_D], 'None', 'Fixed', 6);
-   align([hL hatt hD], 'Left', 'Fixed', 6)
+   [h.text.L, h.L] = table_entry(h.panel.fiber, [0 2*dH 1/scale], 'Length (km):', 0);
+   [h.text.att, h.att] = table_entry(h.panel.fiber, [0 dH 1/scale], 'Attenuation (dB/km): ', 0.35);
+   [h.text.D, h.D] = table_entry(h.panel.fiber, [0 dH/4 1/scale], 'Dispersion: (ps/(nm.km)', 0);
+    align([h.text.L h.text.att h.text.D], 'None', 'Fixed', 6);
+   align([h.L h.att h.D], 'Left', 'Fixed', 6)
    
    %% Receiver
-   scale = 7;
+   scale = 8.5; % 8
    dH = 1/6;
    maxY = maxY-scale*BlockHeigth;
-   hpanel_rx = uipanel('Title', 'Receiver', 'FontSize', HeaderFontSize,...
-       'Position', [0 maxY 0.35 scale*BlockHeigth]); 
+   h.panel.rx = uipanel('Title', 'Receiver', 'FontSize', HeaderFontSize,...
+       'Position', [0 maxY panelWidht scale*BlockHeigth]); 
    
-   [htext_NEP, hNEP] = table_entry(hpanel_rx, [0 5*dH 1/scale], 'NEP (pA/(Hz)^0.5):', 30);
-   [htext_R, hR] = table_entry(hpanel_rx, [0 4*dH 1/scale], 'Reponsivity (A/W): ', 1);
-   [htext_Id, hId] = table_entry(hpanel_rx, [0 3*dH 1/scale], 'Dark Current (nA):', 10);
-   [htext_rxfilter, hrxfilterType] = table_entry(hpanel_rx, [0 2*dH 1/scale], 'Receiver Filter Order and Type', 0);
-   [temp, hrxfilterN] = table_entry(hpanel_rx, [0 2*dH 1/scale], '', 4);
-   set(temp, 'Visible', 'off');
-   [htext_rxfilterBw, hrxfilterBw] = table_entry(hpanel_rx, [0 dH/4 1/scale], 'Receiver Filter Bandwidth (GHz):', 30);
-   align([htext_NEP, htext_R, htext_Id, htext_rxfilter, htext_rxfilterBw], 'None', 'Fixed', 6);
-   align([hNEP, hR, hId, hrxfilterN, hrxfilterBw], 'None', 'Fixed', 6);
-   align([htext_rxfilter, hrxfilterType, hrxfilterN], 'None', 'Bottom')
-   set(hrxfilterN, 'Position', get(hrxfilterN, 'Position') + [-0.20 0 -0.05 0])
-   set(hrxfilterType, 'Position', get(hrxfilterType, 'Position') + [-0.1 0 0.1 0])
-   set(hrxfilterType, 'Style', 'popupmenu');
-   set(hrxfilterType, 'String', {'Gaussian', 'Bessel', 'Matched'});
-   set(hrxfilterType, 'FontSize', FontSize-1);
-   align([htext_rxfilter, hrxfilterType], 'None', 'Center');
+   [h.text.R, h.R] = table_entry(h.panel.rx, [0 6*dH 1/scale], 'Reponsivity (A/W): ', 1);
+   [h.text.Id, h.Id] = table_entry(h.panel.rx, [0 5*dH 1/scale], 'Dark Current (nA):', 10);
+   [h.check.shot, h.text.shot, temp1] = table_entry(h.panel.rx, [0 4*dH 1/scale], 'Shot Noise:', 0, true);
+   set(temp1, 'Visible', 'off')
+   [h.text.NEP, h.NEP] = table_entry(h.panel.rx, [0 3*dH 1/scale], 'NEP (pA/(Hz)^0.5):', 30);
+   [h.text.rxfilter, h.rxfilterType] = table_entry(h.panel.rx, [0 2*dH 1/scale], 'Receiver Filter Order and Type', 0);
+   [temp2, h.rxfilterN] = table_entry(h.panel.rx, [0 2*dH 1/scale], '', 4, false);
+   set(temp2, 'Visible', 'off');
+   [h.text.rxfilterBw, h.rxfilterBw] = table_entry(h.panel.rx, [0 dH/4 1/scale], 'Receiver Filter Bandwidth (GHz):', 30, false);
+   align([h.text.R, h.text.Id, h.text.shot, h.text.NEP, h.text.rxfilter, h.text.rxfilterBw], 'None', 'Fixed', 6);
+   align([h.R, h.Id, temp1, h.NEP,  h.rxfilterN, h.rxfilterBw], 'None', 'Fixed', 6);
+   align([h.text.rxfilter, h.rxfilterType, h.rxfilterN], 'None', 'Bottom')
+   set(h.rxfilterN, 'Position', get(h.rxfilterN, 'Position') + [-0.26 0 -0.05 0])
+   set(h.rxfilterType, 'Position', get(h.rxfilterType, 'Position') + [-0.1 0 0.1 0])
+   set(h.rxfilterType, 'Style', 'popupmenu');
+   set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'});
+   set(h.rxfilterType, 'FontSize', FontSize);
+   set(h.rxfilterType, 'Callback', @(src,evt) disable_handles_Callback(src, evt, [h.rxfilterN  h.rxfilterBw h.text.rxfilterBw], 'Matched'))
    
+   
+   align([h.text.rxfilter, h.rxfilterType], 'None', 'Center');
+   align([h.text.shot, h.check.shot], 'None', 'Bottom')
+   
+   %% APD
+   scale = 6;
+   dH = 1/5;
+   maxY = 1-h.panel.sim_height-scale*BlockHeigth;
+   h.panel.apd = uipanel('Title', 'APD', 'FontSize', HeaderFontSize,...
+       'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
+   
+   [h.check.GBw, h.text.GBw, h.GBw] = table_entry(h.panel.apd, [0 3*dH 1/scale], 'Gain-Bandwidth Product (GHz):', 340);
+   [h.text.ka, h.ka] = table_entry(h.panel.apd, [0 2*dH 1/scale], 'Impact Ionization Factor (ka):', 0.09);
+   [h.text.Gapd, h.Gapd] = table_entry(h.panel.apd, [0 dH 1/scale], 'Gain (dB):', 10);
+   [h.check.OptGapd, h.text.OptGapd, temp] = table_entry(h.panel.apd, [0 dH/4 1/scale], 'Optimize Gain:', 10);
+   set(temp, 'Visible', 'off')
+   
+   align([h.check.GBw, h.text.ka, h.text.Gapd, h.check.OptGapd], 'None', 'Fixed', 6);
+   align([h.text.GBw, h.text.ka, h.text.Gapd, h.text.OptGapd], 'None', 'Fixed', 6);
+   align([h.GBw, h.ka, h.Gapd, temp], 'None', 'Fixed', 6);   
+   
+   %% SOA
+   scale = 8.5;
+   dH = 1/6;
+   maxY = maxY - scale*BlockHeigth;
+   h.panel.soa = uipanel('Title', 'SOA', 'FontSize', HeaderFontSize,...
+       'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
+   
+   [h.check.maxGsoa, h.text.maxGsoa, h.maxGsoa] = table_entry(h.panel.soa, [0 5*dH 1/scale], 'Maximum Gain (dB):', 20);
+   [h.text.Fn, h.Fn] = table_entry(h.panel.soa, [0 4*dH 1/scale], 'Noise Figure (dB):', 9);
+   [h.text.Gsoa, h.Gsoa] = table_entry(h.panel.soa, [0 3*dH 1/scale], 'Gain (dB):', 10);
+   [h.check.OptGsoa, h.text.OptGsoa, temp] = table_entry(h.panel.soa, [0 2*dH 1/scale], 'Optimize Gain:', 10);
+   set(temp, 'Visible', 'off')
+   [h.text.optfiltType, h.optfiltType] = table_entry(h.panel.soa, [0 dH 1/scale], 'Optical Filter Type:', 0);
+    set(h.optfiltType, 'Style', 'popupmenu');
+    set(h.optfiltType, 'String', {'Fabry-Perot', 'Fiber Brag Gratting'});
+    set(h.optfiltType, 'Position', get(h.optfiltType, 'Position') + [-0.1 0 0.1 0])
+    set(h.optfiltType, 'FontSize', FontSize-1)
+    align([h.text.optfiltType, h.optfiltType], 'None', 'Center');
+   
+   [h.text.Bopt, h.Bopt] = table_entry(h.panel.soa, [0 dH/4 1/scale], 'Optical Filter Bandwidth (GHz):', 200);
+     
+   align([h.check.maxGsoa, h.text.Fn, h.text.Gsoa, h.check.OptGsoa, h.text.optfiltType,...
+       h.text.Bopt], 'None', 'Fixed', 6);
+   align([h.text.maxGsoa, h.text.Fn, h.text.Gsoa, h.text.OptGsoa, h.text.optfiltType,...
+       h.text.Bopt], 'None', 'Fixed', 6);
+   align([h.maxGsoa, h.Fn, h.Gsoa, temp, h.optfiltType, h.Bopt], 'None', 'Fixed', 6); 
+         
    %% Simulation
-   scale = 7;
+   scale = 8.5;
    dH = 1/6;
-   maxY = maxY-scale*BlockHeigth;
-   hpanel_param = uipanel('Title', 'Receiver', 'FontSize', HeaderFontSize,...
-       'Position', [0 maxY 0.35 scale*BlockHeigth]); 
+   maxY = maxY - scale*BlockHeigth;
+   h.panel.param = uipanel('Title', 'Simulation', 'FontSize', HeaderFontSize,...
+       'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [htext_Rb, hRb] = table_entry(hpanel_param, [0 4*dH 1/scale], 'Bit Rate (Gbps):', 100);
-   [htext_BER, hBER] = table_entry(hpanel_param, [0 3*dH 1/scale], 'Target BER: ', 1e-4);
-   [htext_Nsymb, hNsymb] = table_entry(hpanel_param, [0 2*dH 1/scale], 'Number of Symbols:', 2^15);
-   [htext_Mct, hMct] = table_entry(hpanel_param, [0 dH 1/scale], 'Oversampling Ratio for Continuous Time:', 8);
-   [hcheck_quantiz, htext_ENOB, hENOB] = table_entry(hpanel_param, [0 dH/4 1/scale], 'ENOB (bits):', 6);
-   align([htext_Rb, htext_BER, htext_Nsymb, htext_Mct, htext_ENOB], 'None', 'Fixed', 6);
-   align([hRb, hBER, hNsymb, hMct, hENOB], 'None', 'Fixed', 6);
-  
-   
-   
-%    %  Construct the components.
-%    hsurf = uicontrol('Style','pushbutton','String','Surf',...
-%           'Position',[315,220,70,25],...
-%           'Callback',@surfbutton_Callback);
-%    hmesh = uicontrol('Style','pushbutton','String','Mesh',...
-%           'Position',[315,180,70,25],...
-%           'Callback',@meshbutton_Callback);
-%    hcontour = uicontrol('Style','pushbutton',...
-%           'String','Countour',...
-%           'Position',[315,135,70,25],...
-%           'Callback',@contourbutton_Callback); 
-%    htext = uicontrol('Style','text','String','Select Data',...
-%           'Position',[325,90,60,15]);
-%    hpopup = uicontrol('Style','popupmenu',...
-%           'String',{'Peaks','Membrane','Sinc'},...
-%           'Position',[300,50,100,25],...
-%           'Callback',@popup_menu_Callback);
-%    ha = axes('Units','Pixels','Position',[50,60,200,185]); 
-%    align([hsurf,hmesh,hcontour,htext,hpopup],'Center','None');
-%    
-   % Create the data to plot.
-   peaks_data = peaks(35);
-   membrane_data = membrane;
-   [x,y] = meshgrid(-8:.5:8);
-   r = sqrt(x.^2+y.^2) + eps;
-   sinc_data = sin(r)./r;
-   
-   % Initialize the GUI.
-   % Change units to normalized so components resize 
-   % automatically.
-   f.Units = 'normalized';
-   ha.Units = 'normalized';
-   hsurf.Units = 'normalized';
-   hmesh.Units = 'normalized';
-   hcontour.Units = 'normalized';
-   htext.Units = 'normalized';
-   hpopup.Units = 'normalized';
+   [h.text.Rb, h.Rb] = table_entry(h.panel.param, [0 5*dH 1/scale], 'Bit Rate (Gbps):', 100);
+   [h.text.BER, h.BER] = table_entry(h.panel.param, [0 4*dH 1/scale], 'Target BER: ', 1e-4);
+   [h.text.Nsymb, h.Nsymb] = table_entry(h.panel.param, [0 3*dH 1/scale], 'Number of Symbols:', 2^15);
+   [h.text.Mct, h.Mct] = table_entry(h.panel.param, [0 2*dH 1/scale], 'Oversampling Ratio for Continuous Time:', 8);
+   [h.check.quantiz, h.text.ENOB, h.ENOB] = table_entry(h.panel.param, [0 dH 1/scale], 'ENOB (bits):', 6, false);
+   [h.text.Lseq, h.Lseq] = table_entry(h.panel.param, [0 dH/4 1/scale], 'de Bruijn Sub-Sequence Length:', 2);
+   align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.text.ENOB, h.text.Lseq], 'None', 'Fixed', 6);
+   align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.check.quantiz, h.text.Lseq], 'None', 'Fixed', 6);
+   align([h.Rb, h.BER, h.Nsymb, h.Mct, h.ENOB h.Lseq], 'None', 'Fixed', 6);
    
    %Create a plot in the axes.
+   popup_system_Callback(h.popup.system, 0)
 %    current_data = peaks_data;
 %    surf(current_data);
    % Assign the GUI a name to appear in the window title.
-   f.Name = 'Simple GUI';
+   f.Name = '100G single-laser simulation';
    % Move the GUI to the center of the screen.
    movegui(f,'center')
    % Make the GUI visible.
@@ -206,13 +253,100 @@ function sim_100G_single_laser2
          str = source.String;
          val = source.Value;
          % Set current data to the selected data set.
-         if ~strcmp(str{val}, 'DMT/OFDM') % User selects Sinc.
-             set_property([hNc, htext_Nc, hNu, htext_Nu, hpalloc, htext_palloc], 'Enable', 'off')
+         if strcmp(str{val}, 'M-PAM') % User selects Sinc.
+             set_property([h.Nc, h.level, h.text.level, h.text.Nc, h.Nu,...
+                 h.text.Nu, h.palloc, h.text.palloc], 'Enable', 'off')
+             set_property([h.level, h.text.level h.pshape h.text.pshape,...
+                 h.text.rxfilterBw, h.rxfilterBw, h.text.ros, h.ros], 'Enable', 'on')
+                          
+             set(h.popup.system, 'String', {'Basic', 'SOA', 'APD'})
+             
+             switch getOption(h.popup.system)
+                 case 'Basic'
+                     imshow('data/mpam-basic.png', 'Parent', h.axes.block_diagram)
+                 case 'SOA'
+                     imshow('data/mpam-soa.png', 'Parent', h.axes.block_diagram)
+                 case 'APD'
+                     imshow('data/mpam-apd.png', 'Parent', h.axes.block_diagram)
+             end
+             
+             set(h.M, 'String', 4); 
+             set(h.ros, 'String', 1);
          else
-             set_property([hNc, htext_Nc, hNu, htext_Nu, hpalloc, htext_palloc], 'Enable', 'on')
+             set_property([h.Nc, h.text.Nc, h.Nu, h.text.Nu, h.palloc, h.text.palloc], 'Enable', 'on')
+             set_property([h.level, h.text.level h.pshape h.text.pshape,...
+                 h.text.rxfilterBw, h.rxfilterBw, h.text.ros, h.ros], 'Enable', 'off')
+             set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'})
+             set(h.rxfilterType, 'String', {'Gaussian', 'Bessel'})
+             
+             set(h.popup.system, 'String', {'Basic'})
+             set(h.ros, 'String', num2str(getValue(h.Nc)/getValue(h.Nu), 3))
+            
+             imshow('data/ofdm.png', 'Parent', h.axes.block_diagram)
+             
+             set(h.M, 'String', 16); 
          end
     end
+
+
+    function disable_handles_Callback(source, ~, handles, value)
+         str = source.String;
+         val = source.Value;
+         if strcmp(str{val}, value)
+             s = 'off';
+         else
+             s = 'on';
+         end
+         
+          for k = 1:length(handles)
+             set(handles, 'Enable', s)
+         end
+    end
+        
   
+    function popup_system_Callback(source, ~)
+         % Determine the selected data set.
+         str = source.String;
+         val = source.Value;
+         % Set current data to the selected data set.
+         switch str{val}
+             case 'Basic'
+                 apd_e = 'off';
+                 soa_e = 'off';
+                 
+                 set(h.popup.modulation, 'String', {'M-PAM', 'DMT/OFDM'})
+                 
+                 if strcmp(getOption(h.popup.modulation), 'M-PAM')
+                    imshow('data/mpam-basic.png', 'Parent', h.axes.block_diagram)
+                 else
+                     imshow('data/ofdm.png', 'Parent', h.axes.block_diagram)
+                 end
+                 
+             case 'APD'
+                 apd_e = 'on';
+                 soa_e = 'off';
+                 
+                 set(h.popup.modulation, 'String', {'M-PAM'})
+                 
+                 imshow('data/mpam-apd.png', 'Parent', h.axes.block_diagram)
+             case 'SOA'
+                 apd_e = 'off';
+                 soa_e = 'on';
+                 
+                 set(h.popup.modulation, 'String', {'M-PAM'})
+                 
+                 imshow('data/mpam-soa.png', 'Parent', h.axes.block_diagram)
+         end
+         
+         apd_child = allchild(h.panel.apd);
+         soa_child = allchild(h.panel.soa);
+         for k = 1:length(soa_child)
+             soa_child(k).Enable = soa_e;
+         end
+         for k = 1:length(apd_child)
+             apd_child(k).Enable = apd_e;
+         end
+    end
 
     function set_property(handle_array, property, value)
         for k = 1:length(handle_array)
@@ -222,25 +356,36 @@ function sim_100G_single_laser2
    
     function varargout = table_entry(parent, norm_pos, str, value, checked)
         if nargin < 5
-            checked = false;
+            checked = true;
         end
         
         if length(norm_pos) == 2
             norm_pos(3) = 0.1;
         end
         
-      checkbox = uicontrol('Parent', parent, 'Style', 'checkbox',...
-       'String', '', 'Units', 'Normalized','FontSize', FontSize, 'Value', checked);
-       cb_pos = get(checkbox, 'Position');
-       set(checkbox, 'Position', [norm_pos(1:2) 0.03 norm_pos(3)]);
-      text = uicontrol('Parent', parent, 'Style', 'text', 'HorizontalALignment', 'left',...
-       'String', str, 'Units', 'Normalized', 'Position', [norm_pos(1)+0.03 norm_pos(2) 0.8 norm_pos(3)],...
-       'FontSize', FontSize); % wavelength
-      edit = uicontrol('Parent', parent, 'Style', 'edit', 'String', num2str(value),...
-           'HorizontalALignment', 'right', 'Units', 'Normalized',...
-           'Position', [norm_pos(1)+0.85, norm_pos(2), 0.14 norm_pos(3)],...
-           'FontSize', FontSize); % wavelength
-      align([text, checkbox, edit], 'None', 'Center')
+        cb_width = 0.05;
+        edit_width = 0.2;
+        
+        checkbox = uicontrol('Parent', parent, 'Style', 'checkbox',...
+            'String', '', 'Units', 'Normalized','FontSize', FontSize, 'Value', checked);
+        cb_pos = get(checkbox, 'Position');
+        set(checkbox, 'Position', [norm_pos(1:2) cb_width norm_pos(3)]);
+
+        text = uicontrol('Parent', parent, 'Style', 'text', 'HorizontalALignment', 'left',...
+        'String', str, 'Units', 'Normalized', 'FontSize', FontSize,...
+        'Position', [norm_pos(1)+cb_width norm_pos(2) 1-(norm_pos(1)+cb_width+edit_width+0.13) norm_pos(3)]); 
+
+        edit = uicontrol('Parent', parent, 'Style', 'edit', 'String', num2str(value),...
+           'HorizontalALignment', 'right', 'Units', 'Normalized', 'FontSize', FontSize,...
+           'Position', [1-edit_width-0.01, norm_pos(2), edit_width norm_pos(3)]); 
+
+       if ~checked
+           set(text, 'Enable', 'off')
+           set(edit, 'Enable', 'off')
+       end
+       
+        uistack(edit, 'top')
+        align([text, checkbox, edit], 'None', 'Center')
         if nargout == 3
             varargout = {checkbox, text, edit};
         else
@@ -249,44 +394,62 @@ function sim_100G_single_laser2
         end
     end
    
-   %  Callbacks for simple_gui. These callbacks automatically
-   %  have access to component handles and initialized data 
-   %  because they are nested at a lower level.
- 
-   %  Pop-up menu callback. Read the pop-up menu Value property
-   %  to determine which item is currently displayed and make it
-   %  the current data.
-      function popup_menu_Callback(source,eventdata) 
-         % Determine the selected data set.
-         str = source.String;
-         val = source.Value;
-         % Set current data to the selected data set.
-         switch str{val};
-         case 'Peaks' % User selects Peaks.
-            current_data = peaks_data;
-         case 'Membrane' % User selects Membrane.
-            current_data = membrane_data;
-         case 'Sinc' % User selects Sinc.
-            current_data = sinc_data;
-         end
-      end
-  
-   % Push button callbacks. Each callback plots current_data in
-   % the specified plot type.
- 
-   function surfbutton_Callback(source,eventdata) 
-   % Display surf plot of the currently selected data.
-      surf(current_data);
-   end
- 
-   function meshbutton_Callback(source,eventdata) 
-   % Display mesh plot of the currently selected data.
-      mesh(current_data);
-   end
- 
-   function contourbutton_Callback(source,eventdata) 
-   % Display contour plot of the currently selected data.
-      contour(current_data);
-   end 
- 
-end 
+    % Push button callbacks.
+    function run_Callback(source, eventdata)
+        
+        [mpam, ofdm1, tx, fiber1, soa1, apd1, rx, sim] = build_simulation(h);
+        
+        switch getOption(h.popup.results)
+            case 'BER vs Transmitted Power'
+                switch getOption(h.popup.modulation)
+                    case 'M-PAM'
+                        ber = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                    case 'DMT/OFDM'
+                        ber = ofdm_ber_vs_Ptx(ofdm, tx, fiber1, rx, sim);
+                end
+                
+                axes(h.axes.results), hold on, box on, grid on
+                plot(tx.PtxdBm, log10(ber.count), '-o')
+                plot(tx.PtxdBm, log10(ber.est), '-')
+                xlabel('Transmitted Power (dBm)')
+                ylabel('log_{10}(BER)')
+                legend('Counted', 'Estimated')
+                
+            case 'Power Penalty vs Modulator Cutoff Frequency'
+                switch getOption(h.popup.modulation)
+                    case 'M-PAM'
+                        pp = mpam_pp_vs_mod_cutoff(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                    case 'DMT/OFDM'
+                        pp = ofdm_pp_vs_mod_cutoff(ofdm, tx, fiber1, rx, sim);
+                end
+                
+                figure(h.axes.results), hold on, box on, grid on
+                plot(tx.Fnl, pp, '-o')
+                xlabel('Modulator Cutoff Frequency (GHz)')
+                ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
+                
+            case 'Power Penalty vs Fiber Length'
+                switch getOption(h.popup.modulation)
+                    case 'M-PAM'
+                        pp = mpam_pp_vs_L(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                    case 'DMT/OFDM'
+                        pp = ofdm_pp_vs_L(ofdm, tx, fiber1, rx, sim);
+                end
+                
+                figure(h.axes.results), hold on, box on, grid on
+                plot(sim.Lfiber, pp, '-o')
+                xlabel('Fiber Length (km)')
+                ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
+                
+            otherwise
+                error('Selected results not implemented yet')
+        end             
+    end
+             
+end
+
+function str = getOption(h)
+    list = get(h, 'String');
+    str = list{get(h, 'Value')};
+end
+
