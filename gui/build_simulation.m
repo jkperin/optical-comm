@@ -6,7 +6,12 @@ getLogicalValue = @(h) logical(get(h, 'Value'));
 
 %% Simulation parameters
 sim.Nsymb = eval(getString(h.Nsymb)); % Number of symbols in montecarlo simulation
-sim.Mct = getValue(h.Mct);     % Oversampling ratio to simulate continuous time (must be even)  
+sim.Mct = getValue(h.Mct);     % Oversampling ratio to simulate continuous time (must be odd) 
+if mod(sim.Mct, 2) == 0
+    warning('Oversampling ratio for continuous time must be odd. Mct = %d provided, using Mct = %d instead', sim.Mct, sim.Mct+1);
+    sim.Mct = sim.Mct+1;
+end
+
 sim.BERtarget = eval(getString(h.BER)); 
 
 sim.shot = getLogicalValue(h.check.shot); % include shot noise in montecarlo simulation (always included for pin and apd case)
@@ -122,7 +127,6 @@ switch getOption(h.popup.system)
         end
         
         Bopt = 1e9*getValue(h.Bopt);
-        Bopt = Bopt/(sim.fs/2);
         sim.M = ceil(Bopt/mpam.Rs); % Ratio of optical filter BW and electric filter BW (must be integer)
         sim.Me = 2*sim.M;  % number of used eigenvalues
         
@@ -142,18 +146,18 @@ switch getOption(h.popup.system)
         ofdm1 = [];
                      
     case 'APD'
-        Gbw = getValue(h.Gbw);
+        GBw = 1e9*getValue(h.GBw);
         ka = getValue(h.ka);
         GapddB =  getValue(h.Gapd);
         
-        apd1 = apd(GapddB, ka, Gbw, rx.R, rx.Id);
+        apd1 = apd(GapddB, ka, GBw, rx.R, rx.Id);
         
         sim.OptimizeGain = getLogicalValue(h.check.OptGapd);
         
         soa1 = [];
         
         ofdm1 = [];
-    end
+end
    
 
 

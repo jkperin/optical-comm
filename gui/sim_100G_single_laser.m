@@ -1,4 +1,4 @@
-function sim_100G_single_laser2
+function sim_100G_single_laser
     addpath f
     addpath ../f % general functions
     addpath ../soa
@@ -74,7 +74,10 @@ function sim_100G_single_laser2
    %% Results
    h.panel.results = uipanel('Title', 'Results', 'BackGroundColor', 'w', 'FontSize', HeaderFontSize,...
        'Position', [0.5 0 0.5 maxY-0.2]);
-   h.axes.results = axes('Parent', h.panel.results, 'Units', 'Normalized', 'Position', [0.15 0.15 0.8 0.8], 'Box', 'on');
+   h.axes.results = axes('Parent', h.panel.results, 'Units', 'Normalized', 'Position', [0.15 0.15 0.8 0.75], 'Box', 'on');
+   h.clear = uicontrol('Parent', h.panel.results, 'Style', 'pushbutton', 'Units', 'normalized',...
+       'String', 'Clear Plot', 'Position', [1-0.1 0.05 0.1 0.05],...
+       'FontSize', FontSize, 'Callback', @clear_Callback);
    
    %% Transmitter Panel
    scale = 10; %9.5
@@ -83,16 +86,16 @@ function sim_100G_single_laser2
    h.panel.tx = uipanel('Title', 'Transmitter', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 7*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10');
-   [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 30);
-   [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Wavelength (nm):', 1310);
-   [h.text.kappa, h.kappa] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'Insertion Loss (dB):', 0);
-   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'Extinction Ratio (dB):', -15, true);
-   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'RIN (dB/Hz):', -150, true);
+   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10');
+   [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 30);
+   [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'Wavelength (nm):', 1310);
+   [h.text.kappa, h.kappa] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'Insertion Loss (dB):', 0);
+   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'Extinction Ratio (dB):', -15, true);
+   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 dH 1/scale], 'RIN (dB/Hz):', -150, true);
    [h.check.chirp, h.text.chirp, h.chirp] = table_entry(h.panel.tx, [0 dH/4 1/scale], 'Modulator chirp (alpha):', 2, false);
-   align([h.text.Ptx h.text.lamb h.text.fc h.text.kappa h.check.rex h.check.rin h.check.chirp], 'None', 'Fixed', 6);
-   align([h.text.Ptx h.text.lamb h.text.fc h.text.kappa h.text.rex h.text.rin h.text.chirp], 'Left', 'Fixed', 6)
-   align([h.Ptx h.lamb h.fc h.kappa h.rex h.rin h.chirp], 'Right', 'Fixed', 6);
+   align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.check.rex h.check.rin h.check.chirp], 'None', 'Fixed', 6);
+   align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.text.rex h.text.rin h.text.chirp], 'Left', 'Fixed', 6)
+   align([h.Ptx h.fc h.lamb h.kappa h.rex h.rin h.chirp], 'Right', 'Fixed', 6);
     
    %% Modulation Panel
    scale = 11;
@@ -185,9 +188,11 @@ function sim_100G_single_laser2
    
    [h.check.GBw, h.text.GBw, h.GBw] = table_entry(h.panel.apd, [0 3*dH 1/scale], 'Gain-Bandwidth Product (GHz):', 340);
    [h.text.ka, h.ka] = table_entry(h.panel.apd, [0 2*dH 1/scale], 'Impact Ionization Factor (ka):', 0.09);
-   [h.text.Gapd, h.Gapd] = table_entry(h.panel.apd, [0 dH 1/scale], 'Gain (dB):', 10);
+   [h.text.Gapd, h.Gapd] = table_entry(h.panel.apd, [0 dH 1/scale], 'Gain (dB):', 10, false);
    [h.check.OptGapd, h.text.OptGapd, temp] = table_entry(h.panel.apd, [0 dH/4 1/scale], 'Optimize Gain:', 10);
    set(temp, 'Visible', 'off')
+   set(h.check.OptGapd, 'Callback',...
+       @(source, eventdata) disable_handles_Callback(source, eventdata, [h.text.Gapd h.Gapd], true));
    
    align([h.check.GBw, h.text.ka, h.text.Gapd, h.check.OptGapd], 'None', 'Fixed', 6);
    align([h.text.GBw, h.text.ka, h.text.Gapd, h.text.OptGapd], 'None', 'Fixed', 6);
@@ -203,8 +208,11 @@ function sim_100G_single_laser2
    [h.check.maxGsoa, h.text.maxGsoa, h.maxGsoa] = table_entry(h.panel.soa, [0 5*dH 1/scale], 'Maximum Gain (dB):', 20);
    [h.text.Fn, h.Fn] = table_entry(h.panel.soa, [0 4*dH 1/scale], 'Noise Figure (dB):', 9);
    [h.text.Gsoa, h.Gsoa] = table_entry(h.panel.soa, [0 3*dH 1/scale], 'Gain (dB):', 10);
-   [h.check.OptGsoa, h.text.OptGsoa, temp] = table_entry(h.panel.soa, [0 2*dH 1/scale], 'Optimize Gain:', 10);
+   [h.check.OptGsoa, h.text.OptGsoa, temp] = table_entry(h.panel.soa, [0 2*dH 1/scale], 'Optimize Gain:', 10, false);
    set(temp, 'Visible', 'off')
+  set(h.check.OptGsoa, 'Callback',...
+   @(source, eventdata) disable_handles_Callback(source, eventdata, [h.text.Gsoa h.Gsoa], true));
+   
    [h.text.optfiltType, h.optfiltType] = table_entry(h.panel.soa, [0 dH 1/scale], 'Optical Filter Type:', 0);
     set(h.optfiltType, 'Style', 'popupmenu');
     set(h.optfiltType, 'String', {'Fabry-Perot', 'Fiber Brag Gratting'});
@@ -230,7 +238,7 @@ function sim_100G_single_laser2
    [h.text.Rb, h.Rb] = table_entry(h.panel.param, [0 5*dH 1/scale], 'Bit Rate (Gbps):', 100);
    [h.text.BER, h.BER] = table_entry(h.panel.param, [0 4*dH 1/scale], 'Target BER: ', 1e-4);
    [h.text.Nsymb, h.Nsymb] = table_entry(h.panel.param, [0 3*dH 1/scale], 'Number of Symbols:', 2^15);
-   [h.text.Mct, h.Mct] = table_entry(h.panel.param, [0 2*dH 1/scale], 'Oversampling Ratio for Continuous Time:', 8);
+   [h.text.Mct, h.Mct] = table_entry(h.panel.param, [0 2*dH 1/scale], 'Oversampling Ratio for Continuous Time:', 15);
    [h.check.quantiz, h.text.ENOB, h.ENOB] = table_entry(h.panel.param, [0 dH 1/scale], 'ENOB (bits):', 6, false);
    [h.text.Lseq, h.Lseq] = table_entry(h.panel.param, [0 dH/4 1/scale], 'de Bruijn Sub-Sequence Length:', 2);
    align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.text.ENOB, h.text.Lseq], 'None', 'Fixed', 6);
@@ -248,6 +256,75 @@ function sim_100G_single_laser2
    % Make the GUI visible.
    f.Visible = 'on';
  
+   %% Pushbutton Callbacks.
+    function clear_Callback(source, eventdata)
+        cla(h.axes.results)
+    end
+        
+    function run_Callback(source, eventdata)
+        
+        [mpam, ofdm1, tx, fiber1, soa1, apd1, rx, sim] = build_simulation(h);
+        
+        switch getOption(h.popup.results)
+            case 'BER vs Transmitted Power'
+                switch getOption(h.popup.modulation)
+                    case 'M-PAM'
+                        [ber, GdB] = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                    case 'DMT/OFDM'
+                        ber = ofdm_ber_vs_Ptx(ofdm, tx, fiber1, rx, sim);
+                end
+                
+                if isempty(soa1)
+                    handle = h.Gapd;
+                else
+                    handle = h.Gsoa;
+                end
+                
+                if ~isempty(GdB)
+                    set(handle, 'String', num2str(GdB, 2));
+                end
+
+                axes(h.axes.results), hold on, box on, grid on
+                plot(tx.PtxdBm, log10(ber.count), '-o')
+                plot(tx.PtxdBm, log10(ber.est), '-')
+                xlabel('Transmitted Power (dBm)')
+                ylabel('log_{10}(BER)')
+                legend('Counted', 'Estimated')
+                a = axis;
+                axis([a(1:2) ceil(2*log10(sim.BERtarget)) 0])
+                
+            case 'Power Penalty vs Modulator Cutoff Frequency'
+                switch getOption(h.popup.modulation)
+                    case 'M-PAM'
+                        pp = mpam_pp_vs_mod_cutoff(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                    case 'DMT/OFDM'
+                        pp = ofdm_pp_vs_mod_cutoff(ofdm, tx, fiber1, rx, sim);
+                end
+                
+                figure(h.axes.results), hold on, box on, grid on
+                plot(tx.Fnl, pp, '-o')
+                xlabel('Modulator Cutoff Frequency (GHz)')
+                ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
+                
+            case 'Power Penalty vs Fiber Length'
+                switch getOption(h.popup.modulation)
+                    case 'M-PAM'
+                        pp = mpam_pp_vs_L(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                    case 'DMT/OFDM'
+                        pp = ofdm_pp_vs_L(ofdm, tx, fiber1, rx, sim);
+                end
+                
+                figure(h.axes.results), hold on, box on, grid on
+                plot(sim.Lfiber, pp, '-o')
+                xlabel('Fiber Length (km)')
+                ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
+                
+            otherwise
+                error('Selected results not implemented yet')
+        end             
+    end   
+   
+   %% Popup Callbacks
     function popup_modulation_Callback(source, eventdata) 
          % Determine the selected data set.
          str = source.String;
@@ -288,11 +365,19 @@ function sim_100G_single_laser2
          end
     end
 
-
+    % Disable handles if source.String == value
     function disable_handles_Callback(source, ~, handles, value)
          str = source.String;
          val = source.Value;
-         if strcmp(str{val}, value)
+         
+         off = false;
+         if islogical(value)
+             off = logical(val) == value;
+         else
+             off = strcmp(str{val}, value);
+         end
+             
+         if off
              s = 'off';
          else
              s = 'on';
@@ -303,7 +388,6 @@ function sim_100G_single_laser2
          end
     end
         
-  
     function popup_system_Callback(source, ~)
          % Determine the selected data set.
          str = source.String;
@@ -327,7 +411,7 @@ function sim_100G_single_laser2
                  soa_e = 'off';
                  
                  set(h.popup.modulation, 'String', {'M-PAM'})
-                 
+                                  
                  imshow('data/mpam-apd.png', 'Parent', h.axes.block_diagram)
              case 'SOA'
                  apd_e = 'off';
@@ -346,8 +430,17 @@ function sim_100G_single_laser2
          for k = 1:length(apd_child)
              apd_child(k).Enable = apd_e;
          end
+         
+         if get(h.check.OptGapd, 'Value')  
+             h.check.OptGapd.Callback(h.check.OptGapd, []);
+         end      
+         
+        if get(h.check.OptGsoa, 'Value')  
+             h.check.OptGsoa.Callback(h.check.OptGsoa, []);
+         end      
     end
 
+    %% Auxiliary functions
     function set_property(handle_array, property, value)
         for k = 1:length(handle_array)
             set(handle_array, property, value)
@@ -392,60 +485,7 @@ function sim_100G_single_laser2
             varargout = {text, edit};
             set(checkbox, 'Visible', 'off');
         end
-    end
-   
-    % Push button callbacks.
-    function run_Callback(source, eventdata)
-        
-        [mpam, ofdm1, tx, fiber1, soa1, apd1, rx, sim] = build_simulation(h);
-        
-        switch getOption(h.popup.results)
-            case 'BER vs Transmitted Power'
-                switch getOption(h.popup.modulation)
-                    case 'M-PAM'
-                        ber = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim);
-                    case 'DMT/OFDM'
-                        ber = ofdm_ber_vs_Ptx(ofdm, tx, fiber1, rx, sim);
-                end
-                
-                axes(h.axes.results), hold on, box on, grid on
-                plot(tx.PtxdBm, log10(ber.count), '-o')
-                plot(tx.PtxdBm, log10(ber.est), '-')
-                xlabel('Transmitted Power (dBm)')
-                ylabel('log_{10}(BER)')
-                legend('Counted', 'Estimated')
-                
-            case 'Power Penalty vs Modulator Cutoff Frequency'
-                switch getOption(h.popup.modulation)
-                    case 'M-PAM'
-                        pp = mpam_pp_vs_mod_cutoff(mpam, tx, fiber1, soa1, apd1, rx, sim);
-                    case 'DMT/OFDM'
-                        pp = ofdm_pp_vs_mod_cutoff(ofdm, tx, fiber1, rx, sim);
-                end
-                
-                figure(h.axes.results), hold on, box on, grid on
-                plot(tx.Fnl, pp, '-o')
-                xlabel('Modulator Cutoff Frequency (GHz)')
-                ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
-                
-            case 'Power Penalty vs Fiber Length'
-                switch getOption(h.popup.modulation)
-                    case 'M-PAM'
-                        pp = mpam_pp_vs_L(mpam, tx, fiber1, soa1, apd1, rx, sim);
-                    case 'DMT/OFDM'
-                        pp = ofdm_pp_vs_L(ofdm, tx, fiber1, rx, sim);
-                end
-                
-                figure(h.axes.results), hold on, box on, grid on
-                plot(sim.Lfiber, pp, '-o')
-                xlabel('Fiber Length (km)')
-                ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
-                
-            otherwise
-                error('Selected results not implemented yet')
-        end             
-    end
-             
+    end           
 end
 
 function str = getOption(h)

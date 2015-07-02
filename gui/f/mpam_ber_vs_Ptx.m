@@ -1,4 +1,4 @@
-function ber = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim)
+function [ber, GdB] = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim)
 addpath ../f % general functions
 addpath ../soa
 addpath ../soa/f
@@ -33,17 +33,30 @@ else
     rx.elefilt = design_filter(rx.filter.type, rx.filterN, rx.filterBw/(sim.fs/2));
 end
 
+GdB = [];
 if ~isempty(soa1)
     % KLSE Fourier Series Expansion (done here because depends only on filters
     % frequency response)
     % klse_fourier(rx, sim, N, Hdisp)
     [rx.U_fourier, rx.D_fourier, rx.Fmax_fourier] = klse_fourier(rx, sim, sim.Mct*(mpam.M^sim.L + 2*sim.L)); 
 
+    if sim.OptimizeGain
+        soa1.optimize_gain(mpam, tx, fiber1, rx, sim);
+        GdB = soa1.GaindB;
+    end
+    
     % BER
     disp('BER with SOA')
     ber = soa_ber(mpam, tx, fiber1, soa1, rx, sim);
+    1;
 elseif ~isempty(apd1)
-    ber = apd_ber(mpam, tx, fiber1, apd1, rx, sim);
+    if sim.OptimizeGain
+        apd1.optimize_gain(mpam, tx, fiber1, rx, sim);
+        GdB = apd1.GaindB;
+    end
+        
+    ber = apd_ber(mpam, tx, fiber1, apd1, rx, sim);      
+    ber.est = ber.gauss;
 else
     pin = apd(0, 0, Inf, rx.R, rx.Id);
     
