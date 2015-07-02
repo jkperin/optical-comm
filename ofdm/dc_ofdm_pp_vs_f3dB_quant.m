@@ -49,7 +49,7 @@ fiber = fiber(); % back-to-back
 %% Receiver parameters
 rx.R = 1;                           % responsivity
 rx.NEP = 30e-12;                    % Noise equivalent power of the TIA at the receiver (A/sqrt(Hz))
-rx.Sth = 2*rx.R^2*rx.NEP^2/2;       % two-sided psd of thermal noise at the receiver (Sth = N0/2)
+rx.Sth = rx.R^2*rx.NEP^2/2;       % two-sided psd of thermal noise at the receiver (Sth = N0/2)
 
 % Antialiasing filter
 rx.filter = design_filter('gaussian', 4, 1/(ofdm.Ms*sim.Mct));       

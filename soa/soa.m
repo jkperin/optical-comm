@@ -60,13 +60,18 @@ classdef soa < handle
         function optimize_gain(this, mpam, tx, fiber, rx, sim)
             disp('Optimizing SOA gain...')
 
+            originalGain = this.Gain;
+            
             if strcmp(mpam.level_spacing, 'uniform')
                 % Optmize gain for uniform spacing: find Gain that minimizes the required
                 % average power (Prec) to achieve a certain target SER.
-                [Gsoa_opt, ~, exitflag] = fminbnd(@(Gsoa) fzero(@(PtxdBm) calc_soa_ber(PtxdBm, Gsoa, mpam, tx, fiber, this, rx, sim) - sim.BERtarget, -20), 1, min(10^(this.maxGaindB/10), 1000));    
+                [Gsoa_opt, ~, exitflag] = fminbnd(@(Gsoa) ....
+                    fzero(@(PtxdBm) calc_soa_ber(PtxdBm, Gsoa, mpam, tx, fiber, this, rx, sim) - sim.BERtarget, -20),...
+                    1, min(10^(this.maxGaindB/10), 1000));    
                 
             elseif strcmp(mpam.level_spacing, 'nonuniform')
-                warning('optimize_gain for nonuniform spacing not implemented yet')
+                [Gsoa_opt, ~, exitflag] = fminbnd(@(Gsoa) mean(calc_level_spacing(Gsoa, mpam, tx, this, rx, sim))/Gsoa,...
+                    1, min(10^(this.maxGaindB/10), 1000));   
             end
             
             if exitflag ~= 1
@@ -78,6 +83,12 @@ classdef soa < handle
             else
                 this.Gain = originalGain;
                 warning('SOA gain was not changed')
+            end
+            
+            function a = calc_level_spacing(Gsoa, mpam, tx, soa, rx, sim)
+                soa.Gain = Gsoa;
+                
+                [a, ~] = level_spacing_optm(mpam, tx, soa, rx, sim);
             end
 
             function ber = calc_soa_ber(PtxdBm, Gsoa, mpam, tx, fiber, soa, rx, sim)

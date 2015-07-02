@@ -52,10 +52,11 @@ end
 
 D = real(diag(D));
 
-
 %
-disp('klse_fourier: ratio between first and last eigenvalues in dB')
-DU = 20*log10(abs(D(1)/D(end)))
+DU = 20*log10(abs(D(1)/D(end)));
+if abs(DU) < 20
+    warning('klse_fourier: ratio between first and last eigenvalues in dB = %f\n', DU)
+end
 
 %% Expansion using different bases for noise and signal (reduces number
 % of eigenvalues)
