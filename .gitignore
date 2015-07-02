@@ -16,4 +16,4 @@ ofdm/tex/
 soa/tex/
 apd/tex/
 mpam/tex/
-
+!gui/data/*.png
