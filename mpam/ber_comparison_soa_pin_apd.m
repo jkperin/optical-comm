@@ -13,8 +13,8 @@ addpath ../apd/f
 %% Simulation parameters
 sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
 sim.Mct = 15;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
-sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
-sim.M = 8; % Ratio of optical filter BW and electric filter BW (must be integer)
+sim.L = 3;        % de Bruijin sub-sequence length (ISI symbol length)
+sim.M = 4; % Ratio of optical filter BW and electric filter BW (must be integer)
 sim.Me = 16; % number of used eigenvalues
 sim.verbose = ~true; % show stuff
 sim.BERtarget = 1e-4; 
@@ -25,8 +25,8 @@ sim.shot = true; % include shot noise in montecarlo simulation (always included 
 sim.RIN = true; % include RIN noise in montecarlo simulation
 
 %% M-PAM
-mpam.level_spacing = 'uniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
-mpam.M = 4;
+mpam.level_spacing = 'nonuniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
+mpam.M = 8;
 mpam.Rb = 100e9;
 mpam.Rs = mpam.Rb/log2(mpam.M);
 mpam.pshape = @(n) double(n >= 0 & n < sim.Mct); % pulse shape
@@ -69,8 +69,8 @@ rx.N0 = (20e-12).^2; % thermal noise psd
 rx.Id = 10e-9; % dark current
 rx.R = 1; % responsivity
 % Electric Lowpass Filter
-rx.elefilt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
-% rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
+% rx.elefilt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
+rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 % rx.elefilt = design_filter('matched', @(t) conv(mpam.pshape(t), 1/sim.fs*tx.modulator.h(t/sim.fs), 'full') , 1/sim.Mct);
 % Optical Bandpass Filter
 rx.optfilt = design_filter('butter', 4, sim.M*rx.elefilt.fcnorm);
@@ -105,7 +105,7 @@ end
 
 %% SOA
 % soa(GaindB, NF, lambda, maxGaindB)
-soa = soa(20, 9, 1310e-9, 20); 
+soa = soa(10, 9, 1310e-9, 20); 
 
 % BER
 disp('BER with SOA')
@@ -141,20 +141,20 @@ axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
 set(gca, 'xtick', tx.PtxdBm)
 
 %% Plot Frequency response
-signal = design_filter('matched', mpam.pshape, 1/sim.Mct);
-Hsig = signal.H(sim.f/sim.fs); % signal frequency response
-figure, box on, grid on, hold on
-plot(f/1e9, abs(Hsig).^2)
-if isfield(tx, 'modulator')
-    plot(f/1e9, abs(tx.modulator.H(f)).^2)
-else
-    plot(f/1e9, ones(size(f)))
-end
-plot(f/1e9, abs(fiber.Hfiber(f, tx)).^2)
-plot(f/1e9, abs(rx.optfilt.H(f/sim.fs)).^2)
-plot(f/1e9, abs(rx.elefilt.H(f/sim.fs)).^2)
-legend('Signal', 'Modulator', 'Fiber frequency response (small-signal)', 'Optical filter', 'Receiver electric filter')
-xlabel('Frequency (GHz)')
-ylabel('|H(f)|^2')
-axis([0 rx.Fmax_fourier*sim.fs/1e9 0 3])
+% signal = design_filter('matched', mpam.pshape, 1/sim.Mct);
+% Hsig = signal.H(sim.f/sim.fs); % signal frequency response
+% figure, box on, grid on, hold on
+% plot(f/1e9, abs(Hsig).^2)
+% if isfield(tx, 'modulator')
+%     plot(f/1e9, abs(tx.modulator.H(f)).^2)
+% else
+%     plot(f/1e9, ones(size(f)))
+% end
+% plot(f/1e9, abs(fiber.Hfiber(f, tx)).^2)
+% plot(f/1e9, abs(rx.optfilt.H(f/sim.fs)).^2)
+% plot(f/1e9, abs(rx.elefilt.H(f/sim.fs)).^2)
+% legend('Signal', 'Modulator', 'Fiber frequency response (small-signal)', 'Optical filter', 'Receiver electric filter')
+% xlabel('Frequency (GHz)')
+% ylabel('|H(f)|^2')
+% axis([0 rx.Fmax_fourier*sim.fs/1e9 0 3])
     

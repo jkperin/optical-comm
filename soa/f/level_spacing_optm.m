@@ -4,19 +4,21 @@
 % The calculated levels and thresholds are at the receiver
 function [a, b] = level_spacing_optm(mpam, tx, soa, rx, sim)
 
+N = sim.Mct+1;
+
 % Error probability under a single tail for a given symbol
 Pe = log2(mpam.M)*sim.BERtarget*(mpam.M/(2*(mpam.M-1)));
 
 % KLSE Fourier Series Expansion 
-[U, D, Fmax] = klse_fourier(rx, sim, sim.Mct); 
+[U, D, Fmax] = klse_fourier(rx, sim, N); 
 
-df = 1/sim.Mct;
+df = 1/N;
 ft = (-0.5:df:0.5-df).';
 f = ft(abs(ft) <= Fmax);
 fm = f(abs(f) <= Fmax);
 
 % Noises variance
-varASE = (soa.N0*sim.fs/2)/sim.Mct; % variance of circularly complex Gaussain noise 
+varASE = (soa.N0*sim.fs/2)/N; % variance of circularly complex Gaussain noise 
 varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2;
 
 % Initialize levels and thresholds
@@ -39,8 +41,13 @@ while tol(end) > maxtol && k < maxit
         % Find decision threshold
         ck = calc_mgf_param(a(level), U, fm);
 
+        try
         [dPthresh, ~, exitflag] = fzero(@(dPthresh)...  
             tail_saddlepoint_approx(a(level) + abs(dPthresh), D, ck, varASE, varTherm, 'right') - Pe, 0);
+        catch e
+            disp(e.message)
+            1;
+        end
 
         if exitflag ~= 1
             warning('level_spacing_optm: threshold optimization did not converge');
