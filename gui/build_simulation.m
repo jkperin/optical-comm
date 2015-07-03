@@ -16,11 +16,14 @@ sim.BERtarget = eval(getString(h.BER));
 
 sim.shot = getLogicalValue(h.check.shot); % include shot noise in montecarlo simulation (always included for pin and apd case)
 sim.RIN = getLogicalValue(h.check.rin); % include RIN noise in montecarlo simulation
+sim.quantiz = getLogicalValue(h.check.quantiz);
+sim.ENOB = getValue(h.ENOB);
 
 sim.verbose = false; % show stuff
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.L = getValue(h.Lseq);  % de Bruijin sub-sequence length (ISI symbol length)
+
 
 %% Modulation
 modulation = getOption(h.popup.modulation);
@@ -44,10 +47,20 @@ switch modulation
         sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
         
     case 'DMT/OFDM'
+        sim.type = getOption(h.palloc);
+        switch sim.type
+            case 'Preemphasis'
+                sim.type = 'preemphasis';
+            case 'Opt. Bit Loading & Power allocation'
+                sim.type = 'palloc';
+        end
+        
+        sim.rclip = 10^(getValue(h.rclip)/20);
+        
         Nc = getValue(h.Nc);
         Nu = getValue(h.Nu);
         CS = getValue(h.M);
-        Rb = 100e9*getValue(h.Rb);
+        Rb = 1e9*getValue(h.Rb);
         
         ofdm1 = ofdm(Nc, Nu, CS, Rb);
         
@@ -82,11 +95,15 @@ end
 tx.modulator.Fc = 1e9*eval(get(h.fc, 'String')); % modulator cut off frequency
 
 %% Fiber
-L = 1e3*getValue(h.L);
+L = 1e3*eval(getString(h.L));
 att = @(lamb) getValue(h.att);
 D = @(lamb) getValue(h.D);
 
-fiber1 = fiber(L, att, D);
+if length(L) ~= 1
+    sim.fiberL = L;
+end
+
+fiber1 = fiber(L(1), att, D);
 
 %% Receiver
 rx.R = getValue(h.R); % responsivity
@@ -128,10 +145,10 @@ switch getOption(h.popup.system)
         
         Bopt = 1e9*getValue(h.Bopt);
         sim.M = ceil(Bopt/mpam.Rs); % Ratio of optical filter BW and electric filter BW (must be integer)
-        sim.Me = 2*sim.M;  % number of used eigenvalues
+        sim.Me = max(2*sim.M, 16);  % number of used eigenvalues
         
         % Optical Bandpass Filter
-        rx.optfilt = design_filter(filterType, 0, Bopt);
+        rx.optfilt = design_filter(filterType, 0, Bopt/(sim.fs/2));
         
         GsoadB = getValue(h.Gsoa);
         Fn = getValue(h.Fn);

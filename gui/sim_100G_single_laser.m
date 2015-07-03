@@ -90,9 +90,12 @@ function sim_100G_single_laser
    [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 30);
    [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'Wavelength (nm):', 1310);
    [h.text.kappa, h.kappa] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'Insertion Loss (dB):', 0);
-   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'Extinction Ratio (dB):', -15, true);
-   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 dH 1/scale], 'RIN (dB/Hz):', -150, true);
-   [h.check.chirp, h.text.chirp, h.chirp] = table_entry(h.panel.tx, [0 dH/4 1/scale], 'Modulator chirp (alpha):', 2, false);
+   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'Extinction Ratio (dB):', -15, true,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
+   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 dH 1/scale], 'RIN (dB/Hz):', -150, true,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
+   [h.check.chirp, h.text.chirp, h.chirp] = table_entry(h.panel.tx, [0 dH/4 1/scale], 'Modulator chirp (alpha):', 2, false,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
    align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.check.rex h.check.rin h.check.chirp], 'None', 'Fixed', 6);
    align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.text.rex h.text.rin h.text.chirp], 'Left', 'Fixed', 6)
    align([h.Ptx h.fc h.lamb h.kappa h.rex h.rin h.chirp], 'Right', 'Fixed', 6);
@@ -130,9 +133,9 @@ function sim_100G_single_laser
    set(h.palloc, 'FontSize', FontSize-1)
    align([h.text.palloc, h.palloc], 'None', 'Center');
    
-   [h.check.clip, h.text.rclip, h.rclip] = table_entry(h.panel.mod, [0 dH/4 1/scale], 'Clipping ratio (dB): ', 12);
-   
-   set_property([h.Nc, h.text.Nc, h.Nu, h.text.Nu, h.text.palloc, h.palloc, h.text.rclip, h.rclip, h.check.clip], 'Enable', 'off');
+   [h.text.rclip, h.rclip] = table_entry(h.panel.mod, [0 dH/4 1/scale], 'Clipping ratio (dB): ', 12);
+      
+   set_property([h.Nc, h.text.Nc, h.Nu, h.text.Nu, h.text.palloc, h.palloc, h.text.rclip, h.rclip], 'Enable', 'off');
    align([h.text.M h.text.pshape, h.text.level h.text.ros h.text.Nc h.text.Nu h.text.palloc, h.text.rclip], 'None', 'Fixed', 6);
    align([h.M h.pshape h.level h.ros h.Nc h.Nu h.palloc, h.rclip], 'Right', 'Fixed', 6)
    
@@ -145,7 +148,7 @@ function sim_100G_single_laser
   
    [h.text.L, h.L] = table_entry(h.panel.fiber, [0 2*dH 1/scale], 'Length (km):', 0);
    [h.text.att, h.att] = table_entry(h.panel.fiber, [0 dH 1/scale], 'Attenuation (dB/km): ', 0.35);
-   [h.text.D, h.D] = table_entry(h.panel.fiber, [0 dH/4 1/scale], 'Dispersion: (ps/(nm.km)', 0);
+   [h.text.D, h.D] = table_entry(h.panel.fiber, [0 dH/4 1/scale], 'Dispersion: (ps/(nm.km))', 0);
     align([h.text.L h.text.att h.text.D], 'None', 'Fixed', 6);
    align([h.L h.att h.D], 'Left', 'Fixed', 6)
    
@@ -165,14 +168,17 @@ function sim_100G_single_laser
    [temp2, h.rxfilterN] = table_entry(h.panel.rx, [0 2*dH 1/scale], '', 4, false);
    set(temp2, 'Visible', 'off');
    [h.text.rxfilterBw, h.rxfilterBw] = table_entry(h.panel.rx, [0 dH/4 1/scale], 'Receiver Filter Bandwidth (GHz):', 30, false);
+  
    align([h.text.R, h.text.Id, h.text.shot, h.text.NEP, h.text.rxfilter, h.text.rxfilterBw], 'None', 'Fixed', 6);
    align([h.R, h.Id, temp1, h.NEP,  h.rxfilterN, h.rxfilterBw], 'None', 'Fixed', 6);
    align([h.text.rxfilter, h.rxfilterType, h.rxfilterN], 'None', 'Bottom')
+  
    set(h.rxfilterN, 'Position', get(h.rxfilterN, 'Position') + [-0.26 0 -0.05 0])
    set(h.rxfilterType, 'Position', get(h.rxfilterType, 'Position') + [-0.1 0 0.1 0])
    set(h.rxfilterType, 'Style', 'popupmenu');
    set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'});
    set(h.rxfilterType, 'FontSize', FontSize);
+   
    set(h.rxfilterType, 'Callback', @(src,evt) disable_handles_Callback(src, evt, [h.rxfilterN  h.rxfilterBw h.text.rxfilterBw], 'Matched'))
    
    
@@ -239,7 +245,10 @@ function sim_100G_single_laser
    [h.text.BER, h.BER] = table_entry(h.panel.param, [0 4*dH 1/scale], 'Target BER: ', 1e-4);
    [h.text.Nsymb, h.Nsymb] = table_entry(h.panel.param, [0 3*dH 1/scale], 'Number of Symbols:', 2^15);
    [h.text.Mct, h.Mct] = table_entry(h.panel.param, [0 2*dH 1/scale], 'Oversampling Ratio for Continuous Time:', 15);
-   [h.check.quantiz, h.text.ENOB, h.ENOB] = table_entry(h.panel.param, [0 dH 1/scale], 'ENOB (bits):', 6, false);
+   
+   [h.check.quantiz, h.text.ENOB, h.ENOB] = table_entry(h.panel.param, [0 dH 1/scale], 'ENOB (bits):', 6, false,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
+      
    [h.text.Lseq, h.Lseq] = table_entry(h.panel.param, [0 dH/4 1/scale], 'de Bruijn Sub-Sequence Length:', 2);
    align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.text.ENOB, h.text.Lseq], 'None', 'Fixed', 6);
    align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.check.quantiz, h.text.Lseq], 'None', 'Fixed', 6);
@@ -271,7 +280,7 @@ function sim_100G_single_laser
                     case 'M-PAM'
                         [ber, GdB] = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim);
                     case 'DMT/OFDM'
-                        ber = ofdm_ber_vs_Ptx(ofdm, tx, fiber1, rx, sim);
+                        ber = ofdm_ber_vs_Ptx(ofdm1, tx, fiber1, rx, sim);
                 end
                 
                 if isempty(soa1)
@@ -280,18 +289,18 @@ function sim_100G_single_laser
                     handle = h.Gsoa;
                 end
                 
-                if ~isempty(GdB)
+                if exist('GdB', 'var') && ~isempty(GdB)
                     set(handle, 'String', num2str(GdB, 2));
                 end
 
                 axes(h.axes.results), hold on, box on, grid on
-                plot(tx.PtxdBm, log10(ber.count), '-o')
-                plot(tx.PtxdBm, log10(ber.est), '-')
+                hline = plot(tx.PtxdBm, log10(ber.count), '--o');
+                plot(tx.PtxdBm, log10(ber.est), '-', 'Color', get(hline, 'Color'))
                 xlabel('Transmitted Power (dBm)')
                 ylabel('log_{10}(BER)')
-                legend('Counted', 'Estimated')
+                legend('Montecarlo', 'Estimated')
                 a = axis;
-                axis([a(1:2) ceil(2*log10(sim.BERtarget)) 0])
+                axis([min(a(1), tx.PtxdBm(1)) max(a(2), tx.PtxdBm(end)) ceil(2*log10(sim.BERtarget)) 0])
                 
             case 'Power Penalty vs Modulator Cutoff Frequency'
                 switch getOption(h.popup.modulation)
@@ -311,11 +320,17 @@ function sim_100G_single_laser
                     case 'M-PAM'
                         pp = mpam_pp_vs_L(mpam, tx, fiber1, soa1, apd1, rx, sim);
                     case 'DMT/OFDM'
-                        pp = ofdm_pp_vs_L(ofdm, tx, fiber1, rx, sim);
+                        pp = ofdm_ber_vs_L(ofdm1, tx, fiber1, rx, sim);
                 end
                 
-                figure(h.axes.results), hold on, box on, grid on
-                plot(sim.Lfiber, pp, '-o')
+                axes(h.axes.results), hold on, box on, grid on
+                hline = plot(sim.fiberL/1e3, pp.power_pen_ook_m, '--o', 'LineWidth', 2);
+                plot(sim.fiberL/1e3, pp.power_pen_ook_e, '-', 'LineWidth', 2, 'Color', get(hline, 'Color'))
+                xlabel('Length (km)', 'FontSize', 12)
+                ylabel('Optical Power Penalty (dB)', 'FontSize', 12)
+                legend('Montecarlo', 'Estimated', 'Location', 'NorthEast')
+                a = axis;
+                axis([min(a(1), sim.fiberL(1)/1e3) max(a(2), sim.fiberL(end)/1e3) a(3:4)])
                 xlabel('Fiber Length (km)')
                 ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
                 
@@ -332,11 +347,15 @@ function sim_100G_single_laser
          % Set current data to the selected data set.
          if strcmp(str{val}, 'M-PAM') % User selects Sinc.
              set_property([h.Nc, h.level, h.text.level, h.text.Nc, h.Nu,...
-                 h.text.Nu, h.palloc, h.text.palloc], 'Enable', 'off')
-             set_property([h.level, h.text.level h.pshape h.text.pshape,...
-                 h.text.rxfilterBw, h.rxfilterBw, h.text.ros, h.ros], 'Enable', 'on')
+                 h.text.Nu, h.palloc, h.text.palloc, h.text.rclip, h.rclip], 'Enable', 'off')
+             set_property([h.level, h.text.level h.pshape h.text.pshape, h.text.rxfilter, h.rxfilterN,...
+                 h.text.rxfilterBw, h.rxfilterBw, h.text.ros, h.ros, h.Lseq, h.text.Lseq], 'Enable', 'on')
                           
              set(h.popup.system, 'String', {'Basic', 'SOA', 'APD'})
+             set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'})
+             set(h.rxfilterType, 'Value', 1);
+             set(h.rxfilterType, 'Callback', @(src,evt) disable_handles_Callback(src, evt, [h.rxfilterN  h.rxfilterBw h.text.rxfilterBw], 'Matched'))
+             h.rxfilterType.Callback(h.rxfilterType, 0);
              
              switch getOption(h.popup.system)
                  case 'Basic'
@@ -349,20 +368,64 @@ function sim_100G_single_laser
              
              set(h.M, 'String', 4); 
              set(h.ros, 'String', 1);
+             set(h.Ptx, 'String', '-30:2:-10')
+             set(h.Nsymb, 'String', num2str(2^14))
+             set(h.Mct, 'String', num2str(15))     
          else
-             set_property([h.Nc, h.text.Nc, h.Nu, h.text.Nu, h.palloc, h.text.palloc], 'Enable', 'on')
+             set_property([h.Nc, h.text.Nc, h.Nu, h.text.Nu, h.palloc, h.text.palloc,...
+                 h.text.rclip, h.rclip, h.text.rxfilter, h.rxfilterN,...
+                 h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'on')
              set_property([h.level, h.text.level h.pshape h.text.pshape,...
-                 h.text.rxfilterBw, h.rxfilterBw, h.text.ros, h.ros], 'Enable', 'off')
-             set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'})
+                 h.text.ros, h.ros, h.Lseq, h.text.Lseq, h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'off')
+             
              set(h.rxfilterType, 'String', {'Gaussian', 'Bessel'})
+             set(h.rxfilterType, 'Value', 1);
+             set(h.rxfilterType, 'Callback', @(src,evt) [])
              
              set(h.popup.system, 'String', {'Basic'})
-             set(h.ros, 'String', num2str(getValue(h.Nc)/getValue(h.Nu), 3))
             
+             set(h.ros, 'String', num2str(getValue(h.Nc)/getValue(h.Nu), 3))
+                      
              imshow('data/ofdm.png', 'Parent', h.axes.block_diagram)
              
              set(h.M, 'String', 16); 
+             set(h.Ptx, 'String', '-20:2:-4')
+             set(h.Nsymb, 'String', num2str(2^10))
+             set(h.Mct, 'String', num2str(9))             
          end
+    end
+
+    function popup_results_Callback(source, eventdata) 
+         str = source.String;
+         val = source.Value;
+         % Set current data to the selected data set.
+         switch str{val}
+             case 'BER vs Transmitted Power'
+                 set_property([h.text.Ptx h.Ptx], 'Enable', 'on');
+                 set(h.text.Ptx, 'String', 'Transmitted Power Range (dBm):')
+                 set(h.Ptx, 'String', '-20:2:-4')
+                 
+                 set(h.text.fc, 'String', 'Modulator Cutoff Frequency (GHz):')
+                 set(h.fc, 'String', '30')
+                                 
+             case 'Power Penalty vs Modulator Cutoff Frequency'
+                 set_property([h.text.Ptx h.Ptx], 'Enable', 'off');
+                 
+                 set(h.text.fc, 'String', 'Modulator Cutoff Frequency Range (GHz):')
+                 set(h.fc, 'String', '20:5:50')
+                 
+                 set(h.text.L, 'String', 'Fiber Length (km):')
+                 set(h.L, 'String', '0:5')
+                 
+             case 'Power Penalty vs Fiber Length'
+                 set_property([h.text.Ptx h.Ptx], 'Enable', 'off');
+                 
+                 set(h.text.fc, 'String', 'Modulator Cutoff Frequency (GHz):')
+                 set(h.fc, 'String', '30')
+                 
+                 set(h.text.L, 'String', 'Fiber Length Range (km):')
+                 set(h.L, 'String', '0:5')
+         end               
     end
 
     % Disable handles if source.String == value
@@ -447,9 +510,13 @@ function sim_100G_single_laser
         end
     end
    
-    function varargout = table_entry(parent, norm_pos, str, value, checked)
+    function varargout = table_entry(parent, norm_pos, str, value, checked, Callback)
         if nargin < 5
             checked = true;
+        end
+        
+        if nargin < 6
+            Callback = [];
         end
         
         if length(norm_pos) == 2
@@ -476,6 +543,10 @@ function sim_100G_single_laser
            set(text, 'Enable', 'off')
            set(edit, 'Enable', 'off')
        end
+       
+        if ~isempty(Callback)
+            set(checkbox, 'Callback', @(src, evt) Callback(src, evt, [text edit]))
+        end
        
         uistack(edit, 'top')
         align([text, checkbox, edit], 'None', 'Center')
