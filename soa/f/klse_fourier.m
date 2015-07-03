@@ -45,7 +45,6 @@ if sim.Me >= L - 1
 else
     [U, D] = eigs(A, sim.Me);
 end
-% [U, D] = eig(A);
 
 % check
 % norm(A - U*D*U')
@@ -54,9 +53,9 @@ D = real(diag(D));
 
 %
 DU = 20*log10(abs(D(1)/D(end)));
-if abs(DU) < 20
-    warning('klse_fourier: ratio between first and last eigenvalues in dB = %f\n', DU)
-end
+% if abs(DU) < 20
+%     warning('klse_fourier: ratio between first and last eigenvalues in dB = %f\n', DU)
+% end
 
 %% Expansion using different bases for noise and signal (reduces number
 % of eigenvalues)
