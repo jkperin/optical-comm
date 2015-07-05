@@ -8,30 +8,35 @@ addpath ../soa/f
 addpath ../apd
 addpath ../apd/f
 
-M = [2 4 8 16];
-M = 8;
+M = [2 4];
 FndB = 3:10;
 
 Colors = {'k', 'b', 'r', 'g'};
 figure(1), hold on, grid on, box on
 for m = 1:length(M)
-    [Ptx_uniform{m}, Ptx_nonuniform{m}] = calc_power_sensitivity(M(m), FndB);
+    [Ptx_uniform{m}, Ptx_nonuniform{m}, Gsoa_uniform{m}, Gsoa_nonuniform{m},...
+        ber_uniform{m}, ber_nonuniform{m}] = calc_power_sensitivity(M(m), FndB);
     
     figure(1)
     plot(FndB, Ptx_uniform{m}, '-', 'Color', Colors{m})
     plot(FndB, Ptx_nonuniform{m}, '--', 'Color', Colors{m})
     1;
+    
+    save partial_results_2and4PAM Ptx_uniform Ptx_nonuniform Gsoa_uniform Gsoa_nonuniform ber_uniform ber_nonuniform M FndB
 end
 legend('Uniform Level Spacing', 'Non-Uniform Level Spacing', 'Location', 'NorthWest')
 xlabel('Noise Figure (dB)')
 ylabel('Transmitted Power (dBm)')
 
+save results_2and4PAM Ptx_uniform Ptx_nonuniform Gsoa_uniform Gsoa_nonuniform ber_uniform ber_nonuniform M FndB
+
 end
 
 
-function [Ptx_uniform, Ptx_nonuniform] = calc_power_sensitivity(M, FndB)
+function [Ptx_uniform, Ptx_nonuniform, Gsoa_uniform, Gsoa_nonuniform,...
+        ber_uniform, ber_nonuniform] = calc_power_sensitivity(M, FndB)
     % Simulation parameters
-    sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
+    sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
     sim.Mct = 15;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 %     sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
     sim.M = 4; % Ratio of optical filter BW and electric filter BW (must be integer)
@@ -105,7 +110,7 @@ function [Ptx_uniform, Ptx_nonuniform] = calc_power_sensitivity(M, FndB)
 
     %% SOA
     % soa(GaindB, NF, lambda, maxGaindB)
-    soaG = soa(10, 9, 1310e-9, 20); 
+    soaG = soa(3, 9, 1310e-9, 20); 
 
     figure, hold on, grid on, box on
     Prx_uniform  = zeros(size(FndB));
@@ -116,7 +121,8 @@ function [Ptx_uniform, Ptx_nonuniform] = calc_power_sensitivity(M, FndB)
         %% Uniform level spacing
         mpam.level_spacing = 'uniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
         
-        soaG.optimize_gain(mpam, tx, b2b, rx, sim)
+%         soaG.optimize_gain(mpam, tx, b2b, rx, sim)
+        Gsoa_uniform(k) = soaG.GaindB;
         soaG.GaindB
 
         ber_uniform(k) = soa_ber(mpam, tx, b2b, soaG, rx, sim);
@@ -126,9 +132,10 @@ function [Ptx_uniform, Ptx_nonuniform] = calc_power_sensitivity(M, FndB)
         %% Non-uniform level spacing
         mpam.level_spacing = 'nonuniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
         
-        soaG.optimize_gain(mpam, tx, b2b, rx, sim)
+%         soaG.optimize_gain(mpam, tx, b2b, rx, sim)
+        Gsoa_nonuniform(k) = soaG.GaindB;
         soaG.GaindB
-
+        
         ber_nonuniform(k) = soa_ber(mpam, tx, b2b, soaG, rx, sim);
 
         Ptx_nonuniform(k) = interp1(log10(ber_nonuniform(k).est), tx.PtxdBm, log10(sim.BERtarget), 'spline'); 
@@ -147,6 +154,7 @@ function [Ptx_uniform, Ptx_nonuniform] = calc_power_sensitivity(M, FndB)
     legend('KLSE Fourier', 'Montecarlo', 'Gaussian Approximmation', 'Location', 'SouthWest')
     axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
     set(gca, 'xtick', tx.PtxdBm)
+    saveas(gca, sprintf('results_%dPAM.png', mpam.M))
 
     %% Figures
 %     figure, hold on, grid on, box on

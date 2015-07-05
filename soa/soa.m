@@ -62,35 +62,59 @@ classdef soa < handle
 
             originalGain = this.Gain;
             
-            if strcmp(mpam.level_spacing, 'uniform')
-                % Optmize gain for uniform spacing: find Gain that minimizes the required
-                % average power (Prec) to achieve a certain target SER.
-                [Gsoa_opt, ~, exitflag] = fminbnd(@(Gsoa) ....
-                    fzero(@(PtxdBm) calc_soa_ber(PtxdBm, Gsoa, mpam, tx, fiber, this, rx, sim) - sim.BERtarget, -20),...
-                    1, min(10^(this.maxGaindB/10), 1000));    
-                
-            elseif strcmp(mpam.level_spacing, 'nonuniform')
-                [Gsoa_opt, ~, exitflag] = fminbnd(@(Gsoa) mean(calc_level_spacing(Gsoa, mpam, tx, this, rx, sim))/Gsoa,...
-                    1, min(10^(this.maxGaindB/10), 1000));   
-            end
+            % Optmize gain: find Gain that minimizes the required
+            % average power (Prec) to achieve a certain target SER.
+            [Gsoa_opt, ~, exitflag1] = fminbnd(@(Gsoa) calc_opt_PtxdBm(Gsoa, mpam, tx, fiber, this, rx, sim),...
+                1, min(10^(this.maxGaindB/10), 1000));    
             
-            if exitflag ~= 1
-                warning('SOA gain optimization did not converge (exitflag = %d)\n', exitflag)
+            if exitflag1 ~= 1
+                warning('soa>optimize_gain: SOA gain optimization did not converge (exitflag1 = %d)\n', exitflag1)
             end 
 
             if ~isnan(Gsoa_opt) && ~isinf(Gsoa_opt) && Gsoa_opt >= 1
                 this.Gain = Gsoa_opt;
             else
                 this.Gain = originalGain;
-                warning('SOA gain was not changed')
+                warning('soa>optimize_gain: SOA gain was not changed')
             end
-            
-            function a = calc_level_spacing(Gsoa, mpam, tx, soa, rx, sim)
-                soa.Gain = Gsoa;
+          
+            function PtxdBm_opt = calc_opt_PtxdBm(Gsoa, mpam, tx, fiber, soa, rx, sim)
                 
-                [a, ~] = level_spacing_optm(mpam, tx, soa, rx, sim);
-            end
+                ber = zeros(size(tx.PtxdBm));
+                for k = 1:length(tx.PtxdBm)
+                    % Set power level
+                    tx.Ptx = 1e-3*10^(tx.PtxdBm(k)/10);
+                    
+                    % Set SOA gain
+                    soa.Gain = Gsoa; % linear units
+                    
+                    switch mpam.level_spacing
+                        case 'uniform'
+                            % Uniform level spacing
+                            mpam.a = (0:2:2*(mpam.M-1)).';
+                            mpam.b = (1:2:(2*(mpam.M-1)-1)).';
+                        case 'nonuniform'
+                            [mpam.a, mpam.b] = level_spacing_optm(mpam, tx, soa, rx, sim);
+                        otherwise
+                            error('soa>optimize_gain: mpam.level_spacing invalid option')
+                    end
 
+                    % Estimated BER using KLSE Fourier and saddlepoint approximation of
+                    % tail probabilities
+                    ber(k) = ber_soa_klse_fourier(rx.U_fourier, rx.D_fourier, rx.Fmax_fourier, mpam, tx, fiber, soa, rx, sim);
+                end
+                
+                PtxdBm_opt = interp1(log10(ber), tx.PtxdBm, log10(sim.BERtarget), 'spline');
+            end
+                    
+                
+%                 [PtxdBm_opt, fval, exitflag] = fzero(@(PtxdBm) calc_soa_ber(PtxdBm, Gsoa, mpam, tx, fiber, soa, rx, sim) - sim.BERtarget, -20);
+%             
+%                 if exitflag ~= 1 % most likely is in an error floor
+%                     exitflag
+%                     fval
+%                 end        
+            
             function ber = calc_soa_ber(PtxdBm, Gsoa, mpam, tx, fiber, soa, rx, sim)
                 % Set power level
                 tx.Ptx = 1e-3*10^(PtxdBm/10);
@@ -98,9 +122,16 @@ classdef soa < handle
                 % Set APD gain
                 soa.Gain = Gsoa; % linear units
                 
-                % Uniform level spacing
-                mpam.a = (0:2:2*(mpam.M-1)).';
-                mpam.b = (1:2:(2*(mpam.M-1)-1)).';
+                switch mpam.level_spacing
+                    case 'uniform'
+                        % Uniform level spacing
+                        mpam.a = (0:2:2*(mpam.M-1)).';
+                        mpam.b = (1:2:(2*(mpam.M-1)-1)).';
+                    case 'nonuniform'
+                        [mpam.a, mpam.b] = level_spacing_optm(mpam, tx, soa, rx, sim);
+                    otherwise
+                        error('soa>optimize_gain: mpam.level_spacing invalid option')
+                end
 
                 % Estimated BER using KLSE Fourier and saddlepoint approximation of
                 % tail probabilities
