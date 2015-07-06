@@ -1,10 +1,5 @@
-function pp = ofdm_ber_vs_L(ofdm, tx, fiber, rx, sim)
-
-%% Transmitter parameters 
-tx.modulator.fc = tx.modulator.Fc(1); % modulator cut off frequency
-tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
-tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
+%% Power penalty vs modulator cutoff frequency
+function pp = ofdm_pp_vs_mod_cutoff(ofdm, tx, fiber, rx, sim)
 
 % Transmitter filter (ZOH + some smoothing filter)
 tx.filter = design_filter('bessel', 5, 1/(ofdm.Ms*sim.Mct));
@@ -28,10 +23,12 @@ rx.filter = design_filter(rx.filter.type, rx.filterN, 1/(ofdm.Ms*sim.Mct));
 tx.rclip = sim.rclip;
 rx.rclip = sim.rclip;
 
-L = sim.fiberL;
-for k = 1:length(L)
-    
-    fiber.L = L(k);                    
+for k = 1:length(tx.modulator.Fc)
+    %% Transmitter parameters 
+    tx.modulator.fc = tx.modulator.Fc(k); % modulator cut off frequency
+    tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+    tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
+    tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds                
     
     [ber, Ptx, Ptx_est] = dc_ofdm(ofdm, tx, fiber, rx, sim);
     
@@ -51,9 +48,10 @@ pp.power_pen_ook_m = PtxdBm - PookdBm;
 pp.power_pen_ook_e = PtxedBm - PookdBm;
 
 figure, hold on, grid on
-plot(L/1e3, bercount, '-sk', L/1e3, berest, '-or')
-plot(L/1e3, log10(sim.BERtarget)*ones(size(L)), 'k')
-xlabel('Length (km)', 'FontSize', 12)
+plot(tx.modulator.Fc/1e9, bercount, '-sk')
+plot(tx.modulator.Fc/1e9, berest, '-or')
+plot(tx.modulator.Fc/1e9, log10(sim.BERtarget)*ones(size(tx.modulator.Fc)), 'k')
+xlabel('Modulator Cutoff Frequency (GHz)', 'FontSize', 12)
 ylabel('log_{10}(BER)', 'FontSize', 12)
 legend('BER counted', 'BER estimaded', 'Target BER', 'Location', 'NorthWest')
-axis([L([1 end])/1e3 -8 0])
+axis([tx.modulator.Fc([1 end])/1e9 -8 0])

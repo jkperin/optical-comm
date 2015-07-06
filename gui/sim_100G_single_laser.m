@@ -1,4 +1,6 @@
 function sim_100G_single_laser
+    close all, clc
+    
     addpath f
     addpath ../f % general functions
     addpath ../soa
@@ -86,9 +88,11 @@ function sim_100G_single_laser
    h.panel.tx = uipanel('Title', 'Transmitter', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10');
+   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10'); 
    [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 30);
    [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'Wavelength (nm):', 1310);
+   set(h.lamb, 'Callback', @(src, evt) update_dispersion_Callback(src, evt));
+   
    [h.text.kappa, h.kappa] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'Insertion Loss (dB):', 0);
    [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'Extinction Ratio (dB):', -15, true,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
@@ -271,6 +275,7 @@ function sim_100G_single_laser
     end
         
     function run_Callback(source, eventdata)
+        clc
         
         [mpam, ofdm1, tx, fiber1, soa1, apd1, rx, sim] = build_simulation(h);
         
@@ -305,20 +310,24 @@ function sim_100G_single_laser
             case 'Power Penalty vs Modulator Cutoff Frequency'
                 switch getOption(h.popup.modulation)
                     case 'M-PAM'
-                        pp = mpam_pp_vs_mod_cutoff(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                        %pp = mpam_pp_vs_mod_cutoff(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                        error('Not implemented yet.')
                     case 'DMT/OFDM'
-                        pp = ofdm_pp_vs_mod_cutoff(ofdm, tx, fiber1, rx, sim);
+                        pp = ofdm_pp_vs_mod_cutoff(ofdm1, tx, fiber1, rx, sim);
                 end
                 
-                figure(h.axes.results), hold on, box on, grid on
-                plot(tx.Fnl, pp, '-o')
+                axes(h.axes.results), hold on, box on, grid on
+                hline = plot(tx.modulator.Fc/1e9, pp.power_pen_ook_m, '--o', 'LineWidth', 2);
+                plot(tx.modulator.Fc/1e9, pp.power_pen_ook_e, '-', 'LineWidth', 2, 'Color', get(hline, 'Color'))
+                legend('Montecarlo', 'Estimated', 'Location', 'NorthEast')
                 xlabel('Modulator Cutoff Frequency (GHz)')
                 ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
                 
             case 'Power Penalty vs Fiber Length'
                 switch getOption(h.popup.modulation)
                     case 'M-PAM'
-                        pp = mpam_pp_vs_L(mpam, tx, fiber1, soa1, apd1, rx, sim);
+%                         pp = mpam_pp_vs_L(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                          error('Not implemented yet.')
                     case 'DMT/OFDM'
                         pp = ofdm_ber_vs_L(ofdm1, tx, fiber1, rx, sim);
                 end
@@ -326,11 +335,7 @@ function sim_100G_single_laser
                 axes(h.axes.results), hold on, box on, grid on
                 hline = plot(sim.fiberL/1e3, pp.power_pen_ook_m, '--o', 'LineWidth', 2);
                 plot(sim.fiberL/1e3, pp.power_pen_ook_e, '-', 'LineWidth', 2, 'Color', get(hline, 'Color'))
-                xlabel('Length (km)', 'FontSize', 12)
-                ylabel('Optical Power Penalty (dB)', 'FontSize', 12)
                 legend('Montecarlo', 'Estimated', 'Location', 'NorthEast')
-                a = axis;
-                axis([min(a(1), sim.fiberL(1)/1e3) max(a(2), sim.fiberL(end)/1e3) a(3:4)])
                 xlabel('Fiber Length (km)')
                 ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
                 
@@ -390,7 +395,7 @@ function sim_100G_single_laser
              
              set(h.M, 'String', 16); 
              set(h.Ptx, 'String', '-20:2:-4')
-             set(h.Nsymb, 'String', num2str(2^10))
+             set(h.Nsymb, 'String', num2str(2^12))
              set(h.Mct, 'String', num2str(9))             
          end
     end
@@ -407,6 +412,9 @@ function sim_100G_single_laser
                  
                  set(h.text.fc, 'String', 'Modulator Cutoff Frequency (GHz):')
                  set(h.fc, 'String', '30')
+                 
+                 set(h.text.L, 'String', 'Fiber Length (km):')
+                 set(h.L, 'String', '0')
                                  
              case 'Power Penalty vs Modulator Cutoff Frequency'
                  set_property([h.text.Ptx h.Ptx], 'Enable', 'off');
@@ -415,7 +423,7 @@ function sim_100G_single_laser
                  set(h.fc, 'String', '20:5:50')
                  
                  set(h.text.L, 'String', 'Fiber Length (km):')
-                 set(h.L, 'String', '0:5')
+                 set(h.L, 'String', '0')
                  
              case 'Power Penalty vs Fiber Length'
                  set_property([h.text.Ptx h.Ptx], 'Enable', 'off');
@@ -425,7 +433,18 @@ function sim_100G_single_laser
                  
                  set(h.text.L, 'String', 'Fiber Length Range (km):')
                  set(h.L, 'String', '0:5')
+                 
+                 set(h.check.chirp, 'Value', true)
+                 h.check.chirp.Callback(h.check.chirp, 0)
          end               
+    end
+
+    function update_dispersion_Callback(src, evt)       
+        lamb = 1e-9*str2double(get(h.lamb, 'String'));
+        
+        D = 1e6*fiber.S0/4*(lamb - fiber.lamb0^4./(lamb.^3)); % Dispersion curve
+        
+        set(h.D, 'String', num2str(D))        
     end
 
     % Disable handles if source.String == value

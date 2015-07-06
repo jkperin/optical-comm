@@ -96,14 +96,14 @@ tx.modulator.Fc = 1e9*eval(get(h.fc, 'String')); % modulator cut off frequency
 
 %% Fiber
 L = 1e3*eval(getString(h.L));
-att = @(lamb) getValue(h.att);
-D = @(lamb) getValue(h.D);
+att = getValue(h.att);
+D = 1e-6*getValue(h.D);
 
 if length(L) ~= 1
     sim.fiberL = L;
 end
 
-fiber1 = fiber(L(1), att, D);
+fiber1 = fiber(L(1), @(l) att, @(l) D);
 
 %% Receiver
 rx.R = getValue(h.R); % responsivity
