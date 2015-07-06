@@ -51,7 +51,9 @@ classdef soa < handle
             N = length(Ein);
             
             % N0 is the psd per polarization
-            w = sqrt(1/2*obj.N0*fs/2)*(randn(N, 1) + 1j*randn(N, 1));
+            w = sqrt(1/2*obj.N0*fs)*(randn(N, 1) + 1j*randn(N, 1));
+            % Note: even though soa.N0 is single-sided PSD we don't multiply by
+            % sim.fs/2 because this is a band-pass process
             
             output = Ein*sqrt(obj.Gain) + w;         
         end
@@ -94,7 +96,25 @@ classdef soa < handle
                             mpam.a = (0:2:2*(mpam.M-1)).';
                             mpam.b = (1:2:(2*(mpam.M-1)-1)).';
                         case 'nonuniform'
-                            [mpam.a, mpam.b] = level_spacing_optm(mpam, tx, soa, rx, sim);
+                            if isfield(mpam, 'level_spacing_with_gaussian_approx') && mpam.level_spacing_with_gaussian_approx
+                                % Optimize level spacing using Gaussian approximation
+                                Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
+                                varTherm = rx.N0*Deltaf; % variance of thermal noise
+
+                                Deltafopt = rx.optfilt.noisebw(sim.fs); % optical filter two-sided noise bandwidth
+                                % function to calculate noise std
+                                calc_noise_std = @(Plevel) sqrt(varTherm + 2*Plevel*soa.N0*Deltaf + 2*soa.N0^2*Deltafopt*Deltaf*(1-1/(2*sim.M)));
+                                % Note: Plevel corresponds to the level after SOA amplification.
+                                % Therefore, the soa.Gain doesn't appear in the second term because
+                                % it's already included in the value of Plevel.
+                                % Note: second term corresponds to sig-sp beat noise, and third term
+                                % corresponds to sp-sp beat noise with noise in one polarization. Change to
+                                % 2 to 4 in third term to simulate noise in two pols.
+                                
+                                [mpam.a, mpam.b] = level_spacing_optm_gauss_approx(mpam.M, sim.BERtarget, tx.rexdB, calc_noise_std, sim.verbose);
+                            else
+                                [mpam.a, mpam.b] = level_spacing_optm(mpam, tx, soa, rx, sim);
+                            end
                         otherwise
                             error('soa>optimize_gain: mpam.level_spacing invalid option')
                     end

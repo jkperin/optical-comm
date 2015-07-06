@@ -12,7 +12,27 @@ if strcmp(mpam.level_spacing, 'uniform')
     mpam.b = (1:2:(2*(mpam.M-1)-1)).';
 elseif strcmp(mpam.level_spacing, 'nonuniform')
     % optimized levels at the receiver
-   [mpam.a, mpam.b] = level_spacing_optm(mpam, tx, soa, rx, sim);
+    if isfield(mpam, 'level_spacing_with_gaussian_approx') && mpam.level_spacing_with_gaussian_approx
+        % Optimize level spacing using Gaussian approximation
+        Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
+        varTherm = rx.N0*Deltaf; % variance of thermal noise
+
+        Deltafopt = rx.optfilt.noisebw(sim.fs); % optical filter two-sided noise bandwidth
+        % function to calculate noise std
+        calc_noise_std = @(Plevel) sqrt(varTherm + 2*Plevel*soa.N0*Deltaf + 2*soa.N0^2*Deltafopt*Deltaf*(1-1/(2*sim.M)));
+        % Note: Plevel corresponds to the level after SOA amplification.
+        % Therefore, the soa.Gain doesn't appear in the second term because
+        % it's already included in the value of Plevel.
+        % Note: second term corresponds to sig-sp beat noise, and third term
+        % corresponds to sp-sp beat noise with noise in one polarization. Change to
+        % 2 to 4 in third term to simulate noise in two pols.
+        [mpam.a, mpam.b] = level_spacing_optm_gauss_approx(mpam.M, sim.BERtarget, tx.rexdB, calc_noise_std, sim.verbose);
+    else % Optimize level spacing using accurate statistics
+        [mpam.a, mpam.b] = level_spacing_optm(mpam, tx, soa, rx, sim);
+        
+%         mpam.a
+%         mpam.b
+    end
    
    % Refer to transmitter
    link_gain = tx.kappa*soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;

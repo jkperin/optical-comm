@@ -18,7 +18,9 @@ f = ft(abs(ft) <= Fmax);
 fm = f(abs(f) <= Fmax);
 
 % Noises variance
-varASE = (soa.N0*sim.fs/2)/N; % variance of circularly complex Gaussain noise 
+varASE = (soa.N0*sim.fs)/N; % variance of circularly complex Gaussain noise 
+% Note: even though soa.N0 is single-sided PSD we don't multiply by
+% sim.fs/2 because this is a band-pass process
 varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2;
 
 % Initialize levels and thresholds

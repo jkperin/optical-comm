@@ -1,42 +1,40 @@
 %% Simulations for SOA with nonuniform and uniform level spacing compared with Gaussian approximation
 function sim_level_spacing_optimization
 close all, clc
+format compact
 
 addpath ../f    % general functions
+addpath ../mpam/f
 addpath ../soa
 addpath ../soa/f
-addpath ../apd
-addpath ../apd/f
 
 M = [2 4];
-FndB = 3:10;
+FndB = 10:-1:3;
 
 Colors = {'k', 'b', 'r', 'g'};
 figure(1), hold on, grid on, box on
 for m = 1:length(M)
-    [Ptx_uniform{m}, Ptx_nonuniform{m}, Gsoa_uniform{m}, Gsoa_nonuniform{m},...
-        ber_uniform{m}, ber_nonuniform{m}] = calc_power_sensitivity(M(m), FndB);
+    [Ptx{m}, ber{m}, Gsoa{m}] = calc_power_sensitivity(M(m), FndB);
     
     figure(1)
-    plot(FndB, Ptx_uniform{m}, '-', 'Color', Colors{m})
-    plot(FndB, Ptx_nonuniform{m}, '--', 'Color', Colors{m})
+    plot(FndB, Ptx{m}.uniform, '-', 'Color', Colors{m})
+    plot(FndB, Ptx{m}.nonuniform, '--', 'Color', Colors{m})
+    plot(FndB, Ptx{m}.nonuniform_gauss_approx, ':', 'Color', Colors{m})
     1;
     
-    save partial_results_2and4PAM Ptx_uniform Ptx_nonuniform Gsoa_uniform Gsoa_nonuniform ber_uniform ber_nonuniform M FndB
+    save partial_results_2and4PAM M FndB Ptx ber Gsoa
 end
-legend('Uniform Level Spacing', 'Non-Uniform Level Spacing', 'Location', 'NorthWest')
+legend('Uniform Level Spacing', 'Non-Uniform Level Spacing', 'Non-Uniform Level Spacing with Gaussian Approximation', 'Location', 'NorthWest')
 xlabel('Noise Figure (dB)')
 ylabel('Transmitted Power (dBm)')
 
-save results_2and4PAM Ptx_uniform Ptx_nonuniform Gsoa_uniform Gsoa_nonuniform ber_uniform ber_nonuniform M FndB
+save results_2and4PAM M FndB Ptx ber Gsoa
 
 end
 
-
-function [Ptx_uniform, Ptx_nonuniform, Gsoa_uniform, Gsoa_nonuniform,...
-        ber_uniform, ber_nonuniform] = calc_power_sensitivity(M, FndB)
+function [Ptx, ber, Gsoa] = calc_power_sensitivity(M, FndB)
     % Simulation parameters
-    sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+    sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
     sim.Mct = 15;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 %     sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
     sim.M = 4; % Ratio of optical filter BW and electric filter BW (must be integer)
@@ -46,6 +44,8 @@ function [Ptx_uniform, Ptx_nonuniform, Gsoa_uniform, Gsoa_nonuniform,...
     sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
     sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 
+    sim.optimize_gain = true;
+    
     sim.shot = false; % include shot noise in montecarlo simulation (always included for pin and apd case)
     sim.RIN = false; % include RIN noise in montecarlo simulation
 
@@ -68,18 +68,19 @@ function [Ptx_uniform, Ptx_nonuniform, Gsoa_uniform, Gsoa_nonuniform,...
 
     %% Transmitter
     switch mpam.M
-        case 16
-            tx.PtxdBm = -18:2:0;
-            sim.L = 1;
-        case 8
-            tx.PtxdBm = -22:2:-4;
+        case 2
+            sim.optimize_gain = false;
+            tx.PtxdBm = -35:2:-24;
             sim.L = 3;
         case 4
             tx.PtxdBm = -26:2:-10;
             sim.L = 3;
-        case 2
-            tx.PtxdBm = -35:2:-24;
-            sim.L = 3;
+        case 8
+            tx.PtxdBm = -22:2:-4;
+            sim.L = 3;        
+        case 16
+            tx.PtxdBm = -18:2:0;
+            sim.L = 1;
     end
 
     tx.lamb = 1310e-9; % wavelength
@@ -101,7 +102,7 @@ function [Ptx_uniform, Ptx_nonuniform, Gsoa_uniform, Gsoa_nonuniform,...
 %     rx.elefilt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
     rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
     % Optical Bandpass Filter
-    rx.optfilt = design_filter('butter', 4, sim.M*rx.elefilt.fcnorm);
+    rx.optfilt = design_filter('fbg', 0, sim.M*rx.elefilt.fcnorm);
 
     % KLSE Fourier Series Expansion (done here because depends only on filters
     % frequency response)
@@ -110,51 +111,92 @@ function [Ptx_uniform, Ptx_nonuniform, Gsoa_uniform, Gsoa_nonuniform,...
 
     %% SOA
     % soa(GaindB, NF, lambda, maxGaindB)
-    soaG = soa(3, 9, 1310e-9, 20); 
+    soa1 = soa(10, 9, 1310e-9, 20); 
+    soa2 = soa(10, 9, 1310e-9, 20); 
+    soa3 = soa(10, 9, 1310e-9, 20); 
+    
+    % uniform level spacing
+    mpam_uniform = mpam; 
+    mpam_uniform.level_spacing = 'uniform';
+    
+    mpam_nonuniform = mpam; 
+    mpam_nonuniform.level_spacing = 'nonuniform';
+    mpam_nonuniform.level_spacing_with_gaussian_approx = false;
+    
+    mpam_nonuniform_gauss = mpam; 
+    mpam_nonuniform_gauss.level_spacing = 'nonuniform';
+    mpam_nonuniform_gauss.level_spacing_with_gaussian_approx = true;
+    
+    clear mpam
 
-    figure, hold on, grid on, box on
-    Prx_uniform  = zeros(size(FndB));
-    Prx_nonuniform  = zeros(size(FndB));
+    figure, hold on, grid on, box on   
     for k = 1:length(FndB)
-        soaG.Fn = FndB(k);
+        fprintf('----- Fn = %d dB -----\n', FndB(k))
+        soa1.Fn = FndB(k);
+        soa2.Fn = FndB(k);
+        soa3.Fn = FndB(k);
         
         %% Uniform level spacing
-        mpam.level_spacing = 'uniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
-        
-%         soaG.optimize_gain(mpam, tx, b2b, rx, sim)
-        Gsoa_uniform(k) = soaG.GaindB;
-        soaG.GaindB
+        disp('Uniform level spacing')
+       
+        if sim.optimize_gain && ~(soa1.GaindB >= 0.97*soa1.maxGaindB)
+            soa1.optimize_gain(mpam_uniform, tx, b2b, rx, sim)
+        else
+            soa1.GaindB = soa1.maxGaindB;
+        end
+        Gsoa.uniform(k) = soa1.GaindB;
+        soa1.GaindB
 
-        ber_uniform(k) = soa_ber(mpam, tx, b2b, soaG, rx, sim);
+        ber.uniform(k) = soa_ber(mpam_uniform, tx, b2b, soa1, rx, sim);
 
-        Ptx_uniform(k) = interp1(log10(ber_uniform(k).est), tx.PtxdBm, log10(sim.BERtarget), 'spline');
+        Ptx.uniform(k) = interp1(log10(ber.uniform(k).est), tx.PtxdBm, log10(sim.BERtarget), 'spline');
        
         %% Non-uniform level spacing
-        mpam.level_spacing = 'nonuniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
+        disp('Non-uniform level spacing')
         
-%         soaG.optimize_gain(mpam, tx, b2b, rx, sim)
-        Gsoa_nonuniform(k) = soaG.GaindB;
-        soaG.GaindB
+        if sim.optimize_gain && ~(soa2.GaindB >= 0.97*soa2.maxGaindB)
+            soa2.optimize_gain(mpam_nonuniform, tx, b2b, rx, sim)
+        else
+            soa2.GaindB = soa2.maxGaindB;
+        end
+        Gsoa.nonuniform(k) = soa2.GaindB;
+        soa2.GaindB
         
-        ber_nonuniform(k) = soa_ber(mpam, tx, b2b, soaG, rx, sim);
+        ber.nonuniform(k) = soa_ber(mpam_nonuniform, tx, b2b, soa2, rx, sim);
 
-        Ptx_nonuniform(k) = interp1(log10(ber_nonuniform(k).est), tx.PtxdBm, log10(sim.BERtarget), 'spline'); 
+        Ptx.nonuniform(k) = interp1(log10(ber.nonuniform(k).est), tx.PtxdBm, log10(sim.BERtarget), 'spline'); 
+                
+        %% Non-uniform level spacing with Gaussian approximation
+        disp('Non-uniform level spacing with Gaussian approximation')
+        
+        if sim.optimize_gain && ~(soa3.GaindB >= 0.97*soa3.maxGaindB)
+            soa3.optimize_gain(mpam_nonuniform_gauss, tx, b2b, rx, sim)
+        else
+            soa3.GaindB = soa3.maxGaindB;
+        end
+        Gsoa.nonuniform_gauss_approx(k) = soa3.GaindB;
+        soa3.GaindB
+        
+        ber.nonuniform_gauss_approx(k) = soa_ber(mpam_nonuniform_gauss, tx, b2b, soa3, rx, sim);
 
-        plot(tx.PtxdBm, log10(ber_uniform(k).est), '-b')
-        plot(tx.PtxdBm, log10(ber_uniform(k).count), ':ob')
-        plot(tx.PtxdBm, log10(ber_uniform(k).gauss), '--b')  
+        Ptx.nonuniform_gauss_approx(k) = interp1(log10(ber.nonuniform_gauss_approx(k).est), tx.PtxdBm, log10(sim.BERtarget), 'spline'); 
 
-        plot(tx.PtxdBm, log10(ber_nonuniform(k).est), '-r')
-        plot(tx.PtxdBm, log10(ber_nonuniform(k).count), ':or')
-        plot(tx.PtxdBm, log10(ber_nonuniform(k).gauss), '--r')
+        plot(tx.PtxdBm, log10(ber.uniform(k).est), '-b')
+        plot(tx.PtxdBm, log10(ber.uniform(k).count), '--ob')
+
+        plot(tx.PtxdBm, log10(ber.nonuniform(k).est), '-r')
+        plot(tx.PtxdBm, log10(ber.nonuniform(k).count), '--or')
+        
+        plot(tx.PtxdBm, log10(ber.nonuniform_gauss_approx(k).est), '-g')
+        plot(tx.PtxdBm, log10(ber.nonuniform_gauss_approx(k).count), '--og')
     end
 
     xlabel('Received Power (dBm)')
     ylabel('log(BER)')
-    legend('KLSE Fourier', 'Montecarlo', 'Gaussian Approximmation', 'Location', 'SouthWest')
+    legend('KLSE Fourier', 'Montecarlo', 'Location', 'SouthWest')
     axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
     set(gca, 'xtick', tx.PtxdBm)
-    saveas(gca, sprintf('results_%dPAM.png', mpam.M))
+    saveas(gca, sprintf('results_%dPAM.png', mpam_uniform.M))
 
     %% Figures
 %     figure, hold on, grid on, box on
