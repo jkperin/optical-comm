@@ -91,9 +91,11 @@ if sim.verbose
 end
 
 %%
-varASE = (soa.N0*sim.fs/2)/N; % variance in each dimension of the circularly symmetric Gaussian noise
+varASE = (soa.N0*sim.fs)/N; % variance in each dimension of the circularly symmetric Gaussian noise
 % Note: factor 1/N appears because in this derivation we assume signal 
 % component is periodic with period N.
+% Note: even though soa.N0 is single-sided PSD we don't multiply by
+% sim.fs/2 because this is a band-pass process
 varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
 
 pe = 0;

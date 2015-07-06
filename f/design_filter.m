@@ -53,7 +53,10 @@ switch type
         num = conj(fliplr(pshape(0:nlength-1)));
         num = num/sum(num); % ensures unit gain at DC
         den = 1;
-    
+        
+        % Noise bandwidth
+        nbw = @(fs) sum(abs(num).^2)*fs; % requires unit gain at DC
+        
     case 'fir'
         % FIR
         imp_length = 100;
@@ -76,6 +79,9 @@ switch type
         den = 1;
         num = h;
         
+        % Noise bandwidth
+        nbw = @(fs) sum(abs(num).^2)*fs; % requires unit gain at DC
+                
     case 'bessel'       
         % Generates CT Bessel filter prototype and convert it to DT using
         % the bilinear transformation with frequency prewarping.
@@ -115,7 +121,7 @@ switch type
         den = [2/(2*pi*2*fcnorm) 1];
         num = 1;
         [num, den] = bilinear(num, den, 2, fcnorm);
-
+        
     case 'fbg' % fiber Bragg grating
         % Values based on http://ee.stanford.edu/~jmk/pubs/dpsk.cd.pmd.pdf
         kappa = 6; % cm^-1
@@ -135,7 +141,10 @@ switch type
         f = -0.5:df:0.5-df; 
                
         den = 1;
-        num = fftshift(ifft(ifftshift(Hf(f, vg))));  
+        num = fftshift(ifft(ifftshift(Hf(f, vg)))); 
+        
+        % Noise bandwidth
+        nbw = @(fs) sum(abs(num).^2)*fs; % requires unit gain at DC
            
     otherwise
         assert(false, 'Unknown option!')
@@ -146,7 +155,11 @@ filt.den = den;
 filt.grpdelay = grpdelay(num, den, 1);
 filt.fcnorm = fcnorm;
 filt.H = @(f) freqz(num, den, 2*pi*f).*exp(1j*2*pi*f*filt.grpdelay);
-filt.noisebw = @(fs) noisebw(num, den, 2^15, fs); % equivalent two-sided noise bandwidth over larger number of samples (2^15) given a sampling frequency fs 
+if exist('nbw', 'var')
+    filt.noisebw = nbw;
+else
+    filt.noisebw = @(fs) noisebw(num, den, 2^15, fs); % equivalent two-sided noise bandwidth over larger number of samples (2^15) given a sampling frequency fs 
+end
 
 
 % figure, 

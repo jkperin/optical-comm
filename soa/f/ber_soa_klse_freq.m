@@ -93,7 +93,9 @@ if sim.verbose
 end
 
 %%
-varASE = soa.N0*sim.fs/2; % variance of circularly complex Gaussain noise 
+varASE = soa.N0*sim.fs; % variance of circularly complex Gaussain noise
+% Note: even though soa.N0 is single-sided PSD we don't multiply by
+% sim.fs/2 because this is a band-pass process
 varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2;
 
 pe = 0;
