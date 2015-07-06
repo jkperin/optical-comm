@@ -34,30 +34,40 @@ end
 % Differential energy
 dE = @(bn, gn) dEvector(bn, gn, beta, Gamma);
 
+% Minimum number of bits per constellation
+bmin = 2;
+
 %% 1. Choose any b
 % b = 2*ones(size(GNR));
 % b = randi([2 bmax-4], size(GNR));
 b = floor(B/length(GNR))*ones(size(GNR));
 
 %% 2. Make b efficient with the EF algorithm (Efficientizing)
-[~, m] = min(dE(b + beta, GNR));
-[~, n] = max(dE(b, GNR));
+nz = find(b - beta >= bmin); % nonzero b >= bmin
+
+enb = dE(b, GNR);
+enbb = dE(b + beta, GNR);
+
+[~, m] = min(enbb);
+[~, n] = max(enb(nz));
 
 k = 1;
-while dE(b(m) + beta, GNR(m)) < dE(b(n), GNR(n)) && k < MaxIt
-    if b(n) - beta > 1              % ensures that b(n) > 1
-        b(m) = b(m) + beta;
-        b(n) = b(n) - beta; 
-        
-        [~, m] = min(dE(b + beta, GNR));
-        [~, n] = max(dE(b, GNR));
+while enbb(m) < enb(nz(n)) && k < MaxIt
+    b(m) = b(m) + beta;
+    b(nz(n)) = b(nz(n)) - beta; 
+
+    enb = dE(b, GNR);
+    enbb = dE(b + beta, GNR);
     
-        k = k + 1;
-    else
-        k = MaxIt;
-        break                       % end EF; nothing else to do
-    end
+    [~, m] = min(enbb);
+    nz = find(b - beta >= bmin); % nonzero b
+    
+    [~, n] = max(enb(nz)); 
+    
+    k = k + 1;
 end
+
+% assert(k ~= MaxIt, 'Efficientizing did not converge!')
 
 % Check if EF converged. If it didnot converge it means that the algorithm
 % wanted to set some subcarriers to zero, but the restriction on the
@@ -70,10 +80,11 @@ end
 k = 1;
 while sum(b) ~= B && k < MaxIt
     if sum(b) > B
-        [~, n] = max(dE(b, GNR));
-        if b(n) - beta > 1 
-            b(n) = b(n) - beta; % ensures that b(n) > 1
-        end
+        nz = find(b - beta >= bmin);
+        enb = dE(b, GNR);       
+        [~, n] = max(enb(nz));
+        
+        b(nz(n)) = b(nz(n)) - beta;
     else
         [~, m] = min(dE(b + beta, GNR));
         b(m) = b(m) + beta;
@@ -95,13 +106,5 @@ E = @(bn, gn) 2*(Gamma(bn)./gn).*(2.^bn-1);
 
 dEn = zeros(size(bn));
 for k = 1:length(bn)
-    if bn(k) == beta
-        dEn(k) = -Inf; %E(bn(k), gn(k));
-    else
-        dEn(k) = E(bn(k), gn(k)) - E(bn(k)-beta, gn(k)); % Incremental energy
-    end
+    dEn(k) = E(bn(k), gn(k)) - E(bn(k)-beta, gn(k)); % Incremental energy
 end
-
-
-
-
