@@ -29,10 +29,13 @@ sim.L = getValue(h.Lseq);  % de Bruijin sub-sequence length (ISI symbol length)
 modulation = getOption(h.popup.modulation);
 switch modulation
     case 'M-PAM'
-        if getOption(h.level)
-            mpam.level_spacing = 'uniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
-        else
-            mpam.level_spacing = 'nonuniform';
+        switch getOption(h.level)
+            case 'Equal'
+                mpam.level_spacing = 'uniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
+            case 'Optimized'
+                mpam.level_spacing = 'nonuniform';
+            otherwise
+                error('Level spacing option not yet implemented')
         end
         mpam.M = getValue(h.M);
         mpam.Rb = 1e9*getValue(h.Rb);

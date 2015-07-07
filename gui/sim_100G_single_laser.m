@@ -105,7 +105,7 @@ function sim_100G_single_laser
    align([h.Ptx h.fc h.lamb h.kappa h.rex h.rin h.chirp], 'Right', 'Fixed', 6);
     
    %% Modulation Panel
-   scale = 11;
+   scale = 11.6;
    dH = 1/8;
    h.panel.mod = uipanel('Title', 'Modulation', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY-scale*BlockHeigth panelWidht scale*BlockHeigth]); 
@@ -121,7 +121,7 @@ function sim_100G_single_laser
    
    [h.text.level, h.level] = table_entry(h.panel.mod, [0 5*dH 1/scale], 'Level Spacing:', 16);
    set(h.level, 'Style', 'popupmenu');
-   set(h.level, 'String', {'Uniform', 'Non-Uniform'});
+   set(h.level, 'String', {'Equal', 'Optimized'});
    set(h.level, 'Position', get(h.level, 'Position') + [-0.1 0 0.1 0])
    set(h.level, 'FontSize', FontSize-1);
    align([h.text.level, h.level], 'None', 'Center');
@@ -157,7 +157,7 @@ function sim_100G_single_laser
    align([h.L h.att h.D], 'Left', 'Fixed', 6)
    
    %% Receiver
-   scale = 8.5; % 8
+   scale = 8.9; % 8
    dH = 1/6;
    maxY = maxY-scale*BlockHeigth;
    h.panel.rx = uipanel('Title', 'Receiver', 'FontSize', HeaderFontSize,...
@@ -239,7 +239,7 @@ function sim_100G_single_laser
    align([h.maxGsoa, h.Fn, h.Gsoa, temp, h.optfiltType, h.Bopt], 'None', 'Fixed', 6); 
          
    %% Simulation
-   scale = 8.5;
+   scale = 9;
    dH = 1/6;
    maxY = maxY - scale*BlockHeigth;
    h.panel.param = uipanel('Title', 'Simulation', 'FontSize', HeaderFontSize,...
