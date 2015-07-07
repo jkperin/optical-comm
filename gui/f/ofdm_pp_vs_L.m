@@ -1,4 +1,4 @@
-function pp = ofdm_ber_vs_L(ofdm, tx, fiber, rx, sim)
+function pp = ofdm_pp_vs_L(ofdm, tx, fiber, rx, sim)
 
 %% Transmitter parameters 
 tx.modulator.fc = tx.modulator.Fc(1); % modulator cut off frequency
@@ -32,8 +32,21 @@ L = sim.fiberL;
 for k = 1:length(L)
     
     fiber.L = L(k);                    
-    
-    [ber, Ptx, Ptx_est] = dc_ofdm(ofdm, tx, fiber, rx, sim);
+    try
+        [ber, Ptx, Ptx_est] = dc_ofdm(ofdm, tx, fiber, rx, sim);
+    catch e
+        if isempty(strfind(e.message, 'Power is too high:'))
+            throw(e)
+        else
+            warning('Failed while doing power allocation for L = %g km\n%s\nContinuing...\n',...
+                L(k)/1e3, e.message)
+            
+            PtxdBm(k) = NaN;
+            PtxedBm(k) = NaN;            
+            continue;
+        end
+    end
+            
     
     PtxdBm(k) = 10*log10(Ptx/1e-3);
     PtxedBm(k) = 10*log10(Ptx_est/1e-3);

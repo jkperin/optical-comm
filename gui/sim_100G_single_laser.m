@@ -329,7 +329,7 @@ function sim_100G_single_laser
 %                         pp = mpam_pp_vs_L(mpam, tx, fiber1, soa1, apd1, rx, sim);
                           error('Not implemented yet.')
                     case 'DMT/OFDM'
-                        pp = ofdm_ber_vs_L(ofdm1, tx, fiber1, rx, sim);
+                        pp = ofdm_pp_vs_L(ofdm1, tx, fiber1, rx, sim);
                 end
                 
                 axes(h.axes.results), hold on, box on, grid on

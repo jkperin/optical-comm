@@ -30,7 +30,22 @@ for k = 1:length(tx.modulator.Fc)
     tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
     tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds                
     
-    [ber, Ptx, Ptx_est] = dc_ofdm(ofdm, tx, fiber, rx, sim);
+    %[ber, Ptx, Ptx_est] = dc_ofdm(ofdm, tx, fiber, rx, sim);
+    
+    try
+        [ber, Ptx, Ptx_est] = dc_ofdm(ofdm, tx, fiber, rx, sim);
+    catch e
+        if isempty(strfind(e.message, 'Power is too high:'))
+            throw(e)
+        else
+            warning('Failed while doing power allocation for f3dB = %g GHz\n%s\nContinuing...\n',...
+                tx.modulator.Fc(k)/1e9, e.message)
+            
+            PtxdBm(k) = NaN;
+            PtxedBm(k) = NaN;
+            continue;
+        end
+    end
     
     PtxdBm(k) = 10*log10(Ptx/1e-3);
     PtxedBm(k) = 10*log10(Ptx_est/1e-3);
