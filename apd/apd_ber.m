@@ -10,9 +10,21 @@ dBm2Watt = @(x) 1e-3*10.^(x/10);
 if strcmp(mpam.level_spacing, 'uniform')
     mpam.a = (0:2:2*(mpam.M-1)).';
     mpam.b = (1:2:(2*(mpam.M-1)-1)).';
-elseif strcmp(mpam.level_spacing, 'nonuniform')
-   % optimized levels at the receiver
-   [mpam.a, mpam.b] = level_spacing_optm_gauss_approx(mpam, tx, apd, rx, sim);
+elseif strcmp(mpam.level_spacing, 'nonuniform')  
+    % Noises variance
+    varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
+    
+    % Variance of RIN
+    if sim.RIN
+        var_rin = @(P) 10^(tx.RIN/10)*P.^2*sim.fs;
+    else
+        var_rin = @(P) 0;
+    end
+    
+    % Shot noise variance = Agrawal 4.4.17 (4th edition)
+    calc_noise_std = @(Plevel) sqrt(varTherm + var_rin(Plevel) + apd.var_shot(Plevel/apd.Gain, rx.elefilt.noisebw(sim.fs)/2));
+
+    [mpam.a, mpam.b] = level_spacing_optm_gauss_approx(mpam.M, sim.BERtarget, tx.rexdB, calc_noise_std, sim.verbose);
    
    % Refer to transmitter
    link_gain = tx.kappa*fiber.link_attenuation(tx.lamb)*apd.R*apd.Gain;

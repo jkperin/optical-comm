@@ -126,37 +126,6 @@ classdef soa < handle
                 
                 PtxdBm_opt = interp1(log10(ber), tx.PtxdBm, log10(sim.BERtarget), 'spline');
             end
-                    
-                
-%                 [PtxdBm_opt, fval, exitflag] = fzero(@(PtxdBm) calc_soa_ber(PtxdBm, Gsoa, mpam, tx, fiber, soa, rx, sim) - sim.BERtarget, -20);
-%             
-%                 if exitflag ~= 1 % most likely is in an error floor
-%                     exitflag
-%                     fval
-%                 end        
-            
-            function ber = calc_soa_ber(PtxdBm, Gsoa, mpam, tx, fiber, soa, rx, sim)
-                % Set power level
-                tx.Ptx = 1e-3*10^(PtxdBm/10);
-
-                % Set APD gain
-                soa.Gain = Gsoa; % linear units
-                
-                switch mpam.level_spacing
-                    case 'uniform'
-                        % Uniform level spacing
-                        mpam.a = (0:2:2*(mpam.M-1)).';
-                        mpam.b = (1:2:(2*(mpam.M-1)-1)).';
-                    case 'nonuniform'
-                        [mpam.a, mpam.b] = level_spacing_optm(mpam, tx, soa, rx, sim);
-                    otherwise
-                        error('soa>optimize_gain: mpam.level_spacing invalid option')
-                end
-
-                % Estimated BER using KLSE Fourier and saddlepoint approximation of
-                % tail probabilities
-                ber = ber_soa_klse_fourier(rx.U_fourier, rx.D_fourier, rx.Fmax_fourier, mpam, tx, fiber, soa, rx, sim);
-            end
         end
      
     end

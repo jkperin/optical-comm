@@ -7,57 +7,34 @@
 % thermal noise NEP = 20 pa/sqrt(Hz)
 clear, clc, close all
 
+addpath ../../f/
+
 M = [2, 4];
-FndB = 3:10;
+FndB = 10:-1:3;
 
-Gsoa_2PAM_uniform = [20, 20, 20, 20, 20, 20, 20, 20];
-Gsoa_2PAM_nonuniform = [20, 20, 20, 20, 20, 20, 20, 20];
-
-Gsoa_4PAM_uniform = [20, 20, 20, 20, 20, 19.3219, 17.3356, 15.3573];
-Gsoa_4PAM_nonuniform = [20, 20, 20, 20, 20, 20, 20, 20];
-
-Ptx_nonuniform =[-35.053842044722522 -29.689049206589171;
-                 -34.530321773847277 -29.172423367881063;
-                 -33.951559927334543 -28.382576592343824;
-                 -33.278188516684800 -27.581341770656504;
-                 -32.461847978552349 -26.766494476386164;
-                 -31.621100941522354 -25.870959220207215;
-                 -30.756749681354776 -24.923271511066481;
-                 -29.810103848061505 -23.947644063571062];
+Ptx.uniform =[[-25.3512732864707,-26.3116344172544,-27.3861483911839,-28.3024955409606,-29.2954062998511,-30.1763469411764,-31.0720478916098,-31.8975170318889];
+    [-16.7411209939212,-17.6447211231479,-18.5838073052381,-19.5442311603577,-20.5201860646692,-21.5037804418418,-22.4933574962827,-23.4765192989012]];
              
-Ptx_uniform =   [-33.975726427211875 -26.619115350548167;
-                 -33.347201126998058 -25.699381765628001;
-                 -32.643459866718842 -24.740153967633447;
-                 -31.888547976363803 -23.763745232141247;
-                 -31.058623443278371 -22.781110390077433;
-                 -30.157996521924538 -21.792366640707638;
-                 -29.270686304593266 -20.807518323141053;
-                 -28.280052898618191 -19.830485107051079];
-             
+Ptx.nonuniform = [[-26.9349412724686,-27.8571232188149,-28.8797169899349,-29.8069337973133,-30.7591378197701,-31.6171641040208,-32.4554965876010,-33.2691133822184];
+    [-20.8703971468276,-21.8565062094265,-22.8385511294927,-23.8231503229074,-24.7995318298993,-25.7514501452422,-26.6573770354024,-27.4881357065587]];
+
+Ptx.nonuniform_gauss_approx = [[-24.8252400249940,-26.0910530549283,-26.9986021737613,-28.0463376902151,-29.1769538180169,-30.2940609939796,-31.3531144235331,-32.3978652995545];
+    [-20.2375660799052,-21.1850867366061,-22.1346630988215,-23.0934033861980,-24.0745475890736,-25.0610906742350,-26.0333398500522,-26.9743292755961]];
+    
 % Plot  
 Colors = {'k', 'b', 'r', 'g'};
 
 figure, hold on, box on, grid on
-for k = 1:size(Ptx_uniform, 2)
-    plot(FndB, Ptx_uniform(:, k), '-', 'Color', Colors{k})
-    plot(FndB, Ptx_nonuniform(:, k), '--', 'Color', Colors{k})
+for k = 1:size(Ptx.uniform, 1)
+    plot(FndB, Ptx.uniform(k, :), ':', 'Color', Colors{k})
+    plot(FndB, Ptx.nonuniform(k, :), '-', 'Color', Colors{k})
+    plot(FndB, Ptx.nonuniform_gauss_approx(k, :), '--', 'Color', Colors{k})
 end
 
-legend('Uniform Level Spacing', 'Non-Uniform Level Spacing', 'Location', 'NorthWest')
+legend('Equally-spaced levels', 'Optimized level spacing', 'Optimized level spacing w/ Gaussian Approx.', 'Location', 'NorthWest')
 xlabel('Noise Figure (dB)')
 ylabel('Transmitted Power (dBm)')
 
-%
-figure, hold on, box on, grid on
-leg = cell(size(M));
-for k = 1:size(Ptx_uniform, 2)
-    plot(FndB, Ptx_uniform(:, k) - Ptx_nonuniform(:, k), '-', 'Color', Colors{k})
-    leg{k} = sprintf('M = %d', M(k));
-end
-
-legend(leg, 'Location', 'NorthWest')
-xlabel('Noise Figure (dB)')
-ylabel('Power Margin Improvement (dB)')
-
-
-
+% convert gca to latex
+% matlab2tikz files must be in current directory
+matlab2tikz('Ptx_x_Fn.tikz')

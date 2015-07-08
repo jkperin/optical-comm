@@ -149,7 +149,8 @@ switch type
     otherwise
         assert(false, 'Unknown option!')
 end
-
+filt.type = type;
+filt.order = order;
 filt.num = num;
 filt.den = den;
 filt.grpdelay = grpdelay(num, den, 1);

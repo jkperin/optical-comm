@@ -105,6 +105,14 @@ classdef apd < handle
             % From Personick, "Statistics of a General Class of Avalanche Detectors With Applications to Optical Communication"
             l = (this.R*P + this.Id)*dt/this.q; 
         end
+        
+        %% Main methods
+        %% Calculate variance of shot noise
+        % Pin = input power of photodetector
+        % Df = noise bandwidth
+        function sig2 = var_shot(this, Pin, Df)
+            sig2 = 2*this.q*this.Gain^2*this.Fa*(this.R*Pin + this.Id)*Df; % Agrawal 4.4.17 (4th edition)
+        end
                      
         %% Detection
         % Pin = received power; fs = sampling frequency
@@ -116,12 +124,10 @@ classdef apd < handle
             end                
             
             if strcmp(noise_stats, 'gaussian')
-                % Assuming Gaussian statistics
-                var_shot = 2*this.q*this.Gain^2*this.Fa*(this.R*Pin + this.Id)*fs/2; % Agrawal 4.4.17 (4th edition)
-                
+                % Assuming Gaussian statistics               
                 var_therm = N0*fs/2; % thermal noise
                 
-                output = this.R*this.Gain*Pin + sqrt(var_shot + var_therm).*randn(size(Pin));
+                output = this.R*this.Gain*Pin + sqrt(this.var_shot(Pin, fs/2) + var_therm).*randn(size(Pin));
               
             % uses saddlepoint approximation to obtain pmf in order to generate 
             % output distributed according to that pmf
@@ -200,9 +206,20 @@ classdef apd < handle
 
             function a = calc_level_spacing(Gapd, mpam, tx, apd, rx, sim)
                 apd.Gain = Gapd; % linear units
-                
-                % level spacing at the receiver (after amplification)
-                a = level_spacing_optm_gauss_approx(mpam, tx, apd, rx, sim);
+
+                % Noises variance
+                varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
+                % Variance of RIN
+                if sim.RIN
+                    var_rin = @(P) 10^(tx.RIN/10)*P.^2*sim.fs;
+                else
+                    var_rin = @(P) 0;
+                end
+                    
+                % Shot noise variance = Agrawal 4.4.17 (4th edition)
+                calc_noise_std = @(Plevel) sqrt(varTherm + var_rin(Plevel) + apd.var_shot(Plevel/apd.Gain, rx.elefilt.noisebw(sim.fs)/2));
+
+                a = level_spacing_optm_gauss_approx(mpam.M, sim.BERtarget, tx.rexdB, calc_noise_std, sim.verbose);
             end
 
         end
@@ -431,7 +448,7 @@ classdef apd < handle
                 lpdf(k).mean = trapz(lpdf(k).I, lpdf(k).I.*lpdf(k).p);
                 lpdf(k).mean_gauss = Plevels(k)*this.Gain;
                 lpdf(k).var = trapz(lpdf(k).I, lpdf(k).I.^2.*lpdf(k).p) - lpdf(k).mean.^2;
-                lpdf(k).var_gauss = 2*this.q*this.Gain^2*this.Fa*(this.R*Plevels(k) + this.Id)*fs/2; 
+                lpdf(k).var_gauss = this.var_shot(Plevels(k), fs/2);
                 
                 lpdf(k).p_gauss = pdf('normal', lpdf(k).I, lpdf(k).mean_gauss, sqrt(lpdf(k).var_gauss));
             end
