@@ -1,7 +1,7 @@
 %% Validate APD Gain Optimization
-%% !! Needs equalization to work with matched filter or other filters that distort the signal
 clear, clc, close all
 
+addpath ../mpam/f/
 addpath ../f
 addpath f
 
@@ -10,7 +10,7 @@ sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
 sim.Mct = 17;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)   
 sim.L = 3;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.shot = true; % include shot noise. Only included in montecarlo simulation (except for APD)
-sim.rin = ~true; % include RIN noise. Only included in montecarlo simulation
+sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
 sim.verbose = ~true; % show stuff
 sim.BERtarget = 1e-6; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
@@ -61,7 +61,20 @@ rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 apd = apd(10.0851, 0.09, Inf, 1, 10e-9); % uniform, infinite gain x BW product
 
 % Level spacing and decision threshold at receiver to achieve sim.BERtarget
-[mpam.a, mpam.b] = level_spacing_optm_gauss_approx(mpam, tx, apd, rx, sim);
+% Noises variance
+% Thermal noise 
+varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
+% Variance of RIN
+if sim.RIN
+    var_rin = @(P) 10^(tx.RIN/10)*P.^2*sim.fs;
+else
+    var_rin = @(P) 0;
+end
+
+% Shot noise variance = Agrawal 4.4.17 (4th edition)
+calc_noise_std = @(Plevel) sqrt(varTherm + var_rin(Plevel) + apd.var_shot(Plevel/apd.Gain, rx.elefilt.noisebw(sim.fs)/2));
+
+[mpam.a, mpam.b] = level_spacing_optm_gauss_approx(mpam.M, sim.BERtarget, tx.rexdB, calc_noise_std, sim.verbose);
 
 % Refer to transmitter
 link_gain = tx.kappa*fiber.link_attenuation(tx.lamb)*apd.R*apd.Gain;
