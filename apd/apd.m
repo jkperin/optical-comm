@@ -211,7 +211,7 @@ classdef apd < handle
                 varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
                 % Variance of RIN
                 if sim.RIN
-                    var_rin = @(P) 10^(tx.RIN/10)*P.^2*sim.fs;
+                    var_rin = @(P) 10^(tx.RIN/10)*P.^2*rx.elefilt.noisebw(sim.fs);
                 else
                     var_rin = @(P) 0;
                 end

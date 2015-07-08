@@ -16,7 +16,7 @@ elseif strcmp(mpam.level_spacing, 'nonuniform')
     
     % Variance of RIN
     if sim.RIN
-        var_rin = @(P) 10^(tx.RIN/10)*P.^2*sim.fs;
+        var_rin = @(P) 10^(tx.RIN/10)*P.^2*rx.elefilt.noisebw(sim.fs);
     else
         var_rin = @(P) 0;
     end
