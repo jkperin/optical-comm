@@ -22,7 +22,7 @@ elseif strcmp(mpam.level_spacing, 'nonuniform')
     end
     
     % Shot noise variance = Agrawal 4.4.17 (4th edition)
-    calc_noise_std = @(Plevel) sqrt(varTherm + var_rin(Plevel) + apd.var_shot(Plevel/apd.Gain, rx.elefilt.noisebw(sim.fs)/2));
+    calc_noise_std = @(Plevel) sqrt(varTherm + var_rin(Plevel/apd.Gain) + apd.var_shot(Plevel/apd.Gain, rx.elefilt.noisebw(sim.fs)/2));
 
     [mpam.a, mpam.b] = level_spacing_optm_gauss_approx(mpam.M, sim.BERtarget, tx.rexdB, calc_noise_std, sim.verbose);
    
