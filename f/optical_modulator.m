@@ -18,13 +18,27 @@ function [Et, Pt] = optical_modulator(xt, tx, sim)
  
     %% Add intensity noise
     if isfield(sim, 'RIN') && sim.RIN
-        % Calculate RIN PSD, which depends on the instantaneous power
-        Srin = 10^(tx.RIN/10)*Pt.^2;
+        if isfield(tx, 'RIN_shapedB') % RIN noise modeled by PSD   
+            if length(Pt) == length(tx.RIN_shapedB)
+                RIN_shape = 10.^(tx.RIN_shapedB/10);
+            else
+                RIN_shape = 0;
+            end
+            
+            wrin = sqrt(Pt.^2*sim.fs).*randn(size(sim.f));
 
-        % noise. Srin is two-sided psd
-        wrin = sqrt(Srin.*sim.fs).*randn(size(Pt));
-        
-        Pt = Pt + wrin;
+            wrin = real(ifft(fft(wrin).*ifftshift(sqrt(RIN_shape)))); 
+                    
+            Pt = Pt + wrin;
+        else % white noise approximation
+            % Calculate RIN PSD, which depends on the instantaneous power
+            Srin = 10^(tx.RIN/10)*Pt.^2; 
+
+            % Intensity noise. Srin is one-sided psd
+            wrin = sqrt(Srin.*sim.fs/2).*randn(size(Pt));
+
+            Pt = Pt + wrin;
+        end
     end 
     
     % Ensures signal is non-negative

@@ -25,6 +25,24 @@ tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2); 
 tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
 tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
+if isfield(tx, 'RIN_shape') 
+    RIN_shapedB = tx.RIN_shape(f/1e9, 30); %tx.modulator.fc/1e9);
+    RIN_shapedB = RIN_shapedB*tx.RIN_variation/max(RIN_shapedB) + tx.RIN - tx.RIN_variation;
+    RIN_shape = 10.^(RIN_shapedB/10 + realmin);
+    RIN_shapedB = 10*log10(10.^(tx.RIN/10)*tx.RIN_bw*RIN_shape/trapz(sim.f(abs(sim.f) <= tx.RIN_bw), RIN_shape(abs(sim.f) <= tx.RIN_bw)));
+    tx.RIN_shapedB = RIN_shapedB;
+    RIN_shape = 10.^(RIN_shapedB/10 + realmin);
+    
+    figure(5), hold on, grid on
+    plot(f/1e9, RIN_shapedB);
+    plot([0 tx.RIN_bw/1e9], [1 1]*10*log10(trapz(sim.f(abs(sim.f) <= tx.RIN_bw), RIN_shape(abs(sim.f) <= tx.RIN_bw))/(2*tx.RIN_bw)))
+    xlabel('Frequency (GHz)')
+    ylabel('RIN (dB)')
+    legend('RIN(f)', 'Equivalent White Noise')
+    title('RIN Power Spectrum Density')
+    axis([0 tx.RIN_bw/1e9 tx.RIN-tx.RIN_variation tx.RIN+tx.RIN_variation]);
+end
+
 %% Receiver
 if strcmp(rx.filter.type, 'matched')
     % Electric Lowpass Filter

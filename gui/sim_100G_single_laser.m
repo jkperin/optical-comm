@@ -82,27 +82,35 @@ function sim_100G_single_laser
        'FontSize', FontSize, 'Callback', @clear_Callback);
    
    %% Transmitter Panel
-   scale = 10; %9.5
-   dH = 1/7;
+   scale = 13.5; %9.5
+   dH = 1/10;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.tx = uipanel('Title', 'Transmitter', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10'); 
-   [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 30);
-   [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'Wavelength (nm):', 1310);
+   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 9*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10'); 
+   [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 8*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 30);
+   [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 7*dH 1/scale], 'Wavelength (nm):', 1310);
    set(h.lamb, 'Callback', @(src, evt) update_dispersion_Callback(src, evt));
    
-   [h.text.kappa, h.kappa] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'Insertion Loss (dB):', 0);
-   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'Extinction Ratio (dB):', -15, true,...
+   [h.text.kappa, h.kappa] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Insertion Loss (dB):', 0);
+   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Extinction Ratio (dB):', -15, true,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
-   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 dH 1/scale], 'RIN (dB/Hz):', -150, true,...
-       @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
+   
+   [h.text.rin_variation, h.rin_variation] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'RINmax - RINmin (dB/Hz)', 30, false);
+   [h.text.rin_bw, h.rin_bw] = table_entry(h.panel.tx, [0 dH 1/scale], 'Noise Bandwidth for RIN Calculation (GHz)', 50, false);
+   [h.check.rin_shape, h.text.rin_shape, h.rin_shape] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'RIN Spectrum Shape Parameter (GHz)', 200, false,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, [internal_handles,...
+       h.text.rin_variation, h.rin_variation h.text.rin_bw, h.rin_bw], false));
+   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'RIN (dB/Hz):', -150, true,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, [h.check.rin_shape internal_handles], false));
+   
    [h.check.chirp, h.text.chirp, h.chirp] = table_entry(h.panel.tx, [0 dH/4 1/scale], 'Modulator chirp (alpha):', 2, false,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
-   align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.check.rex h.check.rin h.check.chirp], 'None', 'Fixed', 6);
-   align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.text.rex h.text.rin h.text.chirp], 'Left', 'Fixed', 6)
-   align([h.Ptx h.fc h.lamb h.kappa h.rex h.rin h.chirp], 'Right', 'Fixed', 6);
+   
+   align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.check.rex h.check.rin  h.check.rin_shape h.text.rin_variation h.text.rin_bw  h.check.chirp], 'None', 'Fixed', 6);
+   align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.text.rex h.text.rin h.text.rin_shape h.text.rin_variation  h.text.rin_bw h.text.chirp], 'Left', 'Fixed', 6)
+   align([h.Ptx h.fc h.lamb h.kappa h.rex h.rin h.rin_shape h.rin_variation h.rin_bw h.chirp], 'Right', 'Fixed', 6);
     
    %% Modulation Panel
    scale = 11.6;
