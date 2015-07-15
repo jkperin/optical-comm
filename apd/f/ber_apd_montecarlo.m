@@ -40,26 +40,53 @@ yt = apd.detect(Pt, sim.fs, 'gaussian', rx.N0);
 % Electric low-pass filter
 yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));
 
+% Automatic Gain Control
+yt = mean(mpam.a)*yt/(link_gain*tx.Ptx);
+yt = yt - mean(yt);
+
 % Sample
 ix = (sim.Mct-1)/2+1:sim.Mct:length(yt); % sampling points
+ydneq = yt(ix);
+% yd = yt(ix);
 
-yd = yt(ix);
+%% 1. Downsampling in time domain
+% H = abs(rx.elefilt.H(sim.f/sim.fs)).^2;
+% h = real(ifft(ifftshift(H)));
+% hd = h(ix);
+% 
+% Hd = fftshift(fft(hd));
+% Hd = Hd/max(abs(Hd));
+% 
+% Heq = 1./Hd;
+% 
+% yd = real(ifft(fft(ydneq).*ifftshift(Heq)));
+% yd = std(ydneq)*yd/std(yd);
+%     
+df = 1/length(ydneq);
+ff = -0.5:df:0.5-df;
 
-if sim.verbose   
-    figure(102), hold on
-    plot(link_gain*Pt)
-    plot(yt, '-k')
-    plot(ix, yd, 'o')
-    legend('Transmitted power', 'Received signal', 'Samples')
-end
+Heq = 1./abs(rx.elefilt.H(ff.')).^2;
 
-% Heuristic pdf for a level
-if sim.verbose
-    figure(100)
-    [nn, xx] = hist(yd(dataTX == 2), 50);
-    nn = nn/trapz(xx, nn);
-    bar(xx, nn)
-end
+yd = real(ifft(fft(ydneq).*ifftshift(Heq)));
+
+sim.eq.mu = 2e-4;
+sim.eq.L  = 16;
+sim.eq.Ntrain = 5e3; % number of training symbols
+
+[~, W, mse] = adaptive_symbol_rate_tde(ydneq, mpam.a(gray2bin(dataTX, 'pam', mpam.M) + 1) - mean(mpam.a), mpam, sim.eq);
+
+% Wf = freqz(W, 1, 2*pi*ff);
+
+% figure, hold on
+% plot(ff, abs(Wf).^2)
+% plot(ff, abs(1./tx.modulator.H(ff/pi*mpam.Rs/2)).^2)
+% Wfit = firls(sim.eq.L-1, linspace(0, 1-df, length(Heq)), Heq);
+% plot(ff, abs(freqz(Wfit, 1, 2*pi*ff)).^2)
+% plot(ff, abs(Heq).^2);
+% legend('Adaptive', '1/Hmod', 'MMSE', 'Heq')
+
+
+sim.eq.Ntrain = 5e3;
 
 % Discard first and last sim.Ndiscard symbols
 ndiscard = [1:sim.Ndiscard sim.Nsymb-sim.Ndiscard+1:sim.Nsymb];
@@ -67,8 +94,30 @@ yd(ndiscard) = [];
 dataTX(ndiscard) = [];
 
 % Demodulate
-dataRX = sum(bsxfun(@ge, yd, Pthresh.'), 2);
+% dataRX = sum(bsxfun(@ge, yd, Pthresh.'), 2);
+dataRX = sum(bsxfun(@ge, yd, mpam.b.' - mean(mpam.a)), 2);
 dataRX = bin2gray(dataRX, 'pam', mpam.M).';
 
 % True BER
-[~, ber] = biterr(dataRX, dataTX);
+[~, ber] = biterr(dataRX(sim.eq.Ntrain+sim.eq.L:end), dataTX(sim.eq.Ntrain+sim.eq.L:end));
+
+if sim.verbose   
+    figure(102), hold on
+    plot(link_gain*Pt)
+    plot(yt, '-k')
+    plot(ix, yd, 'o')
+    legend('Transmitted power', 'Received signal', 'Samples')
+    
+    % Heuristic pdf for a level
+    figure(100)
+    [nn, xx] = hist(yd(dataTX == 2), 50);
+    nn = nn/trapz(xx, nn);
+    bar(xx, nn)
+    
+    figure, hold on
+    plot(mse)
+    plot((sim.eq.Ntrain+sim.eq.L)*[1 1], [0 1.5*max(mse)])
+    legend('MSE', 'Training Ends')
+    xlabel('Iteration')
+    ylabel('MSE')
+end    

@@ -14,6 +14,10 @@ H = rx.optfilt.H(sim.f/sim.fs);
 H = cumtrapz(sim.f/sim.fs, abs(H).^2)/trapz(sim.f/sim.fs, abs(H).^2);
 Fmax = sim.f(find(H >= 1-1e-5, 1, 'first'))/sim.fs;
 
+if Fmax < 0.25
+    warning(sprintf('klse_fourier: Fmax = %.2f. Oversampling ratio must be increased so that Fmax < 0.25, otherwise A matrix in the KLSE will not be correctly calculated', Fmax));
+end
+
 % Legendre-Gauss quadrature
 [nu,w] = lgwt(sim.Me, -Fmax, Fmax);
 nu = nu(end:-1:1); % put in the right order

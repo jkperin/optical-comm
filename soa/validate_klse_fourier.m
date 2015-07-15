@@ -14,7 +14,8 @@ sim.verbose = true;
 sim.M = 2; % Ratio of optical filter BW and electric filter BW
 sim.Me = 16; 
 sim.Mct = 17; % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
-sim.N = 512;
+sim.Nsymb = 256;
+sim.N = sim.Nsymb*sim.Mct;
 sim.fs = mpam.Rs*sim.Mct;
 
 dt = 1/sim.fs;
@@ -28,6 +29,7 @@ sim.f = f;
 f = f/sim.fs;
 
 % Electric Lowpass Filter
+rx.R = 1;
 rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
 He = rx.elefilt.H;
 
@@ -36,7 +38,7 @@ rx.optfilt = design_filter('butter', 5, sim.M*rx.elefilt.fcnorm);
 Ho = rx.optfilt.H;
 
 % Generate optical signal
-Nsymb = sim.N/sim.Mct;
+Nsymb = sim.Nsymb;
 Nzero = 2*sim.Mct;
 dataTX = randi([0 mpam.M-1], [Nsymb 1]);
 Pd = pammod(dataTX, mpam.M, 0, 'gray');

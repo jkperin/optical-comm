@@ -14,7 +14,8 @@ sim.verbose = true;
 % Simulation parameters
 sim.M = 1; % Ratio of optical filter BW and electric filter BW
 sim.Mct = 17; % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
-sim.N = 256;
+sim.Nsymb = 256;
+sim.N = sim.Nsymb*sim.Mct;
 sim.fs = mpam.Rs*sim.Mct;
 
 dt = 1/sim.fs;
@@ -36,7 +37,7 @@ rx.optfilt = design_filter('butter', 5, sim.M*rx.elefilt.fcnorm);
 Ho = rx.optfilt.H;
 
 % Generate optical signal
-Nsymb = sim.N/sim.Mct;
+Nsymb = sim.Nsymb;
 dataTX = randi([0 mpam.M-1], [Nsymb 1]);
 Pd = pammod(dataTX, mpam.M, 0, 'gray');
 pt = ones(1, sim.Mct);
@@ -110,9 +111,9 @@ plot(real(yy), '--k')
 legend('numerical', 'Transmitted power', 'KL-SE')
 
 % Sampling
-yd = yt(sim.Mct/2:sim.Mct:end);
-Pd = Pt(sim.Mct/2:sim.Mct:end);
-yyd = yy(sim.Mct/2:sim.Mct:end);
+yd = yt((sim.Mct-1)/2+1:sim.Mct:end);
+Pd = Pt((sim.Mct-1)/2+1:sim.Mct:end);
+yyd = yy((sim.Mct-1)/2+1:sim.Mct:end);
 
 % en = zeros(sim.N/sim.Mct, sim.Me);
 % yyd= 0;
