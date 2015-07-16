@@ -187,7 +187,9 @@ classdef apd < handle
                 this.Gain = originalGain;
                 warning('apd_gain_optmization: APD gain was not changed')
             end
-
+            
+            fprintf('Optimal Gain = %.2f\n', Gapd_opt);
+            
             function ber = calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, apd, rx, sim)
                 % Set power level
                 tx.Ptx = 1e-3*10^(PtxdBm/10);
@@ -221,7 +223,6 @@ classdef apd < handle
 
                 a = level_spacing_optm_gauss_approx(mpam.M, sim.BERtarget, tx.rexdB, calc_noise_std, sim.verbose);
             end
-
         end
                 
         %% Output sgnal distribution including thermal noise using the saddlepoint approximation

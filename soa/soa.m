@@ -64,8 +64,7 @@ classdef soa < handle
 
             originalGain = this.Gain;
             
-            % Optmize gain: find Gain that minimizes the required
-            % average power (Prec) to achieve a certain target SER.
+            % Optmize gain: find minimum Gain to achieve target SER with minimum power.
             [Gsoa_opt, ~, exitflag1] = fminbnd(@(Gsoa) calc_opt_PtxdBm(Gsoa, mpam, tx, fiber, this, rx, sim),...
                 1, min(10^(this.maxGaindB/10), 1000));    
             

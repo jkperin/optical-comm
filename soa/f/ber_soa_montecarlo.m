@@ -1,33 +1,20 @@
 %% Calculate BER of amplified IM-DD system through montecarlo simulation
 function ber = ber_soa_montecarlo(mpam, tx, fiber, soa, rx, sim)
 
-% Frequency
+% Normalized frequency
 f = sim.f/sim.fs;
 
-% Rescale levels to desired power
-rex = 10^(-abs(tx.rexdB)/10); % extinction ratio. Defined as Pmin/Pmaxl
+% Overall link gain
 link_gain = tx.kappa*soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
-if strcmp(mpam.level_spacing, 'uniform') 
-    % Adjust levels to desired transmitted power and include additional dc bias due to finite extinction ratio
-    Pmin = 2*tx.Ptx*rex/(1 + rex); % power of the lowest level 
-    Plevels = mpam.a*(tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + Pmin; % levels at the transmitter
-   
-    Pthresh = mpam.b*(link_gain*tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + link_gain*Pmin; % decision thresholds at the #receiver#
-elseif strcmp(mpam.level_spacing, 'nonuniform') % already includes extinction ratio penalty, so just scale
-    % Adjust levels to desired transmitted power.
-    % Extinction ratio penalty was already included in the level
-    % optimization
-    Plevels = mpam.a*tx.Ptx/mean(mpam.a); % levels at the transmitter
-    
-    Pthresh = mpam.b*link_gain*tx.Ptx/mean(mpam.a); % decision thresholds at the #receiver#
-end  
 
-% Random sequence
-dataTX = randi([0 mpam.M-1], 1, sim.Nsymb);
+% Ajust levels to desired transmitted power and extinction ratio
+mpam.adjust_levels(tx.Ptx, tx.rexdB);
 
-% Modulated PAM signal in discrete-time
-xd = Plevels(gray2bin(dataTX, 'pam', mpam.M) + 1);
-xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(0:sim.Mct-1)).', sim.N, 1);
+% Modulated PAM signal
+dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence
+xt = mpam.mod(dataTX, sim.Mct);
+xt(1:sim.Mct*sim.Ndiscard) = 0; % zero sim.Ndiscard first symbols
+xt(end-sim.Mct*sim.Ndiscard+1:end) = 0; % zero sim.Ndiscard last symbbols
 
 % Generate optical signal
 [Et, ~] = optical_modulator(xt, tx, sim);
@@ -42,7 +29,7 @@ et = soa.amp(Et, sim.fs);
 eo = ifft(fft(et).*ifftshift(rx.optfilt.H(f)));
 
 %% Direct detection and add thermal noise
-%% Add shot noise
+%% Shot noise
 if isfield(sim, 'shot') && sim.shot
     q = 1.60217657e-19;      % electron charge (C)
 
@@ -64,33 +51,34 @@ yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));
 
 % Sample
 ix = (sim.Mct-1)/2+1:sim.Mct:length(yt); % sampling points
-
 yd = yt(ix);
-
-if sim.verbose   
-    figure(102), hold on
-    plot(link_gain*Pt)
-    plot(yt, '-k')
-    plot(ix, yd, 'o')
-    legend('Transmitted power', 'Received signal', 'Samples')
-end
-
-% Heuristic pdf for a level
-if sim.verbose
-    figure(100)
-    [nn, xx] = hist(yd(dataTX == 2), 50);
-    nn = nn/trapz(xx, nn);
-    bar(xx, nn)
-end
 
 % Discard first and last sim.Ndiscard symbols
 ndiscard = [1:sim.Ndiscard sim.Nsymb-sim.Ndiscard+1:sim.Nsymb];
 yd(ndiscard) = []; 
 dataTX(ndiscard) = [];
 
+% Automatic gain control
+yd = yd/link_gain; % just refer power values back to transmitter
+
 % Demodulate
-dataRX = sum(bsxfun(@ge, yd, Pthresh.'), 2);
-dataRX = bin2gray(dataRX, 'pam', mpam.M).';
+dataRX = mpam.demod(yd);
 
 % True BER
 [~, ber] = biterr(dataRX, dataTX);
+
+if sim.verbose   
+    % Signal
+    figure(102), hold on
+    plot(link_gain*Pt)
+    plot(yt, '-k')
+    plot(ix, yd, 'o')
+    legend('Transmitted power', 'Received signal', 'Samples')
+    
+    % Heuristic pdf for a level
+    figure(100)
+    [nn, xx] = hist(yd(dataTX == 2), 50);
+    nn = nn/trapz(xx, nn);
+    bar(xx, nn)
+    
+end

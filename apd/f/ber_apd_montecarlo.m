@@ -1,32 +1,19 @@
 function ber = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim)
 
-% time and frequency measures
+% Normalized frequency
 f = sim.f/sim.fs;
 
-% Rescale to desired power
-rex = 10^(-abs(tx.rexdB)/10); % extinction ratio. Defined as Pmin/Pmax
-link_gain = tx.kappa*fiber.link_attenuation(tx.lamb)*apd.R*apd.Gain;
-if strcmp(mpam.level_spacing, 'uniform') 
-    % Adjust levels to desired transmitted power and include additional dc bias due to finite extinction ratio
-    Pmin = 2*tx.Ptx*rex/(1 + rex); % power of the lowest level 
-    Plevels = mpam.a*(tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + Pmin; % levels at the transmitter
-    
-    Pthresh = mpam.b*(link_gain*tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + link_gain*Pmin; % decision thresholds at the #receiver#
-elseif strcmp(mpam.level_spacing, 'nonuniform') % already includes extinction ratio penalty, so just scale
-    % Adjust levels to desired transmitted power.
-    % Extinction ratio penalty was already included in the level
-    % optimization
-    Plevels = mpam.a*tx.Ptx/mean(mpam.a); % levels at the transmitter
-    
-    Pthresh = mpam.b*link_gain*tx.Ptx/mean(mpam.a); % decision thresholds at the #receiver#
-end  
+% Overall link gain
+link_gain = tx.kappa*apd.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
 
-% Random sequence
-dataTX = randi([0 mpam.M-1], 1, sim.Nsymb);
+% Ajust levels to desired transmitted power and extinction ratio
+mpam.adjust_levels(tx.Ptx, tx.rexdB);
 
-% Modulated PAM signal in discrete-time
-xd = Plevels(gray2bin(dataTX, 'pam', mpam.M) + 1);
-xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(0:sim.Mct-1)).', sim.N, 1);
+% Modulated PAM signal
+dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence
+xt = mpam.mod(dataTX, sim.Mct);
+xt(1:sim.Mct*sim.Ndiscard) = 0; % zero sim.Ndiscard first symbols
+xt(end-sim.Mct*sim.Ndiscard+1:end) = 0; % zero sim.Ndiscard last symbbols
 
 % Generate optical signal
 [Et, ~] = optical_modulator(xt, tx, sim);
@@ -40,68 +27,26 @@ yt = apd.detect(Pt, sim.fs, 'gaussian', rx.N0);
 % Electric low-pass filter
 yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));
 
-% Automatic Gain Control
-yt = mean(mpam.a)*yt/(link_gain*tx.Ptx);
-yt = yt - mean(yt);
-
 % Sample
 ix = (sim.Mct-1)/2+1:sim.Mct:length(yt); % sampling points
-ydneq = yt(ix);
-% yd = yt(ix);
-
-%% 1. Downsampling in time domain
-% H = abs(rx.elefilt.H(sim.f/sim.fs)).^2;
-% h = real(ifft(ifftshift(H)));
-% hd = h(ix);
-% 
-% Hd = fftshift(fft(hd));
-% Hd = Hd/max(abs(Hd));
-% 
-% Heq = 1./Hd;
-% 
-% yd = real(ifft(fft(ydneq).*ifftshift(Heq)));
-% yd = std(ydneq)*yd/std(yd);
-%     
-df = 1/length(ydneq);
-ff = -0.5:df:0.5-df;
-
-Heq = 1./abs(rx.elefilt.H(ff.')).^2;
-
-yd = real(ifft(fft(ydneq).*ifftshift(Heq)));
-
-sim.eq.mu = 2e-4;
-sim.eq.L  = 16;
-sim.eq.Ntrain = 5e3; % number of training symbols
-
-[~, W, mse] = adaptive_symbol_rate_tde(ydneq, mpam.a(gray2bin(dataTX, 'pam', mpam.M) + 1) - mean(mpam.a), mpam, sim.eq);
-
-% Wf = freqz(W, 1, 2*pi*ff);
-
-% figure, hold on
-% plot(ff, abs(Wf).^2)
-% plot(ff, abs(1./tx.modulator.H(ff/pi*mpam.Rs/2)).^2)
-% Wfit = firls(sim.eq.L-1, linspace(0, 1-df, length(Heq)), Heq);
-% plot(ff, abs(freqz(Wfit, 1, 2*pi*ff)).^2)
-% plot(ff, abs(Heq).^2);
-% legend('Adaptive', '1/Hmod', 'MMSE', 'Heq')
-
-
-sim.eq.Ntrain = 5e3;
+yd = yt(ix);
 
 % Discard first and last sim.Ndiscard symbols
 ndiscard = [1:sim.Ndiscard sim.Nsymb-sim.Ndiscard+1:sim.Nsymb];
 yd(ndiscard) = []; 
 dataTX(ndiscard) = [];
 
+% Automatic gain control
+yd = yd/link_gain; % just refer power values back to transmitter
+
 % Demodulate
-% dataRX = sum(bsxfun(@ge, yd, Pthresh.'), 2);
-dataRX = sum(bsxfun(@ge, yd, mpam.b.' - mean(mpam.a)), 2);
-dataRX = bin2gray(dataRX, 'pam', mpam.M).';
+dataRX = mpam.demod(yd);
 
 % True BER
-[~, ber] = biterr(dataRX(sim.eq.Ntrain+sim.eq.L:end), dataTX(sim.eq.Ntrain+sim.eq.L:end));
+[~, ber] = biterr(dataRX, dataTX);
 
-if sim.verbose   
+if sim.verbose
+    % Signal
     figure(102), hold on
     plot(link_gain*Pt)
     plot(yt, '-k')
@@ -113,11 +58,4 @@ if sim.verbose
     [nn, xx] = hist(yd(dataTX == 2), 50);
     nn = nn/trapz(xx, nn);
     bar(xx, nn)
-    
-    figure, hold on
-    plot(mse)
-    plot((sim.eq.Ntrain+sim.eq.L)*[1 1], [0 1.5*max(mse)])
-    legend('MSE', 'Training Ends')
-    xlabel('Iteration')
-    ylabel('MSE')
 end    

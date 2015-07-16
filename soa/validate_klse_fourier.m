@@ -1,14 +1,9 @@
 %% Calulate MGF for the system with SOA
 clear, clc, close all
 
+addpath ../mpam/
 addpath ../f
 addpath f
-
-% M-PAM
-mpam.M = 4;
-mpam.Rb = 100e9;
-mpam.Rs = mpam.Rb/log2(mpam.M);
-sim.verbose = true;
 
 % Simulation parameters
 sim.M = 2; % Ratio of optical filter BW and electric filter BW
@@ -18,6 +13,13 @@ sim.Nsymb = 256;
 sim.N = sim.Nsymb*sim.Mct;
 sim.fs = mpam.Rs*sim.Mct;
 
+sim.verbose = true;
+
+% M-PAM
+% M, Rb, leve_spacing, pshape
+mpam = PAM(8, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
+
+% Time and Frequency
 dt = 1/sim.fs;
 t = (0:dt:(sim.N-1)*dt).';
 df = 1/(dt*sim.N);

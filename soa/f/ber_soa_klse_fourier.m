@@ -1,4 +1,6 @@
 %% Calculate BER for amplified IM-DD link
+%% Shot and RIN are not included even if sim.RIN and sim.shot == true. 
+%% Signal-spontaenous noise is assumed to be dominant followed by thermal noise
 % bertail = BER using saddlepoint approximation for the tail probability. 
 % Although it's much faster than using the pdf, it can be innacurate due to
 % the singularity at the origin.
@@ -7,10 +9,15 @@
 
 % berpdf (optional) = calculate BER using saddlepoint approximation for the
 % pdf, and then calculate tail probability using numerical integration
-function [bertail, bergauss, berpdf] = ber_soa_klse_fourier(U, D, Fmax, mpam, tx, fiber, soa, rx, sim)
+function [bertail, bergauss, berpdf] = ber_soa_klse_fourier(mpam, tx, fiber, soa, rx, sim)
+
+% From klse_fourier
+U = rx.U_fourier;
+D = rx.D_fourier;
+Fmax = rx.Fmax_fourier;
 
 Nsymb = mpam.M^sim.L; % number of data symbols 
-Nzero = sim.L; % number of zero symbols pad to begin and end of sequnece.
+Nzero = sim.L; % number of zero symbols padded to begin and end of sequnece.
 N = sim.Mct*(Nsymb + 2*Nzero); % total number of points 
 
 % Frequency
@@ -18,43 +25,29 @@ df = 1/N;
 f = (-0.5:df:0.5-df).';
 sim.f = f*sim.fs; % redefine frequency to be used in optical_modulator.m and fiber propagation
 
-% Generate optical signal
-dataTX = debruijn_sequence(mpam.M, sim.L).';
-
-% Rescale to desired power
-rex = 10^(-abs(tx.rexdB)/10); % extinction ratio. Defined as Pmin/Pmax
+% Overall link gain
 link_gain = tx.kappa*soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
-if strcmp(mpam.level_spacing, 'uniform') 
-    % Adjust levels to desired transmitted power and include additional dc bias due to finite extinction ratio
-    Pmin = 2*tx.Ptx*rex/(1 + rex); % power of the lowest level 
-    Plevels = mpam.a*(tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + Pmin; % levels at the transmitter
-    
-    Pthresh = mpam.b*(link_gain*tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + link_gain*Pmin; % decision thresholds at the #receiver#
-elseif strcmp(mpam.level_spacing, 'nonuniform') % already includes extinction ratio penalty, so just scale
-    % Adjust levels to desired transmitted power.
-    % Extinction ratio penalty was already included in the level
-    % optimization
-    Plevels = mpam.a*tx.Ptx/mean(mpam.a); % levels at the transmitter
-    
-    Pthresh = mpam.b*link_gain*tx.Ptx/mean(mpam.a); % decision thresholds at the #receiver#
-end  
 
-% Modulated PAM signal in discrete-time
-xd = Plevels(gray2bin(dataTX, 'pam', mpam.M) + 1);
-xd = [zeros(Nzero, 1); xd; zeros(Nzero, 1)]; % zero pad
-xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(0:sim.Mct-1)).', N, 1);
+% Ajust levels to desired transmitted power and extinction ratio
+mpam.adjust_levels(tx.Ptx, tx.rexdB);
+
+% Modulated PAM signal
+dataTX = debruijn_sequence(mpam.M, sim.L).'; % de Bruijin sequence
+xt = mpam.mod(dataTX, sim.Mct);
+xt = [zeros(sim.Mct*Nzero, 1); xt; zeros(sim.Mct*Nzero, 1)]; % zero pad
 
 % Generate optical signal
+sim.RIN = false; % RIN is not modeled here since number of samples is not high enough to get accurate statistics
 [Et, Pt] = optical_modulator(xt, tx, sim);
 
 % Fiber propagation
-Et = fiber.linear_propagation(Et, sim.f, tx.lamb);
+Et = fiber.linear_propagation(Et, sim.f, tx.lamb); % It might be necessary to move fiber propagation to KLSE_fourier
 
 % Signal after amplifier
 x = sqrt(soa.Gain)*Et;
 
 % Fourier series coefficients for periodic extension of x 
-xn = fftshift(fft(x))/length(x);
+xn = fftshift(fft(x))/length(x); % divided by period since if Fourier series
 xn = xn(abs(f) <= Fmax);
 
 fm = f(abs(f) <= Fmax);
@@ -74,23 +67,9 @@ ck = U'*xk;
 ix = sim.Mct*Nzero+1+(sim.Mct-1)/2:sim.Mct:N-sim.Mct*Nzero; % sampling points
 ck = ck(:, ix);
 
-if sim.verbose
-    A = U*diag(D)*U';
-    yk = zeros(length(x), 1); % output signal (noiseless)
-    for k = 1:length(x)
-        yk(k) = real(xk(:, k)'*A*xk(:, k));
-    end
-    
-    yd = yk(ix);
-    
-    figure(102), hold on
-    plot(link_gain*Pt)
-    plot(yk, '-k')
-    plot(ix, yd, 'o')
-    legend('Transmitted power', 'KL-SE Fourier')
-end
+%% Detection
+Pthresh = mpam.b*link_gain; % refer decision thresholds to receiver
 
-%%
 varASE = (soa.N0*sim.fs)/N; % variance in each dimension of the circularly symmetric Gaussian noise
 % Note: factor 1/N appears because in this derivation we assume signal 
 % component is periodic with period N.
@@ -132,6 +111,22 @@ pe_gauss = real(pe_gauss)/Nsymb;
 
 bertail = pe/log2(mpam.M);
 bergauss = pe_gauss/log2(mpam.M);
+
+if sim.verbose
+    A = U*diag(D)*U';
+    yk = zeros(length(x), 1); % output signal (noiseless)
+    for k = 1:length(x)
+        yk(k) = real(xk(:, k)'*A*xk(:, k));
+    end
+    
+    yd = yk(ix);
+    
+    figure(102), hold on
+    plot(link_gain*Pt)
+    plot(yk, '-k')
+    plot(ix, yd, 'o')
+    legend('Transmitted power', 'KL-SE Fourier')
+end
 
 %% Calculate pdfs using saddlepoint approximation
 if nargout == 3

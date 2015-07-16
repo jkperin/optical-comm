@@ -18,33 +18,19 @@ df = 1/N;
 f = (-0.5:df:0.5-df).';
 sim.f = f*sim.fs; % redefine frequency to be used in optical_modulator.m
 
-% Generate optical signal
-dataTX = debruijn_sequence(mpam.M, sim.L).';
+% Overall link gain
+link_gain = tx.kappa*apd.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
 
-% Rescale to desired power
-rex = 10^(-abs(tx.rexdB)/10); % extinction ratio. Defined as Pmin/Pmax
-link_gain = tx.kappa*fiber.link_attenuation(tx.lamb)*apd.R*apd.Gain;
-if strcmp(mpam.level_spacing, 'uniform') 
-    % Adjust levels to desired transmitted power and include additional dc bias due to finite extinction ratio
-    Pmin = 2*tx.Ptx*rex/(1 + rex); % power of the lowest level 
-    Plevels = mpam.a*(tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + Pmin; % levels at the transmitter
-    
-    Pthresh = mpam.b*(link_gain*tx.Ptx/mean(mpam.a))*((1-rex)/(1+rex)) + link_gain*Pmin; % decision thresholds at the #receiver#
-elseif strcmp(mpam.level_spacing, 'nonuniform') % already includes extinction ratio penalty, so just scale
-    % Adjust levels to desired transmitted power.
-    % Extinction ratio penalty was already included in the level
-    % optimization
-    Plevels = mpam.a*tx.Ptx/mean(mpam.a); % levels at the transmitter
-    
-    Pthresh = mpam.b*link_gain*tx.Ptx/mean(mpam.a); % decision thresholds at the #receiver#
-end  
+% Ajust levels to desired transmitted power and extinction ratio
+mpam.adjust_levels(tx.Ptx, tx.rexdB);
 
-% Modulated PAM signal in discrete-time
-xd = Plevels(gray2bin(dataTX, 'pam', mpam.M) + 1);
-xd = [zeros(Nzero, 1); xd; zeros(Nzero, 1)]; % zero pad
-xt = 1/tx.kappa*reshape(kron(xd, mpam.pshape(0:sim.Mct-1)).', N, 1);
+% Modulated PAM signal
+dataTX = debruijn_sequence(mpam.M, sim.L).'; % de Bruijin sequence
+xt = mpam.mod(dataTX, sim.Mct);
+xt = [zeros(sim.Mct*Nzero, 1); xt; zeros(sim.Mct*Nzero, 1)]; % zero pad
 
 % Generate optical signal
+sim.RIN = false; % RIN is not modeled here since number of samples is not high enough to get accurate statistics
 [Et, ~] = optical_modulator(xt, tx, sim);
 
 % Fiber propagation
@@ -63,14 +49,9 @@ yd = yt(ix);
 % Ensures signal is non-negative
 yd(yd < 0) = 0;
 
-if sim.verbose
-    figure(102), hold on
-    plot(link_gain*xt)
-    plot(ix, yd, 'o')
-    legend('Transmitted power', 'Sampled received signal')
-end
+%% Detection
+Pthresh = mpam.b*link_gain; % refer decision thresholds to receiver
 
-%%
 varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
 
 pe = 0;
@@ -78,7 +59,7 @@ pe_gauss = 0;
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
-    varShot = 2*apd.q*apd.Gain^2*apd.Fa*(apd.R*yd(k)/apd.Gain + apd.Id)*rx.elefilt.noisebw(sim.fs)/2; % Agrawal 4.4.17 (4th edition)
+    varShot = apd.var_shot(yd(k)/apd.Gain, rx.elefilt.noisebw(sim.fs)/2);
     sig = sqrt(varTherm + varShot);
      
     if dat(k) == mpam.M-1
@@ -106,6 +87,13 @@ pe_gauss = real(pe_gauss)/Nsymb;
 
 bertail = pe/log2(mpam.M);
 bergauss = pe_gauss/log2(mpam.M);
+
+if sim.verbose
+    figure(102), hold on
+    plot(link_gain*xt)
+    plot(ix, yd, 'o')
+    legend('Transmitted power', 'Sampled received signal')
+end
 
 %% Calculate pdfs using saddlepoint approximation
 if nargout == 3
