@@ -31,22 +31,25 @@ switch modulation
     case 'M-PAM'
         switch getOption(h.level)
             case 'Equal'
-                mpam.level_spacing = 'uniform'; % M-PAM level spacing: 'uniform' or 'non-uniform'
+                level_spacing = 'equally-spaced'; % M-PAM level spacing: 'uniform' or 'non-uniform'
             case 'Optimized'
-                mpam.level_spacing = 'nonuniform';
+                level_spacing = 'optimized';
             otherwise
                 error('Level spacing option not yet implemented')
         end
-        mpam.M = getValue(h.M);
-        mpam.Rb = 1e9*getValue(h.Rb);
-        mpam.Rs = mpam.Rb/log2(mpam.M);
+        M = getValue(h.M);
+        Rb = 1e9*getValue(h.Rb);
+        
         
         str = get(h.pshape, 'String');
         if strcmp(str{get(h.pshape, 'Value')}, 'Rectangular')
-            mpam.pshape = @(n) double(n >= 0 & n < sim.Mct); % pulse shape
+            pshape = @(n) double(n >= 0 & n < sim.Mct); % pulse shape
         else
             error('Root-Raised Cosine not yet implemented')
         end
+        
+        mpam = PAM(M, Rb, level_spacing, pshape);
+        
         sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
         
     case 'DMT/OFDM'
@@ -76,7 +79,7 @@ end
 %% Transmitter
 tx.PtxdBm = eval(get(h.Ptx, 'String'));
 tx.lamb = 1e-9*getValue(h.lamb);
-tx.kappa = 10^(getValue(h.kappa)/10);
+tx.kappa = 1;
 
 if getLogicalValue(h.check.chirp)
     tx.alpha = getValue(h.chirp);
@@ -165,7 +168,7 @@ switch getOption(h.popup.system)
         
         soa1 = soa(GsoadB, Fn, tx.lamb, maxGsoadB); 
         
-        sim.OptimizeGain = getLogicalValue(h.check.OptGsoa);
+        sim.OptimizeGain = false;
                
         apd1 = [];
         

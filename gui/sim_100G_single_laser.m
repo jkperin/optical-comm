@@ -3,6 +3,7 @@ function sim_100G_single_laser
     
     addpath f
     addpath ../f % general functions
+    addpath ../mpam
     addpath ../soa
     addpath ../soa/f
     addpath ../apd
@@ -82,19 +83,18 @@ function sim_100G_single_laser
        'FontSize', FontSize, 'Callback', @clear_Callback);
    
    %% Transmitter Panel
-   scale = 13.5; %9.5
-   dH = 1/10;
+   scale = 12.5; %9.5
+   dH = 1/9;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.tx = uipanel('Title', 'Transmitter', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 9*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10'); 
-   [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 8*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 30);
-   [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 7*dH 1/scale], 'Wavelength (nm):', 1310);
+   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 8*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10'); 
+   [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 7*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 200);
+   [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Wavelength (nm):', 1310);
    set(h.lamb, 'Callback', @(src, evt) update_dispersion_Callback(src, evt));
    
-   [h.text.kappa, h.kappa] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Insertion Loss (dB):', 0);
-   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Extinction Ratio (dB):', -15, true,...
+   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Extinction Ratio (dB):', -10, true,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
    
    [h.text.rin_variation, h.rin_variation] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'RINmax - RINmin (dB/Hz)', 30, false);
@@ -102,15 +102,15 @@ function sim_100G_single_laser
    [h.check.rin_shape, h.text.rin_shape, h.rin_shape] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'RIN Spectrum Shape Parameter (GHz)', 200, false,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, [internal_handles,...
        h.text.rin_variation, h.rin_variation h.text.rin_bw, h.rin_bw], false));
-   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'RIN (dB/Hz):', -150, true,...
+   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'RIN (dB/Hz):', -140, true,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, [h.check.rin_shape internal_handles], false));
    
    [h.check.chirp, h.text.chirp, h.chirp] = table_entry(h.panel.tx, [0 dH/4 1/scale], 'Modulator chirp (alpha):', 2, false,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
    
-   align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.check.rex h.check.rin  h.check.rin_shape h.text.rin_variation h.text.rin_bw  h.check.chirp], 'None', 'Fixed', 6);
-   align([h.text.Ptx h.text.fc h.text.lamb h.text.kappa h.text.rex h.text.rin h.text.rin_shape h.text.rin_variation  h.text.rin_bw h.text.chirp], 'Left', 'Fixed', 6)
-   align([h.Ptx h.fc h.lamb h.kappa h.rex h.rin h.rin_shape h.rin_variation h.rin_bw h.chirp], 'Right', 'Fixed', 6);
+   align([h.text.Ptx h.text.fc h.text.lamb h.check.rex h.check.rin  h.check.rin_shape h.text.rin_variation h.text.rin_bw  h.check.chirp], 'None', 'Fixed', 6);
+   align([h.text.Ptx h.text.fc h.text.lamb h.text.rex h.text.rin h.text.rin_shape h.text.rin_variation  h.text.rin_bw h.text.chirp], 'Left', 'Fixed', 6)
+   align([h.Ptx h.fc h.lamb h.rex h.rin h.rin_shape h.rin_variation h.rin_bw h.chirp], 'Right', 'Fixed', 6);
     
    %% Modulation Panel
    scale = 11.6;
@@ -198,7 +198,7 @@ function sim_100G_single_laser
    align([h.text.shot, h.check.shot], 'None', 'Bottom')
    
    %% APD
-   scale = 6;
+   scale = 5.5;
    dH = 1/5;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.apd = uipanel('Title', 'APD', 'FontSize', HeaderFontSize,...
@@ -217,19 +217,15 @@ function sim_100G_single_laser
    align([h.GBw, h.ka, h.Gapd, temp], 'None', 'Fixed', 6);   
    
    %% SOA
-   scale = 8.5;
-   dH = 1/6;
+   scale = 7;
+   dH = 1/5;
    maxY = maxY - scale*BlockHeigth;
    h.panel.soa = uipanel('Title', 'SOA', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.check.maxGsoa, h.text.maxGsoa, h.maxGsoa] = table_entry(h.panel.soa, [0 5*dH 1/scale], 'Maximum Gain (dB):', 20);
-   [h.text.Fn, h.Fn] = table_entry(h.panel.soa, [0 4*dH 1/scale], 'Noise Figure (dB):', 9);
-   [h.text.Gsoa, h.Gsoa] = table_entry(h.panel.soa, [0 3*dH 1/scale], 'Gain (dB):', 10);
-   [h.check.OptGsoa, h.text.OptGsoa, temp] = table_entry(h.panel.soa, [0 2*dH 1/scale], 'Optimize Gain:', 10, false);
-   set(temp, 'Visible', 'off')
-  set(h.check.OptGsoa, 'Callback',...
-   @(source, eventdata) disable_handles_Callback(source, eventdata, [h.text.Gsoa h.Gsoa], true));
+   [h.check.maxGsoa, h.text.maxGsoa, h.maxGsoa] = table_entry(h.panel.soa, [0 4*dH 1/scale], 'Maximum Gain (dB):', 20);
+   [h.text.Fn, h.Fn] = table_entry(h.panel.soa, [0 3*dH 1/scale], 'Noise Figure (dB):', 9);
+   [h.text.Gsoa, h.Gsoa] = table_entry(h.panel.soa, [0 2*dH 1/scale], 'Gain (dB):', 10);
    
    [h.text.optfiltType, h.optfiltType] = table_entry(h.panel.soa, [0 dH 1/scale], 'Optical Filter Type:', 0);
     set(h.optfiltType, 'Style', 'popupmenu');
@@ -240,11 +236,11 @@ function sim_100G_single_laser
    
    [h.text.Bopt, h.Bopt] = table_entry(h.panel.soa, [0 dH/4 1/scale], 'Optical Filter Bandwidth (GHz):', 200);
      
-   align([h.check.maxGsoa, h.text.Fn, h.text.Gsoa, h.check.OptGsoa, h.text.optfiltType,...
+   align([h.check.maxGsoa, h.text.Fn, h.text.Gsoa, h.text.optfiltType,...
        h.text.Bopt], 'None', 'Fixed', 6);
-   align([h.text.maxGsoa, h.text.Fn, h.text.Gsoa, h.text.OptGsoa, h.text.optfiltType,...
+   align([h.text.maxGsoa, h.text.Fn, h.text.Gsoa, h.text.optfiltType,...
        h.text.Bopt], 'None', 'Fixed', 6);
-   align([h.maxGsoa, h.Fn, h.Gsoa, temp, h.optfiltType, h.Bopt], 'None', 'Fixed', 6); 
+   align([h.maxGsoa, h.Fn, h.Gsoa, h.optfiltType, h.Bopt], 'None', 'Fixed', 6); 
          
    %% Simulation
    scale = 9;
@@ -525,9 +521,9 @@ function sim_100G_single_laser
              h.check.OptGapd.Callback(h.check.OptGapd, []);
          end      
          
-        if get(h.check.OptGsoa, 'Value')  
-             h.check.OptGsoa.Callback(h.check.OptGsoa, []);
-         end      
+%         if get(h.check.OptGsoa, 'Value')  
+%              h.check.OptGsoa.Callback(h.check.OptGsoa, []);
+%          end      
     end
 
     %% Auxiliary functions
