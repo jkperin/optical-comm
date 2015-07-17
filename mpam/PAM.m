@@ -36,7 +36,6 @@ classdef PAM < handle
                 otherwise
                     error('pam class: Invalid level spacing option')
             end
-                
         end
         
         %% Get methods
@@ -94,7 +93,7 @@ classdef PAM < handle
         % Calculate BER in AWGN channel where the noise standard deviation 
         % is given by the function noise_std
         % noise_std is a handle function that calculates the noise std for
-        % a certain signal level
+        % a given signal level
         function ber = ber_awgn(this, noise_std)
             ser = 0;
             for k = 1:this.M
@@ -117,7 +116,7 @@ classdef PAM < handle
         % Assumes infinite extinction ratio at first, then corrects power and
         % optmize levels again
         % The levels and thresholds calculated are after APD amplification
-        function optimize_level_spacing_gauss_approx(this, BERtarget, rexdB, calc_noise_std, verbose)           
+        function [aopt, bopt] = optimize_level_spacing_gauss_approx(this, BERtarget, rexdB, calc_noise_std, verbose)           
             % Error probability under a single tail for a given symbol
             Pe = log2(this.M)*BERtarget*(this.M/(2*(this.M-1)));
 

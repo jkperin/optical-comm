@@ -5,7 +5,7 @@ function ber = ber_soa_montecarlo(mpam, tx, fiber, soa, rx, sim)
 f = sim.f/sim.fs;
 
 % Overall link gain
-link_gain = tx.kappa*soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
+link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
 
 % Ajust levels to desired transmitted power and extinction ratio
 mpam.adjust_levels(tx.Ptx, tx.rexdB);

@@ -11,7 +11,7 @@
 % pdf, and then calculate tail probability using numerical integration
 function [bertail, bergauss, berpdf] = ber_soa_klse_fourier(mpam, tx, fiber, soa, rx, sim)
 
-% From klse_fourier
+% From klse_fourier.m
 U = rx.U_fourier;
 D = rx.D_fourier;
 Fmax = rx.Fmax_fourier;
@@ -26,24 +26,25 @@ f = (-0.5:df:0.5-df).';
 sim.f = f*sim.fs; % redefine frequency to be used in optical_modulator.m and fiber propagation
 
 % Overall link gain
-link_gain = tx.kappa*soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
+link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
 
 % Ajust levels to desired transmitted power and extinction ratio
 mpam.adjust_levels(tx.Ptx, tx.rexdB);
 
-% Modulated PAM signal
+%% Modulated PAM signal
 dataTX = debruijn_sequence(mpam.M, sim.L).'; % de Bruijin sequence
 xt = mpam.mod(dataTX, sim.Mct);
 xt = [zeros(sim.Mct*Nzero, 1); xt; zeros(sim.Mct*Nzero, 1)]; % zero pad
 
-% Generate optical signal
+%% Generate optical signal
+RIN = sim.RIN;
 sim.RIN = false; % RIN is not modeled here since number of samples is not high enough to get accurate statistics
 [Et, Pt] = optical_modulator(xt, tx, sim);
 
-% Fiber propagation
+%% Fiber propagation
 Et = fiber.linear_propagation(Et, sim.f, tx.lamb); % It might be necessary to move fiber propagation to KLSE_fourier
 
-% Signal after amplifier
+%% Signal after amplifier
 x = sqrt(soa.Gain)*Et;
 
 % Fourier series coefficients for periodic extension of x 
@@ -66,17 +67,37 @@ ck = U'*xk;
 % Discard zeros and downsample
 ix = sim.Mct*Nzero+1+(sim.Mct-1)/2:sim.Mct:N-sim.Mct*Nzero; % sampling points
 ck = ck(:, ix);
+yd = abs(x(ix)).^2;
 
 %% Detection
 Pthresh = mpam.b*link_gain; % refer decision thresholds to receiver
 
-varASE = (soa.N0*sim.fs)/N; % variance in each dimension of the circularly symmetric Gaussian noise
+varASE = (soa.N0*sim.fs/2)/N; % variance in each dimension of the circularly symmetric Gaussian noise
 % Note: factor 1/N appears because in this derivation we assume signal 
 % component is periodic with period N.
-% Note: even though soa.N0 is single-sided PSD we don't multiply by
-% sim.fs/2 because this is a band-pass process
-varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
+% Note: soa.N0 is single-sided baseband equivalent of ASE PSD 
 
+% Noise bandwidth
+Df  = rx.elefilt.noisebw(sim.fs)/2;
+% Variance of thermal noise
+varTherm = rx.N0*Df; 
+
+% Variance of signal dependent noise
+if sim.shot
+    varShot = @(Plevel) 2*1.60217657e-19*(rx.R*Plevel + rx.Id)*Df;
+else
+    varShot = @(Plevel) 0;
+end
+
+if RIN
+    varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Df;
+else
+    varRIN = @(Plevel) 0;
+end
+
+varSigDependent = @(Plevel) varShot(Plevel) + varRIN(Plevel);
+
+%% BER calculation using saddle-point approximation and Gaussian approximation
 pe = 0;
 pe_gauss = 0;
 dat = gray2bin(dataTX, 'pam', mpam.M);
@@ -84,21 +105,21 @@ for k = 1:Nsymb
     alphan = D.*abs(ck(:, k)).^2;
     betan = D*varASE;
     mu = sum(alphan+betan); % mean of output random variable
-    sig = sqrt(sum(betan.*(2*alphan + betan)) + varTherm); % std of output random variable (including thermal noise)
+    sig = sqrt(sum(betan.*(2*alphan + betan)) + varTherm + varSigDependent(yd(k))); % std of output random variable (including thermal noise)
     
     if dat(k) == mpam.M-1
-        pe = pe + tail_saddlepoint_approx(Pthresh(end), D, ck(:, k), varASE, varTherm, 'left');
+        pe = pe + tail_saddlepoint_approx(Pthresh(end), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left');
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((mu-Pthresh(end))/sig);
     elseif dat(k) == 0;
-        pe = pe + tail_saddlepoint_approx(Pthresh(1), D, ck(:, k), varASE, varTherm, 'right');
+        pe = pe + tail_saddlepoint_approx(Pthresh(1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right');
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(1)-mu)/sig);
     else 
-        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, ck(:, k), varASE, varTherm, 'right');
-        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k)), D, ck(:, k), varASE, varTherm, 'left');
+        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right');
+        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k)), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left');
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(dat(k) + 1) - mu)/sig);

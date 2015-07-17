@@ -19,7 +19,7 @@ f = (-0.5:df:0.5-df).';
 sim.f = f*sim.fs; % redefine frequency to be used in optical_modulator.m
 
 % Overall link gain
-link_gain = tx.kappa*apd.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
+link_gain = apd.Gain*fiber.link_attenuation(tx.lamb)*apd.R;
 
 % Ajust levels to desired transmitted power and extinction ratio
 mpam.adjust_levels(tx.Ptx, tx.rexdB);
@@ -30,6 +30,7 @@ xt = mpam.mod(dataTX, sim.Mct);
 xt = [zeros(sim.Mct*Nzero, 1); xt; zeros(sim.Mct*Nzero, 1)]; % zero pad
 
 % Generate optical signal
+RIN = sim.RIN;
 sim.RIN = false; % RIN is not modeled here since number of samples is not high enough to get accurate statistics
 [Et, ~] = optical_modulator(xt, tx, sim);
 
@@ -52,15 +53,24 @@ yd(yd < 0) = 0;
 %% Detection
 Pthresh = mpam.b*link_gain; % refer decision thresholds to receiver
 
-varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
+% Noise bandwidth
+Df  = rx.elefilt.noisebw(sim.fs)/2;
+% Variance of thermal noise
+varTherm = rx.N0*Df; 
+
+if RIN
+    varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Df;
+else
+    varRIN = @(Plevel) 0;
+end
 
 pe = 0;
 pe_gauss = 0;
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
-    varShot = apd.var_shot(yd(k)/apd.Gain, rx.elefilt.noisebw(sim.fs)/2);
-    sig = sqrt(varTherm + varShot);
+    varShot = apd.var_shot(yd(k)/apd.Gain, Df);
+    sig = sqrt(varTherm + varShot + varRIN(yd(k)));
      
     if dat(k) == mpam.M-1
 %         pe = pe + apd.tail_saddlepoint_approx(Pthresh(end), lambda, sim.fs/sim.Mct, rx.N0, 'left');
