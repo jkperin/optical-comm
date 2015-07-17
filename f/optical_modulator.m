@@ -7,10 +7,10 @@ function [Et, Pt] = optical_modulator(xt, tx, sim)
     %% Apply frequency response of the modulator
     if isfield(tx, 'modulator') % if frequency response is defined
         Hmod = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay);
-        Pt = tx.kappa*real(ifft(ifftshift(Hmod).*fft(xt)));  % Note: real() is used to remove residual imag
+        Pt = real(ifft(ifftshift(Hmod).*fft(xt)));  % Note: real() is used to remove residual imag
                                                     % part that appears due to numerical error   
     else
-        Pt = tx.kappa*xt;
+        Pt = xt;
     end
 
     %% Modulator Nonlinearity

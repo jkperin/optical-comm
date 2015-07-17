@@ -17,21 +17,21 @@ addpath ../f % general functions
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
-sim.Mct = 17;      % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
+sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
+sim.Mct = 15;      % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.Me = 16;       % Number of used eigenvalues
 sim.L = 2; % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 
-sim.shot = false; % include shot noise in montecarlo simulation 
-sim.RIN = false; % include RIN noise in montecarlo simulation
+sim.shot = ~true; % include shot noise in montecarlo simulation 
+sim.RIN = ~true; % include RIN noise in montecarlo simulation
 sim.verbose = false; % show stuff
 
 % M-PAM
 % M, Rb, leve_spacing, pshape
-mpam = PAM(8, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -45,11 +45,10 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -20:2:-8;
+tx.PtxdBm = -28:2:-12;
 
-tx.kappa = 1;
 tx.lamb = 1310e-9;
-tx.RIN = -150;  % dB/Hz
+tx.RIN = -140;  % dB/Hz
 tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 %% fiber
@@ -102,13 +101,14 @@ ber = soa_ber(mpam, tx, fiber, soa, rx, sim);
 %     [ber_klse_freq(k), ber_pdf(k)] = ber_soa_klse_freq(D_freq, Phi_freq, Fmax_freq, mpam, tx, soa, rx, sim);
 % end
 
-figure, hold on, grid on
+figure(1), hold on, grid on
 plot(tx.PtxdBm, log10(ber.count), '-o')
 plot(tx.PtxdBm, log10(ber.est)) % KLSE Fourier
 % plot(tx.PtxdBm, log10(ber_klse_freq))
 plot(tx.PtxdBm, log10(ber.gauss))
+plot(tx.PtxdBm, log10(ber.awgn))
 legend('Monte Carlo', 'KLSE Fourier & Saddlepoint Approx',... %  'KLSE Frequency Domain & Saddlepoint Approx',...
-        'Gaussian Approximation',...
+        'Gaussian Approximation', 'AWGN approximation',...
     'Location', 'SouthWest')
 axis([tx.PtxdBm([1 end]) -8 0])
 xlabel('Transmitted Power (dBm)')

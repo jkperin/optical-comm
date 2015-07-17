@@ -19,7 +19,7 @@ sim.verbose = false; % show stuff
 
 % M-PAM
 % M, Rb, leve_spacing, pshape
-mpam = PAM(8, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -46,7 +46,7 @@ tx.alpha = 2; % chirp parameter
 tx.RIN = -150;  % dB/Hz
 tx.rexdB = -Inf;  % extinction ratio in dB. Defined as Pmin/Pmax
 
-tx.kappa = 1;
+% Modulator frequency response
 % tx.modulator.fc = 2*mpam.Rs; % modulator cut off frequency
 % tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
 % tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));

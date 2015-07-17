@@ -154,77 +154,65 @@ classdef apd < handle
                 error('Invalid Option!')
             end
         end
-        
-        % Optimize apd gain for a given system
+               
+        % Optimize apd gain
         function optimize_gain(this, mpam, tx, fiber, rx, sim)
             disp('Optimizing APD gain...')
             
             originalGain = this.Gain;
-
-            if strcmp(mpam.level_spacing, 'uniform')
-                % Optmize gain for uniform spacing: find Gapd that minimizes the required
-                % average power (Prec) to achieve a certain target SER.
-                [Gapd_opt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, this, rx, sim) - sim.BERtarget, -20), 1, min(this.GainBW/mpam.Rs, 100));    
-
-            elseif strcmp(mpam.level_spacing, 'nonuniform')
-                % Optimal level spacing
-                % Doesn't include fiber attenuation. Minimizing average
-                % optical power at the receiver is equivalent to minimizing
-                % average power at the transmitter
-                [Gapd_opt, ~, exitflag] = fminbnd(@(Gapd) mean(calc_level_spacing(Gapd, mpam, tx, this, rx, sim))/Gapd, 1, min(this.GainBW/mpam.Rs, 100));
-                1;
-            else
-                error('Invalid Option')
-            end
-
+            
+            % Optmize gain for uniform spacing: find Gapd that minimizes the required
+            % average power (Prec) to achieve a certain target SER.  
+            [Gapd_opt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, this, rx, sim) - sim.BERtarget, -20), 1, min(this.GainBW/mpam.Rs, 100));    
+            
             if exitflag ~= 1
-                warning(sprintf('APD gain optimization did not converge (exitflag = %d)\n', exitflag))
+                warning('APD gain optimization did not converge (exitflag = %d)\n', exitflag);
             end 
 
             if ~isnan(Gapd_opt) && ~isinf(Gapd_opt) && Gapd_opt >= 1
                 this.Gain = Gapd_opt;
+                fprintf('Optimal Gain = % .2f | %.2f dB\n', this.Gain, this.GaindB)
             else
                 this.Gain = originalGain;
-                warning('apd_gain_optmization: APD gain was not changed')
+                warning('optimize_gain: APD gain was not changed')
             end
-            
-            fprintf('Optimal Gain = %.2f\n', Gapd_opt);
-            
+              
             function ber = calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, apd, rx, sim)
                 % Set power level
                 tx.Ptx = 1e-3*10^(PtxdBm/10);
 
                 % Set APD gain
                 apd.Gain = Gapd; % linear units
-                
-                % Uniform level spacing
-                mpam.a = (0:2:2*(mpam.M-1)).';
-                mpam.b = (1:2:(2*(mpam.M-1)-1)).';
+               
+                % Auxiliary variables
+                Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
+                % function to calculate noise std
+                varTherm = rx.N0*Deltaf; % variance of thermal noise
 
-                % Estimated BER using KLSE Fourier and saddlepoint approximation of
-                % tail probabilities
-                [~, ber] = ber_apd_doubly_stochastic(mpam, tx, fiber, apd, rx, sim);
-            end
-
-            function a = calc_level_spacing(Gapd, mpam, tx, apd, rx, sim)
-                apd.Gain = Gapd; % linear units
-
-                % Noises variance
-                varTherm = rx.N0*rx.elefilt.noisebw(sim.fs)/2; % variance of thermal noise
-                % Variance of RIN
                 if sim.RIN
-                    var_rin = @(P) 10^(tx.RIN/10)*P.^2*rx.elefilt.noisebw(sim.fs);
+                    varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
                 else
-                    var_rin = @(P) 0;
+                    varRIN = @(Plevel) 0;
                 end
-                    
-                % Shot noise variance = Agrawal 4.4.17 (4th edition)
-                calc_noise_std = @(Plevel) sqrt(varTherm + var_rin(Plevel/apd.Gain) + apd.var_shot(Plevel/apd.Gain, rx.elefilt.noisebw(sim.fs)/2));
 
-                a = level_spacing_optm_gauss_approx(mpam.M, sim.BERtarget, tx.rexdB, calc_noise_std, sim.verbose);
-            end
-        end
+                % Noise std for the level Plevel
+                noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + apd.var_shot(Plevel/apd.Gain, Deltaf));
                 
+                % Level spacing optimization
+                if strcmp(mpam.level_spacing, 'optimized')
+                    mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);  
+                end
+                
+                 mpam.adjust_levels(tx.Ptx, tx.rexdB);
+                 
+                 if isfield(sim, 'awgn') && sim.awgn
+                    ber = mpam.ber_awgn(noise_std);
+                 else
+                     [~, ber] = ber_apd_doubly_stochastic(mpam, tx, fiber, apd, rx, sim);
+                 end
+            end
+        end        
+
         %% Output sgnal distribution including thermal noise using the saddlepoint approximation
         % px = output sgnal pdf
         % x = current at output
