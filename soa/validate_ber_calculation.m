@@ -31,7 +31,7 @@ sim.verbose = false; % show stuff
 
 % M-PAM
 % M, Rb, leve_spacing, pshape
-mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(4, 100e9, 'optimized', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -49,7 +49,7 @@ tx.PtxdBm = -28:2:-12;
 
 tx.lamb = 1310e-9;
 tx.RIN = -140;  % dB/Hz
-tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
+tx.rexdB = -Inf;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 %% fiber
 fiber = fiber(); % back-to-back

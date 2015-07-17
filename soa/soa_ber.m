@@ -9,7 +9,7 @@ dBm2Watt = @(x) 1e-3*10.^(x/10);
 % Auxiliary variables
 link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R; % Overall link gain
 Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
-Deltafopt = rx.optfilt.noisebw(sim.fs)/2; % optical filter baseband equivalent one-sided noise bandwidth
+Deltafopt = rx.optfilt.noisebw(sim.fs); % optical filter noise bandwidth
 % function to calculate noise std
 varTherm = rx.N0*Deltaf; % variance of thermal noise
 
@@ -26,18 +26,10 @@ else
     varRIN = @(Plevel) 0;
 end
 
-% Variance of shot and RIN
-varSigDependent = @(Plevel) varShot(Plevel) + varRIN(Plevel);
-
 % Noise std for the level Plevel
-noise_std = @(Plevel) sqrt(varTherm + varSigDependent(Plevel)...
-    + 2*rx.R^2*Plevel*soa.N0*Deltaf + rx.R^2*soa.N0^2*Deltafopt*Deltaf*(1-1/(2*Deltafopt/Deltaf)));
-% Note: Plevel corresponds to the level after SOA amplification.
-% Therefore, the soa.Gain doesn't appear in the second term because
-% it's already included in the value of Plevel.
-% Note: second term corresponds to sig-sp beat noise, and third term
-% corresponds to sp-sp beat noise with noise in one polarization.
-% Multiply last term by 2 in order to include noise in other polarization
+noise_std = @(Plevel) sqrt(varTherm + varShot(Plevel) + rx.R^2*varRIN(Plevel)...
+    + rx.R^2*soa.var_awgn(Plevel/soa.Gain, Deltaf, Deltafopt));
+% Note: Plevel is divided by SOA gain to obtain power at the amplifier input
 
 % Level Spacing Optimization
 if strcmp(mpam.level_spacing, 'optimized')

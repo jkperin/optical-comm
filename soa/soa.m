@@ -46,6 +46,23 @@ classdef soa < handle
             this.Gain = 10^(GdB/10); % set Gain, since GaindB is dependent
         end
                
+        %% Noise variance using AWGN approximation
+        % Plevel = power before amplifier
+        % Deltaf = Noise bandwidth of electric filter
+        % Deltafopt = Noise bandwidth of optical filter (!! bandpass filter)
+        % Npol = Number of noise polarizations. Default Npol = 1
+        function sig2 = var_awgn(this, Plevel, Deltaf, Deltafopt, Npol)
+            if nargin < 5 % default Noise polarizations = 1
+                Npol = 1;
+            end
+            % Signal-Spontaneous beat noise + Spont-Spont beat noise
+            % Agrawal 6.5.7 and 6.5.8 -- 3rd edition
+            sig2 = 2*this.Gain*Plevel*this.N0*Deltaf + Npol*this.N0^2*Deltafopt*Deltaf;
+            % Note 1: N0 = 2Ssp
+            % Note 2: Responsivity is assumed to be 1. For different
+            % responsivity make sig2 = R^2*sig2
+        end
+        
         %% Amplification
         % Ein = received electric field in one pol; fs = sampling frequency
         function [output, w] = amp(obj, Ein, fs)
@@ -97,18 +114,27 @@ classdef soa < handle
                     if isfield(sim, 'stats') && strcmp(sim.stats, 'gaussian')
                         % Optimize level spacing using Gaussian approximation
                         Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
-                        varTherm = rx.N0*Deltaf; % variance of thermal noise
-
                         Deltafopt = rx.optfilt.noisebw(sim.fs); % optical filter two-sided noise bandwidth
-                        % function to calculate noise std
-                        noise_std = @(Plevel) sqrt(varTherm + 2*Plevel*soa.N0*Deltaf + 2*soa.N0^2*Deltafopt*Deltaf*(1-1/(2*sim.M)));
-                        % Note: Plevel corresponds to the level after SOA amplification.
-                        % Therefore, the soa.Gain doesn't appear in the second term because
-                        % it's already included in the value of Plevel.
-                        % Note: second term corresponds to sig-sp beat noise, and third term
-                        % corresponds to sp-sp beat noise with noise in one polarization. Change to
-                        % 2 to 4 in third term to simulate noise in two pols.
 
+                        varTherm = rx.N0*Deltaf; % variance of thermal noise
+                        
+                        if sim.shot % Shot noise
+                            varShot = @(Plevel) 2*1.60217657e-19*(rx.R*Plevel + rx.Id)*Deltaf;
+                        else
+                            varShot = @(Plevel) 0;
+                        end
+
+                        if sim.RIN % RIN noise
+                            varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
+                        else
+                            varRIN = @(Plevel) 0;
+                        end
+
+                        % Noise std for the level Plevel
+                        noise_std = @(Plevel) sqrt(varTherm + varShot(Plevel) + rx.R^2*varRIN(Plevel)...
+                            + rx.R^2*soa.var_awgn(Plevel/soa.Gain, Deltaf, Deltafopt));
+                        % Note: Plevel is divided by SOA gain to obtain power at the amplifier input
+                        
                         if strcmp(mpam.level_spacing, 'optimized')
                             mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);
                         end

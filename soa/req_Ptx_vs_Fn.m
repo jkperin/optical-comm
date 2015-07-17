@@ -1,9 +1,12 @@
-%% Vary Gain of Optical Amplifier
+%% Required Transmitted power vs amplifier noise figure
 clear, clc, close all
 
 addpath ../mpam/
 addpath ../f % general functions
 addpath f
+
+% Noise figure
+Fn = 3:10;
 
 % Simulation parameters
 sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
@@ -69,29 +72,30 @@ rx.optfilt = design_filter('fbg', 0, 200e9/(sim.fs/2));
 
 %% SOA
 % soa(GaindB, NF, lambda, maxGaindB)
-soa_opt = soa(20, 9, tx.lamb, Inf);
-soa_opt.optimize_gain(mpam, tx, fiber, rx, sim)
+soa = soa(20, 9, tx.lamb, Inf);
 
-GainsdB = sort([5:19 soa_opt.GaindB]);
-
-soaG = soa(10, 9, 1310e-9, 20); 
-
-for k= 1:length(GainsdB)
-    % Selected gain
-    soaG.GaindB = GainsdB(k);
+for k= 1:length(Fn)
+    soa.Fn = Fn(k); % set Noise Figure
 
     %% Equally-spaced levels
+    disp('-- Equally-spaced levels')
     mpam.level_spacing = 'equally-spaced';
+    
+    soa.optimize_gain(mpam, tx, fiber, rx, sim);
+    GsoadB_opt.eq_spaced(k) = soa.GaindB;    
         
-    ber(k).eq_spaced = soa_ber(mpam, tx, fiber, soaG, rx, sim);
+    ber(k).eq_spaced = soa_ber(mpam, tx, fiber, soa, rx, sim);
     
     Preq.eq_spaced(k) = interp1(log10(ber(k).eq_spaced.est), tx.PtxdBm, log10(sim.BERtarget), 'spline');
     
-    
     %% Optimized levels
+    disp('-- Optimized levels')
     mpam.level_spacing = 'optimized';
+    
+    soa.optimize_gain(mpam, tx, fiber, rx, sim);
+    GsoadB_opt.optimized(k) = soa.GaindB;
         
-    ber(k).optimized = soa_ber(mpam, tx, fiber, soaG, rx, sim);
+    ber(k).optimized = soa_ber(mpam, tx, fiber, soa, rx, sim);
     
     Preq.optimized(k) = interp1(log10(ber(k).optimized.est), tx.PtxdBm, log10(sim.BERtarget), 'spline');
 end
@@ -101,7 +105,7 @@ legends = {};
 for k = 1:length(GainsdB)
     figure(1), hold on, grid on, box on
     hplot(k) = plot(tx.PtxdBm, log10(ber(k).eq_spaced.count), '-o');
-    legends = [legends, sprintf('Gain = %.1f dB', GainsdB(k))];
+    legends = [legends, sprintf('Fn = %.1f dB', Fn(k))];
     
     figure(2), hold on, grid on, box on
     plot(tx.PtxdBm, log10(ber(k).optimized.count), '-o', 'Color', get(hplot(k), 'Color'));
@@ -130,17 +134,21 @@ legend(legends{:})
 axis([tx.PtxdBm([1 end]) -8 0])
 
 figure(3), box on, grid on, hold on
-plot(GainsdB, Preq.eq_spaced, '-o');
-plot(soa_opt.GaindB, Preq.eq_spaced(soa_opt.GaindB == GainsdB), '*r')
-xlabel('SOA Gain (dB)')
-ylabel('Required Transmitted Power (dBm)')
+plot(Fn, GsoadB_opt.eq_spaced, '-o');
+plot(Fn, GsoadB_opt.optimized, '-s');
+xlabel('Noise Figure (dB)')
+ylabel('Minimum SOA Gain (dB)')
 
 figure(4), box on, grid on, hold on
-plot(GainsdB, Preq.optimized, '-o');
-plot(soa_opt.GaindB, Preq.optimized(soa_opt.GaindB == GainsdB), '*r')
-xlabel('SOA Gain (dB)')
+plot(Fn, Preq.eq_spaced, '-o');
+plot(Fn, Preq.optimized, '-s');
+xlabel('Noise Figure (dB)')
 ylabel('Required Transmitted Power (dBm)')
 
-
+figure(5), box on, grid on, hold on
+plot(Fn, Preq.eq_spaced + GsoadB_opt.eq_spaced, '-o');
+plot(Fn, Preq.optimized + GsoadB_opt.optimized, '-s');
+xlabel('Noise Figure (dB)')
+ylabel('Amplifier Output Power (dBm)')
 
     
