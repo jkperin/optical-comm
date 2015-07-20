@@ -8,12 +8,11 @@
 *.tikz
 *.zip
 *.pdf
+*.aux
+*.gz
+*.log
 ofdm/trash/
 soa/trash/
 apd/trash/
 mpam/trash/
-ofdm/tex/
-soa/tex/
-apd/tex/
-mpam/tex/
 !gui/data/*.png

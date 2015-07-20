@@ -13,22 +13,24 @@
 % Output
 % px = pdf of the output decision variable at x for all transmitted symbols
 
-function px = pdf_saddlepoint_approx(x, D, xn, varASE, varTher, verbose)
-    if nargin == 6 && verbose
+function px = pdf_saddlepoint_approx(x, D, xn, varASE, varTher, Npol, verbose)
+    if nargin <= 5
+        Npol = 1;
+    elseif nargin == 6 && verbose
         figure(100), hold on
     end
     Nsymb = size(xn, 2);
     px = zeros(length(x), Nsymb);
     for k = 1:Nsymb
         for kk = 1:length(x)
-            [shat, ~, exitflag] = fzero(@(s) d1expoent(s, x(kk), D, xn(:, k), varASE, varTher), 1e-3);
+            [shat, ~, exitflag] = fzero(@(s) d1expoent(s, x(kk), D, xn(:, k), varASE, varTher, Npol), 1e-3);
 
             if exitflag ~= 1
                 warning('(%d, %g) resulted in exitflag = %d\n', k, x(kk), exitflag);
             end
 
-            Ksx = expoent(shat, x(kk), D, xn(:, k), varASE, varTher);
-            d2Ksx = d2expoent(shat, D, xn(:, k), varASE, varTher);
+            Ksx = expoent(shat, x(kk), D, xn(:, k), varASE, varTher, Npol);
+            d2Ksx = d2expoent(shat, D, xn(:, k), varASE, varTher, Npol);
             
             px(kk, k) = real(exp(Ksx)/sqrt(2*pi*d2Ksx)); 
 
@@ -44,17 +46,19 @@ end
 
 % Expoent, and its first and second derivatives. 
 % In this case K(s, x) = log(M(s)) - sx.
-function Ksx = expoent(s, x, D, xnt, varASE, varTher) 
-    Ksx = sum(-log(1-D*varASE*s) + (D.*abs(xnt).^2*s)./(1-D*varASE*s)) + 0.5*varTher*s^2 - s*x;
+function Ksx = expoent(s, x, D, xnt, varASE, varTher, Npol) 
+    Ksx = sum(-Npol*log(1-D*varASE*s) + (D.*abs(xnt).^2*s)./(1-D*varASE*s)) + 0.5*varTher*s^2 - s*x;
 end
 
 % First derivative    
-function d1Ksx = d1expoent(s, x, D, xnt, varASE, varTher) 
-    d1Ksx = sum(D.*(abs(xnt).^2 + varASE - varASE^2*s)./((1-D*varASE*s).^2)) + varTher*s - x;
+function d1Ksx = d1expoent(s, x, D, xnt, varASE, varTher, Npol) 
+%     d1Ksx = sum(D.*(abs(xnt).^2 + varASE -
+%     varASE^2*s)./((1-D*varASE*s).^2)) + varTher*s - x; (error)
+    d1Ksx = sum(D.*(Npol*varASE*(1-D*varASE*s) + abs(xnt).^2)./((1-D*varASE*s).^2)) + varTher*s - x;     
 end
 
 % Second derivative
-function d2Ksx = d2expoent(s, D, xnt, varASE, varTher) 
-    d2Ksx = sum((D*varASE).^2./(1 - D*varASE*s).^2 + (2*varASE*(D.^2).*abs(xnt).^2)./((1 - D*varASE*s).^3)) + varTher;
+function d2Ksx = d2expoent(s, D, xnt, varASE, varTher, Npol) 
+    d2Ksx = sum(Npol*(D*varASE).^2./(1 - D*varASE*s).^2 + (2*varASE*(D.^2).*abs(xnt).^2)./((1 - D*varASE*s).^3)) + varTher;
 end
     

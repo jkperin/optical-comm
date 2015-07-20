@@ -6,6 +6,12 @@ function [ber, mpam] = soa_ber(mpam, tx, fiber, soa, rx, sim)
 
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
+if isfield(sim, 'polarizer') && ~sim.polarizer
+    Npol = 2;     % number of noise polarizations
+else % by default assumes that polarizer is being use so Npol = 1.
+    Npol = 1;
+end
+
 % Auxiliary variables
 link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R; % Overall link gain
 Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
@@ -28,7 +34,7 @@ end
 
 % Noise std for the level Plevel
 noise_std = @(Plevel) sqrt(varTherm + varShot(Plevel) + rx.R^2*varRIN(Plevel)...
-    + rx.R^2*soa.var_awgn(Plevel/soa.Gain, Deltaf, Deltafopt));
+    + rx.R^2*soa.var_awgn(Plevel/soa.Gain, Deltaf, Deltafopt, Npol));
 % Note: Plevel is divided by SOA gain to obtain power at the amplifier input
 
 % Level Spacing Optimization

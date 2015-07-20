@@ -1,0 +1,160 @@
+\documentclass[a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[numbered]{bookmark}
+\usepackage[colorinlistoftodos]{todonotes}
+
+\title{APD Analysis and Simulations}
+
+\author{JKP}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\input{common-part}
+
+\section{APD}
+\subsection{Output signal statistics}
+
+Given an input average optical power $\bar{P}$, the number of $m$ primary electrons is Poisson distributed \cite{personick}: $m \sim \mathrm{Poisson}(\lambda)$, where $\lambda = (RP + I_d)dt/q$, $R$ is the photodiode responsivity; $I_d$ is the dark current; $dt$ is the sampling time of the received signal (sampling here means that the input signal is assumed to occur in discrete times); and $q$ is the electron charge.
+
+The probability generating function (pgf) of the primaries distribution $p_1(m|P)$ is given by
+\begin{equation}
+g(z) = \sum_{r = 0}^{\infty} p_1(m|P)z^r = e^{\lambda(z-1)}
+\end{equation}
+
+Personick \cite{personick-comp-4methos} showed that the PGF of secondary electrons $p_2(n|1)$ (probability of generating $n$ secondary electrons from 1 primary) is
+\begin{equation}
+M(z) = \sum_{n = 0}^{\infty} p_2(n|1)z^n
+\end{equation}
+with $z = M[1 + \alpha(M-1)]^{-\beta}, \beta= (1-k)^{-1} > 1, \text{and}~G = (1-\alpha\beta)^{-1}.$
+
+Later Balaban, Fleisher, and Zucker \cite{gain-distribution} showed that $p_2(n|m) \sim M(z)^m$, where $p_2(n|1) \sim M(z)$. That is, the gain of each primary electron is independent.
+Therefore the probability of having $n$ output electrons for a given input optical power $P$ is
+
+\begin{equation} \label{output-probability}
+p(n|P) = \sum_{m = 0}^{\infty} p_2(n|m)p_1(m|P) =  \sum_{m = 0}^{\infty} p_2(n|m) \frac{\lambda^m e^{\lambda}}{m!}
+\end{equation}
+whose pgf is given by
+\begin{align}
+f(z) &= \sum_{k = 0}^{\infty}p(n|P)z^k = \sum_{k=0}^{\infty}\bigg(\sum_{m=0}^{\infty}p_1(m|P)p_2(n|m)\bigg)z^k \\ \nonumber
+& = \sum_{m=0}^{\infty}p_1(m|P)\bigg(\sum_{k=0}^{\infty}p_2(n|m)z^k\bigg) \\ \nonumber
+& = \sum_{m=0}^{\infty}p_1(m|P)M(z)^m \\
+& = g(M(z)) = e^{\lambda(M(z)-1)}
+\end{align}
+
+From \cite{ber-saddlepoint-approx}, the pmf and its tails are given by
+\begin{align}
+p(n|P) = \frac{1}{2\pi j}\oint_C z^{-(n+1)}f(z)dz \\
+p(N \geq n| P) = \frac{1}{2\pi j}\oint_{C+} \frac{z^{-n}}{z-1}f(z)dz \\
+p(N \leq n| P) = \frac{1}{2\pi j}\oint_{C-} \frac{z^{-n}}{1-z}f(z)dz
+\end{align}
+
+We can apply the saddlepoint approximation to the inversion formulas: 
+
+\subsection{pdf and tail probabilities including thermal noise and using the saddlepoint approximation}
+\subsubsection{pdf}
+The MGF of the signal including thermal noise with variance $\sigma^2$ is given by
+\begin{equation}
+\Phi (s) = \exp\Big(\lambda (M(e^s) - 1) + \frac{1}{2}\sigma^2s^2\Big)
+\end{equation}
+
+Thus, from the inversion equation we can write
+\begin{align}
+& K(s,x) = \log (\Phi(s)) - sx = \lambda (M(e^s) - 1) + \frac{1}{2}\sigma^2s^2 - sx \\
+&\frac{\partial K(s,x)}{\partial s} = \lambda \frac{d}{ds}M(e^s) + \sigma^2s - x \\
+&\frac{\partial^2 K(s,x)}{\partial s^2} = \lambda \frac{d^2}{ds^2}M(e^s) + \sigma^2
+\end{align}
+
+The main difficulty in evaluating the derivatives of $K(s,x)$ is in the fact that $M(e^s)$ has no explicit relation; it is only given in terms of the implicit relation
+\begin{equation}
+e^s = z = M(1 + \alpha(M-1))^{-\beta}
+\end{equation}
+where $\beta = (1 - k)^{-1}$, and $G = (1-\alpha\beta)^{-1}$.
+
+Thus, we can write
+\begin{align}
+&\frac{d}{ds}M(s) = \frac{M(1 + \alpha (M-1))}{1 + \alpha(M-1) - \alpha\beta M} = \frac{p(s)}{q(s)}\\
+&\frac{d^2}{ds^2}M(s) = \frac{p'q - pq'}{q^2}
+\end{align}
+where $p'(s) = M'(1 + \alpha(2M-1))$, and $q'(s) = \alpha M'(1 - \beta)$.
+
+\begin{align}
+&\frac{\partial K(s,x)}{\partial s} = \lambda \frac{M(1 + \alpha (M-1))}{1 + \alpha(M-1) - \alpha\beta M} + \sigma^2\log\Big(M(1 + \alpha(M-1))^{-\beta}\Big) - x \\
+\end{align}
+
+\subsubsection{tail}
+Similarly for the tail probabilities, the MGF of the signal including thermal noise with variance $\sigma^2$ is given by
+\begin{equation}
+\Phi (s) = \exp\Big(\lambda (M(e^s) - 1) + \frac{1}{2}\sigma^2s^2\Big)
+\end{equation}
+
+Thus, from the inversion equation we can write
+\begin{align}
+& K(s,x) = \log \Big(\frac{\Phi(s)}{s}\Big) - sx = \lambda (M(e^s) - 1) + \frac{1}{2}\sigma^2s^2 - sx - \log(|s|) \\
+&\frac{\partial K(s,x)}{\partial s} = \lambda \frac{d}{ds}M(e^s) + \sigma^2s - x - \frac{1}{s} \\
+&\frac{\partial^2 K(s,x)}{\partial s^2} = \lambda \frac{d^2}{ds^2}M(e^s) + \sigma^2 + \frac{1}{s^2} 
+\end{align}
+
+The derivatives of $M(e^s)$ remain the same, and we can write
+
+\begin{align}
+&\frac{\partial K(s,x)}{\partial s} = \lambda \frac{M(1 + \alpha (M-1))}{1 + \alpha(M-1) - \alpha\beta M} + \sigma^2\log\Big(M(1 + \alpha(M-1))^{-\beta}\Big) - x -\frac{1}{s}
+\end{align}
+
+\subsection{Gaussian approximation}
+The Gaussian approximation is equivalent to modeling equation \eqref{output-probability} as a Gaussian random variable \cite{personick-comp-4methos}. This approximation is fairly accurate because even for small power levels such as $-30$ dB, we have $\lambda = 125$, assuming a rate of 50 GHz.
+
+The current is equal to $I = \frac{nq}{dt} = \frac{n}{\lambda}(RP + I_d)$, where $n \sim p(n|P)$ as in \eqref{output-probability}. Thus, 
+\begin{align}
+& E(I) = RP + I_d \\
+& \mathrm{Var}(I) = G^2F_A(G)\cdot 2q(RP_{rec} + I_d)1/dt
+\end{align}
+where $F_A(G)G^2$ corresponds to the mean square value of the random gain \cite{personick-comp-4methos}.
+
+\textbf{Excess noise factor}
+\begin{equation}
+F_A(G) = k_AG + (1-k_A)\Big(2 - \frac{1}{G}\Big)
+\end{equation}
+
+\textbf{One-sided shot noise psd}
+\begin{equation}
+S_{shot} = G^2F_A(G)\cdot 2q(RP_{rec} + I_d)
+\end{equation}
+
+\textbf{APD noise figure:} The noise figure is defined as the $F_n = SNR_{in}(dB) - SNR_{out}(dB)$, where $SNR_{in}$ is defined as the SNR assuming only shot noise in a ideal photo counter, and $SNR_{out}(dB)$ is the SNR assuming the detection with the APD.
+
+\underline{The excess noise factor is equal to the APD noise figure}, where the noise figure is defined as the ratio between the $SNR_{in}$ assuming detection with a photodiode with no dark current, and $SNR_{out}$ assuming detection with an APD with no dark current.
+\begin{align}
+F_n &= \frac{SNR_{in}}{SNR_{out}} = \frac{\frac{(R\bar{P})^2}{2qR\bar{P}\Delta f}}{\frac{(GR\bar{P})^2}{G^2F_A(G)\cdot 2qR\bar{P}\Delta f}} = F_A(G) \\ \nonumber
+& = k_AG + (1-k_A)\Big(2 - \frac{1}{G}\Big) \\
+& \approx k_AG + 2(1-k_A)
+\end{align}
+
+\textbf{BER with equally-spaced levels}
+\begin{equation}
+BER = \frac{1}{M}Q\bigg(\frac{\Delta P}{\sqrt{\sigma_{0}^2 + \sigma_T^2}}\bigg) + \frac{2}{M}Q\bigg(\frac{\Delta P}{\sqrt{\sigma_{1}^2 + \sigma_T^2}}\bigg) + \ldots + \frac{1}{M}Q\bigg(\frac{\Delta P}{\sqrt{\sigma_{M-1}^2 + \sigma_T^2}}\bigg)
+\end{equation}
+where $\sigma_{i}^2$ signal-dependent noise variance of the $i$th level, $\sigma_{T}$ is thermal noise variance or any other signal-independent noise, $\Delta P = \frac{2\bar{P}}{M-1}\frac{1-r_{ex}}{1 + r_{ex}}$ is the level spacing.
+
+\
+
+\begin{thebibliography}{9}
+\bibitem{personick-comp-4methos} Personick, S. D., Balaban, P., Bobsin, J. H., and Kumar, P.; ``R.A Detailed Comparison of Four Approaches to the Calculation of the Sensitivity of Optical Fiber System Receivers,'' \emph{IEEE Transactions on Communications}, 1976.
+
+\bibitem{gain-distribution} Balaban, P., Fleischer, P. E., and Zucker, H.; ``The Probability Distribution of Gains in Avalanche Photodiodes,'' \emph{IEEE Transactions on Electron Devices}, 1976.
+
+\bibitem{ber-saddlepoint-approx} Carl Helstrom; ``Performance Analysis of Optical Receivers by the Saddlepoint Approximation,'' \emph{IEEE Transactions on Communications}, 1979.
+
+\bibitem{personick} Personick, S. D.; ``Statistics of a General Class of Avalanche Detectors With Applications to Optical Communication,'' \emph{The Bell SystemTechnical Journal}, 1971.
+
+\bibitem{agilent-RIN-measurement} Product Note 86100-7; ``Digital Communication Analyzer (DCA), Measure Relative Intensity Noise (RIN),'' Agilent Technologies. 
+
+\end{thebibliography}
+
+\end{document}

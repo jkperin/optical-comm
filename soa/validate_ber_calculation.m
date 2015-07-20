@@ -17,7 +17,7 @@ addpath ../f % general functions
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
 sim.Mct = 15;      % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.Me = 16;       % Number of used eigenvalues
 sim.L = 2; % de Bruijin sub-sequence length (ISI symbol length)
@@ -25,13 +25,14 @@ sim.BERtarget = 1e-4;
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 
+sim.polarizer = ~true;
 sim.shot = ~true; % include shot noise in montecarlo simulation 
 sim.RIN = ~true; % include RIN noise in montecarlo simulation
 sim.verbose = false; % show stuff
 
 % M-PAM
 % M, Rb, leve_spacing, pshape
-mpam = PAM(4, 100e9, 'optimized', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -45,11 +46,11 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -28:2:-12;
+tx.PtxdBm = -24:1:-14;
 
 tx.lamb = 1310e-9;
 tx.RIN = -140;  % dB/Hz
-tx.rexdB = -Inf;  % extinction ratio in dB. Defined as Pmin/Pmax
+tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 %% fiber
 fiber = fiber(); % back-to-back

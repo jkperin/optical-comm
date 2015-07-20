@@ -14,7 +14,11 @@
 % Output:
 % ptail = P(X >= x) if tail = 'right' or P(X <= x) if tail = 'left'
 
-function ptail = tail_saddlepoint_approx(x, D, xn, varASE, varTher, tail)   
+function ptail = tail_saddlepoint_approx(x, D, xn, varASE, varTher, tail, Npol)
+    if nargin <= 6
+        Npol = 1;
+    end
+
     % Enforces positive value in order to calculate right tail (x ->
     % \infty). As a result, tail will only be accurate if x >> E(x)
         
@@ -29,15 +33,15 @@ function ptail = tail_saddlepoint_approx(x, D, xn, varASE, varTher, tail)
     ptail = zeros(size(x));
     for k = 1:length(x)
         
-        [shat, ~, exitflag] = fzero(@(s) d1expoent(sign*abs(s), x(k), D, xn, varASE, varTher), 1e-3);
+        [shat, ~, exitflag] = fzero(@(s) d1expoent(sign*abs(s), x(k), D, xn, varASE, varTher, Npol), 1e-3);
         shat = sign*abs(shat);
 
         if exitflag ~= 1
             warning('(x = %g) resulted in exitflag = %d\n', x(k), exitflag);
         end
 
-        Ksx = expoent(shat, x(k), D, xn, varASE, varTher);
-        d2Ksx = d2expoent(shat, D, xn, varASE, varTher);
+        Ksx = expoent(shat, x(k), D, xn, varASE, varTher, Npol);
+        d2Ksx = d2expoent(shat, D, xn, varASE, varTher, Npol);
 
         ptail(k) = exp(Ksx)/sqrt(2*pi*d2Ksx);
     end
@@ -45,15 +49,17 @@ function ptail = tail_saddlepoint_approx(x, D, xn, varASE, varTher, tail)
 end
 
 % Expoent, and its first and second derivatives 
-function Ksx = expoent(s, x, D, xnt, varASE, varTher)
-    Ksx = sum(-log(1-D*varASE*s) + (D.*abs(xnt).^2*s)./(1-D*varASE*s)) + 0.5*varTher*s^2 - s*x - log(abs(s));
+function Ksx = expoent(s, x, D, xnt, varASE, varTher, Npol)
+    Ksx = sum(-Npol*log(1-D*varASE*s) + (D.*abs(xnt).^2*s)./(1-D*varASE*s)) + 0.5*varTher*s^2 - s*x - log(abs(s));
 end
     
-function d1Ksx = d1expoent(s, x, D, xnt, varASE, varTher) 
-    d1Ksx = sum(D.*(abs(xnt).^2 + varASE - varASE^2*s)./((1-D*varASE*s).^2)) + varTher*s - x -1/s;
+function d1Ksx = d1expoent(s, x, D, xnt, varASE, varTher, Npol) 
+%     d1Ksx = sum(D.*(abs(xnt).^2 + varASE -
+%     varASE^2*s)./((1-D*varASE*s).^2)) + varTher*s - x -1/s; (error)
+    d1Ksx = sum(D.*(Npol*varASE*(1-D*varASE*s) + abs(xnt).^2)./((1-D*varASE*s).^2)) + varTher*s - x - 1/s;  
 end
 
-function d2Ksx = d2expoent(s, D, xnt, varASE, varTher) 
-    d2Ksx =  sum((D*varASE).^2./(1 - D*varASE*s).^2 + (2*varASE*(D.^2).*abs(xnt).^2)./((1 - D*varASE*s).^3)) + varTher +1/s^2;
+function d2Ksx = d2expoent(s, D, xnt, varASE, varTher, Npol) 
+    d2Ksx = sum(Npol*(D*varASE).^2./(1 - D*varASE*s).^2 + (2*varASE*(D.^2).*abs(xnt).^2)./((1 - D*varASE*s).^3)) + varTher + 1/s^2;
 end
     

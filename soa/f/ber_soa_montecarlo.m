@@ -26,7 +26,8 @@ Et = fiber.linear_propagation(Et, sim.f, tx.lamb);
 et = soa.amp(Et, sim.fs);
 
 % Optical bandpass filter
-eo = ifft(fft(et).*ifftshift(rx.optfilt.H(f)));
+eo = [ifft(fft(et(:, 1)).*ifftshift(rx.optfilt.H(f))),...
+    ifft(fft(et(:, 2)).*ifftshift(rx.optfilt.H(f)))];
 
 %% Direct detection and add thermal noise
 %% Shot noise
@@ -34,17 +35,21 @@ if isfield(sim, 'shot') && sim.shot
     q = 1.60217657e-19;      % electron charge (C)
 
     % Instataneous received power considering only attenuation from the fiber   
-    Sshot = 2*q*(rx.R*abs(eo).^2 + rx.Id);     % one-sided shot noise PSD
+    Sshot = 2*q*(rx.R*sum(abs(eo).^2,2)  + rx.Id);     % one-sided shot noise PSD
 
     % Frequency is divided by two because PSD is one-sided
-    wshot = sqrt(Sshot*sim.fs/2).*randn(size(eo));
+    wshot = sqrt(Sshot*sim.fs/2).*randn(size(Et));
 else 
     wshot = 0;
 end
 
 % Direct detection and add noises
-yt = abs(eo).^2;
-yt = yt + wshot + sqrt(rx.N0*sim.fs/2)*randn(size(eo));
+if isfield(sim, 'polarizer') && ~sim.polarizer 
+    yt = abs(eo(:, 1)).^2 + abs(eo(:, 2)).^2;
+else % by default assumes that polarizer is used
+    yt = abs(eo(:, 1)).^2;
+end
+yt = yt + wshot + sqrt(rx.N0*sim.fs/2)*randn(size(Et));
 
 % Electric low-pass filter
 yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));

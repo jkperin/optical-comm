@@ -4,6 +4,12 @@
 % The calculated levels and thresholds are at the receiver
 function [a, b] = level_spacing_optm(mpam, tx, soa, rx, sim)
 
+if isfield(sim, 'polarizer') && ~sim.polarizer
+    Npol = 2;     % number of noise polarizations
+else % by default assumes that polarizer is being use so Npol = 1.
+    Npol = 1;
+end
+
 N = sim.Mct+1;
 
 % Error probability under a single tail for a given symbol
@@ -45,7 +51,7 @@ while tol(end) > maxtol && k < maxit
 
         try
         [dPthresh, ~, exitflag] = fzero(@(dPthresh)...  
-            tail_saddlepoint_approx(a(level) + abs(dPthresh), D, ck, varASE, varTherm, 'right') - Pe, 0);
+            tail_saddlepoint_approx(a(level) + abs(dPthresh), D, ck, varASE, varTherm, 'right', Npol) - Pe, 0);
         catch e
             disp(e.message)
             1;
@@ -59,7 +65,7 @@ while tol(end) > maxtol && k < maxit
 
         % Find next level  
         [dPlevel, ~, exitflag] = fzero(@(dPlevel)...
-            tail_saddlepoint_approx(b(level), D, calc_mgf_param(b(level) + abs(dPlevel), U, fm), varASE, varTherm, 'left') - Pe, 0);    
+            tail_saddlepoint_approx(b(level), D, calc_mgf_param(b(level) + abs(dPlevel), U, fm), varASE, varTherm, 'left', Npol) - Pe, 0);    
 
         if exitflag ~= 1
             warning('level_spacing_optm: level optimization did not converge');     

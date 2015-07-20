@@ -6,12 +6,11 @@ addpath ../f
 addpath f
 
 % Simulation parameters
-sim.M = 2; % Ratio of optical filter BW and electric filter BW
+sim.M = 4; % Ratio of optical filter BW and electric filter BW
 sim.Me = 16; 
-sim.Mct = 17; % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
+sim.Mct = 15; % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.Nsymb = 256;
 sim.N = sim.Nsymb*sim.Mct;
-sim.fs = mpam.Rs*sim.Mct;
 
 sim.verbose = true;
 
@@ -20,6 +19,8 @@ sim.verbose = true;
 mpam = PAM(8, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
 
 % Time and Frequency
+sim.fs = mpam.Rs*sim.Mct;
+
 dt = 1/sim.fs;
 t = (0:dt:(sim.N-1)*dt).';
 df = 1/(dt*sim.N);
@@ -32,7 +33,8 @@ f = f/sim.fs;
 
 % Electric Lowpass Filter
 rx.R = 1;
-rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
+% rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
+rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 He = rx.elefilt.H;
 
 % Optical Bandpass Filter
@@ -76,9 +78,9 @@ yt = real(ifft(fft(abs(eo).^2).*ifftshift(He(f))));
 
 % Fourier series coefficients for periodic extension of x
 xn = fftshift(fft(x))/length(x);
-xn = xn(abs(f) <= Fmax);
+xn = xn(f >= -Fmax & f < Fmax);
 
-fm = f(abs(f) <= Fmax);
+fm = f(f >= -Fmax & f < Fmax);
 
 % Calculate output
 xk = zeros(length(fm), sim.N);

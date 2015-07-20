@@ -1,0 +1,239 @@
+\documentclass[a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[numbered]{bookmark}
+\usepackage[colorinlistoftodos]{todonotes}
+
+\title{SOA Analysis and Simulations}
+
+\author{JKP}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\input{common-part}
+
+\section{ASE -- Gaussian Approximation}
+
+\textbf{Reference: EE348 notes and Agrawal}
+
+\textbf{One-sided ASE noise psd per polarization}
+\begin{equation}
+S_{sp}(\nu) = (G-1)n_{sp}h\nu
+\end{equation}
+
+Noise figure
+\begin{equation}
+F_n = 2n_{sp}\frac{G-1}{G} \approx 2n_{sp}
+\end{equation}
+The input coupling $f$ reduces the noise figure i.e., $F_n' = F_n/f$. This is a problem in SOAs and thus they present higher noise figure.
+
+Signal is in one polarization and noise may appear in two polarization with same power.
+\begin{align} \nonumber
+I(t) &= R|\sqrt{G}E_s(t) + E_n(t)|^2 + |E_n(t)|^2 \\
+& = R\Big(G|E_s(t)|^2 + \sqrt{G}E_s(t)E_n^*(t) + \sqrt{G}E_s^*(t)E_n(t) + 2|E_n(t)|^2\Big)
+\end{align}
+If a polarizer is used, then the noise component on the orthogonal polarization is avoided. More generally we can write
+\begin{equation}
+I(t) = R\Big(G|E_s(t)|^2 + \sqrt{G}E_s(t)E_n^*(t) + \sqrt{G}E_s^*(t)E_n(t) + N_{pol}|E_n(t)|^2\Big)
+\end{equation}
+where $N_{pol}$ is the number of noise polarizations. Number of noise polarizations i.e., use of polarizer, doesn't affect signal-spontaneous beat noise.
+
+\subsection{Signal-spontaneous beat noise}
+Signal-spontaneous beat noise has a bilinear term of form $\sqrt{G}E_s(t)E_n(t)$. Assuming signal is real and CW over a certain interval, which is consistent with a PAM signal:
+
+\begin{align} \nonumber
+I(t) = RG|E_s(t)|^2 + 2\sqrt{G}RE_s(t)\mathrm{Re}\{E_n(t)\} + RP|E_n(t)|^2
+\end{align}
+
+Therefore, the signal-spontaneous beat noise has variance
+\begin{equation}
+\sigma^2_{sig-sp, k} = 4R^2G\bar{P}_{s,k}S_{sp}\Delta f = 2R^2G\bar{P}_sN_0\Delta f
+\end{equation}
+where $\bar{P}_{s,k}$ is the average signal power at the $k$th level, and $S_{sp} = 2N_0$, where $N_0$ is the equivalent one-sided baseband ASE PSD.
+
+The signal-spontaneous beat noise, which is dominant in well-designed receivers, is not affected by the number of noise polarizations i.e., whether a polarizer is used. Furthermore, it's independent of the band-pass optical filter bandwidth.
+
+\subsection{Spontaneous-spontaneous beat noise}
+
+Spontaneous-spontaneous beat noise PSD is not white; it decays linearly with frequency. At DC the PSD is $2N_{pol}R^2S_{sp}^2\Delta\nu_{opt}$. However, assuming $\Delta f << \Delta\nu_{opt}/2$ we can write
+
+\begin{equation}
+\sigma^2_{sp-sp} = 2N_{pol}R^2S_{sp}^2\Delta\nu_{opt}\Delta f = \frac{1}{2}N_{pol}R^2N_0^2\Delta\nu_{opt}\Delta f 
+\end{equation}
+
+\section{ASE -- Karhunen-Loéve Series Expansion for MGF Calculation} 
+
+\subsection{Definitions}
+\begin{itemize}
+	\item $x(t)$ signal component after amplifier;
+	\item $w(t)$ ASE noise;
+	\item $N_0$ baseband equivalent ASE noise PSD i.e., $N_0 = 2S_{sp}$.
+	\item $e(t) = x(t) + w(t)$ electrical field after amplifier;
+	\item $h_o(t) \leftrightarrow H_o(f)$ optical bandpass filter;
+	\item $h_e(t) \leftrightarrow H_e(f)$ electrical baseband filter;
+	\item $e_o(t) = (x(t) + w(t))\ast h_o(t) = s(t) + n(t)$ electric field after  optical bandpass filter;
+	\item $y(t) = |e_o(t)|^2\ast h_e(t)$ electric signal after filtering (doesn't include thermal noise);
+\end{itemize}
+
+\subsection{Karhunen-Loéve Series Expansion in the Frequency Domain -- Less accurate and requires more eigenvalues}
+Electric signal after filtering (doesn't include thermal noise) as a function of the Frequency-domain filter responses
+\begin{align} \nonumber
+y(t) &= |e(t)\ast h_o(t)|^2\ast h_e(t) \\ \nonumber
+& = \mathcal{F}^{-1}\{[E(f)H_o(f)\ast E(-f)^*H_o(-f)^*]H_e(f)\} \\
+& = \iint_{-\infty}^{\infty} E(f_1)E^*(f_2)K(f_1, f_2)e^{-j2\pi(f_1-f_2)t}df_1df_2
+\end{align}
+where $K(f_1, f_2) = H_o(f_1)H_e(f_1-f_2)H_o^*(f_2)$ is obtained simply by change of variables.
+
+The eigenfunctions of the Fredholm integral equation form a complete set of orthonormal basis functions, and the corresponding eigenvalues $\lambda_n$ are real and ordered as $\lambda_1 \geq \lambda_2 \geq \ldots$.
+\begin{equation}
+\int_{-\infty}^{\infty} K(f_1, f_2)\phi(f_1)df_1 = \lambda\phi(f_2)
+\end{equation}
+
+Given the completeness of the eigenfunctions we can use the expansion:
+\begin{equation}
+E(f)e^{j2\pi ft} = \sum_{n=1}^{\infty}e_n(t)\phi_n(f)
+\end{equation}
+where 
+\begin{equation}
+e_n(t) = x_n(t) + w_n(t) = \int_{-\infty}^{\infty}E(f)\phi^*_n(f)e^{j2\pi ft}df
+\end{equation}
+
+Using this expansion to solve for $y(t)$ results in
+\begin{equation}
+y(t) = \sum_{n=1}^{\infty}\lambda_n|x_n(t) + w_n(t)|^2
+\end{equation}
+The coefficients $w_n(t)$ are statistically independent and circularly symmetric complex random variables with zero mean and variance equal to the ASE spectral density per polarization mode $N_0$.
+Therefore, $y(t)$ is a weighted sum of non-central $\chi^2$ independent random variables.
+
+\subsubsection{Evaluating $\lambda_n$ and $x_n$}
+Performing the integration in a band $[-F, F]$ where the optical filter $H_o(f)$ is significant results
+\begin{equation}
+\int_{-\infty}^{\infty} K(f_1, f_2)\phi(f_1)df_1 \approx \int_{-F}^{F} K(f_1, f_2)\phi(f_1)df_1 \approx \lambda\phi(f_2)
+\end{equation}
+This can be approximated by the \textbf{Gauss-Legendre quadrature rule}
+\begin{equation}
+\sum_{m=1}^{M_e}w_mK(\nu_m, f_2)\phi_n(\nu_m) \approx \lambda_n\phi_n(f_2)
+\end{equation}
+where the weights $w_m$ are always positive.
+
+Making $f_2 = \nu_n, n = 1,\ldots, M_e$
+\begin{equation}
+\sum_{m=1}^{M_e}w_mK(\nu_m, \nu_n)\phi_n(\nu_m) \approx \lambda_n\phi_n(\nu_n), n = 1,\ldots, M_e
+\end{equation}
+In matrix notation:
+\begin{equation} \label{eq:matrix-form}
+\mathcal{K}\mathcal{W}\Phi = \Phi\Lambda
+\end{equation}
+where 
+\begin{align}
+\mathcal{K}_{ij} = K(\nu_i, \nu_j) \\
+\mathcal{W}_{ij} = w_i\delta_{ij} \\
+\Phi_{ij} = \phi_j(\nu_i) \\
+\Lambda_{ij} = \lambda_i\delta_{ij}
+\end{align}
+The columns of $\Phi$ are the eigenvectors of $\mathcal{K}\mathcal{W}$. But $\mathcal{K}\mathcal{W}$ is not Hermitian, so instead we can write $A = \mathcal{W}^{1/2}\mathcal{K}\mathcal{W}^{1/2}$, which is Hermitian. $\mathcal{W}^{1/2} = \mathrm{diag}\{\sqrt{w_1},\ldots,\sqrt{w_{M_e}}\}$. So instead of solving the eigenvector problem for \eqref{eq:matrix-form} it's more convenient to solve it for
+
+\begin{equation} \label{eq:matrix-form}
+\mathcal{W}^{1/2}\mathcal{K}\mathcal{W}\Phi = \mathcal{W}^{1/2}\Phi\Lambda = AB = B\Lambda
+\end{equation}
+where $A = \mathcal{W}^{1/2}\mathcal{K}\mathcal{W}^{1/2}$, and $B = \mathcal{W}^{1/2}\Phi$.
+
+Once the eigenvectors $B$ are determine we can solve for $\Phi = \mathcal{W}^{-1/2}B$.
+
+Knowing the sampled $\phi_n(\nu_m)$, we can interpolate it, and finally calculate $x_n$ by:
+\begin{equation}
+x_n(t) = \int_{-\infty}^{\infty}X(f)\phi_n^*(f)e^{j2\pi ft}df
+\end{equation}
+
+\subsection{Karhunen-Loéve using Fourier Series Basis}
+
+Assume $x(t)$ is periodic with period $NT$, where $N$ is the number of symbols and $T$ is the symbol period.
+
+Both signal and noise are expanded using the Fourier Series Basis functions (complex exponentials). 
+\begin{align} \label{fourier-series}
+& x(t) = \sum_{m=-M}^M x_me^{j2\pi n t/(NT)} \\
+& w(t) = \sum_{m=-M}^M w_me^{j2\pi n t/(NT)} \\
+\end{align}
+where $L$ is large enough to account for great part of the energy in $x(t)$. This method sacrifices efficiency for simplicity. Other methods can expand the noise and signal in different bases and thus reduce the dimensionality required \cite{forestieri}.
+
+\begin{align} \nonumber
+y(t_k) = (x_k + n)^HK(x_k + n)
+\end{align}
+where
+\begin{equation}
+K_{ij} = K\bigg(\frac{i-M-1}{NT}, \frac{j-M-1}{NT}\bigg)  = K(f_i, f_j) = H_o(f_i)H_e(f_i-f_j)H_o^*(f_i);
+\end{equation}
+$(\cdot)^H$ denotes Hermitian transpose (conjugate transpose); $n$ is a column vector of zero-mean Gaussian random variables with variance $N_0/N$, since it corresponds to the Fourier Series coefficients of the periodic extension of the ASE noise; and $x_k$ is a column vector given by
+
+\begin{equation}
+x_{i, k} = x_{i - M - 1}e^{j2\pi(i-M-1)t_k/(NT)}
+\end{equation}
+where $x_{i - M - 1}$ are the Fourier series coefficients of the periodic extension of period $NT$ of $x(t)$ \eqref{fourier-series}.
+
+Let 
+\begin{equation}
+c_k = U^Hx_k
+\end{equation}
+where $K = U\Lambda U^H$. $K$ is Hermitian and thus it only has real eigenvalues.
+
+Therefore,
+\begin{equation}
+y(t_k) = (c_k + z)^H\Lambda (c_k + z) = \sum_{i = 1}^{M_e} \lambda_i|c_{i, k}^2 + z_i|^2
+\end{equation}
+
+And the MGF is given by
+\begin{equation} \label{ASE-MGF}
+\Psi_y(s) = \prod_{i =1}^{M_e}\frac{1}{(1-\lambda_i\sigma^2s)^{N_{pol}}}\exp\bigg(\frac{\lambda_i|c_{i,k}|^2s}{1-\lambda_i\sigma^2s}\bigg)
+\end{equation}
+where $\sigma^2 = N_0/{NT}$
+
+We can calculate the first two moments of $y$ using \eqref{ASE-MGF}
+\begin{align}
+& \mu_y = \frac{d}{ds}\Psi_y(s)\bigg|_{s=0} = \Psi_y(s)\frac{d}{ds}\log\Psi_y(s)\bigg|_{s=0} = \sum_{i=1}^{M_e} \lambda_i(N_{pol}\sigma^2 + |x_n|^2) \\
+& \sigma_{y}^2 = \frac{d^2}{ds^2}\Psi_y(s)\bigg|_{s=0} -\mu_y^2 = \Psi_y(s)\frac{d^2}{ds^2}\log\Psi_y(s)\bigg|_{s=0} = \sum_{i =1}^{M_e} N_{pol}(\lambda_i\sigma^2)^2 + 2\sigma^2\lambda_i^2|c_{i,k}|^2
+\end{align}
+the derivatives are calculated with respect to the derivatives of $\log\Psi_y(s)$, which is easier to obtain, as calculated in \eqref{mgf-pdf-derivatives}. Thus the conditional probabilities of $y$ can be approximated as a Gaussian distribution such that $p(y|a_i) \sim \mathcal{N}(\mu_y, \sigma_y^2)$.
+
+\subsection{pdf and tail probabilities including thermal noise and using the saddlepoint approximation}
+
+Including thermal noise in \eqref{ASE-MGF}
+\begin{equation}
+\Psi_y(s) = \bigg[\prod_{i =1}^{M_e}\frac{1}{(1-\lambda_i\sigma^2s)^{N_{pol}}}\exp\bigg(\frac{\lambda_i|c_{i,k}|^2s}{1-\lambda_i\sigma^2s}\bigg)\bigg]e^{\frac{1}{2}\sigma_{T}^2s^2}
+\end{equation}
+
+\subsubsection{pdf}
+From the inversion equation we can write
+\begin{align} \label{mgf-pdf-derivatives}
+& K(s,x) = \log (\Psi(s)) - sx = \sum_{i = 1}^{M_e}\bigg( -N_{pol}\log(1-\lambda_i\sigma^2s) + \frac{\lambda_i|c_{i,k}|^2s}{1-\lambda_i\sigma^2s}\bigg) +\frac{1}{2}\sigma_T^2s^2 - sx  \\ \nonumber
+&\frac{\partial K(s,x)}{\partial s} = \sum_{i = 1}^{M_e}\bigg( N_{pol}\frac{\lambda_i\sigma^2}{1-\lambda_i\sigma^2s} + \frac{\lambda_i|c_{i,k}|^2s}{(1-\lambda_i\sigma^2s)^2}\bigg) + \sigma_T^2s - x \\ \nonumber
+& = \sum_{i = 1}^{M_e}\bigg( \frac{N_{pol}\lambda_i\sigma^2(1-\lambda_i\sigma^2s) + \lambda_i^2|c_{i,k}|^2s}{(1-\lambda_i\sigma^2s)^2}\bigg) + \sigma_T^2s - x \\
+& = \sum_{i = 1}^{M_e}\bigg( \lambda_i\frac{N_{pol}\sigma^2(1-\lambda_i\sigma^2s) +|c_{i,k}|^2s}{(1-\lambda_i\sigma^2s)^2}\bigg) + \sigma_T^2s - x \\
+&\frac{\partial^2 K(s,x)}{\partial s^2} = \sum_{i = 1}^{M_e}\bigg( \frac{N_{pol}(\lambda_i\sigma^2)^2}{(1-\lambda_i\sigma^2s)^2} + \frac{2\sigma^2\lambda_i^2|c_{i,k}|^2}{(1-\lambda_i\sigma^2s)^3}\bigg) + \sigma_T^2
+\end{align}
+
+\subsubsection{tail}
+From the inversion equation we can write 
+\begin{align}
+& K(s,x) = \log \Big(\frac{\Psi(s)}{s}\Big) - sx =  \sum_{i = 1}^{M_e}\bigg( -N_{pol}\log(1-\lambda_i\sigma^2s) + \frac{\lambda_i|c_{i,k}|^2s}{1-\lambda_i\sigma^2s}\bigg) -\log |s| +\frac{1}{2}\sigma_T^2s^2 - sx  \\
+&\frac{\partial K(s,x)}{\partial s} = \sum_{i = 1}^{M_e}\bigg( \lambda_i\frac{N_{pol}\sigma^2(1-\lambda_i\sigma^2s) +|c_{i,k}|^2s}{(1-\lambda_i\sigma^2s)^2}\bigg) - \frac{1}{s} + \sigma_T^2s - x \\
+&\frac{\partial^2 K(s,x)}{\partial s^2} = \sum_{i = 1}^{M_e}\bigg( \frac{N_{pol}(\lambda_i\sigma^2)^2}{(1-\lambda_i\sigma^2s)^2} + \frac{2\sigma^2\lambda_i^2|c_{i,k}|^2}{(1-\lambda_i\sigma^2s)^3}\bigg) + \frac{1}{s^2} + \sigma_T^2
+\end{align}
+\textbf{Note that $K(s, x)$ is different from the pdf calculation.}
+
+\begin{thebibliography}{9}
+	
+	\bibitem{ber-saddlepoint-approx} Carl Helstrom; ``Performance Analysis of Optical Receivers by the Saddlepoint Approximation,'' \emph{IEEE Transactions on Communications}, 1979.
+		
+	\bibitem{agilent-RIN-measurement} Product Note 86100-7; ``Digital Communication Analyzer (DCA), Measure Relative Intensity Noise (RIN),'' Agilent Technologies. 
+	
+	\bibitem{forestieri} E. Forestieri, M. Secondini; ``On the error probability evaluation in lightwave systems with optical amplificaiton,'' \emph{Journal of Lightwave Technol.}, 2009.
+	
+\end{thebibliography}
+
+\end{document}

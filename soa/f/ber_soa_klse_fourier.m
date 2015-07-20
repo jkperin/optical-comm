@@ -16,6 +16,11 @@ U = rx.U_fourier;
 D = rx.D_fourier;
 Fmax = rx.Fmax_fourier;
 
+if isfield(sim, 'polarizer') && ~sim.polarizer
+    Npol = 2;     % number of noise polarizations
+else % by default assumes that polarizer is being use so Npol = 1.
+    Npol = 1;
+end
 Nsymb = mpam.M^sim.L; % number of data symbols 
 Nzero = sim.L; % number of zero symbols padded to begin and end of sequnece.
 N = sim.Mct*(Nsymb + 2*Nzero); % total number of points 
@@ -104,22 +109,22 @@ dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     alphan = D.*abs(ck(:, k)).^2;
     betan = D*varASE;
-    mu = sum(alphan+betan); % mean of output random variable
-    sig = sqrt(sum(betan.*(2*alphan + betan)) + varTherm + varSigDependent(yd(k))); % std of output random variable (including thermal noise)
+    mu = sum(alphan + Npol*betan); % mean of output random variable
+    sig = sqrt(sum(betan.*(2*alphan + Npol*betan)) + varTherm + varSigDependent(yd(k))); % std of output random variable (including thermal noise)
     
     if dat(k) == mpam.M-1
-        pe = pe + tail_saddlepoint_approx(Pthresh(end), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left');
+        pe = pe + tail_saddlepoint_approx(Pthresh(end), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((mu-Pthresh(end))/sig);
     elseif dat(k) == 0;
-        pe = pe + tail_saddlepoint_approx(Pthresh(1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right');
+        pe = pe + tail_saddlepoint_approx(Pthresh(1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(1)-mu)/sig);
     else 
-        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right');
-        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k)), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left');
+        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
+        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k)), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(dat(k) + 1) - mu)/sig);
@@ -152,7 +157,7 @@ end
 %% Calculate pdfs using saddlepoint approximation
 if nargout == 3
     y = linspace(0, 2*max(abs(x).^2), 100);
-    px = pdf_saddlepoint_approx(y, D, ck, varASE, varTherm, sim.verbose);
+    px = pdf_saddlepoint_approx(y, D, ck, varASE, varTherm, Npol, sim.verbose);
     if sim.verbose
         for k = 1:length(Pthresh)
             plot(Pthresh(k)*[1 1], [0, 5e4])

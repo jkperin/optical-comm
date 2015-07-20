@@ -1,0 +1,142 @@
+\section{Modulator}
+\subsection{Frequency response}
+
+Second-order system with unit damping and cutoff frequecy $f_c$:
+\begin{equation}
+	H_{mod}(f) =  \frac{1}{1 + 2jf/f_c - (f/f_c)^2}
+\end{equation}
+Group delay:
+\begin{equation}
+	\Delta\tau_g = \frac{2}{2\pi f_c}
+\end{equation}
+
+\subsection{Extinction ratio}
+\begin{equation}
+	r_{ex} = \frac{P_{min}}{P_{max}}
+\end{equation}
+
+This relation is enforced in the levels of the PAM signal. Thus, if the levels of a M-PAM signal are $\{a_0, \ldots, a_{M-1}\}$ we have
+
+\begin{equation}
+	r_{ex} = \frac{a_0}{a_{M-1}}
+\end{equation}
+
+In the case of equally-spaced levels, when a target transmitted power is specified $P_{tx}$, we can determine the power of the lowest level
+\begin{equation}
+	r_{ex} = \frac{P_{min}}{2P_{tx} - P_{min}} \rightarrow P_{min} = 2P_{tx}\frac{r_{ex}}{1 + r_{ex}}
+\end{equation}
+
+Thus the scaled levels $\{a'_0, \ldots, a'_{M-1}\}$ such that the signal has power $P_{tx}$ and extinction ratio $r_{ex}$ can be related to the original levels $\{a_0, \ldots, a_{M-1}\}$ by:
+\begin{align} \nonumber
+	a'_i &= \frac{2P_{tx} - 2P_{min}}{a_{M-1}}a_i + P_{min} = 2\bigg(P_{tx} - 2P_{tx}\frac{r_{ex}}{1 + r_{ex}}\bigg)\frac{a_i}{a_{M-1}} + P_{min} \\
+	&= \frac{2P_{tx}}{a_{M-1}}\bigg(1 - 2\frac{r_{ex}}{1 + r_{ex}}\bigg)a_i + P_{min} = \frac{2P_{tx}}{a_{M-1}}\frac{1-r_{ex}}{1 + r_{ex}}a_i + P_{min} 
+\end{align}
+where $a_0 = 0$.
+
+For optimized level spacing the extinction ratio is enforced in the optimization process, where at the beginning of the $i$th iteration, the lowest level is set to be $a_0^{(i)} = r_{ex}a_{M-1}^{(i-1)}$
+
+\subsection{RIN}
+Modeled as an AWG noise added to the optical power at the transmitter.
+
+The value of RIN is defined as the ratio between the noise power divide by the noise bandwidth and the signal power \cite{agilent-RIN-measurement}: 
+\begin{equation}
+	RIN = \frac{P_{noise}}{B_{noise}P_{signal}}
+\end{equation}
+
+Thus the \textbf{one-sided RIN PSD} and \textbf{RIN variance} at a certain instant are given by
+\begin{align}
+	& S_{RIN}(t) = RIN\cdot P(t)^2 \\
+	& \sigma^2_{RIN}(t) = S_{RIN}(t)\frac{f_{s, sim}}{2}
+\end{align}
+where $f_{s, sim}$ is the sampling frequency to simulate continuous time.
+
+Output optical power $P(t)$ is given by
+\begin{equation}
+	P(t) = P_s(t) + w_{RIN}(t)
+\end{equation}
+where $P_s(t)$ is the signal-only optical power (after modulator frequency response and extinction ratio), and $w_{RIN}(t)\sim\mathcal{N}(0, \sigma^2_{RIN}(t))$.
+
+\subsection{Chirp}
+Assuming transient chirp dominant, we have the phase change caused by intensity modulation is given by
+\begin{equation}
+	\Delta\phi(t) = \frac{\alpha}{2}\ln(P(t))
+\end{equation}
+where $\alpha$ is the chirp parameter, which is always positive for directly-modulated lasers.
+
+Output electric field of the modulator:
+\begin{equation}
+	E_{out}(t) = \sqrt{P(t)}e^{j\Delta\phi(t)}
+\end{equation}
+
+\section{Fiber}
+\subsection{Linear propagation}
+\begin{equation}
+	E(f, L) = E(f, 0)e^{j\theta}e^{-\frac{1}{2}\frac{att(\lambda)L}{10^4}}
+\end{equation}
+where $E(f, L)$ is the frequency response of the electric field at distance $L$ in meters; $\theta = -1/2\beta_2(2\pi f)^2L$; $\beta_2 = -\frac{D(\lambda)\lambda^2}{2\pi c}$; and $att(\lambda)$ is the fiber attenuation at wavelength $\lambda$ in dB/km.
+
+For SMF28 the fiber dispersion is specified in terms of the zero-dispersion ($\lambda_0$) wavelength and the dispersion slope ($S_0$):
+\begin{equation}
+	D(\lambda) = \frac{S_0}{4}\bigg(\lambda - \frac{\lambda_0^4}{\lambda^3}\bigg), \text{for}~1200~\text{nm} < \lambda < 1600~\text{nm}
+\end{equation}
+
+\subsection{Small-signal fiber frequency response}
+Assuming transient chirp dominant, chromatic dispersion, and attenuation, the small-signal fiber frequency response is given by
+\begin{equation}
+	H(f) = \frac{P(f, L)}{P(f, 0)} = \Big(\cos(\theta) - \alpha\sin(\theta)\Big)e^{-\frac{att(\lambda)L}{10^4}}
+\end{equation}
+
+
+\section{Using Saddlepoint approximation in the inversion formula of a Moment Generating Function} 
+
+The moment generating function is defined as
+\begin{align}
+M(s) = E[e^{sx}] &= \begin{cases}
+\int_{-\infty}^{\infty} p(x)e^{sx}dx, & \text{continuos} \\
+\sum p(x)e^{sx}, & \text{discrete}
+\end{cases}
+\end{align}
+for both continuous and discrete random variables.
+
+The inversion formula is given by
+\begin{equation}
+p(x) = \frac{1}{2\pi j}\int_{c-j\infty}^{c+j\infty}M(s)e^{-sx}ds= \frac{1}{2\pi j}\int_{c-j\infty}^{c+j\infty}e^{K(s, x)}ds
+\end{equation}
+Where $K(s,x) = \log M(s) - sx$.
+
+The contour of integration is the straight line in the $s$ plane such that $\mathrm{Re}\{s\} = c$. 
+
+$c$ should be within the interval of convergence for real $s$.
+
+In the saddlepoint approximation $c = \mathrm{Re}\{\hat{s}\}$, where $\frac{\partial}{\partial s} K(s, x)|_{s=\hat{s}} = 0$. Thus, $c$ is the real part of the saddlepoint (of the exponent of the inverse formula). Therefore, $s = \hat{s} + j\omega$. Expanding $K(s,x)$ near $\hat{s}$
+
+\begin{align} \nonumber
+K(s, x) &= K(\hat{s}, x) + \frac{(s-\hat{s})^2}{2!}\frac{\partial^2}{\partial s^2}K(s,x)\bigg|_{s=\hat{s}} \\
+&= K(\hat{s}, x)  -\frac{\omega^2}{2}K^{\prime\prime}(\hat{s},x)
+\end{align}
+
+Applying the saddlepoint approximation in the inversion formula results
+
+\begin{align} \nonumber
+p(x) = \frac{e^{K(\hat{s}, x)}}{2\pi }\int_{-\infty}^{\infty}e^{  -\frac{\omega^2}{2}K^{\prime\prime}(\hat{s},x)}d\omega
+\approx e^{K(\hat{s},x)}\bigg(\frac{1}{2\pi K^{\prime\prime}(\hat{s},x)}\bigg)^{1/2}
+\end{align}
+where $K^{\prime\prime}(s,x) = \frac{\partial^2}{\partial s} K(s,x)$.
+
+\subsection{Calculating tail probabilities}
+\begin{align}
+Q(x) &= P(X \geq x) \\
+&= \int_x^{\infty} p(y)dy \\ \nonumber
+&= \int_x^{\infty}\frac{1}{2\pi j}\int_{c-j\infty}^{c+j\infty}e^{\ln M(s) - sy}dsdy \\ \nonumber
+&= \frac{1}{2\pi j}\int_{c-j\infty}^{c+j\infty}\int_x^{\infty}e^{\ln M(s) - sy}dyds \\ \nonumber
+&= \frac{1}{2\pi j}\int_{c-j\infty}^{c+j\infty}\frac{1}{s}e^{\ln M(s) - sx}ds \\ 
+&= \frac{1}{2\pi j}\int_{c-j\infty}^{c+j\infty}e^{\ln M(s) -\ln s- sx}ds 
+\end{align}
+
+We can define $K(s,x) = \ln\frac{M(s)}{s} - sx$. Applying the saddlepoint approximation with $K(s)$ results in
+
+\begin{equation}
+Q(x) \approx e^{K(\hat{s},x)}\bigg(\frac{1}{2\pi K^{\prime\prime}(\hat{s},x)}\bigg)^{1/2}
+\end{equation}
+where in this case $K^{\prime}(\hat{s},x) = 0$.
+Using the saddlepoint approximation in this form might lead to inaccurate results because of the pole at $s = 0$ (i.e., $\hat{s}$ small). 

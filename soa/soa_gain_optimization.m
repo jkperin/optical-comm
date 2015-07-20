@@ -6,7 +6,7 @@ addpath ../f % general functions
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
 sim.Mct = 17;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.Me = 16; % Number of used eigenvalues
@@ -14,6 +14,7 @@ sim.BERtarget = 1e-4;
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 
+% sim.polarizer = true;
 sim.shot = true; % include shot noise in montecarlo simulation 
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.verbose = false; % show stuff

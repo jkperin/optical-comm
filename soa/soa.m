@@ -57,7 +57,7 @@ classdef soa < handle
             end
             % Signal-Spontaneous beat noise + Spont-Spont beat noise
             % Agrawal 6.5.7 and 6.5.8 -- 3rd edition
-            sig2 = 2*this.Gain*Plevel*this.N0*Deltaf + Npol*this.N0^2*Deltafopt*Deltaf;
+            sig2 = 2*this.Gain*Plevel*this.N0*Deltaf + 1/2*Npol*this.N0^2*Deltafopt*Deltaf;
             % Note 1: N0 = 2Ssp
             % Note 2: Responsivity is assumed to be 1. For different
             % responsivity make sig2 = R^2*sig2
@@ -65,16 +65,17 @@ classdef soa < handle
         
         %% Amplification
         % Ein = received electric field in one pol; fs = sampling frequency
-        function [output, w] = amp(obj, Ein, fs)
+        function output = amp(obj, Ein, fs)
             % noise            
             N = length(Ein);
             
             % N0 is the psd per polarization
-            w = sqrt(1/2*obj.N0*fs/2)*(randn(N, 1) + 1j*randn(N, 1));
-            % Note: soa.N0 is single-sided baseband equivalent of ASE PSD we don't multiply by
-            % sim.fs/2 because this is a band-pass process
+            w_x = sqrt(1/2*obj.N0*fs/2)*(randn(N, 1) + 1j*randn(N, 1));
+            w_y = sqrt(1/2*obj.N0*fs/2)*(randn(N, 1) + 1j*randn(N, 1));
+            % Note: soa.N0 is one-sided baseband equivalent of ASE PSD.
+            % Thus we multiply by sim.fs/2
             
-            output = Ein*sqrt(obj.Gain) + w;         
+            output = [Ein*sqrt(obj.Gain) + w_x, w_y]; 
         end
         
         %% Optimize SOA gain
