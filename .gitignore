@@ -4,6 +4,7 @@
 *.eps
 *.emf
 *.mat
+!apd/results/apd_awgn_results_Ptx_vs_ka.mat
 *.asv
 *.tikz
 *.zip
