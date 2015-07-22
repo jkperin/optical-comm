@@ -98,9 +98,6 @@ function [PtxdBm_req, ber, Gapd_opt] = iterate(M, Gapd, OptimizeGain)
     % (GaindB, ka, GainBW, R, Id)  
     apdG = apd(10, 1, rx.GBw, rx.R, rx.Id); 
 
-    ber.count = zeros(length(ka), length(tx.PtxdBm));
-    ber.awgn = zeros(length(ka), length(tx.PtxdBm));
-    ber.gauss = zeros(length(ka), length(tx.PtxdBm));
     for k = 1:length(ka)
         apdG.ka = ka(k);
 

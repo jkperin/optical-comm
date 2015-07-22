@@ -1,4 +1,4 @@
-%% Simulations for SOA with noneq_spaced and eq_spaced level spacing compared with Gaussian approximation
+%% Simulations for SOA with equally-spaced and optimized level spacing compared with Gaussian approximation
 function sim_level_spacing_optimization
 close all, clc
 format compact
@@ -8,13 +8,13 @@ addpath ../mpam
 addpath ../soa
 addpath ../soa/f
 
-M = [2 4];
-FndB = 10:-1:3;
+M = [4 8];
+FndB = 3:10;
 
 Colors = {'k', 'b', 'r', 'g'};
 figure(1), hold on, grid on, box on
 for m = 1:length(M)
-    [Ptx{m}, ber{m}, Gsoa{m}] = calc_power_sensitivity(M(m), FndB);
+    [Ptx{m}, ber{m}] = calc_power_sensitivity(M(m), FndB);
     
     figure(1)
     plot(FndB, Ptx{m}.eq_spaced, '-', 'Color', Colors{m})
@@ -24,7 +24,7 @@ for m = 1:length(M)
     
 %     save partial_results_2and4PAM M FndB Ptx ber Gsoa
 end
-legend('Uniform Level Spacing', 'Non-Uniform Level Spacing', 'Non-Uniform Level Spacing with Gaussian Approximation', 'Location', 'NorthWest')
+legend('Equal Spacing', 'Optimized Spacing', 'Optimized Spacing with Gaussian Approximation', 'Location', 'NorthWest')
 xlabel('Noise Figure (dB)')
 ylabel('Transmitted Power (dBm)')
 
@@ -32,20 +32,19 @@ ylabel('Transmitted Power (dBm)')
 
 end
 
-function [Ptx, ber, Gsoa] = calc_power_sensitivity(M, FndB)
+function [Ptx, ber] = calc_power_sensitivity(M, FndB)
     % Simulation parameters
-    sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
+    sim.Nsymb = 2^10; % Number of symbols in montecarlo simulation
     sim.Mct = 15;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
-%     sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)   
+    sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)   
     sim.Me = 16; % number of used eigenvalues
     sim.BERtarget = 1e-4; 
     sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
     sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
-
-    sim.optimize_gain = false;
-    
-    sim.shot = false; % include shot noise in montecarlo simulation (always included for pin and apd case)
-    sim.RIN = false; % include RIN noise in montecarlo simulation
+ 
+    sim.polarizer = true; % if true noise has only one polarization
+    sim.shot = true; % include shot noise in montecarlo simulation (always included for pin and apd case)
+    sim.RIN = true; % include RIN noise in montecarlo simulation
     sim.verbose = false; % show stuff
 
     % M-PAM
@@ -68,22 +67,18 @@ function [Ptx, ber, Gsoa] = calc_power_sensitivity(M, FndB)
         case 2
             sim.optimize_gain = false;
             tx.PtxdBm = -35:2:-24;
-            sim.L = 3;
         case 4
-            tx.PtxdBm = -26:2:-10;
-            sim.L = 3;
+            tx.PtxdBm = -30:1:-16;
         case 8
-            tx.PtxdBm = -22:2:-4;
-            sim.L = 3;        
+            tx.PtxdBm = -28:1:-10;        
         case 16
             tx.PtxdBm = -18:2:0;
-            sim.L = 1;
     end
 
     tx.lamb = 1310e-9; % wavelength
     tx.alpha = 0; % chirp parameter
     tx.RIN = -150;  % dB/Hz
-    tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
+    tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
     % Modulator frequency response
     tx.kappa = 1; % controls attenuation of I to P convertion
@@ -108,30 +103,18 @@ function [Ptx, ber, Gsoa] = calc_power_sensitivity(M, FndB)
 
     %% SOA
     % soa(GaindB, NF, lambda, maxGaindB)
-    soa1 = soa(10, 9, 1310e-9, 20); 
-    soa2 = soa(10, 9, 1310e-9, 20); 
-    soa3 = soa(10, 9, 1310e-9, 20); 
+    soaG = soa(20, 9, 1310e-9, 20); 
    
     figure, hold on, grid on, box on   
     for k = 1:length(FndB)
         fprintf('----- Fn = %d dB -----\n', FndB(k))
-        soa1.Fn = FndB(k);
-        soa2.Fn = FndB(k);
-        soa3.Fn = FndB(k);
+        soaG.Fn = FndB(k);
         
         %% Equally-spaced levels
         disp('Equally-spaced levels')
         mpam.level_spacing = 'equally-spaced';
-       
-        if sim.optimize_gain && ~(soa1.GaindB >= 0.97*soa1.maxGaindB)
-            soa1.optimize_gain(mpam, tx, b2b, rx, sim)
-        else
-            soa1.GaindB = soa1.maxGaindB;
-        end
-        Gsoa.eq_spaced(k) = soa1.GaindB;
-        soa1.GaindB
-
-        ber.eq_spaced(k) = soa_ber(mpam, tx, b2b, soa1, rx, sim);
+              
+        ber.eq_spaced(k) = soa_ber(mpam, tx, b2b, soaG, rx, sim);
 
         Ptx.eq_spaced(k) = interp1(log10(ber.eq_spaced(k).est), tx.PtxdBm, log10(sim.BERtarget), 'spline');
        
@@ -139,16 +122,8 @@ function [Ptx, ber, Gsoa] = calc_power_sensitivity(M, FndB)
         disp('Optimized level spacing')
         sim.stats = 'accurate';
         mpam.level_spacing = 'optimized';
-        
-        if sim.optimize_gain && ~(soa2.GaindB >= 0.97*soa2.maxGaindB)
-            soa2.optimize_gain(mpam, tx, b2b, rx, sim)
-        else
-            soa2.GaindB = soa2.maxGaindB;
-        end
-        Gsoa.optimized(k) = soa2.GaindB;
-        soa2.GaindB
-        
-        ber.optimized(k) = soa_ber(mpam, tx, b2b, soa2, rx, sim);
+
+        ber.optimized(k) = soa_ber(mpam, tx, b2b, soaG, rx, sim);
 
         Ptx.optimized(k) = interp1(log10(ber.optimized(k).est), tx.PtxdBm, log10(sim.BERtarget), 'spline'); 
                 
@@ -156,19 +131,12 @@ function [Ptx, ber, Gsoa] = calc_power_sensitivity(M, FndB)
         disp('Optimized level spacing with Gaussian approximation')
         sim.stats = 'gaussian';
         mpam.level_spacing = 'optimized';
-        
-        if sim.optimize_gain && ~(soa3.GaindB >= 0.97*soa3.maxGaindB)
-            soa3.optimize_gain(mpam, tx, b2b, rx, sim)
-        else
-            soa3.GaindB = soa3.maxGaindB;
-        end
-        Gsoa.optimized_gauss(k) = soa3.GaindB;
-        soa3.GaindB
-        
-        ber.optimized_gauss(k) = soa_ber(mpam, tx, b2b, soa3, rx, sim);
+                
+        ber.optimized_gauss(k) = soa_ber(mpam, tx, b2b, soaG, rx, sim);
 
         Ptx.optimized_gauss(k) = interp1(log10(ber.optimized_gauss(k).est), tx.PtxdBm, log10(sim.BERtarget), 'spline'); 
 
+        %% Plot
         plot(tx.PtxdBm, log10(ber.eq_spaced(k).est), '-b')
         plot(tx.PtxdBm, log10(ber.eq_spaced(k).count), '--ob')
 

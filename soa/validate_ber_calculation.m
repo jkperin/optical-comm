@@ -49,7 +49,7 @@ sim.f = f;
 tx.PtxdBm = -24:1:-14;
 
 tx.lamb = 1310e-9;
-tx.RIN = -140;  % dB/Hz
+tx.RIN = -150;  % dB/Hz
 tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 %% fiber
@@ -66,7 +66,7 @@ rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 rx.optfilt = design_filter('fbg', 4, 200e9/(sim.fs/2));
 
 %% SOA
-soa = soa(20, 9, 1310e-9, 20); % soa(GaindB, NF, lambda, maxGaindB)
+soa = soa(20, 7, 1310e-9, 20); % soa(GaindB, NF, lambda, maxGaindB)
 
 %% Time and frequency
 dt = 1/sim.fs;

@@ -5,6 +5,7 @@
 *.emf
 *.mat
 !apd/results/apd_awgn_results_Ptx_vs_ka.mat
+!soa/results/soa_awgn_results_req_Ptx_vs_Fn.mat
 *.asv
 *.tikz
 *.zip
