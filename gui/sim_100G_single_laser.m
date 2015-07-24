@@ -198,23 +198,21 @@ function sim_100G_single_laser
    align([h.text.shot, h.check.shot], 'None', 'Bottom')
    
    %% APD
-   scale = 5.5;
-   dH = 1/5;
+   scale = 4.5;
+   dH = 1/3;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.apd = uipanel('Title', 'APD', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.check.GBw, h.text.GBw, h.GBw] = table_entry(h.panel.apd, [0 3*dH 1/scale], 'Gain-Bandwidth Product (GHz):', 340);
-   [h.text.ka, h.ka] = table_entry(h.panel.apd, [0 2*dH 1/scale], 'Impact Ionization Factor (ka):', 0.09);
-   [h.text.Gapd, h.Gapd] = table_entry(h.panel.apd, [0 dH 1/scale], 'Gain (dB):', 10, false);
-   [h.check.OptGapd, h.text.OptGapd, temp] = table_entry(h.panel.apd, [0 dH/4 1/scale], 'Optimize Gain:', 10);
-   set(temp, 'Visible', 'off')
-   set(h.check.OptGapd, 'Callback',...
-       @(source, eventdata) disable_handles_Callback(source, eventdata, [h.text.Gapd h.Gapd], true));
+   [h.check.GBw, h.text.GBw, h.GBw] = table_entry(h.panel.apd, [0 2*dH 1/scale], 'Finite Gain-Bandwidth Product (GHz):', 340, true,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
+   [h.text.ka, h.ka] = table_entry(h.panel.apd, [0 dH 1/scale], 'Impact Ionization Factor (ka):', 0.09);
+   [h.check.Gapd, h.text.Gapd, h.Gapd] = table_entry(h.panel.apd, [0 dH/4 1/scale], 'Set Gain (dB):', 10, false,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
    
-   align([h.check.GBw, h.text.ka, h.text.Gapd, h.check.OptGapd], 'None', 'Fixed', 6);
-   align([h.text.GBw, h.text.ka, h.text.Gapd, h.text.OptGapd], 'None', 'Fixed', 6);
-   align([h.GBw, h.ka, h.Gapd, temp], 'None', 'Fixed', 6);   
+   align([h.check.GBw, h.text.ka, h.check.Gapd], 'None', 'Fixed', 6);
+   align([h.text.GBw, h.text.ka, h.text.Gapd], 'None', 'Fixed', 6);
+   align([h.GBw, h.ka, h.Gapd], 'None', 'Fixed', 6);   
    
    %% SOA
    scale = 7;
@@ -223,24 +221,23 @@ function sim_100G_single_laser
    h.panel.soa = uipanel('Title', 'SOA', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.check.maxGsoa, h.text.maxGsoa, h.maxGsoa] = table_entry(h.panel.soa, [0 4*dH 1/scale], 'Maximum Gain (dB):', 20);
-   [h.text.Fn, h.Fn] = table_entry(h.panel.soa, [0 3*dH 1/scale], 'Noise Figure (dB):', 9);
-   [h.text.Gsoa, h.Gsoa] = table_entry(h.panel.soa, [0 2*dH 1/scale], 'Gain (dB):', 10);
-   
-   [h.text.optfiltType, h.optfiltType] = table_entry(h.panel.soa, [0 dH 1/scale], 'Optical Filter Type:', 0);
+   [h.text.Gsoa, h.Gsoa] = table_entry(h.panel.soa, [0 4*dH 1/scale], 'Gain (dB):', 20);
+   [h.text.Fn, h.Fn] = table_entry(h.panel.soa, [0 3*dH 1/scale], 'Noise Figure (dB):', 7);
+      
+   [h.text.optfiltType, h.optfiltType] = table_entry(h.panel.soa, [0 2*dH 1/scale], 'Optical Filter Type:', 0);
     set(h.optfiltType, 'Style', 'popupmenu');
-    set(h.optfiltType, 'String', {'Fabry-Perot', 'Fiber Brag Gratting'});
+    set(h.optfiltType, 'String', {'Fiber Brag Gratting', 'Fabry-Perot'});
     set(h.optfiltType, 'Position', get(h.optfiltType, 'Position') + [-0.1 0 0.1 0])
     set(h.optfiltType, 'FontSize', FontSize-1)
     align([h.text.optfiltType, h.optfiltType], 'None', 'Center');
-   
-   [h.text.Bopt, h.Bopt] = table_entry(h.panel.soa, [0 dH/4 1/scale], 'Optical Filter Bandwidth (GHz):', 200);
+    
+    [h.text.Bopt, h.Bopt] = table_entry(h.panel.soa, [0 dH 1/scale], 'Optical Filter Bandwidth (GHz):', 200);
+    [h.check.polarizer, h.text.polarizer, temp] = table_entry(h.panel.soa, [0 dH/4 1/scale], 'Polarization Tracking', 0, true,...
+        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
+    set(temp, 'Visible', 'off')
      
-   align([h.check.maxGsoa, h.text.Fn, h.text.Gsoa, h.text.optfiltType,...
-       h.text.Bopt], 'None', 'Fixed', 6);
-   align([h.text.maxGsoa, h.text.Fn, h.text.Gsoa, h.text.optfiltType,...
-       h.text.Bopt], 'None', 'Fixed', 6);
-   align([h.maxGsoa, h.Fn, h.Gsoa, h.optfiltType, h.Bopt], 'None', 'Fixed', 6); 
+   align([h.text.Gsoa, h.text.Fn, h.text.optfiltType, h.text.Bopt, h.text.polarizer], 'None', 'Fixed', 6);
+   align([h.Gsoa, h.Fn, h.optfiltType, h.Bopt, h.check.polarizer], 'None', 'Fixed', 6); 
          
    %% Simulation
    scale = 9;
@@ -517,13 +514,15 @@ function sim_100G_single_laser
              apd_child(k).Enable = apd_e;
          end
          
-         if get(h.check.OptGapd, 'Value')  
-             h.check.OptGapd.Callback(h.check.OptGapd, []);
-         end      
-         
-%         if get(h.check.OptGsoa, 'Value')  
-%              h.check.OptGsoa.Callback(h.check.OptGsoa, []);
-%          end      
+         %% Call callbacks
+         switch str{val}
+             case 'APD'
+                h.check.GBw.Callback(h.check.GBw, []);
+                h.check.Gapd.Callback(h.check.Gapd, []);
+             case 'SOA'
+                h.check.polarizer.Callback(h.check.polarizer, []);
+         end
+             
     end
 
     %% Auxiliary functions

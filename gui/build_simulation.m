@@ -158,39 +158,39 @@ switch getOption(h.popup.system)
         Bopt = 1e9*getValue(h.Bopt);
         sim.M = ceil(Bopt/mpam.Rs); % Ratio of optical filter BW and electric filter BW (must be integer)
         sim.Me = max(2*sim.M, 16);  % number of used eigenvalues
+        sim.polarizer = getLogicalValue(h.check.polarizer);
         
         % Optical Bandpass Filter
         rx.optfilt = design_filter(filterType, 0, Bopt/(sim.fs/2));
         
         GsoadB = getValue(h.Gsoa);
         Fn = getValue(h.Fn);
-        maxGsoadB = getValue(h.maxGsoa);
         
-        soa1 = soa(GsoadB, Fn, tx.lamb, maxGsoadB); 
-        
-        sim.OptimizeGain = false;
-               
+        soa1 = soa(GsoadB, Fn, tx.lamb, Inf); 
+                       
         apd1 = [];
         
         ofdm1 = [];
                      
     case 'APD'
-        GBw = 1e9*getValue(h.GBw);
+        if getLogicalValue(h.check.GBw)
+            GBw = 1e9*getValue(h.GBw);
+        else
+            GBw = Inf;
+        end
+        
         ka = getValue(h.ka);
         GapddB =  getValue(h.Gapd);
         
         apd1 = apd(GapddB, ka, GBw, rx.R, rx.Id);
         
-        sim.OptimizeGain = getLogicalValue(h.check.OptGapd);
+        sim.OptimizeGain = ~getLogicalValue(h.check.Gapd);
         
         soa1 = [];
         
         ofdm1 = [];
 end
    
-
-
-
 end
 
 function str = getOption(h)

@@ -58,11 +58,6 @@ if ~isempty(soa1)
     % frequency response)
     % klse_fourier(rx, sim, N, Hdisp)
     [rx.U_fourier, rx.D_fourier, rx.Fmax_fourier] = klse_fourier(rx, sim, sim.Mct*(mpam.M^sim.L + 2*sim.L)); 
-
-    if sim.OptimizeGain
-        soa1.optimize_gain(mpam, tx, fiber1, rx, sim);
-        GdB = soa1.GaindB;
-    end
     
     % BER
     disp('BER with SOA')
