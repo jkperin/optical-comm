@@ -19,9 +19,9 @@ sim.BERtarget = 1e-4;
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 
-sim.polarizer = true;
+sim.polarizer = false;
 sim.shot = true; % include shot noise in montecarlo simulation (always included for pin and apd case)
-sim.RIN = false; % include RIN noise in montecarlo simulation
+sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.verbose = false; % show stuff
 
 %% M-PAM

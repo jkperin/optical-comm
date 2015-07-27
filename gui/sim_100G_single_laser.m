@@ -264,11 +264,11 @@ function sim_100G_single_laser
 %    current_data = peaks_data;
 %    surf(current_data);
    % Assign the GUI a name to appear in the window title.
-   f.Name = '100G single-laser simulation';
+   set(f, 'Name', '100G single-laser simulation');
    % Move the GUI to the center of the screen.
    movegui(f,'center')
    % Make the GUI visible.
-   f.Visible = 'on';
+   set(f, 'Visible', 'on');
  
    %% Pushbutton Callbacks.
     function clear_Callback(source, eventdata)
@@ -348,8 +348,8 @@ function sim_100G_single_laser
    %% Popup Callbacks
     function popup_modulation_Callback(source, eventdata) 
          % Determine the selected data set.
-         str = source.String;
-         val = source.Value;
+         str = get(source, 'String');
+         val = get(source, 'Value');
          % Set current data to the selected data set.
          if strcmp(str{val}, 'M-PAM') % User selects Sinc.
              set_property([h.Nc, h.level, h.text.level, h.text.Nc, h.Nu,...
@@ -402,8 +402,8 @@ function sim_100G_single_laser
     end
 
     function popup_results_Callback(source, eventdata) 
-         str = source.String;
-         val = source.Value;
+         str = get(source, 'String');
+         val = get(source, 'Value');
          % Set current data to the selected data set.
          switch str{val}
              case 'BER vs Transmitted Power'
@@ -448,10 +448,10 @@ function sim_100G_single_laser
         set(h.D, 'String', num2str(D))        
     end
 
-    % Disable handles if source.String == value
+    % Disable handles if get(source, 'String') == value
     function disable_handles_Callback(source, ~, handles, value)
-         str = source.String;
-         val = source.Value;
+         str = get(source, 'String');
+         val = get(source, 'Value');
          
          off = false;
          if islogical(value)
@@ -473,8 +473,8 @@ function sim_100G_single_laser
         
     function popup_system_Callback(source, ~)
          % Determine the selected data set.
-         str = source.String;
-         val = source.Value;
+         str = get(source, 'String');
+         val = get(source, 'Value');
          % Set current data to the selected data set.
          switch str{val}
              case 'Basic'
@@ -508,10 +508,10 @@ function sim_100G_single_laser
          apd_child = allchild(h.panel.apd);
          soa_child = allchild(h.panel.soa);
          for k = 1:length(soa_child)
-             soa_child(k).Enable = soa_e;
+             set(soa_child(k), 'Enable', soa_e);
          end
          for k = 1:length(apd_child)
-             apd_child(k).Enable = apd_e;
+             set(apd_child(k), 'Enable', apd_e);
          end
          
          %% Call callbacks
