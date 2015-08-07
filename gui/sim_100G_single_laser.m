@@ -83,7 +83,7 @@ function sim_100G_single_laser
        'FontSize', FontSize, 'Callback', @clear_Callback);
    
    %% Transmitter Panel
-   scale = 12.5; %9.5
+   scale = 13; %9.5
    dH = 1/9;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.tx = uipanel('Title', 'Transmitter', 'FontSize', HeaderFontSize,...
@@ -215,7 +215,7 @@ function sim_100G_single_laser
    align([h.GBw, h.ka, h.Gapd], 'None', 'Fixed', 6);   
    
    %% SOA
-   scale = 7;
+   scale = 7.5;
    dH = 1/5;
    maxY = maxY - scale*BlockHeigth;
    h.panel.soa = uipanel('Title', 'SOA', 'FontSize', HeaderFontSize,...
