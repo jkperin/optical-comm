@@ -47,12 +47,19 @@ switch type
         % fcnorm = 1 / oversampling factor
         nmax = 256; % more than enough 
         pshape = order;
+        Mct = 1/fcnorm;
+        
         cumenergy = cumsum(abs(pshape(0:nmax-1)).^2)/sum(abs(pshape(0:nmax-1)).^2);
         nlength = find(cumenergy >= 0.9999, 1, 'first');
         
         num = conj(fliplr(pshape(0:nlength-1)));
         num = num/sum(num); % ensures unit gain at DC
         den = 1;
+        
+        % Note: if filtering with filter(num, den, x) the delay inserted by
+        % the transversal filter implementation must be removed, otherwise
+        % the matched filter will maximize the SNR not at the sampling
+        % instant (i.e., middle of the pulse)
         
         % Noise bandwidth
         nbw = @(fs) sum(abs(num).^2)*fs; % requires unit gain at DC
