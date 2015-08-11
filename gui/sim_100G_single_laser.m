@@ -113,29 +113,27 @@ function sim_100G_single_laser
    align([h.Ptx h.fc h.lamb h.rex h.rin h.rin_shape h.rin_variation h.rin_bw h.chirp], 'Right', 'Fixed', 6);
     
    %% Modulation Panel
-   scale = 11.6;
-   dH = 1/8;
+   scale = 10;
+   dH = 1/7;
    h.panel.mod = uipanel('Title', 'Modulation', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY-scale*BlockHeigth panelWidht scale*BlockHeigth]); 
    maxY = maxY - scale*BlockHeigth;
    
-   [h.text.M, h.M] = table_entry(h.panel.mod, [0 7*dH 1/scale], 'Constellation Size:', 4);
-   [h.text.pshape, h.pshape] = table_entry(h.panel.mod, [0 6*dH 1/scale], 'Pulse Shape:', 16);
+   [h.text.M, h.M] = table_entry(h.panel.mod, [0 6*dH 1/scale], 'Constellation Size:', 4);
+   [h.text.pshape, h.pshape] = table_entry(h.panel.mod, [0 5*dH 1/scale], 'Pulse Shape:', 16);
    set(h.pshape, 'Style', 'popupmenu');
    set(h.pshape, 'String', {'Rectangular', 'Root-Raised Cosine'});
    set(h.pshape, 'Position', get(h.pshape, 'Position') + [-0.1 0 0.1 0])
    set(h.pshape, 'FontSize', FontSize-1);
    align([h.text.pshape, h.pshape], 'None', 'Center');
    
-   [h.text.level, h.level] = table_entry(h.panel.mod, [0 5*dH 1/scale], 'Level Spacing:', 16);
+   [h.text.level, h.level] = table_entry(h.panel.mod, [0 4*dH 1/scale], 'Level Spacing:', 16);
    set(h.level, 'Style', 'popupmenu');
    set(h.level, 'String', {'Equal', 'Optimized'});
    set(h.level, 'Position', get(h.level, 'Position') + [-0.1 0 0.1 0])
    set(h.level, 'FontSize', FontSize-1);
    align([h.text.level, h.level], 'None', 'Center');
-   
-   [h.text.ros, h.ros] = table_entry(h.panel.mod, [0 4*dH 1/scale], 'Oversampling Ratio (ros):', 1);
-   
+     
    [h.text.Nc, h.Nc] = table_entry(h.panel.mod, [0 3*dH 1/scale], 'Number of Subcarriers: ', 64);
    [h.text.Nu, h.Nu] = table_entry(h.panel.mod, [0 2*dH 1/scale], 'Number of Used Subcarriers: ', 52);
    [h.text.palloc, h.palloc] = table_entry(h.panel.mod, [0 dH 1/scale], 'Power Allocation: ', 0);
@@ -148,8 +146,8 @@ function sim_100G_single_laser
    [h.text.rclip, h.rclip] = table_entry(h.panel.mod, [0 dH/4 1/scale], 'Clipping ratio (dB): ', 12);
       
    set_property([h.Nc, h.text.Nc, h.Nu, h.text.Nu, h.text.palloc, h.palloc, h.text.rclip, h.rclip], 'Enable', 'off');
-   align([h.text.M h.text.pshape, h.text.level h.text.ros h.text.Nc h.text.Nu h.text.palloc, h.text.rclip], 'None', 'Fixed', 6);
-   align([h.M h.pshape h.level h.ros h.Nc h.Nu h.palloc, h.rclip], 'Right', 'Fixed', 6)
+   align([h.text.M h.text.pshape, h.text.level h.text.Nc h.text.Nu h.text.palloc, h.text.rclip], 'None', 'Fixed', 6);
+   align([h.M h.pshape h.level h.Nc h.Nu h.palloc, h.rclip], 'Right', 'Fixed', 6)
    
    %% Fiber
    scale = 4.5; % 4
@@ -193,14 +191,38 @@ function sim_100G_single_laser
    
    set(h.rxfilterType, 'Callback', @(src,evt) disable_handles_Callback(src, evt, [h.rxfilterN  h.rxfilterBw h.text.rxfilterBw], 'Matched'))
    
-   
    align([h.text.rxfilter, h.rxfilterType], 'None', 'Center');
    align([h.text.shot, h.check.shot], 'None', 'Bottom')
+   
+   %% Equalization
+   scale = 6;
+   dH = 1/5;
+   maxY = 1-h.panel.sim_height-scale*BlockHeigth;
+   h.panel.eq = uipanel('Title', 'Equalization', 'FontSize', HeaderFontSize,...
+       'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
+   
+   [h.text.eq_type, h.eq_type] = table_entry(h.panel.eq, [0 3*dH 1/scale], 'Equalization Type:', 0);
+   set(h.eq_type, 'Style', 'popupmenu');
+   set(h.eq_type, 'String', {'None', 'Analog', 'Fixed Time-Domain FS-LE',...
+       'Adaptive Time-Domain FS-LE'});
+       %'Fixed Frequency-Domain FS-LE',...
+       %'Adaptive Frequency-Domain FS-LE'
+   set(h.eq_type, 'Callback', @ (src, evt) eq_types_Callback(src, evt));
+   set(h.eq_type, 'FontSize', FontSize-1);
+   set(h.eq_type, 'Position', get(h.eq_type, 'Position') + [-0.1 0 0.1 0])
+   
+   
+   [h.text.eq_ros, h.eq_ros] = table_entry(h.panel.eq, [0 2*dH 1/scale], 'Oversampling Ratio: ', 2);   
+   [h.text.eq_taps, h.eq_taps] = table_entry(h.panel.eq, [0 dH 1/scale], 'Number of taps:', 15);   
+   [h.text.eq_mu, h.eq_mu] = table_entry(h.panel.eq, [0 dH/4 1/scale], 'Adaptation step (mu):', 1e-2);   
+   
+   align([h.text.eq_type, h.text.eq_ros, h.text.eq_taps, h.text.eq_mu], 'None', 'Fixed', 6);
+   align([h.eq_type, h.eq_ros, h.eq_taps, h.eq_mu], 'None', 'Fixed', 6);   
    
    %% APD
    scale = 4.5;
    dH = 1/3;
-   maxY = 1-h.panel.sim_height-scale*BlockHeigth;
+   maxY = maxY-scale*BlockHeigth;
    h.panel.apd = uipanel('Title', 'APD', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
@@ -259,6 +281,17 @@ function sim_100G_single_laser
    align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.check.quantiz, h.text.Lseq], 'None', 'Fixed', 6);
    align([h.Rb, h.BER, h.Nsymb, h.Mct, h.ENOB h.Lseq], 'None', 'Fixed', 6);
    
+   
+   %% ADS co-simulaton
+   scale = 3;
+   dH = 1/1;
+   maxY = maxY - scale*BlockHeigth;
+   h.panel.ads = uipanel('Title', 'ADS Co-Simulation', 'FontSize', HeaderFontSize,...
+       'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
+   
+   [h.check.ads, h.text.ads, temp] = table_entry(h.panel.ads, [0 dH/4 1/scale], 'Compare with ADS DFB model', 0);
+   set(temp, 'Visible', 'off')
+   
    %Create a plot in the axes.
    popup_system_Callback(h.popup.system, 0)
 %    current_data = peaks_data;
@@ -269,7 +302,14 @@ function sim_100G_single_laser
    movegui(f,'center')
    % Make the GUI visible.
    set(f, 'Visible', 'on');
- 
+   
+   %% Call callbacks
+   popup_modulation_Callback(h.popup.modulation, 0);
+   popup_results_Callback(h.popup.results, 0);
+   popup_system_Callback(h.popup.system, 0);
+   update_dispersion_Callback(h.lamb, 0);
+   eq_types_Callback(h.eq_type, 0);  
+    
    %% Pushbutton Callbacks.
     function clear_Callback(source, eventdata)
         cla(h.axes.results)
@@ -355,7 +395,7 @@ function sim_100G_single_laser
              set_property([h.Nc, h.level, h.text.level, h.text.Nc, h.Nu,...
                  h.text.Nu, h.palloc, h.text.palloc, h.text.rclip, h.rclip], 'Enable', 'off')
              set_property([h.level, h.text.level h.pshape h.text.pshape, h.text.rxfilter, h.rxfilterN,...
-                 h.text.rxfilterBw, h.rxfilterBw, h.text.ros, h.ros, h.Lseq, h.text.Lseq], 'Enable', 'on')
+                 h.text.rxfilterBw, h.rxfilterBw, h.Lseq, h.text.Lseq], 'Enable', 'on')
                           
              set(h.popup.system, 'String', {'Basic', 'SOA', 'APD'})
              set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'})
@@ -372,8 +412,11 @@ function sim_100G_single_laser
                      imshow('data/mpam-apd.png', 'Parent', h.axes.block_diagram)
              end
              
+            % Equalization
+             set_property([h.text.eq_type, h.eq_type], 'Enable', 'on');
+             h.eq_type.Callback(h.eq_type, 0);             
+             
              set(h.M, 'String', 4); 
-             set(h.ros, 'String', 1);
              set(h.Ptx, 'String', '-30:2:-10')
              set(h.Nsymb, 'String', num2str(2^14))
              set(h.Mct, 'String', num2str(15))     
@@ -382,15 +425,19 @@ function sim_100G_single_laser
                  h.text.rclip, h.rclip, h.text.rxfilter, h.rxfilterN,...
                  h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'on')
              set_property([h.level, h.text.level h.pshape h.text.pshape,...
-                 h.text.ros, h.ros, h.Lseq, h.text.Lseq, h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'off')
+                 h.Lseq, h.text.Lseq, h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'off')
+             
+             % Equalization
+             eq_child = allchild(h.panel.eq);
+             for k = 1:length(eq_child)
+               set(eq_child(k), 'Enable', 'off');
+             end
              
              set(h.rxfilterType, 'String', {'Gaussian', 'Bessel'})
              set(h.rxfilterType, 'Value', 1);
              set(h.rxfilterType, 'Callback', @(src,evt) [])
              
              set(h.popup.system, 'String', {'Basic'})
-            
-             set(h.ros, 'String', num2str(getValue(h.Nc)/getValue(h.Nu), 3))
                       
              imshow('data/ofdm.png', 'Parent', h.axes.block_diagram)
              
@@ -440,10 +487,11 @@ function sim_100G_single_laser
          end               
     end
 
+    % Update value of dispersion parameter if modulator wavelength changes
     function update_dispersion_Callback(src, evt)       
-        lamb = 1e-9*str2double(get(h.lamb, 'String'));
+        lamb = str2double(get(h.lamb, 'String'));
         
-        D = 1e6*fiber.S0/4*(lamb - fiber.lamb0^4./(lamb.^3)); % Dispersion curve
+        D = 1e-3*fiber.S0/4*(lamb - (1e9*fiber.lamb0)^4./(lamb.^3)); % Dispersion curve
         
         set(h.D, 'String', num2str(D))        
     end
@@ -523,6 +571,24 @@ function sim_100G_single_laser
                 h.check.polarizer.Callback(h.check.polarizer, []);
          end
              
+    end
+
+    function eq_types_Callback(src, evt)
+         str = get(src, 'String');
+         val = get(src, 'Value');
+         switch str{val}
+             case 'None'
+                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu], 'Enable', 'off');
+             case 'Analog'
+                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu], 'Enable', 'off');
+             case 'Fixed Time-Domain FS-LE'
+                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps], 'Enable', 'on');
+                 set_property([h.text.eq_mu, h.eq_mu], 'Enable', 'off');
+             case 'Adaptive Time-Domain FS-LE'
+                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu], 'Enable', 'on');           
+             otherwise
+                 error('Callback for equalizaton type [%s] not implemented yet\n', str{val});
+         end                      
     end
 
     %% Auxiliary functions
