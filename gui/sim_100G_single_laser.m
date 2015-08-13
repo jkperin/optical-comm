@@ -195,16 +195,16 @@ function sim_100G_single_laser
    align([h.text.shot, h.check.shot], 'None', 'Bottom')
    
    %% Equalization
-   scale = 6;
-   dH = 1/5;
+   scale = 7;
+   dH = 1/6;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.eq = uipanel('Title', 'Equalization', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.text.eq_type, h.eq_type] = table_entry(h.panel.eq, [0 3*dH 1/scale], 'Equalization Type:', 0);
+   [h.text.eq_type, h.eq_type] = table_entry(h.panel.eq, [0 4*dH 1/scale], 'Equalization Type:', 0);
    set(h.eq_type, 'Style', 'popupmenu');
-   set(h.eq_type, 'String', {'None', 'Analog', 'Fixed Time-Domain FS-LE',...
-       'Adaptive Time-Domain FS-LE'});
+   set(h.eq_type, 'String', {'None', 'Analog', 'Fixed TD-FS-LE',...
+       'Adaptive TD-FS-LE'});
        %'Fixed Frequency-Domain FS-LE',...
        %'Adaptive Frequency-Domain FS-LE'
    set(h.eq_type, 'Callback', @ (src, evt) eq_types_Callback(src, evt));
@@ -212,12 +212,13 @@ function sim_100G_single_laser
    set(h.eq_type, 'Position', get(h.eq_type, 'Position') + [-0.1 0 0.1 0])
    
    
-   [h.text.eq_ros, h.eq_ros] = table_entry(h.panel.eq, [0 2*dH 1/scale], 'Oversampling Ratio: ', 2);   
-   [h.text.eq_taps, h.eq_taps] = table_entry(h.panel.eq, [0 dH 1/scale], 'Number of taps:', 15);   
-   [h.text.eq_mu, h.eq_mu] = table_entry(h.panel.eq, [0 dH/4 1/scale], 'Adaptation step (mu):', 1e-2);   
+   [h.text.eq_ros, h.eq_ros] = table_entry(h.panel.eq, [0 3*dH 1/scale], 'Oversampling Ratio: ', 2);   
+   [h.text.eq_taps, h.eq_taps] = table_entry(h.panel.eq, [0 2*dH 1/scale], 'Number of taps:', 15);   
+   [h.text.eq_mu, h.eq_mu] = table_entry(h.panel.eq, [0 dH 1/scale], 'Adaptation step (mu):', 1e-2);   
+   [h.text.eq_Ntrain, h.eq_Ntrain] = table_entry(h.panel.eq, [0 dH/4 1/scale], 'Training Sequence Length:', 1e3);   
    
-   align([h.text.eq_type, h.text.eq_ros, h.text.eq_taps, h.text.eq_mu], 'None', 'Fixed', 6);
-   align([h.eq_type, h.eq_ros, h.eq_taps, h.eq_mu], 'None', 'Fixed', 6);   
+   align([h.text.eq_type, h.text.eq_ros, h.text.eq_taps, h.text.eq_mu h.text.eq_Ntrain], 'None', 'Fixed', 6);
+   align([h.eq_type, h.eq_ros, h.eq_taps, h.eq_mu h.eq_Ntrain], 'None', 'Fixed', 6);   
    
    %% APD
    scale = 4.5;
@@ -268,7 +269,7 @@ function sim_100G_single_laser
    h.panel.param = uipanel('Title', 'Simulation', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.text.Rb, h.Rb] = table_entry(h.panel.param, [0 5*dH 1/scale], 'Bit Rate (Gbps):', 100);
+   [h.text.Rb, h.Rb] = table_entry(h.panel.param, [0 5*dH 1/scale], 'Bit Rate (Gbps):', 50);
    [h.text.BER, h.BER] = table_entry(h.panel.param, [0 4*dH 1/scale], 'Target BER: ', 1e-4);
    [h.text.Nsymb, h.Nsymb] = table_entry(h.panel.param, [0 3*dH 1/scale], 'Number of Symbols:', 2^15);
    [h.text.Mct, h.Mct] = table_entry(h.panel.param, [0 2*dH 1/scale], 'Oversampling Ratio for Continuous Time:', 15);
@@ -289,7 +290,7 @@ function sim_100G_single_laser
    h.panel.ads = uipanel('Title', 'ADS Co-Simulation', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.check.ads, h.text.ads, temp] = table_entry(h.panel.ads, [0 dH/4 1/scale], 'Compare with ADS DFB model', 0);
+   [h.check.ads, h.text.ads, temp] = table_entry(h.panel.ads, [0 dH/4 1/scale], 'Compare with ADS DFB model', 0, false);
    set(temp, 'Visible', 'off')
    
    %Create a plot in the axes.
@@ -325,6 +326,10 @@ function sim_100G_single_laser
                 switch getOption(h.popup.modulation)
                     case 'M-PAM'
                         [ber, GdB] = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                        
+                        if getLogicalValue(h.check.ads)
+                            ber_ads = mpam_ber_vs_Ptx_ADS(mpam, tx, fiber1, rx, sim);
+                        end
                     case 'DMT/OFDM'
                         ber = ofdm_ber_vs_Ptx(ofdm1, tx, fiber1, rx, sim);
                 end
@@ -345,6 +350,10 @@ function sim_100G_single_laser
                 xlabel('Transmitted Power (dBm)')
                 ylabel('log_{10}(BER)')
                 legend('Montecarlo', 'Estimated')
+                if exist('ber_ads', 'var')
+                    plot(tx.PtxdBm, log10(ber_ads), '-*', 'Color', get(hline, 'Color'))
+                    legend('Montecarlo', 'Estimated', 'ADS')
+                end
                 a = axis;
                 axis([min(a(1), tx.PtxdBm(1)) max(a(2), tx.PtxdBm(end)) ceil(2*log10(sim.BERtarget)) 0])
                 
@@ -578,14 +587,14 @@ function sim_100G_single_laser
          val = get(src, 'Value');
          switch str{val}
              case 'None'
-                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu], 'Enable', 'off');
+                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
              case 'Analog'
-                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu], 'Enable', 'off');
-             case 'Fixed Time-Domain FS-LE'
+                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
+             case 'Fixed TD-FS-LE'
                  set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps], 'Enable', 'on');
-                 set_property([h.text.eq_mu, h.eq_mu], 'Enable', 'off');
-             case 'Adaptive Time-Domain FS-LE'
-                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu], 'Enable', 'on');           
+                 set_property([h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
+             case 'Adaptive TD-FS-LE'
+                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'on');           
              otherwise
                  error('Callback for equalizaton type [%s] not implemented yet\n', str{val});
          end                      

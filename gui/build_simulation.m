@@ -139,6 +139,15 @@ end
 rx.filterN = getValue(h.rxfilterN);
 rx.filterBw = 1e9*getValue(h.rxfilterBw);
    
+%% Equalization
+str = get(h.eq_type, 'String');
+val = get(h.eq_type, 'Value');
+rx.eq.type = str{val};
+rx.eq.ros = getValue(h.eq_ros);
+rx.eq.Ntaps = getValue(h.eq_taps);
+rx.eq.mu = getValue(h.eq_mu);
+rx.eq.Ntrain = getValue(h.eq_Ntrain);
+
 switch getOption(h.popup.system)
     case 'Basic'
         apd1 = [];

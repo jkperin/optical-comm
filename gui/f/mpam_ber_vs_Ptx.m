@@ -45,9 +45,8 @@ end
 
 %% Receiver
 if strcmp(rx.filter.type, 'matched')
-%     % Electric Lowpass Filter
-    rx.elefilt = design_filter('matched', @(t) conv(mpam.pshape(t), 1/sim.fs*tx.modulator.h(t/sim.fs), 'full') , 1/sim.Mct);
-%     rx.elefilt = design_filter('matched', @(t) mpam.pshape(t), 1/sim.Mct);
+    % Electric Lowpass Filter
+    rx.elefilt = design_filter('matched', @(t) mpam.pshape(t), 1/sim.Mct);
 else
     rx.elefilt = design_filter(rx.filter.type, rx.filterN, rx.filterBw/(sim.fs/2));
 end
