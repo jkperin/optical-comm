@@ -131,9 +131,7 @@ S_{shot} = G^2F_A(G)\cdot 2q(RP_{rec} + I_d)
 
 \underline{The excess noise factor is equal to the APD noise figure}, where the noise figure is defined as the ratio between the $SNR_{in}$ assuming detection with a photodiode with no dark current, and $SNR_{out}$ assuming detection with an APD with no dark current.
 \begin{align}
-F_n &= \frac{SNR_{in}}{SNR_{out}} = \frac{\frac{(R\bar{P})^2}{2qR\bar{P}\Delta f}}{\frac{(GR\bar{P})^2}{G^2F_A(G)\cdot 2qR\bar{P}\Delta f}} = F_A(G) \\ \nonumber
-& = k_AG + (1-k_A)\Big(2 - \frac{1}{G}\Big) \\
-& \approx k_AG + 2(1-k_A)
+F_n &= \frac{SNR_{in}}{SNR_{out}} = \frac{\frac{(R\bar{P})^2}{2qR\bar{P}\Delta f}}{\frac{(GR\bar{P})^2}{G^2F_A(G)\cdot 2qR\bar{P}\Delta f}} = F_A(G)
 \end{align}
 
 \textbf{BER with equally-spaced levels}
@@ -142,7 +140,13 @@ BER = \frac{1}{M}Q\bigg(\frac{\Delta P}{\sqrt{\sigma_{0}^2 + \sigma_T^2}}\bigg) 
 \end{equation}
 where $\sigma_{i}^2$ signal-dependent noise variance of the $i$th level, $\sigma_{T}$ is thermal noise variance or any other signal-independent noise, $\Delta P = \frac{2\bar{P}}{M-1}\frac{1-r_{ex}}{1 + r_{ex}}$ is the level spacing.
 
-\
+\subsection{Power Penalty vs Noise Figure}
+
+Shot noise is dominant, and the BER is determined by the argument of the Q-function
+\begin{equation}
+\frac{\Delta P}{\sigma_{shot}} \propto \frac{GP}{\sqrt{G^2F_A(G)P}} = \sqrt{\frac{P}{F_A(G)}}
+\end{equation}
+Thus, 1-dB increase in the noise figure corresponds in 1-dB power penalty. However, for APD the noise figure depends on the operation point i.e., Gain.
 
 \begin{thebibliography}{9}
 \bibitem{personick-comp-4methos} Personick, S. D., Balaban, P., Bobsin, J. H., and Kumar, P.; ``R.A Detailed Comparison of Four Approaches to the Calculation of the Sensitivity of Optical Fiber System Receivers,'' \emph{IEEE Transactions on Communications}, 1976.

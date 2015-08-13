@@ -67,6 +67,14 @@ Spontaneous-spontaneous beat noise PSD is not white; it decays linearly with fre
 \sigma^2_{sp-sp} = 2N_{pol}R^2S_{sp}^2\Delta\nu_{opt}\Delta f = \frac{1}{2}N_{pol}R^2N_0^2\Delta\nu_{opt}\Delta f 
 \end{equation}
 
+\subsection{Power Penalty vs Noise Figure}
+
+The signal-spontaneous beat noise is dominant, and the BER is determined by the argument of the Q-function
+\begin{equation}
+\frac{\Delta P}{\sigma_{sig-sp}} \propto \frac{GP}{\sqrt{G^2PF_n}} = \sqrt{\frac{P}{F_n}}
+\end{equation}
+Thus, 1-dB increase in the noise figure corresponds in 1-dB power penalty.
+
 \section{ASE -- Karhunen-Loéve Series Expansion for MGF Calculation} 
 
 \subsection{Definitions}
