@@ -48,6 +48,12 @@ classdef PAM < handle
             this.a = levels/levels(end);
             this.b = thresholds/levels(end);
         end
+        
+        % Normalize levels so that last level is unit
+        function norm_levels(this)
+            this.b = this.b/this.a(end);
+            this.a = this.a/this.a(end);
+        end
                     
         % Adjust levels to desired transmitted power and extinction ratio
         function [Plevels, Pthresh] = adjust_levels(this, Ptx, rexdB)

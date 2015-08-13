@@ -78,7 +78,7 @@ end
 
 %% Transmitter
 tx.PtxdBm = eval(get(h.Ptx, 'String'));
-tx.lamb = 1e-9*getValue(h.lamb);
+tx.lamb = 1e-9*eval(getString(h.lamb));
 tx.kappa = 1;
 
 if getLogicalValue(h.check.chirp)
@@ -89,8 +89,8 @@ if sim.RIN
     tx.RIN = getValue(h.rin);   % RIN in dB/Hz. Only used if sim.RIN is true
     if getLogicalValue(h.check.rin_shape)
         g = getValue(h.rin_shape);
-        tx.RIN_variation = getValue(h.rin_variation);
-        tx.RIN_bw = 1e9*getValue(h.rin_bw);
+        tx.RIN_variation = h.default.RIN_variation;
+        tx.RIN_bw = h.default.RIN_bw;
         tx.RIN_shape = @(f, fr) (f.^2 + (g/(2*pi)).^2)./((fr^2-f.^2).^2 + f.^2*(g/(2*pi)).^2);
     end
 else
@@ -132,6 +132,8 @@ switch getOption(h.rxfilterType)
         rx.filter.type = 'gaussian';
     case 'Bessel'
         rx.filter.type = 'bessel';
+    case 'Butterworth'
+        rx.filter.type = 'butter';
     otherwise
         error('Invalid receiever filter option')
 end
@@ -139,6 +141,15 @@ end
 rx.filterN = getValue(h.rxfilterN);
 rx.filterBw = 1e9*getValue(h.rxfilterBw);
    
+%% Equalization
+str = get(h.eq_type, 'String');
+val = get(h.eq_type, 'Value');
+rx.eq.type = str{val};
+rx.eq.ros = getValue(h.eq_ros);
+rx.eq.Ntaps = getValue(h.eq_taps);
+rx.eq.mu = getValue(h.eq_mu);
+rx.eq.Ntrain = getValue(h.eq_Ntrain);
+
 switch getOption(h.popup.system)
     case 'Basic'
         apd1 = [];
@@ -158,39 +169,39 @@ switch getOption(h.popup.system)
         Bopt = 1e9*getValue(h.Bopt);
         sim.M = ceil(Bopt/mpam.Rs); % Ratio of optical filter BW and electric filter BW (must be integer)
         sim.Me = max(2*sim.M, 16);  % number of used eigenvalues
+        sim.polarizer = getLogicalValue(h.check.polarizer);
         
         % Optical Bandpass Filter
         rx.optfilt = design_filter(filterType, 0, Bopt/(sim.fs/2));
         
         GsoadB = getValue(h.Gsoa);
         Fn = getValue(h.Fn);
-        maxGsoadB = getValue(h.maxGsoa);
         
-        soa1 = soa(GsoadB, Fn, tx.lamb, maxGsoadB); 
-        
-        sim.OptimizeGain = false;
-               
+        soa1 = soa(GsoadB, Fn, tx.lamb, Inf); 
+                       
         apd1 = [];
         
         ofdm1 = [];
                      
     case 'APD'
-        GBw = 1e9*getValue(h.GBw);
+        if getLogicalValue(h.check.GBw)
+            GBw = 1e9*getValue(h.GBw);
+        else
+            GBw = Inf;
+        end
+        
         ka = getValue(h.ka);
         GapddB =  getValue(h.Gapd);
         
         apd1 = apd(GapddB, ka, GBw, rx.R, rx.Id);
         
-        sim.OptimizeGain = getLogicalValue(h.check.OptGapd);
+        sim.OptimizeGain = ~getLogicalValue(h.check.Gapd);
         
         soa1 = [];
         
         ofdm1 = [];
 end
    
-
-
-
 end
 
 function str = getOption(h)
