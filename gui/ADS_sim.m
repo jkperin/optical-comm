@@ -18,11 +18,17 @@ sim.N = N; % number points in 'continuous-time' simulation
 
 sim.BERtarget = 1e-4;
 
-sim.shot = true; % include shot noise in montecarlo simulation (always included for pin and apd case)
-sim.RIN = ~true; % include RIN noise in montecarlo simulation
+sim.shot = ~true; % include shot noise in montecarlo simulation (always included for pin and apd case)
+sim.RIN = true; % include RIN noise in montecarlo simulation
 
 sim.verbose = false; % show stuff
 sim.Ndiscard = 8; % number of symbols to be discarded from the begning and end of the sequence
+
+% Equalization
+eq.ros = 2;
+eq.Ntaps = 15;
+eq.Ntrain = 5e3;
+eq.mu = 1e-2;
 
 % Time and frequency
 sim.fs = mpam.Rs*Mct;  % sampling frequency in 'continuous-time'
@@ -36,7 +42,8 @@ sim.t = t;
 sim.f = f;
 
 % Transmitter
-tx.PtxdBm = -20:2:10*log10(8);
+% tx.PtxdBm = -22:-8;
+tx.PtxdBm = 10*log10(8);
 tx.lamb = 1310e-9;
 tx.alpha = 0;
 tx.RIN = -140;
@@ -71,11 +78,13 @@ imp = impz(1-a, [1 -a]);
 
 % Matched filter
 % rx.elefilt = design_filter('matched', @(n) conv(mpam.pshape(n), imp), 1/sim.Mct);
-rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
+Hmatched = design_filter('matched', mpam.pshape, 1/sim.Mct);
+rx.elefilt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
+% rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 
 % AWGN results
 % Auxiliary variables
-Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
+Deltaf = Hmatched.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
 % function to calculate noise std
 varTherm = rx.N0*Deltaf; % variance of thermal noise
 
@@ -90,18 +99,13 @@ noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + pin.var_shot(Plevel, Delt
 % Overall link gain
 link_gain = fiber.link_attenuation(tx.lamb)*pin.R;
 
-% Equalization
-% Hfilt = (abs(sim.f) <= mpam.Rs); % square window
-filt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
-Hfilt = filt.H(sim.f/sim.fs);
-% Hfilt = 1;
-Heq = abs(1./tx.modulator.H(sim.f).*Hfilt);
-% Heq = Hfilt.*abs(1./(tx.modulator.H(sim.f) + varTherm));
-
 % Zeroed samples 
-ndiscard = [1:sim.Ndiscard sim.Nsymb-sim.Ndiscard:sim.Nsymb];
+ndiscard = [1:(sim.Ndiscard+eq.Ntrain) (sim.Nsymb-sim.Ndiscard-eq.Ntrain):sim.Nsymb];
 
 dataTXref = mpam.demod(xtref(sim.Mct/2+1:sim.Mct:length(xtref)));
+
+% Equalization
+eq.TrainSeq = dataTXref;
 
 Ptx = dBm2Watt(tx.PtxdBm);
 for k = 1:length(Ptx)
@@ -111,8 +115,9 @@ for k = 1:length(Ptx)
     mpam.adjust_levels(tx.Ptx, tx.rexdB);
     % BER for AWGN channel
     ber.awgn(k) = mpam.ber_awgn(noise_std);
-    
+   
     xt = mpam.mod(dataTXref, sim.Mct);
+    
 %     xt = filter(1-a, [1 -a], xt);
 
     Ptads = Pout.'/mean(Pout)*tx.Ptx;
@@ -132,69 +137,64 @@ for k = 1:length(Ptx)
     yt = pin.detect(Pt, sim.fs, 'gaussian', rx.N0);
     ytads = pin.detect(Ptads, sim.fs, 'gaussian', rx.N0);
   
-	% Electric low-pass filter (matched filter)
-    yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(sim.f/sim.fs))));
-    ytads = real(ifft(fft(ytads).*ifftshift(rx.elefilt.H(sim.f/sim.fs))));
-    
-%     eyediagram(yt, 2*Mct)
+    % Automatic gain control
+    Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10));
+    yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
+    ytads = ytads/(Pmax*link_gain);
+    mpam.norm_levels;
     
     % Equalization
-    yt = real(ifft(fft(yt).*ifftshift(Heq)));
-    ytads = real(ifft(fft(ytads).*ifftshift(Heq)));
-    
-%     eyediagram(ytads, 2*Mct)
-%     hold on
-%     bb = Pthresh.'/mean(Pout)*tx.Ptx;
-%     for kk = 1:length(Pthresh)
-%         plot([-0.5 0.5], bb(kk)*[1 1], 'k')
-%    end
-
-	% Sample
-    yd = yt(sim.Mct/2+1:sim.Mct:end);
-    ydads = ytads(sim.Mct/2+1:sim.Mct:end);
-
+    eq_type = 'Analog';
+    [yd, Heq] = equalize(eq_type, yt, mpam, tx, fiber, rx, eq, sim);
+    ydads = equalize(eq_type, ytads, mpam, tx, fiber, rx, eq, sim);
+   
     % Discard first and last sim.Ndiscard symbols
     yd(ndiscard) = []; 
     ydads(ndiscard) = [];
     dataTX = dataTXref;
     dataTX(ndiscard) = [];
     
-    % Detect
+    % Detect ADS signal
     if mpam.M == 2
         ydads = ydads - mean(ytads);
         dataRXads = zeros(size(ydads)).';
         dataRXads(ydads > 0) = 1;
     else        
-        btemp = mpam.b;
-        mpam.b = link_gain*Pthresh.'/mean(Pout)*tx.Ptx;
         dataRXads = mpam.demod(ydads);
-        mpam.b = btemp;
     end
-   
-	% Automatic gain control
-    yd = yd/link_gain; % just refer power values back to transmitter
-
-	% Demodurlate
+    
+    % Demodulate
     dataRX = mpam.demod(yd);
-
+    
     % BER
     [~, ber.sim(k)] = biterr(dataRX, dataTX);
     [~, ber.ads(k)] = biterr(dataRXads, dataTX);
-      
-%     AWGN  
-%     mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
-
-%     ber.awgn(k) = mpam.ber_awgn(noise_std);
+    ber.awgn2(k) = mpam.ber_awgn(@(P) sqrt(rx.N0/2)/(Pmax*link_gain)*sqrt(trapz(sim.f, abs(Heq.^2))));
+    1;
 end
+
+% [H, w] = freqz(Heq(end:-1:1), 1);
+% figure, hold on
+% plot(2*mpam.Rs/1e9*w/(2*pi), abs(H).^2)
 
 figure, hold on, grid on, box on
 plot(tx.PtxdBm, log10(ber.sim), '-o')
 plot(tx.PtxdBm, log10(ber.ads), '-o')
 plot(tx.PtxdBm, log10(ber.awgn), '-')
+plot(tx.PtxdBm, log10(ber.awgn2), '--')
 xlabel('Transmitted Power (dBm)')
 ylabel('log_{10}(BER)')
-legend('Matlab Simulation', 'ADS-DFB model', 'AWGN')
+legend('Matlab Simulation', 'ADS-DFB model', 'AWGN', 'AWGN noise enhanced')
 axis([tx.PtxdBm([1 end]) -5 0])
+% 
+figure
+plot(sim.f/1e9, abs(Heq).^2)
+
+% figure
+% plot(sim.f/1e9, abs(Heq).^2)
+% xlabel('Frequency (GHz)')
+% ylabel('|H_{eq}(f)|^2')
+% axis([0 2*mpam.Rs/1e9 0 1.2*max(abs(Heq).^2)])
 
 % rise_time = 5e-12;
 % tau = rise_time/2.197;
