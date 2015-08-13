@@ -1,10 +1,9 @@
 clear, clc, close all
 
-CodesPath = 'C:\Users\jose.krauseperin\Documents\codes';
-
-addpath([CodesPath '\f\'])
-addpath([CodesPath '\mpam\'])
-addpath([CodesPath '\apd\'])
+addpath data
+addpath ..\f\
+addpath ..\mpam\
+addpath ..\apd\
 
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
@@ -42,8 +41,8 @@ sim.t = t;
 sim.f = f;
 
 % Transmitter
-% tx.PtxdBm = -22:-8;
-tx.PtxdBm = 10*log10(8);
+tx.PtxdBm = -4;
+% tx.PtxdBm = 10*log10(8);
 tx.lamb = 1310e-9;
 tx.alpha = 0;
 tx.RIN = -140;
@@ -79,7 +78,7 @@ imp = impz(1-a, [1 -a]);
 % Matched filter
 % rx.elefilt = design_filter('matched', @(n) conv(mpam.pshape(n), imp), 1/sim.Mct);
 Hmatched = design_filter('matched', mpam.pshape, 1/sim.Mct);
-rx.elefilt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
+rx.elefilt = design_filter('bessel', 5, 0.7*mpam.Rs/(sim.fs/2));
 % rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 
 % AWGN results
@@ -120,7 +119,7 @@ for k = 1:length(Ptx)
     
 %     xt = filter(1-a, [1 -a], xt);
 
-    Ptads = Pout.'/mean(Pout)*tx.Ptx;
+    Ptads = Poutnf.'/mean(Poutnf)*tx.Ptx;
     
     xt([sim.Mct*sim.Ndiscard end-sim.Mct*sim.Ndiscard:end]) = 0; % zero sim.Ndiscard last symbbols
     Ptads([sim.Mct*sim.Ndiscard end-sim.Mct*sim.Ndiscard:end]) = 0; % zero sim.Ndiscard last symbbols
@@ -144,7 +143,7 @@ for k = 1:length(Ptx)
     mpam.norm_levels;
     
     % Equalization
-    eq_type = 'Analog';
+    eq_type = 'None';
     [yd, Heq] = equalize(eq_type, yt, mpam, tx, fiber, rx, eq, sim);
     ydads = equalize(eq_type, ytads, mpam, tx, fiber, rx, eq, sim);
    

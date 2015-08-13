@@ -1,9 +1,4 @@
 function [ber, GdB] = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim)
-addpath ../f % general functions
-addpath ../soa
-addpath ../soa/f
-addpath ../apd
-addpath ../apd/f
 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 
@@ -26,7 +21,7 @@ tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator
 tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
 if isfield(tx, 'RIN_shape') 
-    RIN_shapedB = tx.RIN_shape(f/1e9, 30); %tx.modulator.fc/1e9);
+    RIN_shapedB = tx.RIN_shape(f/1e9, tx.modulator.fc/1e9);
     RIN_shapedB = RIN_shapedB*tx.RIN_variation/max(RIN_shapedB) + tx.RIN - tx.RIN_variation;
     RIN_shape = 10.^(RIN_shapedB/10 + realmin);
     RIN_shapedB = 10*log10(10.^(tx.RIN/10)*tx.RIN_bw*RIN_shape/trapz(sim.f(abs(sim.f) <= tx.RIN_bw), RIN_shape(abs(sim.f) <= tx.RIN_bw)));

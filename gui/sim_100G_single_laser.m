@@ -1,6 +1,10 @@
 function sim_100G_single_laser
     close all, clc
     
+    %% Default values used in simulation
+    h.default.RIN_bw = 50e9; % Noise Bandwidth for RIN Calculation (Hz)
+    h.default.RIN_variation = 30; % RINmax - RINmin (dB/Hz) within RIN bandwidth
+       
     addpath f
     addpath ../f % general functions
     addpath ../mpam
@@ -15,7 +19,6 @@ function sim_100G_single_laser
     getLogicalValue = @(h) logical(get(h, 'Value'));
     
    %% GUI layout
-   close all
    %  Create and then hide the GUI as it is being constructed.
    fSize_norm = [1 1];    
    f = figure('Visible','off', 'Units', 'Normalized', 'Position',[0 0 fSize_norm]);
@@ -36,22 +39,22 @@ function sim_100G_single_laser
    end
    
    %% Simulation Panel
-   h.panel.sim_height = 0.06;
+   h.panel.sim_height = 0.07;
    maxY = 1 - h.panel.sim_height;
    h.panel.sim = uipanel('Title', 'Simulation', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY 1 h.panel.sim_height]);
    h.text.modulation = uicontrol('Parent', h.panel.sim, 'Style', 'text', 'String', 'Modulation Type:',...
-       'Units', 'normalized', 'Position', [0 0 0.07 1], 'FontSize', FontSize);
+       'Units', 'normalized', 'Position', [0 0 0.1 0.7], 'FontSize', FontSize);
    h.popup.modulation = uicontrol('Parent', h.panel.sim, 'Style','popupmenu', 'Units', 'normalized',...
        'String', {'M-PAM', 'M-CAP', 'DMT/OFDM'}, 'Position', [1 0 0.06 1],...
        'FontSize', FontSize-1, 'Callback',@popup_modulation_Callback);
    h.text.system = uicontrol('Parent', h.panel.sim, 'Style', 'text', 'String', 'System:',...
-       'Units', 'normalized', 'Position', [1 0 0.05 1], 'FontSize', FontSize);
+       'Units', 'normalized', 'Position', [1 0 0.05 0.7], 'FontSize', FontSize);
    h.popup.system = uicontrol('Parent', h.panel.sim, 'Style','popupmenu','Units', 'normalized',...
        'String', {'Basic', 'APD', 'SOA'}, 'Position', [1 0 0.06 1],...
        'FontSize', FontSize, 'Callback',@popup_system_Callback);
    h.text.results = uicontrol('Parent', h.panel.sim, 'Style', 'text', 'String', 'Results:',...
-       'Units', 'normalized', 'Position', [1 0 0.05 1], 'FontSize', FontSize);
+       'Units', 'normalized', 'Position', [1 0 0.05 0.7], 'FontSize', FontSize);
    h.popup.results = uicontrol('Parent', h.panel.sim, 'Style','popupmenu', 'Units', 'normalized',...
        'String', {'BER vs Transmitted Power', 'Power Penalty vs Modulator Cutoff Frequency',...
        'Power Penalty vs Fiber Length'}, 'Position', [1 0 0.15 1],...
@@ -61,10 +64,11 @@ function sim_100G_single_laser
        'FontSize', FontSize, 'Callback', @run_Callback);
    align([h.text.modulation, h.popup.modulation, h.popup.system, h.text.results,...
        h.popup.results, h.text.system, h.button.run], 'None', 'Top');
+%   align([h.text.modulation, h.text.results, h.text.system], 'None', 'Bottom');
    align([h.text.modulation, h.popup.modulation], 'Fixed', 10, 'None')
-   align([h.popup.modulation, h.text.system], 'Fixed', 200, 'None')
+   align([h.popup.modulation, h.text.system], 'Fixed', 150, 'None')
    align([h.text.system, h.popup.system], 'Fixed', 10, 'None')
-   align([h.popup.system, h.text.results], 'Fixed', 200, 'None')
+   align([h.popup.system, h.text.results], 'Fixed', 150, 'None')
    align([h.text.results, h.popup.results], 'Fixed', 10, 'None')
    
 
@@ -83,34 +87,31 @@ function sim_100G_single_laser
        'FontSize', FontSize, 'Callback', @clear_Callback);
    
    %% Transmitter Panel
-   scale = 13; %9.5
-   dH = 1/9;
+   scale = 10; %9.5
+   dH = 1/7;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.tx = uipanel('Title', 'Transmitter', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 8*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10'); 
-   [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 7*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 200);
-   [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Wavelength (nm):', 1310);
+   [h.text.Ptx, h.Ptx] = table_entry(h.panel.tx, [0 6*dH 1/scale], 'Transmitted Power Range (dBm):', '-30:2:-10'); 
+   [h.text.fc, h.fc] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Modulator Cutoff Frequency (GHz):', 200);
+   [h.text.lamb, h.lamb] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'Wavelength (nm):', 1310);
    set(h.lamb, 'Callback', @(src, evt) update_dispersion_Callback(src, evt));
    
-   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 5*dH 1/scale], 'Extinction Ratio (dB):', -10, true,...
+   [h.check.rex, h.text.rex, h.rex] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'Extinction Ratio (dB):', -5, true,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
-   
-   [h.text.rin_variation, h.rin_variation] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'RINmax - RINmin (dB/Hz)', 30, false);
-   [h.text.rin_bw, h.rin_bw] = table_entry(h.panel.tx, [0 dH 1/scale], 'Noise Bandwidth for RIN Calculation (GHz)', 50, false);
-   [h.check.rin_shape, h.text.rin_shape, h.rin_shape] = table_entry(h.panel.tx, [0 3*dH 1/scale], 'RIN Spectrum Shape Parameter (GHz)', 200, false,...
-       @(src, evt, internal_handles) disable_handles_Callback(src, evt, [internal_handles,...
-       h.text.rin_variation, h.rin_variation h.text.rin_bw, h.rin_bw], false));
-   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 4*dH 1/scale], 'RIN (dB/Hz):', -140, true,...
-       @(src, evt, internal_handles) disable_handles_Callback(src, evt, [h.check.rin_shape internal_handles], false));
+
+   [h.check.rin, h.text.rin, h.rin] = table_entry(h.panel.tx, [0 2*dH 1/scale], 'RIN (dB/Hz):', -140, true);  
+   [h.check.rin_shape, h.text.rin_shape, h.rin_shape] = table_entry(h.panel.tx, [0 dH 1/scale], 'RIN PSD Shape Parameter (GHz)', 200, false,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, [false false]));
+   set(h.check.rin, 'Callback', @(src, evt) disable_handles_Callback(src, evt, [h.text.rin, h.rin, h.check.rin_shape, h.text.rin_shape, h.rin_shape], false));
    
    [h.check.chirp, h.text.chirp, h.chirp] = table_entry(h.panel.tx, [0 dH/4 1/scale], 'Modulator chirp (alpha):', 2, false,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
-   
-   align([h.text.Ptx h.text.fc h.text.lamb h.check.rex h.check.rin  h.check.rin_shape h.text.rin_variation h.text.rin_bw  h.check.chirp], 'None', 'Fixed', 6);
-   align([h.text.Ptx h.text.fc h.text.lamb h.text.rex h.text.rin h.text.rin_shape h.text.rin_variation  h.text.rin_bw h.text.chirp], 'Left', 'Fixed', 6)
-   align([h.Ptx h.fc h.lamb h.rex h.rin h.rin_shape h.rin_variation h.rin_bw h.chirp], 'Right', 'Fixed', 6);
+      
+   align([h.text.Ptx h.text.fc h.text.lamb h.check.rex h.check.rin h.check.rin_shape h.check.chirp], 'None', 'Fixed', 6);
+   align([h.text.Ptx h.text.fc h.text.lamb h.text.rex h.text.rin h.text.rin_shape h.text.chirp], 'Left', 'Fixed', 6)
+   align([h.Ptx h.fc h.lamb h.rex h.rin h.rin_shape h.chirp], 'Right', 'Fixed', 6);
     
    %% Modulation Panel
    scale = 10;
@@ -122,7 +123,7 @@ function sim_100G_single_laser
    [h.text.M, h.M] = table_entry(h.panel.mod, [0 6*dH 1/scale], 'Constellation Size:', 4);
    [h.text.pshape, h.pshape] = table_entry(h.panel.mod, [0 5*dH 1/scale], 'Pulse Shape:', 16);
    set(h.pshape, 'Style', 'popupmenu');
-   set(h.pshape, 'String', {'Rectangular', 'Root-Raised Cosine'});
+   set(h.pshape, 'String', {'Rectangular'});
    set(h.pshape, 'Position', get(h.pshape, 'Position') + [-0.1 0 0.1 0])
    set(h.pshape, 'FontSize', FontSize-1);
    align([h.text.pshape, h.pshape], 'None', 'Center');
@@ -174,28 +175,29 @@ function sim_100G_single_laser
    [h.check.shot, h.text.shot, temp1] = table_entry(h.panel.rx, [0 4*dH 1/scale], 'Shot Noise:', 0, true);
    set(temp1, 'Visible', 'off')
    [h.text.NEP, h.NEP] = table_entry(h.panel.rx, [0 3*dH 1/scale], 'NEP (pA/(Hz)^0.5):', 30);
-   [h.text.rxfilter, h.rxfilterType] = table_entry(h.panel.rx, [0 2*dH 1/scale], 'Receiver Filter Order and Type', 0);
-   [temp2, h.rxfilterN] = table_entry(h.panel.rx, [0 2*dH 1/scale], '', 4, false);
+   [h.text.rxfilterBw, h.rxfilterBw] = table_entry(h.panel.rx, [0 dH/4 1/scale], 'Receiver Filter Order and BW (GHz):', 25, false);
+   [temp2, h.rxfilterN] = table_entry(h.panel.rx, [0 dH/4 1/scale], '', 5, false);
    set(temp2, 'Visible', 'off');
-   [h.text.rxfilterBw, h.rxfilterBw] = table_entry(h.panel.rx, [0 dH/4 1/scale], 'Receiver Filter Bandwidth (GHz):', 30, false);
+   [h.text.rxfilterType, h.rxfilterType] = table_entry(h.panel.rx, [0 2*dH 1/scale], 'Receiver Filter Type', 0);
+   
+   align([h.text.R, h.text.Id, h.text.shot, h.text.NEP, h.text.rxfilterType, h.text.rxfilterBw], 'None', 'Fixed', 6);
+   align([h.R, h.Id, temp1, h.NEP,  h.rxfilterType, h.rxfilterBw], 'None', 'Fixed', 6);
+   align([h.text.rxfilterBw, h.rxfilterN, h.rxfilterBw], 'None', 'Bottom')
   
-   align([h.text.R, h.text.Id, h.text.shot, h.text.NEP, h.text.rxfilter, h.text.rxfilterBw], 'None', 'Fixed', 6);
-   align([h.R, h.Id, temp1, h.NEP,  h.rxfilterN, h.rxfilterBw], 'None', 'Fixed', 6);
-   align([h.text.rxfilter, h.rxfilterType, h.rxfilterN], 'None', 'Bottom')
-  
-   set(h.rxfilterN, 'Position', get(h.rxfilterN, 'Position') + [-0.26 0 -0.05 0])
+   set(h.rxfilterN, 'Position', get(h.rxfilterN, 'Position') + [-0.16 0 -0.05 0])
    set(h.rxfilterType, 'Position', get(h.rxfilterType, 'Position') + [-0.1 0 0.1 0])
    set(h.rxfilterType, 'Style', 'popupmenu');
-   set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'});
+   set(h.rxfilterType, 'String', {'Bessel', 'Matched', 'Gaussian', 'Butterworth'});
    set(h.rxfilterType, 'FontSize', FontSize);
    
-   set(h.rxfilterType, 'Callback', @(src,evt) disable_handles_Callback(src, evt, [h.rxfilterN  h.rxfilterBw h.text.rxfilterBw], 'Matched'))
+   set(h.rxfilterType, 'Callback', @(src,evt) disable_handles_Callback(src, evt, [h.rxfilterN  h.rxfilterBw h.text.rxfilterBw], {'Matched'}));
+   call_handle_Callback(h.rxfilterType, h.rxfilterType, []);
    
-   align([h.text.rxfilter, h.rxfilterType], 'None', 'Center');
+   align([h.text.rxfilterType, h.rxfilterType], 'None', 'Center');
    align([h.text.shot, h.check.shot], 'None', 'Bottom')
    
    %% Equalization
-   scale = 7;
+   scale = 7.5;
    dH = 1/6;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.eq = uipanel('Title', 'Equalization', 'FontSize', HeaderFontSize,...
@@ -212,7 +214,7 @@ function sim_100G_single_laser
    set(h.eq_type, 'Position', get(h.eq_type, 'Position') + [-0.1 0 0.1 0])
    
    
-   [h.text.eq_ros, h.eq_ros] = table_entry(h.panel.eq, [0 3*dH 1/scale], 'Oversampling Ratio: ', 2);   
+   [h.text.eq_ros, h.eq_ros] = table_entry(h.panel.eq, [0 3*dH 1/scale], 'Oversampling ratio: ', 2);   
    [h.text.eq_taps, h.eq_taps] = table_entry(h.panel.eq, [0 2*dH 1/scale], 'Number of taps:', 15);   
    [h.text.eq_mu, h.eq_mu] = table_entry(h.panel.eq, [0 dH 1/scale], 'Adaptation step (mu):', 1e-2);   
    [h.text.eq_Ntrain, h.eq_Ntrain] = table_entry(h.panel.eq, [0 dH/4 1/scale], 'Training Sequence Length:', 1e3);   
@@ -285,13 +287,18 @@ function sim_100G_single_laser
    
    %% ADS co-simulaton
    scale = 3;
-   dH = 1/1;
+   dH = 1/2;
    maxY = maxY - scale*BlockHeigth;
    h.panel.ads = uipanel('Title', 'ADS Co-Simulation', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.check.ads, h.text.ads, temp] = table_entry(h.panel.ads, [0 dH/4 1/scale], 'Compare with ADS DFB model', 0, false);
-   set(temp, 'Visible', 'off')
+   [h.check.ads, h.text.ads, h.ads] = table_entry(h.panel.ads, [0 dH 1/scale], 'ADS DFB model', 0, false,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
+    set(h.ads, 'Style', 'popupmenu');
+    set(h.ads, 'String', {'DFB 25C', 'DFB -5C', 'DFB -85C'});
+    set(h.ads, 'Position', get(h.optfiltType, 'Position') + [-0.1 0 0.1 0]);
+    set(h.ads, 'FontSize', FontSize-1)
+    align([h.text.ads, h.ads], 'None', 'Top');
    
    %Create a plot in the axes.
    popup_system_Callback(h.popup.system, 0)
@@ -315,7 +322,10 @@ function sim_100G_single_laser
     function clear_Callback(source, eventdata)
         cla(h.axes.results)
     end
-        
+    
+    %% ------------------------
+    %% RUN SIMULATION
+    %% ------------------------
     function run_Callback(source, eventdata)
         clc
         
@@ -346,16 +356,29 @@ function sim_100G_single_laser
 
                 axes(h.axes.results), hold on, box on, grid on
                 hline = plot(tx.PtxdBm, log10(ber.count), '--o');
-                plot(tx.PtxdBm, log10(ber.est), '-', 'Color', get(hline, 'Color'))
+                plot(tx.PtxdBm, log10(ber.est), '-', 'Color', get(hline, 'Color'))   
+                if exist('ber_ads', 'var')
+                    plot(tx.PtxdBm, log10(ber_ads), '--*', 'Color', get(hline, 'Color'))
+                    legend('Montecarlo', 'Estimated', 'ADS')
+                else
+                    legend('Montecarlo', 'Estimated')
+                end
                 xlabel('Transmitted Power (dBm)')
                 ylabel('log_{10}(BER)')
-                legend('Montecarlo', 'Estimated')
-                if exist('ber_ads', 'var')
-                    plot(tx.PtxdBm, log10(ber_ads), '-*', 'Color', get(hline, 'Color'))
-                    legend('Montecarlo', 'Estimated', 'ADS')
-                end
                 a = axis;
                 axis([min(a(1), tx.PtxdBm(1)) max(a(2), tx.PtxdBm(end)) ceil(2*log10(sim.BERtarget)) 0])
+                plot(-1e3, -1e3, '--*', 'Color', get(hline, 'Color')); % just so that symbol for ADS be recognized
+                
+                if fiber1.L ~= 0 && getValue(h.D) ~= 0
+                    figure, box on, grid on
+                    ff = linspace(0, 2*mpam.Rs, 100);
+                    Hfiber = fiber1.Hfiber(ff, tx);
+                    plot(ff/1e9, abs(Hfiber).^2)
+                    xlabel('Frequency (GHz)')
+                    ylabel('|H_{fiber}(f)|^2')
+                    title('Fiber Small-Signal Frequency Response')
+                    axis([ff([1 end])/1e9 0 1]) 
+                end
                 
             case 'Power Penalty vs Modulator Cutoff Frequency'
                 switch getOption(h.popup.modulation)
@@ -402,15 +425,15 @@ function sim_100G_single_laser
          % Set current data to the selected data set.
          if strcmp(str{val}, 'M-PAM') % User selects Sinc.
              set_property([h.Nc, h.level, h.text.level, h.text.Nc, h.Nu,...
-                 h.text.Nu, h.palloc, h.text.palloc, h.text.rclip, h.rclip], 'Enable', 'off')
-             set_property([h.level, h.text.level h.pshape h.text.pshape, h.text.rxfilter, h.rxfilterN,...
-                 h.text.rxfilterBw, h.rxfilterBw, h.Lseq, h.text.Lseq], 'Enable', 'on')
+                 h.text.Nu, h.palloc, h.text.palloc, h.text.rclip, h.rclip, h.check.quantiz, h.text.ENOB, h.ENOB], 'Enable', 'off')
+             set_property([h.level, h.text.level h.pshape h.text.pshape, h.rxfilterN,...
+                 h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'on')
                           
              set(h.popup.system, 'String', {'Basic', 'SOA', 'APD'})
-             set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'})
-             set(h.rxfilterType, 'Value', 1);
-             set(h.rxfilterType, 'Callback', @(src,evt) disable_handles_Callback(src, evt, [h.rxfilterN  h.rxfilterBw h.text.rxfilterBw], 'Matched'))
-             h.rxfilterType.Callback(h.rxfilterType, 0);
+%              set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'})
+%              set(h.rxfilterType, 'Value', 1);
+%              set(h.rxfilterType, 'Callback', @(src,evt) disable_handles_Callback(src, evt, [h.rxfilterN  h.rxfilterBw h.text.rxfilterBw], 'Matched'))
+             call_handle_Callback(h.rxfilterType, h.rxfilterType, 0);
              
              switch getOption(h.popup.system)
                  case 'Basic'
@@ -423,7 +446,7 @@ function sim_100G_single_laser
              
             % Equalization
              set_property([h.text.eq_type, h.eq_type], 'Enable', 'on');
-             h.eq_type.Callback(h.eq_type, 0);             
+             call_handle_Callback(h.eq_type, h.eq_type, 0);         
              
              set(h.M, 'String', 4); 
              set(h.Ptx, 'String', '-30:2:-10')
@@ -431,10 +454,10 @@ function sim_100G_single_laser
              set(h.Mct, 'String', num2str(15))     
          else
              set_property([h.Nc, h.text.Nc, h.Nu, h.text.Nu, h.palloc, h.text.palloc,...
-                 h.text.rclip, h.rclip, h.text.rxfilter, h.rxfilterN,...
+                 h.text.rclip, h.rclip, h.rxfilterN,h.check.quantiz, h.text.ENOB, h.ENOB,...
                  h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'on')
              set_property([h.level, h.text.level h.pshape h.text.pshape,...
-                 h.Lseq, h.text.Lseq, h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'off')
+                 h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'off')
              
              % Equalization
              eq_child = allchild(h.panel.eq);
@@ -492,41 +515,44 @@ function sim_100G_single_laser
                  set(h.L, 'String', '0:5')
                  
                  set(h.check.chirp, 'Value', true)
-                 h.check.chirp.Callback(h.check.chirp, 0)
+                 call_handle_Callback(h.check.chirp, h.check.chirp, 0);   
          end               
     end
 
     % Update value of dispersion parameter if modulator wavelength changes
     function update_dispersion_Callback(src, evt)       
-        lamb = str2double(get(h.lamb, 'String'));
+        lamb = eval(get(h.lamb, 'String'));
         
         D = 1e-3*fiber.S0/4*(lamb - (1e9*fiber.lamb0)^4./(lamb.^3)); % Dispersion curve
         
         set(h.D, 'String', num2str(D))        
     end
 
-    % Disable handles if get(source, 'String') == value
-    function disable_handles_Callback(source, ~, handles, value)
-         str = get(source, 'String');
-         val = get(source, 'Value');
-         
-         off = false;
-         if islogical(value)
-             off = logical(val) == value;
-         else
-             off = strcmp(str{val}, value);
-         end
-             
-         if off
-             s = 'off';
-         else
-             s = 'on';
-         end
-         
-          for k = 1:length(handles)
-             set(handles, 'Enable', s)
-         end
-    end
+    % Disable handles if get(source(k), 'String') == value(k) for any k
+    function disable_handles_Callback(source, ~, handles, value) 
+        off = zeros(size(source));
+        off(:) = false;
+        for k = 1:length(source)
+             str = get(source(k), 'String');
+             val = get(source(k), 'Value');
+
+             if islogical(value(k))
+                 off(k) = logical(val) == value(k);
+             else
+                 off(k) = strcmp(str{val}, value{k});
+             end
+        end
+        
+        if any(off)
+            s = 'off';
+        else
+            s = 'on';
+        end
+
+        for k = 1:length(handles)
+            set(handles, 'Enable', s)
+        end     
+     end
         
     function popup_system_Callback(source, ~)
          % Determine the selected data set.
@@ -545,20 +571,20 @@ function sim_100G_single_laser
                  else
                      imshow('data/ofdm.png', 'Parent', h.axes.block_diagram)
                  end
-                 
+                                 
              case 'APD'
                  apd_e = 'on';
                  soa_e = 'off';
                  
                  set(h.popup.modulation, 'String', {'M-PAM'})
-                                  
+                                 
                  imshow('data/mpam-apd.png', 'Parent', h.axes.block_diagram)
              case 'SOA'
                  apd_e = 'off';
                  soa_e = 'on';
                  
                  set(h.popup.modulation, 'String', {'M-PAM'})
-                 
+                                 
                  imshow('data/mpam-soa.png', 'Parent', h.axes.block_diagram)
          end
          
@@ -574,10 +600,10 @@ function sim_100G_single_laser
          %% Call callbacks
          switch str{val}
              case 'APD'
-                h.check.GBw.Callback(h.check.GBw, []);
-                h.check.Gapd.Callback(h.check.Gapd, []);
+                call_handle_Callback(h.check.GBw, h.check.GBw, []);
+                call_handle_Callback(h.check.Gapd, h.check.Gapd, []);
              case 'SOA'
-                h.check.polarizer.Callback(h.check.polarizer, []);
+                call_handle_Callback(h.check.polarizer, h.check.polarizer, []);
          end
              
     end
@@ -605,6 +631,11 @@ function sim_100G_single_laser
         for k = 1:length(handle_array)
             set(handle_array, property, value)
         end
+    end
+
+    function call_handle_Callback(handle, src, evt)
+        fun = get(handle, 'Callback');
+        fun(src, evt);
     end
    
     function varargout = table_entry(parent, norm_pos, str, value, checked, Callback)
@@ -653,8 +684,11 @@ function sim_100G_single_laser
             varargout = {text, edit};
             set(checkbox, 'Visible', 'off');
         end
-    end           
+    end   
 end
+
+
+
 
 function str = getOption(h)
     list = get(h, 'String');

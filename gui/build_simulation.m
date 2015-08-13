@@ -78,7 +78,7 @@ end
 
 %% Transmitter
 tx.PtxdBm = eval(get(h.Ptx, 'String'));
-tx.lamb = 1e-9*getValue(h.lamb);
+tx.lamb = 1e-9*eval(getString(h.lamb));
 tx.kappa = 1;
 
 if getLogicalValue(h.check.chirp)
@@ -89,8 +89,8 @@ if sim.RIN
     tx.RIN = getValue(h.rin);   % RIN in dB/Hz. Only used if sim.RIN is true
     if getLogicalValue(h.check.rin_shape)
         g = getValue(h.rin_shape);
-        tx.RIN_variation = getValue(h.rin_variation);
-        tx.RIN_bw = 1e9*getValue(h.rin_bw);
+        tx.RIN_variation = h.default.RIN_variation;
+        tx.RIN_bw = h.default.RIN_bw;
         tx.RIN_shape = @(f, fr) (f.^2 + (g/(2*pi)).^2)./((fr^2-f.^2).^2 + f.^2*(g/(2*pi)).^2);
     end
 else
@@ -132,6 +132,8 @@ switch getOption(h.rxfilterType)
         rx.filter.type = 'gaussian';
     case 'Bessel'
         rx.filter.type = 'bessel';
+    case 'Butterworth'
+        rx.filter.type = 'butter';
     otherwise
         error('Invalid receiever filter option')
 end

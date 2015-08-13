@@ -1,9 +1,4 @@
 function ber_ads = mpam_ber_vs_Ptx_ADS(mpam, tx, fiber1, rx, sim)
-addpath ../f % general functions
-addpath ../apd
-addpath ../apd/f
-addpath data/
-
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
 load SampleData4PAMlong
@@ -61,7 +56,8 @@ for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
 
 	% Ajust levels to desired transmitted power and extinction ratio
-    Ptads = Pout.'/mean(Pout)*tx.Ptx;
+    Ptads = Poutnf.'/mean(Poutnf)*tx.Ptx;
+    mpam.adjust_levels(tx.Ptx, tx.rexdB);
     
     Ptads([sim.Mct*sim.Ndiscard end-sim.Mct*sim.Ndiscard:end]) = 0; % zero sim.Ndiscard last symbbols
 
@@ -92,7 +88,7 @@ for k = 1:length(Ptx)
         dataRXads = zeros(size(ydads)).';
         dataRXads(ydads > 0) = 1;
     else        
-%         mpam.b = Pthresh.'/mean(Pout)*tx.Ptx;
+%         mpam.b = Pthresh.'/mean(Poutnf)*tx.Ptx;
 %         dataRXads = mpam.demod(ydads);
 %         mpam.b = btemp;
         dataRXads = mpam.demod(ydads);
@@ -101,19 +97,3 @@ for k = 1:length(Ptx)
     % BER
     [~, ber_ads(k)] = biterr(dataRXads, dataTX);
 end
-
-% [H, w] = freqz(Heq(end:-1:1), 1);
-% figure, hold on
-% plot(2*mpam.Rs/1e9*w/(2*pi), abs(H).^2)
-% 
-% figure, hold on, grid on, box on
-% plot(tx.PtxdBm, log10(ber.sim), '-o')
-% plot(tx.PtxdBm, log10(ber.ads), '-o')
-% plot(tx.PtxdBm, log10(ber.awgn), '-')
-% xlabel('Transmitted Power (dBm)')
-% ylabel('log_{10}(BER)')
-% legend('Matlab Simulation', 'ADS-DFB model', 'AWGN')
-% axis([tx.PtxdBm([1 end]) -5 0])
-
-
-
