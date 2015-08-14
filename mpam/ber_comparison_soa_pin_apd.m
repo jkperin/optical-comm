@@ -79,8 +79,8 @@ rx.optfilt = design_filter('fbg', 0, 200e9/(sim.fs/2));
 [rx.U_fourier, rx.D_fourier, rx.Fmax_fourier] = klse_fourier(rx, sim, sim.Mct*(mpam.M^sim.L + 2*sim.L)); 
 
 %% Equalization
-rx.eq.type = 'Analog';
-rx.eq.ros = 2;
+rx.eq.type = 'Fixed TD-SR-LE';
+% rx.eq.ros = 2;
 rx.eq.Ntaps = 15;
 rx.eq.Ntrain = 2e3;
 rx.eq.mu = 1e-2;
@@ -94,12 +94,12 @@ pin = apd(0, 0, Inf, rx.R, rx.Id);
 % finite Gain x BW
 apd_fin = apd(8.1956, 0.09, 340e9, rx.R, rx.Id); % gain optimized for uniformly-spaced 4-PAM with matched filter
 % apd_fin = apd(7.86577063943086, 0.09, 340e9, rx.R, rx.Id); % gain optimized for uniformly-spaced 8-PAM with matched filter
-% apd_fin.optimize_gain(mpam, tx, fiber, rx, sim);
+apd_fin.optimize_gain(mpam, tx, fiber, rx, sim);
 
 if strcmp(mpam.level_spacing, 'equally-spaced')
      % uniform, infinite Gain x BW (4-PAM)
     apd_inf = apd(11.8876, 0.09, Inf, 1, 10e-9); % gain optimized for 4-PAM with matched filter
-    apd_inf.optimize_gain(mpam, tx, fiber, rx, sim);
+%     apd_inf.optimize_gain(mpam, tx, fiber, rx, sim);
 
 %     apd_inf = apd(7.865770639430862, 0.09, Inf, rx.R, rx.Id); % gain optimized for 8-PAM with matched filter
 elseif strcmp(mpam.level_spacing, 'optimized')
@@ -114,7 +114,7 @@ soa = soa(20, 7, 1310e-9, 20);
 
 % BER
 disp('BER with SOA')
-% ber_soa = soa_ber(mpam, tx, fiber, soa, rx, sim);
+ber_soa = soa_ber(mpam, tx, fiber, soa, rx, sim);
 disp('BER with APD with finite gain-bandwidth product')
 ber_apd_fin = apd_ber(mpam, tx, fiber, apd_fin, rx, sim);
 disp('BER with APD with infinite gain-bandwidth produc')
@@ -125,19 +125,19 @@ ber_pin = apd_ber(mpam, tx, fiber, pin, rx, sim);
 
 %% Figures
 figure, hold on, grid on, box on
-% plot(tx.PtxdBm, log10(ber_soa.est), '-b')
+plot(tx.PtxdBm, log10(ber_soa.est), '-b')
 plot(tx.PtxdBm, log10(ber_apd_fin.gauss), '-r')
 plot(tx.PtxdBm, log10(ber_apd_inf.gauss), '-m')
 plot(tx.PtxdBm, log10(ber_pin.gauss), '-k')
 
-% plot(tx.PtxdBm, log10(ber_soa.count), '-ob')
+plot(tx.PtxdBm, log10(ber_soa.count), '-ob')
 plot(tx.PtxdBm, log10(ber_apd_fin.count), '-or')
 plot(tx.PtxdBm, log10(ber_apd_inf.count), '-om')
 plot(tx.PtxdBm, log10(ber_pin.count), '-ok')
 
-% plot(tx.PtxdBm, log10(ber_soa.gauss), '--b')
+plot(tx.PtxdBm, log10(ber_soa.gauss), '--b')
 
-% plot(tx.PtxdBm, log10(ber_soa.awgn), ':b')
+plot(tx.PtxdBm, log10(ber_soa.awgn), ':b')
 plot(tx.PtxdBm, log10(ber_apd_fin.awgn), ':r')
 plot(tx.PtxdBm, log10(ber_apd_inf.awgn), ':m')
 plot(tx.PtxdBm, log10(ber_pin.awgn), ':k')

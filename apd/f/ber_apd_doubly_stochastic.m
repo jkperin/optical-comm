@@ -10,7 +10,12 @@
 function [bertail, bergauss, berpdf] = ber_apd_doubly_stochastic(mpam, tx, fiber, apd, rx, sim)
 
 Nsymb = mpam.M^sim.L; % number of data symbols 
-Nzero = sim.L; % number of zero symbols pad to begin and end of sequnece.
+% number of zero symbols pad to begin and end of sequnece.
+if isfield(rx.eq, 'Ntaps')
+    Nzero = max(rx.eq.Ntaps, sim.L);
+else
+    Nzero = sim.L;
+end
 N = sim.Mct*(Nsymb + 2*Nzero); % total number of points 
 
 % Frequency
@@ -45,17 +50,18 @@ if isfield(rx, 'eq')
     rx.eq.type = strrep(rx.eq.type, 'Adaptive', 'Fixed'); % replace adaptive for fixed
     % Note: in this simulation there aren't many symbols to determine the
     % adaptive equalizer
-    
-    [yd, Heq, Kne] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim, dataTX);
 else % otherwise only filter using rx.elefilt
-    [yd, Heq, Kne] = equalize('None', yt, mpam, tx, fiber, rx, [], sim);
+    rx.eq.type = 'None';
 end
 
-% Discard zeros
+% Equalizer
+[yd, rx.eq] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim);
+
+% Symbols to be discard in BER calculation
 yd = yd(Nzero+1:end-Nzero);
 
 % Ensures signal is non-negative
-yd(yd < 0) = 0;
+yd(yd < 0) = 0; % !! why this here?
 
 %% Detection
 Pthresh = mpam.b*link_gain; % refer decision thresholds to receiver
@@ -77,7 +83,7 @@ dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
     varShot = apd.var_shot(yd(k)/apd.Gain, Df);
-    sig = sqrt(Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
+    sig = sqrt(rx.eq.Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
      
     if dat(k) == mpam.M-1
 %         pe = pe + apd.tail_saddlepoint_approx(Pthresh(end), lambda, sim.fs/sim.Mct, rx.N0, 'left');

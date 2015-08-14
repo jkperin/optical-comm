@@ -1,8 +1,5 @@
 function ber = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim)
 
-% Normalized frequency
-f = sim.f/sim.fs;
-
 % Overall link gain
 link_gain = apd.Gain*fiber.link_attenuation(tx.lamb)*apd.R;
 
@@ -33,13 +30,22 @@ mpam.norm_levels;
 %% Equalization
 if isfield(rx, 'eq')
     rx.eq.TrainSeq = dataTX;
-    [yd, Heq] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim);
 else % otherwise only filter using rx.elefilt
-    yd = equalize('None', yt, mpam, tx, fiber, rx, [], sim);
+    rx.eq.type = 'None';
 end
    
-% Discard first and last sim.Ndiscard symbols
-ndiscard = [1:sim.Ndiscard sim.Nsymb-sim.Ndiscard+1:sim.Nsymb];
+% Equalize
+[yd, rx.eq] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim);
+   
+% Symbols to be discard in BER calculation
+Ndiscard = sim.Ndiscard*[1 1];
+if isfield(rx.eq, 'Ntrain')
+    Ndiscard(1) = Ndiscard(1) + rx.eq.Ntrain;
+end
+if isfield(rx.eq, 'Ntaps')
+    Ndiscard = Ndiscard + rx.eq.Ntaps;
+end
+ndiscard = [1:Ndiscard(1) sim.Nsymb-Ndiscard(2):sim.Nsymb];
 yd(ndiscard) = []; 
 dataTX(ndiscard) = [];
 
