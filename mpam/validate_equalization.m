@@ -7,8 +7,8 @@ clear, clc, close all
 addpath ../f/
 
 %% Simulation parameters
-sim.Nsymb = 2^7; % Number of symbols in montecarlo simulation
-sim.Mct = 45;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
+sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
+sim.Mct = 15;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.BERtarget = 1e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
@@ -50,7 +50,7 @@ x = mpam.mod(dataTX, sim.Mct);
 p = real(ifft(fft(x).*ifftshift(tx.modulator.H(f))));
 % p =x;
 
-% p = p + sqrt(rx.N0*sim.fs/2)*randn(size(p));
+p = p + 1/1e-4*sqrt(rx.N0*sim.fs/2)*randn(size(p));
 
 pa = real(ifft(fft(p).*ifftshift(rx.antialiasing.H(f/sim.fs))));
 
@@ -124,10 +124,10 @@ Hmatched = conj(tx.modulator.H(sim.f).*matchedfilt.H(sim.f/sim.fs));
 % ps = real(ifft(fft(p).*ifftshift(matchedfilt.H(f/sim.fs))));
 ps = real(ifft(fft(p).*ifftshift(Hmatched)));
 
-ps = ps(floor(sim.Mct/2):sim.Mct:end);
-ts = t(floor(sim.Mct/2):sim.Mct:end);
+ps = ps(floor(sim.Mct/2)+1:sim.Mct:end);
+ts = t(floor(sim.Mct/2)+1:sim.Mct:end);
 
-Ntaps = 15;
+Ntaps = 5;
 Ntrain = 10e3;
 Ws = [zeros(Ntaps-1, 1); 1];
 ys = zeros(size(ps));
@@ -155,7 +155,7 @@ for k = Ntaps:length(ps)
     Ws = Ws - 2*mu*es(k)*z;
 end
 
-% figure, plot(ts, ys, 'o')
+figure, plot(ts, ys, 'o')
 figure, plot(es)
 
 [Hs, fss] = freqz(Ws(end:-1:1), 1, 200, mpam.Rs);

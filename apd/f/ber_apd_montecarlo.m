@@ -8,6 +8,7 @@ link_gain = apd.Gain*fiber.link_attenuation(tx.lamb)*apd.R;
 
 % Ajust levels to desired transmitted power and extinction ratio
 mpam.adjust_levels(tx.Ptx, tx.rexdB);
+Pmax = mpam.a(end); % used in the automatic gain control stage
 
 % Modulated PAM signal
 dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence
@@ -24,20 +25,23 @@ xt(end-sim.Mct*sim.Ndiscard+1:end) = 0; % zero sim.Ndiscard last symbbols
 %% Detect and add noises
 yt = apd.detect(Pt, sim.fs, 'gaussian', rx.N0);
 
-% Electric low-pass filter
-yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));
+% Automatic gain control
+% Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
+yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
+mpam.norm_levels;
 
-% Sample
-ix = (sim.Mct-1)/2+1:sim.Mct:length(yt); % sampling points
-yd = yt(ix);
-
+%% Equalization
+if isfield(rx, 'eq')
+    rx.eq.TrainSeq = dataTX;
+    [yd, Heq] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim);
+else % otherwise only filter using rx.elefilt
+    yd = equalize('None', yt, mpam, tx, fiber, rx, [], sim);
+end
+   
 % Discard first and last sim.Ndiscard symbols
 ndiscard = [1:sim.Ndiscard sim.Nsymb-sim.Ndiscard+1:sim.Nsymb];
 yd(ndiscard) = []; 
 dataTX(ndiscard) = [];
-
-% Automatic gain control
-yd = yd/link_gain; % just refer power values back to transmitter
 
 % Demodulate
 dataRX = mpam.demod(yd);

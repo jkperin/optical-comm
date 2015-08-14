@@ -40,12 +40,19 @@ sim.RIN = false; % RIN is not modeled here since number of samples is not high e
 % Direct detect
 yt = apd.R*apd.Gain*Pt;
 
-% Electric low-pass filter
-yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));
+%% Equalization
+if isfield(rx, 'eq')
+    rx.eq.type = strrep(rx.eq.type, 'Adaptive', 'Fixed'); % replace adaptive for fixed
+    % Note: in this simulation there aren't many symbols to determine the
+    % adaptive equalizer
+    
+    [yd, Heq, Kne] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim, dataTX);
+else % otherwise only filter using rx.elefilt
+    [yd, Heq, Kne] = equalize('None', yt, mpam, tx, fiber, rx, [], sim);
+end
 
-% Discard zeros and downsample
-ix = sim.Mct*Nzero+1+(sim.Mct-1)/2:sim.Mct:N-sim.Mct*Nzero;
-yd = yt(ix);
+% Discard zeros
+yd = yd(Nzero+1:end-Nzero);
 
 % Ensures signal is non-negative
 yd(yd < 0) = 0;
@@ -70,7 +77,7 @@ dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
     varShot = apd.var_shot(yd(k)/apd.Gain, Df);
-    sig = sqrt(varTherm + varShot + varRIN(yd(k)));
+    sig = sqrt(Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
      
     if dat(k) == mpam.M-1
 %         pe = pe + apd.tail_saddlepoint_approx(Pthresh(end), lambda, sim.fs/sim.Mct, rx.N0, 'left');

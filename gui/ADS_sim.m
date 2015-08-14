@@ -18,7 +18,7 @@ sim.N = N; % number points in 'continuous-time' simulation
 sim.BERtarget = 1e-4;
 
 sim.shot = ~true; % include shot noise in montecarlo simulation (always included for pin and apd case)
-sim.RIN = true; % include RIN noise in montecarlo simulation
+sim.RIN = ~true; % include RIN noise in montecarlo simulation
 
 sim.verbose = false; % show stuff
 sim.Ndiscard = 8; % number of symbols to be discarded from the begning and end of the sequence
@@ -26,7 +26,7 @@ sim.Ndiscard = 8; % number of symbols to be discarded from the begning and end o
 % Equalization
 eq.ros = 2;
 eq.Ntaps = 15;
-eq.Ntrain = 5e3;
+eq.Ntrain = 10e3;
 eq.mu = 1e-2;
 
 % Time and frequency
@@ -41,7 +41,7 @@ sim.t = t;
 sim.f = f;
 
 % Transmitter
-tx.PtxdBm = -4;
+tx.PtxdBm = -18:-10;
 % tx.PtxdBm = 10*log10(8);
 tx.lamb = 1310e-9;
 tx.alpha = 0;
@@ -78,7 +78,7 @@ imp = impz(1-a, [1 -a]);
 % Matched filter
 % rx.elefilt = design_filter('matched', @(n) conv(mpam.pshape(n), imp), 1/sim.Mct);
 Hmatched = design_filter('matched', mpam.pshape, 1/sim.Mct);
-rx.elefilt = design_filter('bessel', 5, 0.7*mpam.Rs/(sim.fs/2));
+rx.elefilt = design_filter('bessel', 5, .5*mpam.Rs/(sim.fs/2));
 % rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 
 % AWGN results
@@ -99,12 +99,20 @@ noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + pin.var_shot(Plevel, Delt
 link_gain = fiber.link_attenuation(tx.lamb)*pin.R;
 
 % Zeroed samples 
-ndiscard = [1:(sim.Ndiscard+eq.Ntrain) (sim.Nsymb-sim.Ndiscard-eq.Ntrain):sim.Nsymb];
+Ndiscard = sim.Ndiscard*[1 1];
+if isfield(eq, 'Ntrain')
+    Ndiscard(1) = Ndiscard(1) + eq.Ntrain;
+end
+if isfield(eq, 'Ntaps')
+    Ndiscard = Ndiscard + eq.Ntaps;
+end
+ndiscard = [1:Ndiscard(1) sim.Nsymb-Ndiscard(2):sim.Nsymb];
 
 dataTXref = mpam.demod(xtref(sim.Mct/2+1:sim.Mct:length(xtref)));
 
 % Equalization
 eq.TrainSeq = dataTXref;
+rx.eq = eq;
 
 Ptx = dBm2Watt(tx.PtxdBm);
 for k = 1:length(Ptx)
@@ -119,7 +127,7 @@ for k = 1:length(Ptx)
     
 %     xt = filter(1-a, [1 -a], xt);
 
-    Ptads = Poutnf.'/mean(Poutnf)*tx.Ptx;
+    Ptads = Pout.'/mean(Pout)*tx.Ptx;
     
     xt([sim.Mct*sim.Ndiscard end-sim.Mct*sim.Ndiscard:end]) = 0; % zero sim.Ndiscard last symbbols
     Ptads([sim.Mct*sim.Ndiscard end-sim.Mct*sim.Ndiscard:end]) = 0; % zero sim.Ndiscard last symbbols
@@ -143,9 +151,10 @@ for k = 1:length(Ptx)
     mpam.norm_levels;
     
     % Equalization
-    eq_type = 'None';
-    [yd, Heq] = equalize(eq_type, yt, mpam, tx, fiber, rx, eq, sim);
-    ydads = equalize(eq_type, ytads, mpam, tx, fiber, rx, eq, sim);
+    eq_type = 'Adaptive TD-SR-LE';
+    rx.eq.TrainSeq = dataTXref;
+    [yd, rx.eq] = equalize(eq_type, yt, mpam, tx, fiber, rx, sim);
+    ydads = equalize(eq_type, ytads, mpam, tx, fiber, rx, sim);
    
     % Discard first and last sim.Ndiscard symbols
     yd(ndiscard) = []; 
@@ -168,13 +177,13 @@ for k = 1:length(Ptx)
     % BER
     [~, ber.sim(k)] = biterr(dataRX, dataTX);
     [~, ber.ads(k)] = biterr(dataRXads, dataTX);
-    ber.awgn2(k) = mpam.ber_awgn(@(P) sqrt(rx.N0/2)/(Pmax*link_gain)*sqrt(trapz(sim.f, abs(Heq.^2))));
+    ber.awgn2(k) = mpam.ber_awgn(@(P) sqrt(rx.eq.Kne*rx.N0/2*Hmatched.noisebw(sim.fs))/(Pmax*link_gain));
     1;
 end
 
-% [H, w] = freqz(Heq(end:-1:1), 1);
-% figure, hold on
-% plot(2*mpam.Rs/1e9*w/(2*pi), abs(H).^2)
+
+figure, hold on
+plot(rx.eq.f, abs(rx.eq.H).^2)
 
 figure, hold on, grid on, box on
 plot(tx.PtxdBm, log10(ber.sim), '-o')
@@ -186,8 +195,8 @@ ylabel('log_{10}(BER)')
 legend('Matlab Simulation', 'ADS-DFB model', 'AWGN', 'AWGN noise enhanced')
 axis([tx.PtxdBm([1 end]) -5 0])
 % 
-figure
-plot(sim.f/1e9, abs(Heq).^2)
+% figure
+% plot(sim.f/1e9, abs(Heq).^2)
 
 % figure
 % plot(sim.f/1e9, abs(Heq).^2)
