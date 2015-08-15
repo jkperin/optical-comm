@@ -1,10 +1,15 @@
-function sim_100G_single_laser
+function sim_single_laser
     close all, clc
+    
+    getNewColor([]);
+    
+%     indColor = 1;
+%     Colors = 
     
     %% Default values used in simulation
     h.default.RIN_bw = 50e9; % Noise Bandwidth for RIN Calculation (Hz)
     h.default.RIN_variation = 30; % RINmax - RINmin (dB/Hz) within RIN bandwidth
-       
+         
     addpath f
     addpath ../f % general functions
     addpath ../mpam
@@ -13,8 +18,8 @@ function sim_100G_single_laser
     addpath ../apd
     addpath ../apd/f
     addpath data/
-%     addpath ../ofdm
-%     addpath ../ofdm/f/
+    addpath ../ofdm
+    addpath ../ofdm/f/
 %     
     getValue = @(h) str2double(get(h, 'String'));
     getLogicalValue = @(h) logical(get(h, 'Value'));
@@ -57,8 +62,7 @@ function sim_100G_single_laser
    h.text.results = uicontrol('Parent', h.panel.sim, 'Style', 'text', 'String', 'Results:',...
        'Units', 'normalized', 'Position', [1 0 0.05 0.7], 'FontSize', FontSize);
    h.popup.results = uicontrol('Parent', h.panel.sim, 'Style','popupmenu', 'Units', 'normalized',...
-       'String', {'BER vs Transmitted Power', 'Power Penalty vs Modulator Cutoff Frequency',...
-       'Power Penalty vs Fiber Length'}, 'Position', [1 0 0.15 1],...
+       'String', {'BER vs Transmitted Power'}, 'Position', [1 0 0.15 1],... % , 'Power Penalty vs Modulator Cutoff Frequency', wer Penalty vs Fiber Length'}
        'FontSize', FontSize, 'Callback', @popup_results_Callback);
    h.button.run = uicontrol('Parent', h.panel.sim, 'Style', 'pushbutton', 'Units', 'normalized',...
        'String', 'Run Simulation', 'Position', [1-0.1 0 0.1 1],...
@@ -176,7 +180,7 @@ function sim_100G_single_laser
    [h.check.shot, h.text.shot, temp1] = table_entry(h.panel.rx, [0 4*dH 1/scale], 'Shot Noise:', 0, true);
    set(temp1, 'Visible', 'off')
    [h.text.NEP, h.NEP] = table_entry(h.panel.rx, [0 3*dH 1/scale], 'NEP (pA/(Hz)^0.5):', 30);
-   [h.text.rxfilterBw, h.rxfilterBw] = table_entry(h.panel.rx, [0 dH/4 1/scale], 'Receiver Filter Order and BW (GHz):', 25, false);
+   [h.text.rxfilterBw, h.rxfilterBw] = table_entry(h.panel.rx, [0 dH/4 1/scale], 'Receiver Filter Order and BW (GHz):', 19, false);
    [temp2, h.rxfilterN] = table_entry(h.panel.rx, [0 dH/4 1/scale], '', 5, false);
    set(temp2, 'Visible', 'off');
    [h.text.rxfilterType, h.rxfilterType] = table_entry(h.panel.rx, [0 2*dH 1/scale], 'Receiver Filter Type', 0);
@@ -206,8 +210,7 @@ function sim_100G_single_laser
    
    [h.text.eq_type, h.eq_type] = table_entry(h.panel.eq, [0 4*dH 1/scale], 'Equalization Type:', 0);
    set(h.eq_type, 'Style', 'popupmenu');
-   set(h.eq_type, 'String', {'None', 'Analog',...
-       'Adaptive TD-FS-LE', 'Fixed TD-SR-LE', 'Adaptive TD-SR-LE'});
+   set(h.eq_type, 'String', {'None', 'Analog', 'Fixed TD-SR-LE', 'Adaptive TD-SR-LE'});
        %'Fixed Frequency-Domain FS-LE',...
        %'Adaptive Frequency-Domain FS-LE'
    set(h.eq_type, 'Callback', @ (src, evt) eq_types_Callback(src, evt));
@@ -217,7 +220,7 @@ function sim_100G_single_laser
    [h.text.eq_ros, h.eq_ros] = table_entry(h.panel.eq, [0 3*dH 1/scale], 'Oversampling ratio: ', 2);   
    [h.text.eq_taps, h.eq_taps] = table_entry(h.panel.eq, [0 2*dH 1/scale], 'Number of taps:', 15);   
    [h.text.eq_mu, h.eq_mu] = table_entry(h.panel.eq, [0 dH 1/scale], 'Adaptation step (mu):', 1e-2);   
-   [h.text.eq_Ntrain, h.eq_Ntrain] = table_entry(h.panel.eq, [0 dH/4 1/scale], 'Training Sequence Length:', 1e3);   
+   [h.text.eq_Ntrain, h.eq_Ntrain] = table_entry(h.panel.eq, [0 dH/4 1/scale], 'Training Sequence Length:', 5e3);   
    
    align([h.text.eq_type, h.text.eq_ros, h.text.eq_taps, h.text.eq_mu h.text.eq_Ntrain], 'None', 'Fixed', 6);
    align([h.eq_type, h.eq_ros, h.eq_taps, h.eq_mu h.eq_Ntrain], 'None', 'Fixed', 6);   
@@ -327,6 +330,7 @@ function sim_100G_single_laser
    %% Pushbutton Callbacks.
     function clear_Callback(source, eventdata)
         cla(h.axes.results)
+        getNewColor([]);
     end
     
     %% ------------------------
@@ -334,6 +338,7 @@ function sim_100G_single_laser
     %% ------------------------
     function run_Callback(source, eventdata)
         clc
+        LineWidth = 1.2;
         
         [mpam, ofdm1, tx, fiber1, soa1, apd1, rx, sim] = build_simulation(h);
         
@@ -361,10 +366,10 @@ function sim_100G_single_laser
                 end
 
                 axes(h.axes.results), hold on, box on, grid on
-                hline = plot(tx.PtxdBm, log10(ber.count), '--o');
-                plot(tx.PtxdBm, log10(ber.est), '-', 'Color', get(hline, 'Color'))   
+                hline = plot(tx.PtxdBm, log10(ber.count), '--o', 'Color', getNewColor(), 'LineWidth', LineWidth);
+                plot(tx.PtxdBm, log10(ber.est), '-', 'Color', get(hline, 'Color'), 'LineWidth', LineWidth)   
                 if exist('ber_ads', 'var')
-                    plot(tx.PtxdBm, log10(ber_ads), '--*', 'Color', get(hline, 'Color'))
+                    plot(tx.PtxdBm, log10(ber_ads), '--*', 'Color', get(hline, 'Color'), 'LineWidth', LineWidth)
                     legend('Montecarlo', 'Estimated', 'ADS')
                 else
                     legend('Montecarlo', 'Estimated')
@@ -379,7 +384,7 @@ function sim_100G_single_laser
                     figure, box on, grid on
                     ff = linspace(0, 2*mpam.Rs, 100);
                     Hfiber = fiber1.Hfiber(ff, tx);
-                    plot(ff/1e9, abs(Hfiber).^2)
+                    plot(ff/1e9, abs(Hfiber).^2, 'LineWidth', LineWidth)
                     xlabel('Frequency (GHz)')
                     ylabel('|H_{fiber}(f)|^2')
                     title('Fiber Small-Signal Frequency Response')
@@ -640,8 +645,8 @@ function sim_100G_single_laser
                  set_property([h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'off');
                  set(h.rxfilterType, 'Value', length(get(h.rxfilterType, 'String'))); % assume that matched filter is the last one in the list
              case 'Adaptive TD-SR-LE'
-                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'on');           
-                 set_property([h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'off');
+                 set_property([h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'on');           
+                 set_property([h.text.eq_ros h.eq_ros h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'off');
                  set(h.rxfilterType, 'Value', length(get(h.rxfilterType, 'String'))); % assume that matched filter is the last one in the list
              otherwise
                  error('Callback for equalizaton type [%s] not implemented yet\n', str{val});
@@ -708,11 +713,25 @@ function sim_100G_single_laser
         end
     end
 
-    function show_eyediagram(h)
-    end
-
 end
 
+function color = getNewColor(varargin)
+    persistent ColorIndex
+    
+    if nargin == 1
+        ColorIndex = 1;
+    end
+    
+    if isempty(ColorIndex)
+        ColorIndex = 1;
+    end
+    
+    Colors = [0.904705882352941,0.191764705882353,0.198823529411765;0.294117647058824,0.544705882352941,0.749411764705882;0.371764705882353,0.717647058823529,0.361176470588235;1,0.548235294117647,0.100000000000000;0.955000000000000,0.894647058823529,0.472176470588235;0.685882352941177,0.403529411764706,0.241176470588235];
+    
+    color = Colors(ColorIndex, :);
+    
+    ColorIndex = mod(ColorIndex, size(Colors, 1)) + 1;
+end
 
 
 

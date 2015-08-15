@@ -14,7 +14,6 @@ sim.t = t;
 sim.f = f;
 
 % Modulator frequency response
-tx.kappa = 1; % controls attenuation of I to P convertion
 tx.modulator.fc = tx.modulator.Fc(1); % modulator cut off frequency
 tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
 tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));

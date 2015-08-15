@@ -24,6 +24,9 @@ sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.L = getValue(h.Lseq);  % de Bruijin sub-sequence length (ISI symbol length)
 
+%% ADS co-simulation
+sim.ads.cosim = getLogicalValue(h.check.ads);
+sim.ads.eyediagram = getLogicalValue(h.check.ads_eye);
 
 %% Modulation
 modulation = getOption(h.popup.modulation);

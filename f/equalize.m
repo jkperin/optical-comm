@@ -56,78 +56,7 @@ switch type
         eq.Kne = trapz(sim.f, abs(Heq).^2)/(mpam.Rs);
         
     case 'Fixed TD-FS-LE'
-        %% Fixed Time-domain fractionally-spaced equalizer
-        if mod(rx.eq.Ntaps, 2) == 0
-            eq.Ntaps = eq.Ntaps + 1;
-        end
-        Ntaps = eq.Ntaps;
-        ros = eq.ros;
-        Ntrain = eq.Ntrain;
-        mu = eq.mu;
-        b = mpam.mod(rx.eq.TrainSeq, 1);
-        
-        % Antialiasing filter
-        ytaa = real(ifft(fft(yt).*ifftshift(Delay.*rx.elefilt.H(sim.f/sim.fs))));
-        
-        if mod(sim.Mct/ros, 2) == 0
-            yk = ytaa(1:sim.Mct/ros:end);
-            tk = sim.t(1:sim.Mct/ros:end);
-        else % if sim.Mct is not multiple of ros, then interpolate
-            yk = interp1(1:length(ytaa), ytaa, 1:sim.Mct/ros:length(ytaa));
-            tk = interp1(1:length(ytaa), sim.t, 1:sim.Mct/ros:length(ytaa));
-            
-%             yk = resample(ytaa, sim.ros, sim.Mct);
-%             tk = resample(sim.t, sim.ros, sim.Mct);            
-        end
-        
-        W = zeros(Ntaps, 1); % Filter taps
-        W((Ntaps+1)/2) = 1;
-        y = zeros(size(yk));
-        n = 1;
-        e = zeros(1, length(yk)/ros);
-        for k = max(Ntaps, sim.Ndiscard*ros):length(yk)
-            z = yk(k-Ntaps+1:k);
-
-            y(k) = sum(W.*z);
-
-            if mod(k-(Ntaps+1)/2, ros) == 0
-                if n < Ntrain % Training
-                    e(k/ros) = y(k) - b((k-(Ntaps+1)/2)/ros);
-                else
-                    e(k/ros) = y(k) - mpam.mod(mpam.demod(y(k)), 1);
-                end
-                n = n + 1;
-
-                W = W - 2*mu*e(k/ros)*z;
-            end
-        end
-        
-        % remove delay inserted by the transversal FIR filter
-        y = circshift(y, [-(Ntaps+1)/2 0]);
-
-        yd = y(ros:ros:end);
-        
-        if sim.verbose
-            figure, plot(e)
-            xlabel('Iteration')
-            ylabel('Error')
-            
-            figure, hold on
-            plot(sim.t, yt)
-            plot(tk, yk, 'o')
-            plot(tk(ros:ros:end), yd, '*')
-            
-            [H, w] = freqz(W(end:-1:1), 1);
-            figure, hold on
-            plot(2*mpam.Rs/1e9*w/(2*pi), abs(H).^2)
-        end
-        
-        eq.num = W(end:-1:1);
-        eq.den = 1;
-        [eq.H, w] = freqz(eq.num, eq.den);
-        eq.f = w/pi;
-        eq.Kne = trapz(eq.f, abs(eq.H).^2);
-        
+        error('Fixed TD-FS-LE not yet implemented')
         
     case 'Adaptive TD-FS-LE'
         %% Adaptive Time-domain fractionally-spaced equalizer
@@ -154,6 +83,10 @@ switch type
 %             tk = resample(sim.t, sim.ros, sim.Mct);            
         end
         
+        if size(yk, 1) < size(yk, 2)
+            yk = yk.';
+        end
+                
         W = zeros(Ntaps, 1); % Filter taps
         W((Ntaps+1)/2) = 1;
         y = zeros(size(yk));
@@ -222,7 +155,7 @@ switch type
         yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
 
         yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
-
+        
         W = zeros(Ntaps, 1);
         W((Ntaps+1)/2) = 1;
         yd = zeros(size(yk));
@@ -270,8 +203,8 @@ switch type
             % Fold spectrum
             df = sim.fs/length(sim.f);
             X = abs(Hmatched).^2;
-            X = conj(flipud(X(1:length(X)/2+1)));
-            ff = -flipud(sim.f(1:length(sim.f)/2+1));
+            X = conj(flipud(X(1:floor(length(X)/2)+1)));
+            ff = -flipud(sim.f(1:floor(length(sim.f)/2)+1));
             Nfold = floor(mpam.Rs/(2*df))+1;
             Xfolded = X(1:Nfold);
             ffolded = ff(1:Nfold);
@@ -294,9 +227,13 @@ switch type
 
             Xfolded = [flipud(conj(Xfolded(2:end))); Xfolded(1:end-1)];
             ffolded = [-flipud((ffolded(2:end))); ffolded(1:end-1)];
-
-            eq.H = 1./Xfolded;
-            eq.f = ffolded;
+           
+            dff = 1/length(yk);
+            ff = -0.5:dff:0.5-dff;
+            ff = mpam.Rs*ff.';
+            
+            eq.f = ff;
+            eq.H = interp1(ffolded, 1./Xfolded, ff, 'spline');
             
             % filter using Xfolded
             yd = real(ifft(fft(yk).*ifftshift(eq.H)));

@@ -78,6 +78,19 @@ xtc(xt > clip_level) = clip_level;
 %% Add dc bias (dc_bias determines whether it's added full dc bias or clipped dc bias)
 xtc = xtc + clip_level;
 
+%% Adjust signal to get to desired power
+rex = 10^(-abs(tx.rexdB)/10);  % defined as Pmin/Pmax    
+
+xmean  = mean(xtc);   % measured
+
+%% Adjust transmitted power
+if isfield(tx, 'Ptx') % if Ptx was provided, then scale signal to desired Ptx      
+    % Scale and add additional dc bias due to finite extinction ratio
+    xtc = xtc*tx.Ptx*(1 - 2*rex)/xmean + 2*tx.Ptx*rex; 
+else % just add additional dc bias due to finite extinction ratio
+    xtc = xtc + 2*xmean*rex; 
+end
+
 %% Apply frequency response of the laser
 Et = optical_modulator(xtc, tx, sim);
 

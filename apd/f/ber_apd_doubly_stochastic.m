@@ -28,6 +28,7 @@ link_gain = apd.Gain*fiber.link_attenuation(tx.lamb)*apd.R;
 
 % Ajust levels to desired transmitted power and extinction ratio
 mpam.adjust_levels(tx.Ptx, tx.rexdB);
+Pmax = mpam.a(end); % used in the automatic gain control stage
 
 % Modulated PAM signal
 dataTX = debruijn_sequence(mpam.M, sim.L).'; % de Bruijin sequence
@@ -44,6 +45,11 @@ sim.RIN = false; % RIN is not modeled here since number of samples is not high e
 
 % Direct detect
 yt = apd.R*apd.Gain*Pt;
+
+% Automatic gain control
+% Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
+yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
+mpam.norm_levels;
 
 %% Equalization
 if isfield(rx, 'eq')
@@ -64,17 +70,18 @@ yd = yd(Nzero+1:end-Nzero);
 yd(yd < 0) = 0; % !! why this here?
 
 %% Detection
-Pthresh = mpam.b*link_gain; % refer decision thresholds to receiver
+Pthresh = mpam.b; % refer decision thresholds to receiver
 
 % Noise bandwidth
 Df  = rx.elefilt.noisebw(sim.fs)/2;
+
 % Variance of thermal noise
 varTherm = rx.N0*Df; 
 
 if RIN
-    varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Df;
+    varRIN =  @(Pnorm) 10^(tx.RIN/10)*(Pmax*link_gain*Pnorm).^2*Df;
 else
-    varRIN = @(Plevel) 0;
+    varRIN = @(Pnorm) 0;
 end
 
 pe = 0;
@@ -82,8 +89,8 @@ pe_gauss = 0;
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
-    varShot = apd.var_shot(yd(k)/apd.Gain, Df);
-    sig = sqrt(rx.eq.Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
+    varShot = apd.var_shot(Pmax*link_gain*yd(k)/apd.Gain, Df);
+    sig = 1/(Pmax*link_gain)*sqrt(rx.eq.Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
      
     if dat(k) == mpam.M-1
 %         pe = pe + apd.tail_saddlepoint_approx(Pthresh(end), lambda, sim.fs/sim.Mct, rx.N0, 'left');
