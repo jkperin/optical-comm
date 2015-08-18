@@ -3,10 +3,18 @@ dBm2Watt = @(x) 1e-3*10.^(x/10);
 
 load SampleData4PAMlong
 
+[Pthresh, Plevels, OptDecisionInstant] = ADS_decision_thershold_optimization(Pout, mpam, Mct, true);
+
+mpam.set_levels(Plevels, Pthresh);
+
+% Shift signal so that optimal decision threshold appears in the middle of
+% the pulse
+Poutnf = circshift(Poutnf, [0, (Mct+1)/2 - OptDecisionInstant-1]);
+
 %% Matlab Simulation
 % Simulation parameters
 sim.Nsymb = Nsymb; % Number of symbols in montecarlo simulation
-sim.Mct = Mct_odd;     % Oversampling ratio to simulate continuous time (must be odd) 
+sim.Mct = Mct;     % Oversampling ratio to simulate continuous time (must be odd) 
 sim.N = Nsymb*sim.Mct; % number points in 'continuous-time' simulation
 
 % Time and frequency
@@ -23,14 +31,14 @@ sim.f = f;
 % Transmitter
 tx.rexdB = -5;          % exctinction ratio in dB. Defined as Pmin/Pmax
 
+tx = rmfield(tx, 'modulator');
+tx_ads = tx;
+
 % Modulator frequency response
 tx.modulator.fc = 24e9; % modulator cut off frequency
 tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
+tx.modulator.h = @(t) [0*t(t < 0) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0))];
 tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
-
-tx_ads = tx;
-tx_ads = rmfield(tx_ads, 'modulator');
 
 % Receiver
 pin = apd(0, 0, Inf, rx.R, rx.Id);
@@ -44,9 +52,6 @@ else
 end
 
 filt = design_filter('bessel', 5, 19e9/(sim.fs/2));
-
-% Equalization
-eq = rx.eq;
 
 % Overall link gain
 link_gain = fiber1.link_attenuation(tx.lamb)*pin.R;
@@ -63,18 +68,16 @@ ndiscard = [1:Ndiscard(1) sim.Nsymb-Ndiscard(2):sim.Nsymb];
 
 % ndiscard = [1:(sim.Ndiscard+eq.Ntrain) (sim.Nsymb-sim.Ndiscard-eq.Ntrain):sim.Nsymb];
 
-%
+
 % Equalization
 rx.eq.TrainSeq = dataTXref;
-
-Poutnf_odd = [0 Poutnf_odd];
 
 Ptx = dBm2Watt(tx.PtxdBm);
 for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
 
 	% Ajust levels to desired transmitted power and extinction ratio
-    Ptads = Poutnf_odd.'/mean(Poutnf_odd)*tx.Ptx;
+    Ptads = Poutnf.'/mean(Poutnf)*tx.Ptx;
     mpam.adjust_levels(tx.Ptx, tx.rexdB);
     
     Ptads([sim.Mct*Ndiscard(1) end-sim.Mct*Ndiscard(2):end]) = 0; % zero sim.Ndiscard last symbbols
