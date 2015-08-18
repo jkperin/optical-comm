@@ -56,7 +56,67 @@ switch type
         eq.Kne = trapz(sim.f, abs(Heq).^2)/(mpam.Rs);
         
     case 'Fixed TD-FS-LE'
-        error('Fixed TD-FS-LE not yet implemented')
+            Grx = rx.elefilt;
+            
+            % Channel frequency response
+%             Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+%                 .*fiber.Hfiber(sim.f, tx).*Grx(sim.f/sim.fs);
+%             
+% %             yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
+% % 
+% %             yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
+%             
+%             %% MMSE Time-domain symbol-rate equalizer
+%             gtx = mpam.pshape(sim.t*sim.fs + (sim.Mct-1)/2);
+%             hch = ifft(ifftshift(Hch)); % received pulse shape
+%             p = conv(gtx, hch, 'same');
+%             p = p/max(abs(p));
+%                         
+%             
+%             plot(sim.t, p)
+%             1;
+                        
+%             xd = x(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
+%             
+%             
+%             xd = xd/abs(sum(xd)); % normalize to unit gain at DC
+%             
+%             X = toeplitz([xd.'; zeros(eq.Ntaps-1, 1)], [xd(1) zeros(1, eq.Ntaps-1)]);
+%             
+%             % Get correct number of taps from Toeplitz matrix
+%             X = X(ceil(size(X, 1)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)), :);
+%             
+%             e = zeros(eq.Ntaps, 1); 
+%             e((eq.Ntaps-1)/2) = 1;
+%             
+%             % NSR = noise signal ratio
+%             if isfield(eq, 'NSR')
+%                 W = X*(((X' + eq.NSR*eye(eq.Ntaps))*X)\e);
+%             else
+%                 W = X*((X'*X)\e);
+%             end                
+%             % Note: if NSR = 0, or if NSR is not specified, then
+%             % zero-forcing equalizer is designed            
+% 
+%             % Filter using
+%             if isempty(yt) % only design
+%                 yd = []; 
+%             else
+%                 % Matched filter
+%                 yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
+%                 % Sample at symbol rate
+%                 yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
+%                 % Filter
+%                 yd = filter(W, 1, yk);
+%                 yd = circshift(yd, [-(eq.Ntaps-1)/2+1 0]); % remove delay of transversal filter
+%             end  
+% 
+%             % Aux
+%             eq.num = W;
+%             eq.den = 1;
+%             [eq.H, w] = freqz(eq.num, eq.den);
+%             eq.f = w/(2*pi);
+%             eq.Kne = 2*trapz(eq.f, abs(eq.H));
         
     case 'Adaptive TD-FS-LE'
         %% Adaptive Time-domain fractionally-spaced equalizer
@@ -188,57 +248,102 @@ switch type
         eq.f = w/(2*pi);
         eq.Kne = 2*trapz(eq.f, abs(eq.H));
 
-        case 'Fixed TD-SR-LE'
-            %% Time-domain symbol-rate equalizer
-            % matchedfilt = design_filter('matched', @(t) conv(mpam.pshape(t), 1/sim.fs*tx.modulator.h(t/sim.fs), 'full') , 1/sim.Mct); 
+        case 'Fixed TD-SR-LE'            
             Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); 
 
             Hmatched = Delay.*conj(Gtx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*...
                 exp(1j*2*pi*sim.f*tx.modulator.grpdelay).*fiber.Hfiber(sim.f, tx));
             
-            yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
-
-            yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
+%             yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
+% 
+%             yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
             
-            % Fold spectrum
-            df = sim.fs/length(sim.f);
-            X = abs(Hmatched).^2;
-            X = conj(flipud(X(1:floor(length(X)/2)+1)));
-            ff = -flipud(sim.f(1:floor(length(sim.f)/2)+1));
-            Nfold = floor(mpam.Rs/(2*df))+1;
-            Xfolded = X(1:Nfold);
-            ffolded = ff(1:Nfold);
-            fold = true;
-            for k = Nfold+1:Nfold:length(ff)-Nfold
-                if fold
-%                     [ff(k+Nfold-1) ff(k)]/1e9
-
-                    Xfolded = Xfolded + conj(flipud(X(k:k+Nfold-1)));
-
-                    fold = false;
-                else
-%                     [ff(k) ff(k+Nfold-1)]/1e9
-
-                    Xfolded = Xfolded + X(k:k+Nfold-1);
-
-                    fold = true;
-                end
-            end
-
-            Xfolded = [flipud(conj(Xfolded(2:end))); Xfolded(1:end-1)];
-            ffolded = [-flipud((ffolded(2:end))); ffolded(1:end-1)];
-           
-            dff = 1/length(yk);
-            ff = -0.5:dff:0.5-dff;
-            ff = mpam.Rs*ff.';
+            %% MMSE Time-domain symbol-rate equalizer
+            n = -floor(eq.Ntaps/2)*sim.Mct:sim.Mct*floor(eq.Ntaps/2);
+            v = mpam.pshape(n);
+            h = tx.modulator.h(n/sim.fs + tx.modulator.grpdelay);
+            p = conv(h, v, 'same');
+            x = conv(p, fliplr(p), 'same');
+            xd = x(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
+            xd = xd/abs(sum(xd)); % normalize to unit gain at DC
             
-            eq.f = ff;
-            eq.H = interp1(ffolded, 1./Xfolded, ff, 'spline');
+            X = toeplitz([xd.'; zeros(eq.Ntaps-1, 1)], [xd(1) zeros(1, eq.Ntaps-1)]);
             
-            % filter using Xfolded
-            yd = real(ifft(fft(yk).*ifftshift(eq.H)));
+            % Get correct number of points from Toeplitz matrix
+            X = X(ceil(size(X, 1)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)), :);
             
-            eq.Kne = trapz(eq.f, abs(eq.H))/(mpam.Rs);
+            e = zeros(eq.Ntaps, 1); 
+            e((eq.Ntaps-1)/2) = 1;
+            
+            % NSR = noise signal ratio
+            if isfield(eq, 'NSR')
+                W = X*(((X' + eq.NSR*eye(eq.Ntaps))*X)\e);
+            else
+                W = X*((X'*X)\e);
+            end                
+            % Note: if NSR = 0, or if NSR is not specified, then
+            % zero-forcing equalizer is designed            
+
+            % Filter using
+            if isempty(yt) % only design
+                yd = []; 
+            else
+                % Matched filter
+                yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
+                % Sample at symbol rate
+                yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
+                % Filter
+                yd = filter(W, 1, yk);
+                yd = circshift(yd, [-(eq.Ntaps-1)/2+1 0]); % remove delay of transversal filter
+            end  
+
+            % Aux
+            eq.num = W;
+            eq.den = 1;
+            [eq.H, w] = freqz(eq.num, eq.den);
+            eq.f = w/(2*pi);
+            eq.Kne = 2*trapz(eq.f, abs(eq.H));
+            
+            %% Design of zero-forcing TD-SR_L             
+%             % Fold spectrum
+%             df = sim.fs/length(sim.f);
+%             X = abs(Hmatched).^2;
+%             X = conj(flipud(X(1:floor(length(X)/2)+1)));
+%             ff = -flipud(sim.f(1:floor(length(sim.f)/2)+1));
+%             Nfold = floor(mpam.Rs/(2*df))+1;
+%             Xfolded = X(1:Nfold);
+%             ffolded = ff(1:Nfold);
+%             fold = true;
+%             for k = Nfold+1:Nfold:length(ff)-Nfold
+%                 if fold
+% %                     [ff(k+Nfold-1) ff(k)]/1e9
+% 
+%                     Xfolded = Xfolded + conj(flipud(X(k:k+Nfold-1)));
+% 
+%                     fold = false;
+%                 else
+% %                     [ff(k) ff(k+Nfold-1)]/1e9
+% 
+%                     Xfolded = Xfolded + X(k:k+Nfold-1);
+% 
+%                     fold = true;
+%                 end
+%             end
+% 
+%             Xfolded = [flipud(conj(Xfolded(2:end))); Xfolded(1:end-1)];
+%             ffolded = [-flipud((ffolded(2:end))); ffolded(1:end-1)];
+%            
+%             dff = 1/length(yk);
+%             ff = -0.5:dff:0.5-dff;
+%             ff = mpam.Rs*ff.';
+%             
+%             eq.f = ff;
+%             eq.H = interp1(ffolded, 1./Xfolded, ff, 'spline');
+%             
+%             % filter using Xfolded
+%             yd = real(ifft(fft(yk).*ifftshift(eq.H)));
+%             
+%             eq.Kne = trapz(eq.f, abs(eq.H))/(mpam.Rs);
         
     otherwise
         error('Equalization option not implemented yet!')
