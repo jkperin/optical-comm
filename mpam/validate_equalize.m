@@ -11,7 +11,7 @@ addpath ../apd/f/
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
 %% Simulation parameters
-sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
 sim.Mct = 15;     % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.BERtarget = 1e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
@@ -37,7 +37,7 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -20:1:-4;
+tx.PtxdBm = -18:-4;
    
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
@@ -54,50 +54,65 @@ tx.modulator.h = @(t) [0*t(t < 0) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*
 fiber = fiber(); % fiber(L, att(lamb), D(lamb))
 
 %% Receiver
-rx.N0 = (20e-12).^2; % thermal noise psd
+rx.N0 = (30e-12).^2; % thermal noise psd
 rx.Id = 10e-9; % dark current
 rx.R = 1; % responsivity
 pin = apd(0, 0, Inf, rx.R, rx.Id);
 % Electric Lowpass Filter
-% rx.elefilt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
-rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
+rx.elefilt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
+% rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 rx.antialiasing = design_filter('bessel', 4, mpam.Rs/(sim.fs/2));
 
 rx.eq.type = 'Fixed TD-SR-LE';
-% rx.eq.ros = 2;
-rx.eq.Ntaps = 11;
-rx.eq.Ntrain = 2e3;
+rx.eq.ros = 2;
+rx.eq.Ntaps = 15;
+rx.eq.Ntrain = 10e3;
 rx.eq.mu = 1e-2;
 
 % Transmitted power
 Ptx = dBm2Watt(tx.PtxdBm);
 
 %% Design equalizer
-n = -rx.eq.Ntaps*sim.Mct:sim.Mct*rx.eq.Ntaps;
-v = mpam.pshape(n);
-df = 1/201;
+eq = rx.eq;
+eq.Ntaps = 17;
+
+Grx = rx.elefilt;
+
+Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+    .*fiber.Hfiber(sim.f, tx).*Grx.H(sim.f/sim.fs);
+
+%% MMSE Time-domain symbol-rate equalizer
+n = -floor(eq.Ntaps/2)*sim.Mct:sim.Mct*floor(eq.Ntaps/2);
+v = mpam.pshape(n + (sim.Mct-1)/2);
 h = tx.modulator.h(n/sim.fs + tx.modulator.grpdelay);
-h = h/max(h);
 p = conv(h, v, 'same');
-p = p/max(p);
-x = conv(p, fliplr(p), 'same');
-x = x/max(x);
-plot(n, v, n, h, n, x)
-nd = n(mod(n, sim.Mct) == 0);
-xd = x(mod(n, sim.Mct) == 0);
-hold on
-stem(nd, xd)
-X = toeplitz([xd.'; zeros(rx.eq.Ntaps-1, 1)], [xd(1) zeros(1, rx.eq.Ntaps-1)]);
-e = zeros(rx.eq.Ntaps, 1);
-e((rx.eq.Ntaps-1)/2) = 1;
-cZF = X*((X'*X)\e);
-cZF = cZF/abs(sum(cZF));
+p = p/max(abs(p));
+% Calculate Grx impulse response and remove group delay
+grx = impz(Grx.num, Grx.den, n);
+grx = interp1(n - Grx.grpdelay, grx, n, 'spline');
 
-Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); 
+x = conv(p, grx, 'same');
 
-Hmatched = conj(Gtx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*...
-    exp(1j*2*pi*sim.f*tx.modulator.grpdelay).*fiber.Hfiber(sim.f, tx));
+% Downsample to rate ros x Rs
+dn = sim.Mct/eq.ros;
+nd = [n(1):dn:-dn 0:dn:n(end)];
+xd = interp1(n, x, nd);
 
+% Toeplitz matrix
+X = toeplitz([xd.'; zeros(eq.Ntaps-1, 1)], [xd(1) zeros(1, eq.Ntaps-1)]);
+
+% Get correct taps from Toeplitz matrix
+X = X(ceil(size(X, 1)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)), 1:eq.ros:end);
+
+e = zeros((eq.Ntaps+1)/eq.ros, 1); 
+e((length(e)+1)/2) = 1;
+
+% NSR = noise signal ratio
+if isfield(eq, 'NSR')
+    W = X*(((X' + eq.NSR*eye(eq.Ntaps))*X)\e);
+else
+    W = X*((X'*X)\e);
+end           
 
 for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
@@ -133,17 +148,20 @@ for k = 1:length(Ptx)
         rx.eq.type = 'None';
     end
 
-    % Equalize
+    % NSR
+    rx.eq.NSR = (rx.N0*sim.fs/2)/(mean(abs(mpam.a).^2)*(Pmax*link_gain)^2);
+    % Note: make NSR = 0 for Zero forcing equalizer
     [yd2, rx.eq] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim);
-    %% Time-domain symbol-rate equalizer
-    % matchedfilt = design_filter('matched', @(t) conv(mpam.pshape(t), 1/sim.fs*tx.modulator.h(t/sim.fs), 'full') , 1/sim.Mct); 
-    yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
+    
+    %% Equalizer
+    yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(sim.f/sim.fs))));
 
     yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
     
-    yd = filter(cZF, 1, yk);
-    yd = circshift(yd, [-(length(cZF)-1)/2+1 0]);
-
+    %% MMSE equalizer
+    yd = filter(W, 1, yk);
+    yd = circshift(yd, [-(eq.Ntaps-1)/2+1 0]); % remove delay of transversal filter
+    
     % Symbols to be discard in BER calculation
     Ndiscard = sim.Ndiscard*[1 1];
     if isfield(rx.eq, 'Ntrain')
@@ -162,18 +180,20 @@ for k = 1:length(Ptx)
     % True BER
     [~, ber_f(k)] = biterr(dataRX, dataTX);
 end
-
+rx.eq = rmfield(rx.eq, 'NSR');
 ber = apd_ber(mpam, tx, fiber, pin, rx, sim);
 
 figure, hold on
 plot(tx.PtxdBm, log10(ber_f), '--o')
 plot(tx.PtxdBm, log10(ber.count), '--s')
 plot(tx.PtxdBm, log10(ber.gauss), '-')
-legend('BER', 'Count', 'Estimated')
+plot(tx.PtxdBm, log10(ber.awgn), '-')
+legend('This', 'APD-BER', 'Estimated', 'AWGN')
 axis([tx.PtxdBm([1 end]) -8 0])
 
 figure, hold on
-C = freqz(cZF, 1, rx.eq.f, mpam.Rs);
+W = freqz(W, 1, rx.eq.f, mpam.Rs);
 plot(rx.eq.f, abs(rx.eq.H).^2)
-plot(rx.eq.f, abs(C).^2)
+plot(rx.eq.f, abs(W).^2)
+% legend('Equaliz
 
