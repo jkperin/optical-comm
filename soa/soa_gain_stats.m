@@ -1,6 +1,5 @@
 %% Power distribution with Mch channels averaged over Ns symbols
-
-clear, close all
+clear, clc, close all
 
 addpath ../mpam
 addpath ../f % general functions
@@ -12,7 +11,7 @@ q = 1.60217657e-19; % electron charge
 c = 299792458;      % speed of light
 
 %% SOA Parameters
-carrier_lifetime = 200e-12;
+carrier_lifetime = 2000e-12;
 PsatdBm = 10;
 G0 = 1800; % small-power Gain in linear units
 
@@ -59,18 +58,18 @@ K(Ksum ~= Mch*Ns, :) = [];
 
 Ptot = (K(:, 1)*mpam.a(1) + K(:, 2)*mpam.a(2) + K(:, 3)*mpam.a(3) + K(:, 4)*mpam.a(4))/Ns;
 
-figure, histfit(Ptot, 20, 'normal')
+% figure, histfit(Ptot, 20, 'normal')
 
 Gsoa = interp1(Pfit, Gfit, Ptot, 'spline');
 
-figure, histfit(Gsoa, 20, 'normal')
+% figure, histfit(Gsoa, 20, 'normal')
 
 % hist(Gsoa, 20)
 % K = unique(K);
 
 % Simulation parameters
-sim.Nsymb = 2^10; % Number of symbols in montecarlo simulation
-sim.Mct = 7;      % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
+sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
+sim.Mct = 15;      % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.Me = 16;       % Number of used eigenvalues
 sim.L = 2; % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1e-4; 
@@ -98,7 +97,7 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -24:1:-14;
+tx.PtxdBm = -24:-14;
 
 tx.lamb = 1310e-9;
 tx.RIN = -150;  % dB/Hz
@@ -128,20 +127,19 @@ soa = soa(20, 7, 1310e-9, 20); % soa(GaindB, NF, lambda, maxGaindB)
 %% Crosstalk
 % Transmitted power
 Ptx = dBm2W(tx.PtxdBm);
-Mch = 4;
+Mch = 1;
 % Ns = 10;
+
+ber = soa_ber(mpam, tx, fiber, soa, rx, sim);
+
+f = sim.f/sim.fs;
 
 for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
     
-    % Normalized frequency
-    f = sim.f/sim.fs;
-
-    % Overall link gain
-    link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
-
     % Ajust levels to desired transmitted power and extinction ratio
     mpam.adjust_levels(tx.Ptx, tx.rexdB);
+    Pmax = mpam.a(end);
 
     % Modulated PAM signal
     dataTX = randi([0 mpam.M-1], Mch, sim.Nsymb); % Random sequence
@@ -158,8 +156,7 @@ for k = 1:length(Ptx)
        [Et(kk,:), Pt(kk,:)] = optical_modulator(xt(kk,:), tx, sim);
     end
        
-    % Amplifier
-    %% !! with crosstalk
+    %% Amplifier with crosstalk
     Gsoa = zeros(length(Et), 1);
     Pin = zeros(length(Et), 1);
     for nn = Ns*sim.Mct:sim.N
@@ -167,11 +164,12 @@ for k = 1:length(Ptx)
         
         Gsoa(nn) = interp1(Pfit, Gfit, Pin(nn), 'spline');
     end
+%     Gsoa(:) = soa.Gain;
     
     % assumming Gain >> 1
     Ssp = (Gsoa - 1)*10^(soa.Fn/10)/2*(h*c/soa.lamb); % Agrawal 6.1.15 3rd edition
 
-    N0 = 0*2*Ssp; % one-sided baseband equivalent of Ssp
+    N0 = 2*Ssp; % one-sided baseband equivalent of Ssp
 
     NN = length(Gsoa);
     % N0 is the psd per polarization
@@ -206,22 +204,37 @@ for k = 1:length(Ptx)
     else % by default assumes that polarizer is used
         yt = abs(eo(:, 1)).^2;
     end
-%     yt = yt + wshot + sqrt(rx.N0*sim.fs/2)*randn(sim.N, 1);
+    yt = yt + wshot + sqrt(rx.N0*sim.fs/2)*randn(sim.N, 1);
 
-    % Electric low-pass filter
-    yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));
-
-    % Sample
-    ix = (sim.Mct-1)/2+1:sim.Mct:length(yt); % sampling points
-    yd = yt(ix);
-
-    % Discard first and last sim.Ndiscard symbols
-    ndiscard = [1:sim.Ndiscard+2*Ns sim.Nsymb-sim.Ndiscard-2*Ns+1:sim.Nsymb];
-    yd(ndiscard) = []; 
-    dataTX(:, ndiscard) = [];
-
+    % Overall link gain
+    link_gain = mean(Gsoa)*fiber.link_attenuation(tx.lamb)*rx.R;
+    
     % Automatic gain control
-    yd = yd/link_gain; % just refer power values back to transmitter
+    % Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
+    yt = yt./(Pmax*link_gain); % just refer power values back to transmitter
+    mpam.norm_levels;
+
+    %% Equalization
+    if isfield(rx, 'eq')
+        rx.eq.TrainSeq = dataTX;
+    else % otherwise only filter using rx.elefilt
+        rx.eq.type = 'None';
+    end
+
+    % Equalize
+    [yd, rx.eq] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim);
+
+    % Symbols to be discard in BER calculation
+    Ndiscard = sim.Ndiscard*[1 1];
+    if isfield(rx.eq, 'Ntrain')
+        Ndiscard(1) = Ndiscard(1) + rx.eq.Ntrain;
+    end
+    if isfield(rx.eq, 'Ntaps')
+        Ndiscard = Ndiscard + rx.eq.Ntaps;
+    end
+    ndiscard = [1:Ndiscard(1) sim.Nsymb-Ndiscard(2):sim.Nsymb];
+    yd(ndiscard) = []; 
+    dataTX(ndiscard) = [];
 
     % Demodulate
     dataRX = mpam.demod(yd);
@@ -230,17 +243,15 @@ for k = 1:length(Ptx)
     [~, ber.crosstalk(k)] = biterr(dataRX, dataTX(1, :));
 end
 
-figure(1), hold on, grid on
+figure, hold on, grid on
 plot(tx.PtxdBm, log10(ber.count), '-o')
 plot(tx.PtxdBm, log10(ber.est)) % KLSE Fourier
 % plot(tx.PtxdBm, log10(ber_klse_freq))
-plot(tx.PtxdBm, log10(ber.gauss))
-plot(tx.PtxdBm, log10(ber.awgn))
-plot(tx.PtxdBm, log10(ber.crosstalk))
+% plot(tx.PtxdBm, log10(ber.gauss))
+plot(tx.PtxdBm, log10(ber.awgn), 'k')
+plot(tx.PtxdBm, log10(ber.crosstalk), '-o')
 legend('Monte Carlo', 'KLSE Fourier & Saddlepoint Approx',... %  'KLSE Frequency Domain & Saddlepoint Approx',...
-        'Gaussian Approximation', 'AWGN approximation',...
-        'With Crosstalk',...
-    'Location', 'SouthWest')
+        'AWGN approximation', 'Monte Carlo w/ Crosstalk', 'Location', 'SouthWest')
 axis([tx.PtxdBm([1 end]) -8 0])
 xlabel('Transmitted Power (dBm)')
 ylabel('log_{10}(BER)')

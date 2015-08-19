@@ -46,14 +46,13 @@ RIN = sim.RIN;
 sim.RIN = false; % RIN is not modeled here since number of samples is not high enough to get accurate statistics
 [Et, Pt] = optical_modulator(xt, tx, sim);
 
-%% Fiber propagation
-Et = fiber.linear_propagation(Et, sim.f, tx.lamb); % It might be necessary to move fiber propagation to KLSE_fourier
+% Fiber propagation moved to KLSE Fourier
 
 %% Signal after amplifier
 x = sqrt(soa.Gain)*Et;
 
 % Fourier series coefficients for periodic extension of x 
-xn = fftshift(fft(x))/length(x); % divided by period since if Fourier series
+xn = fftshift(fft(x))/length(x); % divided by period since it's Fourier series
 xn = xn(abs(f) <= Fmax);
 
 fm = f(abs(f) <= Fmax);
