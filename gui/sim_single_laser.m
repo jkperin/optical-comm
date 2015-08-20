@@ -11,13 +11,13 @@ function sim_single_laser
     h.default.RIN_variation = 30; % RINmax - RINmin (dB/Hz) within RIN bandwidth
          
     addpath f
+    addpath data/
     addpath ../f % general functions
     addpath ../mpam
     addpath ../soa
     addpath ../soa/f
     addpath ../apd
     addpath ../apd/f
-    addpath data/
     addpath ../ofdm
     addpath ../ofdm/f/
 %     
@@ -119,7 +119,7 @@ function sim_single_laser
    align([h.Ptx h.fc h.lamb h.rex h.rin h.rin_shape h.chirp], 'Right', 'Fixed', 6);
     
    %% Modulation Panel
-   scale = 10;
+   scale = 9.5;
    dH = 1/7;
    h.panel.mod = uipanel('Title', 'Modulation', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY-scale*BlockHeigth panelWidht scale*BlockHeigth]); 
@@ -169,7 +169,7 @@ function sim_single_laser
    align([h.L h.att h.D], 'Left', 'Fixed', 6)
    
    %% Receiver
-   scale = 8.9; % 8
+   scale = 8.5; % 8
    dH = 1/6;
    maxY = maxY-scale*BlockHeigth;
    h.panel.rx = uipanel('Title', 'Receiver', 'FontSize', HeaderFontSize,...
@@ -202,7 +202,7 @@ function sim_single_laser
    align([h.text.shot, h.check.shot], 'None', 'Bottom')
    
    %% Equalization
-   scale = 7.5;
+   scale = 7;
    dH = 1/6;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.eq = uipanel('Title', 'Equalization', 'FontSize', HeaderFontSize,...
@@ -289,25 +289,35 @@ function sim_single_laser
    
    
    %% ADS co-simulaton
-   scale = 3;
-   dH = 1/3;
+   scale = 4.5;
+   dH = 1/4;
    maxY = maxY - scale*BlockHeigth;
    h.panel.ads = uipanel('Title', 'ADS Co-Simulation', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
-   
+
+    [h.text.trise, h.trise] = table_entry(h.panel.ads, [0 dH 1/scale], 'Rise Time:', 0, false,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt, [h.check.ads_eye, h.text.ads_eye internal_handles], false));
+    set(h.trise, 'Style', 'popupmenu');
+    set(h.trise, 'String', {'10 ps', '5 ps'});
+    set(h.trise, 'Position', get(h.trise, 'Position') + [-0.1 0 0.1 0]);
+    set(h.trise, 'FontSize', FontSize-1)
+    align([h.text.trise, h.trise], 'None', 'Top');
+    
    [h.check.ads_eye, h.text.ads_eye, temp] = table_entry(h.panel.ads, [0 dH/4 1/scale], 'Show Eye Diagram', 0, false);
    set(temp, 'Visible', 'off')
    
-   [h.check.ads, h.text.ads, h.ads] = table_entry(h.panel.ads, [0 dH 1/scale], 'ADS DFB model', 0, false,...
-       @(src, evt, internal_handles) disable_handles_Callback(src, evt, [h.check.ads_eye, h.text.ads_eye internal_handles], false));
+   [h.check.ads, h.text.ads, h.ads] = table_entry(h.panel.ads, [0 2*dH 1/scale], 'ADS DFB model', 0, false,...
+       @(src, evt, internal_handles) disable_handles_Callback(src, evt,...
+       [h.check.ads_eye, h.text.ads_eye, h.text.trise, h.trise, internal_handles], false));
     set(h.ads, 'Style', 'popupmenu');
-    set(h.ads, 'String', {'DFB 25C'});
-    set(h.ads, 'Position', get(h.optfiltType, 'Position') + [-0.1 0 0.1 0]);
+    set(h.ads, 'String', {'DFB 25C', 'DFB -5C', 'DFB 75C'});
+    set(h.ads, 'Position', get(h.ads, 'Position') + [-0.1 0 0.1 0]);
     set(h.ads, 'FontSize', FontSize-1)
     align([h.text.ads, h.ads], 'None', 'Top');
     
-   align([h.check.ads, h.check.ads_eye], 'None', 'Fixed', 6);
-   align([h.text.ads, h.text.ads_eye], 'None', 'Fixed', 6);
+   align([h.check.ads, h.trise, h.check.ads_eye], 'None', 'Fixed', 6);
+   align([h.text.ads, h.text.trise, h.text.ads_eye], 'None', 'Fixed', 6);
+   align([h.ads, h.trise, temp], 'None', 'Fixed', 6);
      
    %Create a plot in the axes.
    popup_system_Callback(h.popup.system, 0)
@@ -349,7 +359,7 @@ function sim_single_laser
                         [ber, GdB] = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim);
                         
                         if getLogicalValue(h.check.ads)
-                            ber_ads = mpam_ber_vs_Ptx_ADS(  tx, fiber1, rx, sim);
+                            ber_ads = mpam_ber_vs_Ptx_ADS(tx, fiber1, soa1, apd1, rx, sim);
                         end
                     case 'DMT/OFDM'
                         ber = ofdm_ber_vs_Ptx(ofdm1, tx, fiber1, rx, sim);
@@ -457,7 +467,10 @@ function sim_single_laser
              
             % Equalization
              set_property([h.text.eq_type, h.eq_type], 'Enable', 'on');
-             call_handle_Callback(h.eq_type, h.eq_type, 0);         
+             call_handle_Callback(h.eq_type, h.eq_type, 0);      
+             % ADS co-simulation
+             set_property([h.check.ads, h.text.ads, h.ads], 'Enable', 'on');
+             call_handle_Callback(h.check.ads, h.check.ads, 0);         
              
              set(h.M, 'String', 4); 
              set(h.Ptx, 'String', '-30:2:-10')
@@ -474,6 +487,12 @@ function sim_single_laser
              eq_child = allchild(h.panel.eq);
              for k = 1:length(eq_child)
                set(eq_child(k), 'Enable', 'off');
+             end
+             
+              % ADS-cosimulation
+             ads_child = allchild(h.panel.ads);
+             for k = 1:length(ads_child)
+               set(ads_child(k), 'Enable', 'off');
              end
              
              set(h.rxfilterType, 'String', {'Gaussian', 'Bessel'})

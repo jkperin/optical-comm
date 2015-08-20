@@ -1,15 +1,10 @@
-function [Pthresh, Plevels, OptDecisionInstant] = ADS_decision_thershold_optimization(x, mpam, Mct, verbose)
+function [Pthresh, Plevels, OptDecisionInstant] = ADS_decision_thershold_optimization(x, Pthresh, Mct, verbose)
 
 %% Average power and extinction ratio of ADS output
-Pavg = 8; % average power in mW
-rexdB = -5; % extinction ratio in dB
-
-n = 100*Mct+1:length(x)-100*Mct;
+n = 200*Mct+1:length(x);
 nn = n(1:min(2^14, length(n)));
 
 x = x(n);
-
-[~, Pthresh] = mpam.adjust_levels(Pavg, rexdB);
 
 varPl = zeros(Mct, 4);
 for k = 1:Mct
@@ -52,8 +47,9 @@ Pthresh(3) = (Plevels(4) + Plevels(3))/2;
 
 
 if verbose
-    eyediagram(x(nn), Mct, Mct);
+    eyediagram(circshift(x(nn), [0, -OptDecisionInstant+1]), Mct, Mct);
     hold on
     plot((OptDecisionInstant-1)*[1 1], 15*[-1 1], 'k', 'LineWidth', 2)
-    plot(ceil([-Mct Mct]/2), Pthresh*[1 1], 'k', 'LineWidth', 2);
+    plot(floor(Mct/2)*[-1 1], Pthresh*[1 1], 'k', 'LineWidth', 2);
+    axis([-8 8 0 15])
 end
