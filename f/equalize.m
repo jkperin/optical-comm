@@ -1,14 +1,33 @@
-% Noise enhancement penalty
+%% Design equalizer and equalize yt
 function [yd, eq] = equalize(type, yt, mpam, tx, fiber, rx, sim)
+% Types supported:
+% - None: No equalizer. Filter using antialiasing filter (rx.elefilt) and
+% sample at symbol rate.
+% - Analog: Invert channel response and apply matched-filter matched to the
+% pulse shape and then do symbol-rate sampling
+% - Fixed or Adaptive TD-SR-LE: time-domain symbol-rate linear equalizer.
+% This assumes that there is a matched filter before symbol-rate sampling.
+% - Fixed or Adaptive TD-FS-LE: time-domain fractionally-spaced linear equalizer.
+% This assumes an anti-aliasing filter before sampling.
 
 eq = rx.eq;
 
-if mod(sim.Mct, 2) == 0 % inserts delay of half of sample if oversampling of continuous time is even
+% Check if number of taps was defined and is even. If even, make it odd
+if isfield(eq, 'Ntaps') && mod(eq.Ntaps, 2) == 0
+    eq.Ntaps = eq.Ntaps + 1;
+end
+
+% If modulator wasn't defined in tx, don't do equalization
+if ~isfield(tx, 'modulator')
+    type = 'None';
+end
+
+% Inserts delay of half of sample if oversampling of continuous time is even
+if mod(sim.Mct, 2) == 0 
     Delay = exp(-1j*pi*sim.f/sim.fs);
 else 
     Delay = 1;
 end
-
 
 switch type
     case 'None'
@@ -27,24 +46,27 @@ switch type
         %% Analog Equalization
         Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitter frequency response
         
-        % Received Pulse Spectrum
-        Pf = Gtx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+        % Channel response
+        Gch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
             .*fiber.Hfiber(sim.f, tx);
         
         % Antialiasing filter
         Haa = design_filter('bessel', 5, 1/2*mpam.Rs/(sim.fs/2));
-%         Haa = rx.elefilt.H(sim.f/sim.fs);
-        Haa = Delay.*Haa.H(sim.f/sim.fs);
+        Haa = Haa.H(sim.f/sim.fs);
                
         %        
         Heq = Haa;
-        Heq(abs(sim.f)<=mpam.Rs/2) = Heq(abs(sim.f)<=mpam.Rs/2)./(Pf(abs(sim.f)<=mpam.Rs/2));
+        Heq(abs(sim.f)<=mpam.Rs/2) = Heq(abs(sim.f)<=mpam.Rs/2)./(Gch(abs(sim.f)<=mpam.Rs/2));
 
         % Apply equalization filter
         if isempty(yt) % function was called just to calculate equalizer
             yd = [];
         else
-            yteq = real(ifft(fft(yt).*ifftshift(Heq)));
+            % Channel inversion
+            yteq = real(ifft(fft(yt).*ifftshift(Heq))); 
+            
+            % Matched filter
+            yteq = real(ifft(fft(yteq).*ifftshift(Delay.*conj(Gtx.H(sim.f/sim.fs)))));
 
             % Sample
             yd = yteq(floor(sim.Mct/2)+1:sim.Mct:end); % +1 because indexing starts at 1
@@ -56,7 +78,7 @@ switch type
         eq.Kne = trapz(sim.f, abs(Heq).^2)/(mpam.Rs);
         
     case 'Fixed TD-FS-LE'
-            Grx = rx.elefilt;
+%             Grx = rx.elefilt;
             
             % Channel frequency response
 %             Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
@@ -192,13 +214,10 @@ switch type
         eq.num = W(end:-1:1);
         eq.den = 1;
         [eq.H, w] = freqz(eq.num, eq.den);
-        eq.f = w/pi;
+        eq.f = w/(2*pi);
         eq.Kne = trapz(eq.f, abs(eq.H).^2);
         
     case 'Adaptive TD-SR-LE'
-        if mod(rx.eq.Ntaps, 2) == 0
-            eq.Ntaps = eq.Ntaps + 1;
-        end
         Ntaps = eq.Ntaps;
         Ntrain = eq.Ntrain;
         mu = eq.mu;
@@ -272,8 +291,9 @@ switch type
             % Get correct number of points from Toeplitz matrix
             X = X(ceil(size(X, 1)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)), :);
             
+            % ZF condition
             e = zeros(eq.Ntaps, 1); 
-            e((eq.Ntaps-1)/2) = 1;
+            e((eq.Ntaps+1)/2) = 1;
             
             % NSR = noise signal ratio
             if isfield(eq, 'NSR')
@@ -282,7 +302,10 @@ switch type
                 W = X*((X'*X)\e);
             end                
             % Note: if NSR = 0, or if NSR is not specified, then
-            % zero-forcing equalizer is designed            
+            % zero-forcing equalizer is designed 
+            
+%             % get filter coefficients
+%             W = conj(W(end:-1:1));
 
             % Filter using
             if isempty(yt) % only design
@@ -294,7 +317,7 @@ switch type
                 yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
                 % Filter
                 yd = filter(W, 1, yk);
-                yd = circshift(yd, [-(eq.Ntaps-1)/2+1 0]); % remove delay of transversal filter
+                yd = circshift(yd, [-(eq.Ntaps-1)/2 0]); % remove delay due to equalizer
             end  
 
             % Aux

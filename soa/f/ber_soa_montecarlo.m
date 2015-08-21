@@ -52,21 +52,6 @@ else % by default assumes that polarizer is used
 end
 yt = yt + wshot + sqrt(rx.N0*sim.fs/2)*randn(size(Et));
 
-% % Electric low-pass filter
-% yt = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(f))));
-
-% % Sample
-% ix = (sim.Mct-1)/2+1:sim.Mct:length(yt); % sampling points
-% yd = yt(ix);
-% 
-% % Discard first and last sim.Ndiscard symbols
-% ndiscard = [1:sim.Ndiscard sim.Nsymb-sim.Ndiscard+1:sim.Nsymb];
-% yd(ndiscard) = []; 
-% dataTX(ndiscard) = [];
-% 
-% % Automatic gain control
-% yd = yd/link_gain; % just refer power values back to transmitter
-
 % Automatic gain control
 % Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
 yt = yt/(Pmax*link_gain); % just refer power values back to transmitter

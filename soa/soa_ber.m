@@ -37,6 +37,17 @@ noise_std = @(Plevel) sqrt(varTherm + varShot(Plevel) + rx.R^2*varRIN(Plevel)...
     + rx.R^2*soa.var_awgn(Plevel/soa.Gain, Deltaf, Deltafopt, Npol));
 % Note: Plevel is divided by SOA gain to obtain power at the amplifier input
 
+% Noise enhancement penalty
+if isfield(rx, 'eq')
+    rx.eq.type = 'None';
+    [~, rx.eq] = equalize(rx.eq.type, [], mpam, tx, fiber, rx, sim); % design equalizer
+    % This design assumes fixed zero-forcing equalizers
+    Kne = rx.eq.Kne; % noise enhancement penalty
+    % Kne = noise variance after equalizer/noise variance before equalizer
+else 
+    Kne = 1;
+end
+
 % Level Spacing Optimization
 if strcmp(mpam.level_spacing, 'optimized')
     % is sim.stats is set to Gaussian, then use Gaussian approximation,
@@ -72,6 +83,7 @@ for k = 1:length(Ptx)
     mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
 
     ber.awgn(k) = mpam.ber_awgn(noise_std);
+    ber.awgn_ne(k) = mpam.ber_awgn(@(P) sqrt(Kne)*noise_std(P));
 end
 
 if sim.verbose   

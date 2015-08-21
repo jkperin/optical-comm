@@ -1,3 +1,4 @@
+%% BER of individual levels
 clear, clc, close all
 
 addpath ../mpam/
