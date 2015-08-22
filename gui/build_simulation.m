@@ -1,5 +1,7 @@
 function [mpam, ofdm1, tx, fiber1, soa1, apd1, rx, sim] = build_simulation(h)
+%% Extract user-inputted values from GUI and build required classes and structs
 
+% Auxiliary functions
 getString = @(h) get(h, 'String');
 getValue = @(h) str2double(get(h, 'String'));
 getLogicalValue = @(h) logical(get(h, 'Value'));
@@ -23,10 +25,6 @@ sim.verbose = false; % show stuff
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.L = getValue(h.Lseq);  % de Bruijin sub-sequence length (ISI symbol length)
-
-%% ADS co-simulation
-sim.ads.cosim = getLogicalValue(h.check.ads);
-sim.ads.eyediagram = getLogicalValue(h.check.ads_eye);
 
 %% Modulation
 modulation = getOption(h.popup.modulation);
@@ -150,9 +148,41 @@ val = get(h.eq_type, 'Value');
 rx.eq.type = str{val};
 rx.eq.ros = getValue(h.eq_ros);
 rx.eq.Ntaps = getValue(h.eq_taps);
-rx.eq.mu = getValue(h.eq_mu);
-rx.eq.Ntrain = getValue(h.eq_Ntrain);
 
+if strfind(rx.eq.type, 'Adaptive')
+    rx.eq.adaptive = true;
+    rx.eq.mu = getValue(h.eq_mu);
+    rx.eq.Ntrain = getValue(h.eq_Ntrain);
+else
+    rx.eq.adaptive = false;
+end
+
+%% ADS co-simulation
+sim.ads.cosim = getLogicalValue(h.check.ads);
+sim.ads.model = getOption(h.ads);
+sim.ads.eyediagram = getLogicalValue(h.check.ads_eye);
+sim.ads.risetime = str2double(strrep(getOption(h.trise), ' ps', ''));
+
+switch sim.ads.model
+    case 'DFB 25C'
+        sim.ads.Temp = 25;
+        sim.ads.Plevels = [3.5 6.2 9 11.8]; % rough estimates of the levels
+        sim.ads.Pthresh = [5 7.8 10.6]; % rough estimates of the decision thresholds
+    case 'DFB -5C'
+        sim.ads.Temp = -5;
+        sim.ads.Plevels = [3 6 9 12.5]; % rough estimates of the levels
+        sim.ads.Pthresh = [4.3 7.6 11]; % rough estimates of the decision thresholds
+    case 'DFB 75C'
+        sim.ads.Temp = 75;
+        sim.ads.Plevels = [4 6.8 9.8 12.2]; % rough estimates of the levels
+        sim.ads.Pthresh = [5.35 8.25 11.3]; % rough estimates of the decision thresholds
+    otherwise 
+        error('Invalid ADS model.')
+end
+
+sim.ads.filename = sprintf('ADS_DFB_%dC_%dps.mat', sim.ads.Temp, sim.ads.risetime);
+
+%% System simulation
 switch getOption(h.popup.system)
     case 'Basic'
         apd1 = [];

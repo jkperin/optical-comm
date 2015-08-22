@@ -1,4 +1,5 @@
 classdef PAM < handle
+    %% Class PAM
     properties
         M % constellation size
         Rb % bit rate
@@ -20,6 +21,13 @@ classdef PAM < handle
        
     methods
         function obj = PAM(M, Rb, level_spacing, pshape)
+            %% Class constructor
+            % Inputs
+            % - M = constellation size
+            % - Rb = bit rate
+            % - level_spacing = 'equally-spaced' or 'optimized'
+            % - pshape = function handle of pulse shape
+           
             obj.M = M;
             obj.Rb = Rb;
             obj.level_spacing = level_spacing;
@@ -40,23 +48,32 @@ classdef PAM < handle
         
         %% Get methods
         function Rs = get.Rs(this)
+            %% Symbol-rate assuming rectangular pulse
             Rs = this.Rb/log2(this.M);
         end
         
-        % Set levels to desired values
         function set_levels(this, levels, thresholds)
+            %% Set levels to desired values
+            % Levels and decision thresholds are normalized that last level is unit
             this.a = levels/levels(end);
             this.b = thresholds/levels(end);
         end
         
-        % Normalize levels so that last level is unit
         function norm_levels(this)
+            %% Normalize levels so that last level is unit
             this.b = this.b/this.a(end);
             this.a = this.a/this.a(end);
         end
                     
-        % Adjust levels to desired transmitted power and extinction ratio
         function [Plevels, Pthresh] = adjust_levels(this, Ptx, rexdB)
+            %% Adjust levels to desired transmitted power and extinction ratio
+            % Inputs:
+            % - Ptx = transmitted power (W)
+            % - rexdB = extinction ratio (dB). Defined as Pmin/Pmax
+            % Outputs:
+            % - Plevels, Pthresh = result levels and decision thresholds,
+            % respectively.
+            
             rex = 10^(-abs(rexdB)/10); % extinction ratio. Defined as Pmin/Pmax
             switch this.level_spacing
                 case 'equally-spaced'
@@ -84,23 +101,35 @@ classdef PAM < handle
             this.b = Pthresh;            
         end
         
-        % Generate PAM signal
         function [xt, xd] = mod(this, dataTX, Mct)
+            %% Generate PAM signal
+            % Currently, assumes that pulse shape is rectangular or that
+            % there is not time overlapping between pulses
+            % Inputs:
+            % - dataTX = transmitted symbols from 0 to M-1
+            % - Mct = oversampling rate of continuous time
+            % Outputs:
+            % - xt = signal in "continuous time"
+            % - xd = symbols at symbol rate
             xd = this.a(gray2bin(dataTX, 'pam', this.M) + 1);
             xt = reshape(kron(xd, this.pshape(0:Mct-1)).', length(dataTX)*Mct, 1);
         end
         
-        % Detect PAM signal
         function dataRX = demod(this, yd)
-            dataRX = sum(bsxfun(@ge, yd, this.b.'), 2);
+            %% Demodulate PAM signal
+            % Input:
+            % - y = PAM signal at symbol rate
+            % Output:
+            % - dataRX = detected symbols
+            dataRX = sum(bsxfun(@ge, yd(:), this.b.'), 2);
             dataRX = bin2gray(dataRX, 'pam', this.M).';
         end
         
-        % Calculate BER in AWGN channel where the noise standard deviation 
-        % is given by the function noise_std
-        % noise_std is a handle function that calculates the noise std for
-        % a given signal level
         function ber = ber_awgn(this, noise_std)
+            %% Calculate BER in AWGN channel where the noise standard deviation is given by the function noise_std
+            % Input:
+            % - noise_std = handle function that calculates the noise std for
+            % a given signal level
             ser = 0;
             for k = 1:this.M
                 if k == 1
@@ -117,13 +146,24 @@ classdef PAM < handle
             
             ber = ser/log2(this.M);
         end
-
-        %% Level spacing (a) and decision threshold (b) optmization
-        % Assumes infinite extinction ratio at first, then corrects power and
-        % optmize levels again
-        % The levels and thresholds calculated are after APD amplification
-        function [aopt, bopt] = optimize_level_spacing_gauss_approx(this, BERtarget, rexdB, calc_noise_std, verbose)           
+        
+        function [aopt, bopt] = optimize_level_spacing_gauss_approx(this, BERtarget, rexdB, noise_std, verbose)
+            %% Level spacing (a) and decision threshold (b) optmization
+            % Assumes infinite extinction ratio at first, then corrects power and
+            % optmize levels again
+            % The levels and thresholds calculated are after APD amplification
             % Error probability under a single tail for a given symbol
+            % Inputs:
+            % - BERtarget = target BER
+            % - rexdB = extinction ratio (dB). Defined as Pmin/Pmax
+            % - noise_std = handle function that calculates the noise std for
+            % a given signal level
+            % - verbose = whether to plot algorithm convergence curve
+            % Outputs:
+            % - aopt, bopt = optimized levels and decision thresholds, 
+            % respectively.
+            
+            % Error probability
             Pe = log2(this.M)*BERtarget*(this.M/(2*(this.M-1)));
 
             % Initialize levels and thresholds
@@ -140,7 +180,7 @@ classdef PAM < handle
 
                 for level = 1:this.M-1
                     % Find threshold
-                    sig = calc_noise_std(aopt(level));
+                    sig = noise_std(aopt(level));
 
                     [dPthresh, ~, exitflag] = fzero(@(dPthresh) qfunc(abs(dPthresh)/sig) - Pe, 0);
 
@@ -151,7 +191,7 @@ classdef PAM < handle
                     bopt(level) = aopt(level) + abs(dPthresh);
 
                     % Find next level  
-                    [dPlevel, ~, exitflag] = fzero(@(dPlevel) qfunc(abs(dPlevel)/calc_noise_std(bopt(level) + abs(dPlevel))) - Pe, 0);    
+                    [dPlevel, ~, exitflag] = fzero(@(dPlevel) qfunc(abs(dPlevel)/noise_std(bopt(level) + abs(dPlevel))) - Pe, 0);    
 
                     if exitflag ~= 1
                         warning('level_spacing_optm: level optimization did not converge');     
