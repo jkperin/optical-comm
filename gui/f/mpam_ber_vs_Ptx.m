@@ -27,7 +27,14 @@ if isfield(tx, 'RIN_shape')
     tx.RIN_shapedB = RIN_shapedB;
     RIN_shape = 10.^(RIN_shapedB/10 + realmin);
     
-    figure(5), hold on, grid on
+    persistent RIN_plot;
+
+    if isempty(RIN_plot) || ~isvalid(RIN_plot)
+        RIN_plot = figure;
+        box on, hold on, grid on
+    else
+        figure(RIN_plot)
+    end
     plot(f/1e9, RIN_shapedB);
     plot([0 tx.RIN_bw/1e9], [1 1]*10*log10(trapz(sim.f(abs(sim.f) <= tx.RIN_bw), RIN_shape(abs(sim.f) <= tx.RIN_bw))/(2*tx.RIN_bw)))
     xlabel('Frequency (GHz)')
@@ -54,7 +61,7 @@ if ~isempty(soa1)
     
     % BER
     disp('BER with SOA')
-    ber = soa_ber(mpam, tx, fiber1, soa1, rx, sim);
+    [ber, mpam] = soa_ber(mpam, tx, fiber1, soa1, rx, sim);
     1;
 elseif ~isempty(apd1)
     if sim.OptimizeGain
@@ -62,12 +69,36 @@ elseif ~isempty(apd1)
         GdB = apd1.GaindB;
     end
         
-    ber = apd_ber(mpam, tx, fiber1, apd1, rx, sim);      
+    [ber, mpam] = apd_ber(mpam, tx, fiber1, apd1, rx, sim);      
     ber.est = ber.gauss;
 else
     pin = apd(0, 0, Inf, rx.R, rx.Id);
     
-    ber = apd_ber(mpam, tx, fiber1, pin, rx, sim);
+    [ber, mpam] = apd_ber(mpam, tx, fiber1, pin, rx, sim);
     ber.est = ber.gauss;
 end
+
+if strcmp(mpam.level_spacing, 'optimized')
+    persistent levels_plot;
+
+    if isempty(levels_plot) || ~isvalid(levels_plot)
+        levels_plot = figure;
+        box on, hold on, grid on
+    else
+        figure(levels_plot)
+        hold on
+    end
+    
+    mpam.norm_levels;
+    mpam.a = mpam.a*(mpam.M-1);
+    mpam.b = mpam.b*(mpam.M-1);
+    plot(-10, -10, 'k', 'LineWidth', 2)
+    plot(-10, -10, '--k', 'LineWidth', 2)
+    plot([-0.5 0.5], mpam.a*[1 1], 'k', 'LineWidth', 2)    
+    plot([-0.5 0.5], mpam.b*[1 1], '--k', 'LineWidth', 2)    
+    axis([-0.5 0.5 0 mpam.M])
+    legend('Levels', 'Decision Thresholds')
+    hold off
+end
+    
 

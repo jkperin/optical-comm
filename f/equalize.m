@@ -35,7 +35,7 @@ switch type
         eq.H = ones(size(sim.f));
         eq.f = sim.f;
                
-        % Reciver filter
+        % Receiver filter
         yt = real(ifft(fft(yt).*ifftshift(Delay.*rx.elefilt.H(sim.f/sim.fs))));
         
         yd = yt(floor(sim.Mct/2)+1:sim.Mct:end); % +1 because indexing starts at 1
@@ -78,67 +78,89 @@ switch type
         eq.Kne = trapz(sim.f, abs(Heq).^2)/(mpam.Rs);
         
     case 'Fixed TD-FS-LE'
-%             Grx = rx.elefilt;
+        Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); 
+
+        if fiber.L*fiber.D(tx.lamb) ~= 0
+            Hfiber = fiber.Hfiber(sim.f, tx)/fiber.link_attenuation(tx.lamb);
+        else
+            Hfiber = 1;
+        end                
+
+        Hmatched = Delay.*conj(Gtx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*...
+            exp(1j*2*pi*sim.f*tx.modulator.grpdelay).*Hfiber.*rx.elefilt.H(sim.f/sim.fs));
+        % Note: Fiber frequency response is real, thus its group delay
+        % is zero.
+
+        %% MMSE Time-domain symbol-rate equalizer
+        n = -floor(eq.Ntaps/2)*sim.Mct:sim.Mct*floor(eq.Ntaps/2);
+        nd = [fliplr(-sim.Mct/eq.ros:-sim.Mct/eq.ros:n(1)) 0:sim.Mct/eq.ros:n(end)];
+
+        % Design matched filter           
+        hmatched2 = real(ifft(ifftshift(Hmatched)));
+        hmatched = hmatched2(1:sim.Mct*floor(eq.Ntaps/2));
+        hmatched = [hmatched2(end-sim.Mct*floor(eq.Ntaps/2):end); hmatched];
+
+        x = conv(hmatched, hmatched(end:-1:1), 'same');
+        xd = interp1(n, x, nd, 'spline'); % oversampled impulse response
+        pd = interp1(n, hmatched, nd, 'spline'); % oversampled impulse response
+        pd = pd(ceil(length(pd)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)));
+        xd = xd/abs(sum(xd)); % normalize to unit gain at DC
+        pd = pd/abs(sum(pd)); % normalize to unit gain at DC
+
+        % Design equalizer
+        X = toeplitz([xd.'; zeros(eq.Ntaps-1, 1)], [xd(1) zeros(1, eq.Ntaps-1)]);
+
+        % Get correct rows from Toeplitz matrix
+        X = X(ceil(size(X, 1)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)), 1:eq.ros:end);
+
+        e = zeros((eq.Ntaps+1)/2, 1); 
+        e((length(e)+1)/2) = 1;
+
+        % NSR = noise signal ratio
+        if isfield(eq, 'NSR')
+            W = X*(((X' + eq.NSR*eye(eq.Ntaps))*X)\e);
+        else
+            W = X*((X'*X)\e);
+        end                
+        % Note: if NSR = 0, or if NSR is not specified, then
+        % zero-forcing equalizer is designed    
+
+        % Convolve with matched filter
+        W = conv(W, pd, 'same');
+        W = W/abs(sum(W)); % normalize to unit gain at DC
+
+        % Filter using
+        if isempty(yt) % only design
+            yd = []; 
+        else
+            % Antialiasing filter
+            ytaa = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(sim.f/sim.fs))));
             
-            % Channel frequency response
-%             Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
-%                 .*fiber.Hfiber(sim.f, tx).*Grx(sim.f/sim.fs);
-%             
-% %             yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
-% % 
-% %             yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
-%             
-%             %% MMSE Time-domain symbol-rate equalizer
-%             gtx = mpam.pshape(sim.t*sim.fs + (sim.Mct-1)/2);
-%             hch = ifft(ifftshift(Hch)); % received pulse shape
-%             p = conv(gtx, hch, 'same');
-%             p = p/max(abs(p));
-%                         
-%             
-%             plot(sim.t, p)
-%             1;
-                        
-%             xd = x(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
-%             
-%             
-%             xd = xd/abs(sum(xd)); % normalize to unit gain at DC
-%             
-%             X = toeplitz([xd.'; zeros(eq.Ntaps-1, 1)], [xd(1) zeros(1, eq.Ntaps-1)]);
-%             
-%             % Get correct number of taps from Toeplitz matrix
-%             X = X(ceil(size(X, 1)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)), :);
-%             
-%             e = zeros(eq.Ntaps, 1); 
-%             e((eq.Ntaps-1)/2) = 1;
-%             
-%             % NSR = noise signal ratio
-%             if isfield(eq, 'NSR')
-%                 W = X*(((X' + eq.NSR*eye(eq.Ntaps))*X)\e);
-%             else
-%                 W = X*((X'*X)\e);
-%             end                
-%             % Note: if NSR = 0, or if NSR is not specified, then
-%             % zero-forcing equalizer is designed            
-% 
-%             % Filter using
-%             if isempty(yt) % only design
-%                 yd = []; 
-%             else
-%                 % Matched filter
-%                 yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
-%                 % Sample at symbol rate
-%                 yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
-%                 % Filter
-%                 yd = filter(W, 1, yk);
-%                 yd = circshift(yd, [-(eq.Ntaps-1)/2+1 0]); % remove delay of transversal filter
-%             end  
-% 
-%             % Aux
-%             eq.num = W;
-%             eq.den = 1;
-%             [eq.H, w] = freqz(eq.num, eq.den);
-%             eq.f = w/(2*pi);
-%             eq.Kne = 2*trapz(eq.f, abs(eq.H));
+            if mod(sim.Mct/eq.ros, 2) == 0
+                yk = ytaa(1:sim.Mct/eq.ros:end);
+%                 tk = sim.t(1:sim.Mct/eq.ros:end);
+            else % if sim.Mct is not multiple of ros, then interpolate
+                yk = interp1(1:length(ytaa), ytaa, 1:sim.Mct/eq.ros:length(ytaa), 'spline');
+%                 tk = interp1(1:length(ytaa), sim.t, 1:sim.Mct/eq.ros:length(ytaa));
+
+    %             yk = resample(ytaa, sim.ros, sim.Mct);
+    %             tk = resample(sim.t, sim.ros, sim.Mct);            
+            end
+            % Filter
+            yk = filter(W, 1, yk); 
+            yk = circshift(yk, [0 -(eq.Ntaps-1)/2]); % remove delay of FIR filter
+            % Note: !! In this case, W is not necessarily linear phase, so
+            % the delay (eq.Ntaps-1)/2 is not necessarily exact
+            yd = yk(2:eq.ros:end).';
+        end  
+
+        % Aux
+        eq.num = W;
+        eq.den = 1;
+        [eq.H, w] = freqz(eq.num, eq.den);
+        eq.f = w/(2*pi);
+        eq.Kne = 2*eq.ros*trapz(eq.f, abs(eq.H));
+        % Note: eq.f is one-sided (x2) and the sampling rate here is rosxRs
         
     case 'Adaptive TD-FS-LE'
         %% Adaptive Time-domain fractionally-spaced equalizer
@@ -215,7 +237,8 @@ switch type
         eq.den = 1;
         [eq.H, w] = freqz(eq.num, eq.den);
         eq.f = w/(2*pi);
-        eq.Kne = trapz(eq.f, abs(eq.H).^2);
+        eq.Kne = 2*eq.ros*trapz(eq.f, abs(eq.H).^2);
+        % Note: eq.f is one-sided (x2) and the sampling rate here is rosxRs
         
     case 'Adaptive TD-SR-LE'
         Ntaps = eq.Ntaps;
@@ -270,8 +293,16 @@ switch type
         case 'Fixed TD-SR-LE'            
             Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); 
 
+            if fiber.L*fiber.D(tx.lamb) ~= 0
+                Hfiber = fiber.Hfiber(sim.f, tx)/fiber.link_attenuation(tx.lamb);
+            else
+                Hfiber = 1;
+            end                
+            
             Hmatched = Delay.*conj(Gtx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*...
-                exp(1j*2*pi*sim.f*tx.modulator.grpdelay).*fiber.Hfiber(sim.f, tx));
+                exp(1j*2*pi*sim.f*tx.modulator.grpdelay).*Hfiber);
+            % Note: Fiber frequency response is real, thus its group delay
+            % is zero.
             
 %             yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
 % 
@@ -279,16 +310,26 @@ switch type
             
             %% MMSE Time-domain symbol-rate equalizer
             n = -floor(eq.Ntaps/2)*sim.Mct:sim.Mct*floor(eq.Ntaps/2);
-            v = mpam.pshape(n);
-            h = tx.modulator.h(n/sim.fs + tx.modulator.grpdelay);
-            p = conv(h, v, 'same');
-            x = conv(p, fliplr(p), 'same');
+            
+            % calculating using impulse responses
+%             v = mpam.pshape(n);
+%             h = tx.modulator.h(n/sim.fs + tx.modulator.grpdelay);
+%             p = conv(h, v, 'same');
+%             x = conv(p, fliplr(p), 'same');
+%             xd = x(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
+
+            hmatched2 = real(ifft(ifftshift(Hmatched)));
+            hmatched = hmatched2(1:sim.Mct*floor(eq.Ntaps/2));
+            hmatched = [hmatched2(end-sim.Mct*floor(eq.Ntaps/2):end); hmatched];
+
+            x = conv(hmatched, hmatched(end:-1:1), 'same');
             xd = x(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
+
             xd = xd/abs(sum(xd)); % normalize to unit gain at DC
             
-            X = toeplitz([xd.'; zeros(eq.Ntaps-1, 1)], [xd(1) zeros(1, eq.Ntaps-1)]);
+            X = toeplitz([xd; zeros(eq.Ntaps-1, 1)], [xd(1) zeros(1, eq.Ntaps-1)]);
             
-            % Get correct number of points from Toeplitz matrix
+            % Get correct rows from Toeplitz matrix
             X = X(ceil(size(X, 1)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)), :);
             
             % ZF condition

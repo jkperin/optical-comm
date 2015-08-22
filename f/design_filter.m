@@ -52,7 +52,7 @@ switch type
         cumenergy = cumsum(abs(pshape(0:nmax-1)).^2)/sum(abs(pshape(0:nmax-1)).^2);
         nlength = find(cumenergy >= 0.9999, 1, 'first');
         
-        num = conj(fliplr(pshape(0:nlength-1)));
+        num = conj(pshape(nlength-1:-1:0));
         num = num/sum(num); % ensures unit gain at DC
         den = 1;
         

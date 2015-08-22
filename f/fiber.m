@@ -1,4 +1,6 @@
 classdef fiber
+    % Single-mode fiber
+    
     properties
         L % fiber length (m)
         att % attenuation function i.e., alpha = att(lambda) (dB/km)
@@ -15,8 +17,15 @@ classdef fiber
     end
     
     methods
-        %% Constructor
         function obj = fiber(L, att, D)
+            %% Class constructor 
+            % Inputs: 
+            % - L = fiber length (m)
+            % - att (optional, default is no attenuation) function handle of 
+            % fiber attenuation (dB/km) as a function of the wavelength. 
+            % - D (optional, default is dispersion of standard SMF) = 
+            % function handle of fiber chromatic dispersion (s/m^2) as a 
+            % function of the wavelength.
             if nargin >=1
                 obj.L = L;
             else
@@ -36,13 +45,25 @@ classdef fiber
             end           
         end
         
-        %% Link attenuation in linear units
         function link_att = link_attenuation(this, lamb)
+            %% Calculate link attenuation in linear units
+            % Input:
+            % - lamb = wavelength (m)
             link_att = 10^(-this.att(lamb)*this.L/1e4);
         end
-        
-        %% Linear propagation
+
         function [Eout, Pout] = linear_propagation(this, Ein, f, lambda)
+            %% Linear propagation
+            % Perform linear propagation including chromatic dispersion,
+            % and attenuation
+            % Inputs: 
+            % - Ein = input electric field
+            % - f = frequency vector (Hz)
+            % - lambda = wavelength (m)
+            % Outputs: 
+            % - Eout, Pout = output electric field and optical power
+            % respectively.
+            
             if this.L == 0
                 Eout = Ein;
                 Pout = abs(Ein).^2;
@@ -59,9 +80,14 @@ classdef fiber
             Pout = abs(Eout).^2;
         end
         
-        %% Dispersion frequency response
-        % Hdisp = Eout/Ein
         function Hele = Hdisp(this, f, lambda)
+            %% Dispersion frequency response Hele = Eout(f)/Ein(f)
+            % Inputs: 
+            % - f = frequency vector (Hz)
+            % - lambda = wavelength (m)
+            % Outputs:
+            % - Hele = Eout(f)/Ein(f)
+            
             Dispersion =  this.D(lambda);
             beta2 = this.D2beta2(Dispersion, lambda);
             w = 2*pi*f;
@@ -69,9 +95,16 @@ classdef fiber
             Hele = exp(this.L*Dw);
         end
                
-        %% Fiber small-signal frequency response assuming transient chirp dominant
-        % This transfer function is for optical power not electic field i.e., Hfiber = Pout/Pin 
-        function H = Hfiber(this, f, tx)
+        function Hatt = Hfiber(this, f, tx)
+            %% Fiber small-signal frequency response assuming transient chirp dominant
+            % This transfer function is for optical power not electic field
+            % i.e., Hfiber = Pout/Pin. Moreover, it includes attenuation
+            % Inputs:
+            % - f = frequency vector (Hz)
+            % - tx = transmitter struct. Required fields: lamb (wavelenth
+            % in m), and alpha (optional, default zero) (chirp paramter). 
+            
+            
             beta2 = this.D2beta2(this.D(tx.lamb), tx.lamb);
 
             % CD frequency response
@@ -86,12 +119,13 @@ classdef fiber
             H = cos(theta) - alpha*sin(theta);  % fiber small-signal frequency response
             
             % Include attenuation
-            H = H.*this.link_attenuation(tx.lamb);
+            Hatt = H.*this.link_attenuation(tx.lamb);
         end  
     end
 
     methods(Access=private)
         function beta2 = D2beta2(this, D, lamb)
+            % Calculates beta2 from dispersion D and wavelength lamb
             beta2 = -D*lamb^2/(2*pi*this.c); 
         end
     end
