@@ -235,6 +235,48 @@ From the inversion equation we can write
 \textbf{Note that $K(s, x)$ is different from the pdf calculation.}
 
 
+\section{Crosstalk in SOA}
+
+Crosstalk occurs because the carrier lifetime of SOAs is in the order of the symbol rate. Thus, the SOA reacts fast enough to make fluctuations in the input power cause fluctuations in the gain.
+
+Channel crosstalk in the amplifier has two main origins. One is the carrier density modulation at beat frequencies of the incident signals. This crosstalk mechanism is strongly dependent on channel frequency separation, and can thus be avoided for relatively large channel intervals, e.g., greater than 10 GHz. The other factor is gain reduction induced by the other channels due to gain saturation \cite{soa-crosstalk-and-penalty}.
+
+Consider a traveling wave amplifier with negligible residual facet reflectivities. \textbf{When the input data rate is much smaller than the reciprocal of the lifetime}, the carrier density attains steady state within a small fraction of the bit period. For this case, the rate equation reduces to a \textbf{steady-state charge conservation equation}, and can be solved to yield the amplifier gain $G$ as a function of the input power $P_{in}$ \cite{soa-crosstalk}:
+\begin{equation} \label{gain-saturation}
+P_{in} = \frac{P_{sat}}{G-1}\ln\frac{G_0}{G}
+\end{equation}
+where $P_{sat}$ is the saturation power, and $G_0$ is the unsaturated gain
+
+Here we will assume that \eqref{gain-saturation} holds even when the input data rate is higher than the reciprocal of the carrier lifetime. The difference is that the input power will be considered the average of the $N_s = B\tau_c$ symbols over $M_{ch}$ channels was done in \cite{soa-crosstalk-inc-lifetime}.
+
+Thus, the first moments of the input power are given by
+\begin{align}
+& E(P_{in}) = \frac{1}{N_s}\sum_{i = 1}^{N_sM_{ch}} E(P_i) = M_{ch}E(P_i) \\
+& E(|P_{in}|^2) = \frac{1}{N^2_s}\sum_{i, j = 1}^{N_sM_{ch}} E(P_iP_j) = \frac{M_{ch}}{N_s}\Big(E(P_i^2) + E(P_i)^2\Big) + M_{ch}^2E(P_i)^2 \\
+& \text{Var}(P_{in}) = \frac{M_{ch}}{N_s}\Big(E(P_i^2) + E(P_i)^2\Big)
+\end{align}
+where $P_i$ is the power of the $i$th symbol. If $N_sM_{ch}$ is high $P_{in}$ can be modeled as a Gaussian random variable. Note that the variance reduces with $N_s$, but increases with $M_{ch}$. Thus, only increasing the carrier lifetime helps reducing the crosstalk penalty.
+
+
+\subsection{Probability Mass Function of $P_{in}$}
+Since $P_in$ comprises of a sum of $N_sM_{ch}$ symbols with power $P_i$, $P_{in}$ is a discrete random variable.
+
+For binary signals we can model $P_{in}$ simply as a binomial distribution:
+\begin{equation}
+p\Big(P_{in} = k_1P_1 + (N_sM_{ch} - k_1)P_0\Big) = \frac{1}{2^{N_sM_{ch}}}\binom{N_sM_{ch}}{k_1}
+\end{equation}
+which basically calculates the probability of having $k_1$ '1s' (and consequently $N_sM_{ch}-k_1$ '0s') in $N_sM_{ch}$ Bernolli trials.
+
+For a M-PAM signal we could write:
+\begin{equation}
+P_{in} = n_0P_0 + n_1P_1 + \ldots + n_{M-1}P_{M-1}
+\end{equation}
+where $n_i$ is the number of times the $i$th symbol was ``drawn'' in $N_sM_{ch}$ ``trials''. The number of different levels combinations is given by\footnote{This is equivalent to solve the problem: how many non-negative solutions are there in $\sum_{i = 1}^r n_r = N$? The number of non-negative solutions is given by $\binom{N+r-1}{r-1}$. The number of positive solutions is given by $\binom{N-1}{r-1}$. This problem is solved by imagining all possible ways to separate $N$ objects with $r$ containers.}
+\begin{equation}
+\#_{solutions} = \binom{N_sM_{ch}+M-1}{M-1}
+\end{equation}
+
+
 \begin{thebibliography}{9}
 	
 	\bibitem{ber-saddlepoint-approx} Carl Helstrom; ``Performance Analysis of Optical Receivers by the Saddlepoint Approximation,'' \emph{IEEE Transactions on Communications}, 1979.
@@ -243,6 +285,11 @@ From the inversion equation we can write
 	
 	\bibitem{forestieri} E. Forestieri, M. Secondini; ``On the error probability evaluation in lightwave systems with optical amplificaiton,'' \emph{Journal of Lightwave Technol.}, 2009.
 	
+	\bibitem{soa-crosstalk-and-penalty} Kyo Inoue; ``Crosstalk and Its Power Penalty in Multichannel Transmission due to Gain Saturation in a Semiconductor Laser Amplifier,''	1989.
+	
+	\bibitem{soa-crosstalk} R. Ramaswami and P. Humblet; ``Amplifier induced crosstalk in multichannel optical networks,'', 1990.
+	
+	\bibitem{soa-crosstalk-inc-lifetime} S. Xu, J. Khurgin, I. Vurgaftman, J. Meyer; ``Reducing crosstalk and signal distortion in wavelength-division multiplexing by increasing carrier lifetimes in semiconductor optical amplifiers,'' 2003.
 \end{thebibliography}
 
 \end{document}
