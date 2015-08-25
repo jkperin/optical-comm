@@ -36,7 +36,7 @@ fc = ofdm.fc; % subcarrier frequencies
 K = 1 - 2*qfunc(tx.rclip);  % Amplitude attenuation due to clipping = (1-Q(r))
 
 % Remove group delay of modulator frequency response
-Hmod = tx.kappa*tx.modulator.H(fc);
+Hmod = tx.modulator.H(fc);
 Hmod = Hmod.*exp(1j*2*pi*fc*tx.modulator.grpdelay);
 
 % The group delay is removed from the frequency response of the ADC and DAC
@@ -46,7 +46,7 @@ Gadc = rx.filter.H(fc/sim.fs);
 Hfiber = fiber.Hfiber(fc, tx);
 
 % Frequency response of the channel at the subcarriers
-Gch = K*Gdac.*tx.kappa.*Hmod.*Hfiber.*rx.R.*Gadc;            
+Gch = K*Gdac.*Hmod.*Hfiber.*rx.R.*Gadc;            
 
 %% Power allocation
 ofdm.power_allocation(tx, fiber, rx, sim);
@@ -103,7 +103,7 @@ Et = fiber.linear_propagation(Et, sim.f, tx.lamb);
 It = rx.R*abs(Et).^2;
 
 %% Add shot noise
-if sim.shot
+if isfield(sim, 'shot') && sim.shot
     q = 1.60217657e-19;      % electron charge (C)
     Id = 0;                  % dark current
 
@@ -130,18 +130,18 @@ It = It + wt;
 rex = 10^(tx.rexdB/10);  % defined as Pmin/Pmax     
 
 if isfield(tx, 'Ptx') % if Ptx was provided, then scale signal to desired Ptx
-    A = (tx.Ptx*(1 - 2*rex))/(tx.kappa*clip_level); % Scale between desired power and actual power
+    A = (tx.Ptx*(1 - 2*rex))/(clip_level); % Scale between desired power and actual power
     
     Ptx_est = tx.Ptx;     % Calculate equivalent transmitted power
 else
     A = 1;
     
-    Ptx_est = tx.kappa*clip_level*(1 + 2*rex);
+    Ptx_est = clip_level*(1 + 2*rex);
 end
 
 ber = ofdm.detect(It, A*Gch, rx, sim);
 
-if sim.RIN
+if isfield(sim, 'RIN') && sim.RIN
     Srin = 10^(tx.RIN/10)*Ptx.^2;
     varrin = Srin*sim.fs*abs(Hfiber.*Gadc).^2/sim.Mct; % referred to after the ADC
 else
@@ -152,7 +152,7 @@ ber.est = ofdm.estimate_ber(A, rx.Sth*sim.fs*abs(Gadc).^2/sim.Mct, varshot, varr
 
 
 %% Frequency response
-if sim.verbose
+if isfield(sim, 'verbose') && sim.verbose
     figure
     subplot(211), box on, grid on, hold on
     plot(f/1e9, abs(tx.filter.H(f/sim.fs)).^2)

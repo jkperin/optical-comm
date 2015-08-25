@@ -9,7 +9,7 @@ CS = ofdm.CS*ones(1,Nu/2);
 K = 1 - 2*qfunc(tx.rclip);  % Amplitude attenuation due to clipping = (1-Q(r))
 
 % Remove group delay of modulator frequency response
-Hmod = tx.kappa*tx.modulator.H(fc);
+Hmod = tx.modulator.H(fc);
 Hmod = Hmod.*exp(1j*2*pi*fc*tx.modulator.grpdelay);
 
 % The group delay is removed from the frequency response of the ADC and DAC
@@ -19,7 +19,7 @@ Gadc = rx.filter.H(fc/sim.fs);
 Hfiber = fiber.Hfiber(fc, tx);
 
 % Frequency response of the channel at the subcarriers
-Gch = K*Gdac.*tx.kappa.*Hmod.*Hfiber.*rx.R.*Gadc;            
+Gch = K*Gdac.*Hmod.*Hfiber.*rx.R.*Gadc;            
 
 if isfield(sim, 'full_dc') && sim.full_dc
     dc_bias = @(Pn) tx.rclip*sqrt(sum(2*Pn));
@@ -48,7 +48,7 @@ while Pchange > 1e-3 && kk < Nit_piterative
     % Signal std at transmitter and receiver
     sigtx = sqrt(2*sum(Pn));
     sigrx = sqrt(2*sum(Pn.*abs(Gch).^2));
-    Ptx_est = tx.kappa*dc_bias(Pn);
+    Ptx_est = dc_bias(Pn);
 
     %% Add additional dc-bias due to finite exctinction ratio
     rex = 10^(tx.rexdB/10);
@@ -58,20 +58,20 @@ while Pchange > 1e-3 && kk < Nit_piterative
     Ptx_est = Ptx_est + Pmin_rex; 
     
     %% Quantization 
-    if sim.quantiz
+    if isfield(sim, 'quantiz') && sim.quantiz
         % Quantization noise variance
         delta1th = 2*tx.rclip*sigtx/(2^sim.ENOB-1);
         delta2th = 2*rx.rclip*sigrx/(2^sim.ENOB-1); 
         varQ1th = (1 - 2*qfunc(tx.rclip))*delta1th^2/12; % quantization at the transmitter
-        varQ2th = (1 - 2*qfunc(rx.rclip))*delta2th^2/12;                                      % quantization at the receiver
+        varQ2th = (1 - 2*qfunc(rx.rclip))*delta2th^2/12; % quantization at the receiver
     end
 
     %% Shot noise
-    if sim.shot
+    if isfield(sim, 'shot') && sim.shot
         q = 1.60217657e-19;      % electron charge (C)
         Id = 0;                  % dark current
 
-        Prx_est = Ptx_est/10^(fiber.att(tx.lamb)*fiber.L/1e4);
+        Prx_est = Ptx_est*fiber.link_attenuation(tx.lamb);
 
         % Shot noise psd (one-sided)
         Sshot = 2*q*(rx.R*Prx_est + Id);
@@ -81,7 +81,7 @@ while Pchange > 1e-3 && kk < Nit_piterative
     end
 
     %% RIN
-    if sim.RIN               
+    if isfield(sim, 'RIN') && sim.RIN         
         % Calculate double-sided RIN PSD, which depends on the average power
         Srin = 10^(tx.RIN/10)*Ptx_est.^2;
 
@@ -98,7 +98,7 @@ end
 
 % Auxiliary variables. They're used to check approximations and validate
 % the code
-if sim.verbose && sim.quantiz
+if isfield(sim, 'verbose') && sim.verbose && isfield(sim, 'quantiz') && sim.quantiz
     aux.delta1th = delta1th;
     aux.delta2th = delta2th;
     aux.varQ1th = varQ1th;

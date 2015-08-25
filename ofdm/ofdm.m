@@ -62,7 +62,7 @@ classdef ofdm < handle
                     error('power_allocation: invalid option') 
             end
             
-            if sim.verbose
+            if isfield(sim, 'verbose') && sim.verbose
                 figure
                 subplot(211), box on, grid on
                 stem(1:length(this.CSn), log2(this.CSn))
@@ -114,7 +114,7 @@ classdef ofdm < handle
             xncpc(xncp > tx.rclip*sigtx) = tx.rclip*sigtx;
 
             %% Quantize at the transmitter
-            if sim.quantiz
+            if isfield(sim, 'quantiz') && sim.quantiz
                 % With quantization (clip -> quantiz -> interp)  
                 % Quantiz
                 yqtx = linspace(-tx.rclip*sigtx, tx.rclip*sigtx, 2^sim.ENOB);     % Quantization levels
@@ -152,7 +152,7 @@ classdef ofdm < handle
             yncp = It(1:sim.Mct:end);       % yn with cyclic prefix without noise  
             
             %% Quantize at the receiver
-            if sim.quantiz    
+            if isfield(sim, 'quantiz') && sim.quantiz    
                 % signal std
                 sigrx = std(It);
                 
@@ -273,7 +273,7 @@ classdef ofdm < handle
 
             assert(k ~= this.max_iterations, 'CP calculation did not converge');
             
-            if sim.verbose
+            if isfield(sim, 'verbose') && sim.verbose
                 figure, grid on, hold on, box on
                 plot(tct, pct)
                 stem(t, p, 'fill')
