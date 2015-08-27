@@ -39,12 +39,12 @@ noise_std = @(Plevel) sqrt(varTherm + varShot(Plevel) + rx.R^2*varRIN(Plevel)...
 
 % Noise enhancement penalty
 if isfield(rx, 'eq')
-    rx.eq.type = 'None';
     [~, rx.eq] = equalize(rx.eq.type, [], mpam, tx, fiber, rx, sim); % design equalizer
     % This design assumes fixed zero-forcing equalizers
     Kne = rx.eq.Kne; % noise enhancement penalty
     % Kne = noise variance after equalizer/noise variance before equalizer
 else 
+    rx.eq.type = 'None';
     Kne = 1;
 end
 

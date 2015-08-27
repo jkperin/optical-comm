@@ -50,14 +50,8 @@ end
    
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
-tx.RIN = -140;  % dB/Hz
-tx.rexdB = -5;  % extinction ratio in dB. Defined as Pmin/Pmax
-
-% Modulator frequency response
-tx.modulator.fc = 30e9; % modulator cut off frequency
-tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-tx.modulator.h = @(t) [0*t(t < 0) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0))];
-tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
+tx.RIN = -150;  % dB/Hz
+tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 %% Fiber
 fiber = fiber(); % fiber(L, att(lamb), D(lamb))
@@ -69,21 +63,17 @@ rx.R = 1; % responsivity
 % Electric Lowpass Filter
 % rx.elefilt = design_filter('bessel', 5, mpam.Rs/(sim.fs/2));
 rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
+rx.matchedfilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 % rx.elefilt = design_filter('matched', @(t) conv(mpam.pshape(t), 1/sim.fs*tx.modulator.h(t/sim.fs), 'full') , 1/sim.Mct);
 % Optical Bandpass Filter
 rx.optfilt = design_filter('fbg', 0, 200e9/(sim.fs/2));
-
-% KLSE Fourier Series Expansion (done here because depends only on filters
-% frequency response)
-% klse_fourier(rx, sim, N, Hdisp)
-[rx.U_fourier, rx.D_fourier, rx.Fmax_fourier] = klse_fourier(rx, sim, sim.Mct*(mpam.M^sim.L + 2*sim.L)); 
 
 %% Equalization
 rx.eq.type = 'Fixed TD-SR-LE';
 % rx.eq.ros = 2;
 rx.eq.Ntaps = 15;
-rx.eq.Ntrain = 2e3;
-rx.eq.mu = 1e-2;
+% rx.eq.Ntrain = 2e3;
+% rx.eq.mu = 1e-2;
 
 %% PIN
 % (GaindB, ka, GainBW, R, Id) 
@@ -91,62 +81,77 @@ pin = apd(0, 0, Inf, rx.R, rx.Id);
 
 %% APD 
 % (GaindB, ka, GainBW, R, Id) 
-% finite Gain x BW
-apd_fin = apd(8.1956, 0.09, 340e9, rx.R, rx.Id); % gain optimized for uniformly-spaced 4-PAM with matched filter
-% apd_fin = apd(7.86577063943086, 0.09, 340e9, rx.R, rx.Id); % gain optimized for uniformly-spaced 8-PAM with matched filter
-% apd_fin.optimize_gain(mpam, tx, fiber, rx, sim);
+% Finite Gain x BW
+apd_fin = apd(10*log10(5), 0.09, 340e9, rx.R, rx.Id); 
 
-if strcmp(mpam.level_spacing, 'equally-spaced')
-     % uniform, infinite Gain x BW (4-PAM)
-    apd_inf = apd(11.8876, 0.09, Inf, 1, 10e-9); % gain optimized for 4-PAM with matched filter
-%     apd_inf.optimize_gain(mpam, tx, fiber, rx, sim);
-
-%     apd_inf = apd(7.865770639430862, 0.09, Inf, rx.R, rx.Id); % gain optimized for 8-PAM with matched filter
-elseif strcmp(mpam.level_spacing, 'optimized')
-    % nonuniform, infinite gain x BW
-    apd_inf = apd(13.8408, 0.09, Inf, rx.R, rx.Id); % gain optimized for 4-PAM with matched filter
-%     apd_inf.optimize_gain(mpam, tx, fiber, rx, sim);
-end
+% Infinite Gain x BW
+apd_inf = apd(10, 0.09, Inf, rx.R, rx.Id);
+% Optimized Gain
+apd_inf.optimize_gain(mpam, tx, fiber, rx, sim);
 
 %% SOA
 % soa(GaindB, NF, lambda, maxGaindB)
 soa = soa(20, 7, 1310e-9, 20); 
 
-% BER
-disp('BER with SOA')
-ber_soa = soa_ber(mpam, tx, fiber, soa, rx, sim);
-disp('BER with APD with finite gain-bandwidth product')
-ber_apd_fin = apd_ber(mpam, tx, fiber, apd_fin, rx, sim);
-disp('BER with APD with infinite gain-bandwidth produc')
-ber_apd_inf = apd_ber(mpam, tx, fiber, apd_inf, rx, sim);
-disp('BER with PIN')
-ber_pin = apd_ber(mpam, tx, fiber, pin, rx, sim);
+%
+Fc = 30e9; %(10:5:50)*1e9;
 
+for k = 1:length(Fc)
+    % Modulator frequency response
+    tx.modulator.fc = Fc(k); % modulator cut off frequency
+    tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+    tx.modulator.h = @(t) [0*t(t < 0) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0))];
+    tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
+   
+    [~, eq] = equalize(rx.eq.type, [], mpam, tx, fiber, rx, sim);
+    
+    % Update rx filter with equalizer filter
+    rx.elefilt.H = @(f) rx.matchedfilt.H(f).*freqz(eq.num, eq.den, f, mpam.Rs/sim.fs).*exp(1j*2*pi*f*grpdelay(eq.num, eq.den, 1));
+    
+    % KLSE Fourier Series Expansion (done here because depends only on filters
+    % frequency response)
+    % klse_fourier(rx, sim, N, Hdisp)
+    [rx.U_fourier, rx.D_fourier, rx.Fmax_fourier] = klse_fourier(rx, sim, sim.Mct*(mpam.M^sim.L + 2*sim.L));
+    
+    % BER
+    disp('BER with SOA')
+    ber.soa(k) = soa_ber(mpam, tx, fiber, soa, rx, sim);
+    disp('BER with APD with finite gain-bandwidth product')
+    ber.apd_fin(k) = apd_ber(mpam, tx, fiber, apd_fin, rx, sim);
+    disp('BER with APD with infinite gain-bandwidth produc')
+    ber.apd_inf(k) = apd_ber(mpam, tx, fiber, apd_inf, rx, sim);
+    disp('BER with PIN')
+    ber.pin(k) = apd_ber(mpam, tx, fiber, pin, rx, sim);
+    
+    % Plot
+    figure, hold on, grid on, box on
+    plot(tx.PtxdBm, log10(ber.soa(k).est), '-b')
+    plot(tx.PtxdBm, log10(ber.apd_fin(k).gauss), '-r')
+    plot(tx.PtxdBm, log10(ber.apd_inf(k).gauss), '-m')
+    plot(tx.PtxdBm, log10(ber.pin(k).gauss), '-k')
+
+    plot(tx.PtxdBm, log10(ber.soa(k).count), '--ob')
+    plot(tx.PtxdBm, log10(ber.apd_fin(k).count), '--or')
+    plot(tx.PtxdBm, log10(ber.apd_inf(k).count), '--om')
+    plot(tx.PtxdBm, log10(ber.pin(k).count), '--ok')
+
+    plot(tx.PtxdBm, log10(ber.soa(k).gauss), '--b')
+
+    plot(tx.PtxdBm, log10(ber.soa(k).awgn), ':b')
+    plot(tx.PtxdBm, log10(ber.apd_fin(k).awgn), ':r')
+    plot(tx.PtxdBm, log10(ber.apd_inf(k).awgn), ':m')
+    plot(tx.PtxdBm, log10(ber.pin(k).awgn), ':k')
+
+    xlabel('Received Power (dBm)')
+    ylabel('log(BER)')
+    legend('SOA', 'APD Gain x BW = 340 GHz', 'APD Gain x BW = Inf', 'PIN', 'Location', 'SouthWest')
+    axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
+    set(gca, 'xtick', tx.PtxdBm)
+    title(sprintf('Modulator BW = %d GHz', tx.modulator.fc/1e9))
+end
 
 %% Figures
-figure, hold on, grid on, box on
-plot(tx.PtxdBm, log10(ber_soa.est), '-b')
-plot(tx.PtxdBm, log10(ber_apd_fin.gauss), '-r')
-plot(tx.PtxdBm, log10(ber_apd_inf.gauss), '-m')
-plot(tx.PtxdBm, log10(ber_pin.gauss), '-k')
 
-plot(tx.PtxdBm, log10(ber_soa.count), '--ob')
-plot(tx.PtxdBm, log10(ber_apd_fin.count), '--or')
-plot(tx.PtxdBm, log10(ber_apd_inf.count), '--om')
-plot(tx.PtxdBm, log10(ber_pin.count), '--ok')
-
-plot(tx.PtxdBm, log10(ber_soa.gauss), '--b')
-
-plot(tx.PtxdBm, log10(ber_soa.awgn), ':b')
-plot(tx.PtxdBm, log10(ber_apd_fin.awgn), ':r')
-plot(tx.PtxdBm, log10(ber_apd_inf.awgn), ':m')
-plot(tx.PtxdBm, log10(ber_pin.awgn), ':k')
-
-xlabel('Received Power (dBm)')
-ylabel('log(BER)')
-legend('SOA', 'APD Gain x BW = 340 GHz', 'APD Gain x BW = Inf', 'PIN', 'Location', 'SouthWest')
-axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
-set(gca, 'xtick', tx.PtxdBm)
 
 %% Plot Frequency response
 % signal = design_filter('matched', mpam.pshape, 1/sim.Mct);

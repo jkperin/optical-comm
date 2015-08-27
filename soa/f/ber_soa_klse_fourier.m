@@ -137,7 +137,7 @@ pe_gauss = real(pe_gauss)/Nsymb;
 bertail = pe/log2(mpam.M);
 bergauss = pe_gauss/log2(mpam.M);
 
-if sim.verbose
+if true %%sim.verbose
     A = U*diag(D)*U';
     yk = zeros(length(x), 1); % output signal (noiseless)
     for k = 1:length(x)
