@@ -11,7 +11,7 @@ function [bertail, bergauss, berpdf] = ber_apd_doubly_stochastic(mpam, tx, fiber
 
 Nsymb = mpam.M^sim.L; % number of data symbols 
 % number of zero symbols pad to begin and end of sequnece.
-if isfield(rx.eq, 'Ntaps')
+if isfield(rx, 'eq') && isfield(rx.eq, 'Ntaps')
     Nzero = max(rx.eq.Ntaps, sim.L);
 else
     Nzero = sim.L;
@@ -89,7 +89,7 @@ pe_gauss = 0;
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
-    varShot = apd.var_shot(Pmax*link_gain*yd(k)/apd.Gain, Df);
+    varShot = apd.varShot(Pmax*link_gain*yd(k)/apd.Gain, Df);
     sig = 1/(Pmax*link_gain)*sqrt(rx.eq.Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
      
     if dat(k) == mpam.M-1

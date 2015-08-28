@@ -93,7 +93,7 @@ else
     varRIN = @(Plevel) 0;
 end
 
-noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + pin.var_shot(Plevel, Deltaf));
+noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + pin.varShot(Plevel, Deltaf));
 
 % Overall link gain
 link_gain = fiber.link_attenuation(tx.lamb)*pin.R;

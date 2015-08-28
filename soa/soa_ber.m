@@ -1,32 +1,36 @@
-%% Calculate BER of amplified IM-DD system. 
-% BER is calculated via montecarlo simulation and through saddlepoint approximation
-% to calculate tail probabilities given the moment generating funcion.
-
 function [ber, mpam] = soa_ber(mpam, tx, fiber, soa, rx, sim)
+%% Calculate BER of amplified IM-DD system with SOA. 
+% BER is calculated via montecarlo simulation, analytically using saddlepoint
+% approximation, AWGN channel, AWGN channel including noise enhancement penalty.
 
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
+% Auxiliary variables
+link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R; % Overall link gain
+
+%% Polarizer
 if isfield(sim, 'polarizer') && ~sim.polarizer
     Npol = 2;     % number of noise polarizations
 else % by default assumes that polarizer is being use so Npol = 1.
     Npol = 1;
 end
 
-% Auxiliary variables
-link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R; % Overall link gain
+%% Noise calculations
+% Thermal noise
 Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
 Deltafopt = rx.optfilt.noisebw(sim.fs); % optical filter noise bandwidth
-% function to calculate noise std
+% Thermal noise
 varTherm = rx.N0*Deltaf; % variance of thermal noise
 
-% Variance of signal dependent noise
-if sim.shot
+% Shot noise
+if isfield(sim, 'shot') && sim.shot
     varShot = @(Plevel) 2*1.60217657e-19*(rx.R*Plevel + rx.Id)*Deltaf;
 else
     varShot = @(Plevel) 0;
 end
 
-if sim.RIN
+% RIN
+if isfield(sim, 'RIN') && sim.RIN
     varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
 else
     varRIN = @(Plevel) 0;
@@ -48,7 +52,7 @@ else
     Kne = 1;
 end
 
-% Level Spacing Optimization
+%% Level Spacing Optimization
 if strcmp(mpam.level_spacing, 'optimized')
     % is sim.stats is set to Gaussian, then use Gaussian approximation,
     % otherwise uses accurate statistics
@@ -61,7 +65,8 @@ if strcmp(mpam.level_spacing, 'optimized')
         mpam.set_levels(a, b);
     end
 end   
-    
+
+%% Calculations BER
 % Transmitted power
 Ptx = dBm2Watt(tx.PtxdBm);
 
@@ -69,6 +74,7 @@ ber.count = zeros(size(Ptx));
 ber.est = zeros(size(Ptx));
 ber.gauss = zeros(size(Ptx));
 ber.awgn = zeros(size(Ptx));
+ber.awgn_ne = zeros(size(Ptx));
 for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
          
@@ -83,6 +89,8 @@ for k = 1:length(Ptx)
     mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
 
     ber.awgn(k) = mpam.ber_awgn(noise_std);
+    
+    % AWGN including noise enhancement penalty
     ber.awgn_ne(k) = mpam.ber_awgn(@(P) sqrt(Kne)*noise_std(P));
 end
 
@@ -92,9 +100,10 @@ if sim.verbose
     plot(tx.PtxdBm, log10(ber.est))
     plot(tx.PtxdBm, log10(ber.gauss))
     plot(tx.PtxdBm, log10(ber.awgn))
+    plot(tx.PtxdBm, log10(ber.awgn_ne))
     % plot(tx.PtxdBm, log10(ber.est_pdf))
-    legend('Counted', 'KLSE Fourier & Saddlepoint Approx', 'Gaussian Approximation', 'AWGN',...
-        'Location', 'SouthWest')
+    legend('Counted', 'KLSE Fourier & Saddlepoint Approx', 'Gaussian approximation', 'AWGN',...
+        'AWGN + noise enhancement', 'Location', 'Location', 'SouthWest')
     axis([tx.PtxdBm(1) tx.PtxdBm(end) -10 0])
 end
     

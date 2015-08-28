@@ -15,7 +15,7 @@ sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 
 %
 sim.shot = true; % include shot noise. Only included in montecarlo simulation (except for APD)
-sim.RIN = ~true; % include RIN noise. Only included in montecarlo simulation
+sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
 sim.verbose = ~true; % show stuff
 
 % M-PAM
@@ -36,9 +36,9 @@ sim.f = f;
 tx.PtxdBm = -25:0.5:-15;
 
 tx.lamb = 1310e-9; % wavelength
-tx.alpha = 2; % chirp parameter
+tx.alpha = 0; % chirp parameter
 tx.RIN = -150;  % dB/Hz
-tx.rexdB = -Inf;  % extinction ratio in dB. Defined as Pmin/Pmax
+tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response
 % tx.modulator.fc = 2*mpam.Rs; % modulator cut off frequency
@@ -50,14 +50,14 @@ tx.rexdB = -Inf;  % extinction ratio in dB. Defined as Pmin/Pmax
 fiber = fiber();
 
 %% Receiver
-rx.N0 = (20e-12).^2; % thermal noise psd
+rx.N0 = (30e-12).^2; % thermal noise psd
 % Electric Lowpass Filter
 % rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
 rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 
 %% APD 
 % (GaindB, ka, GainBW, R, Id)  
-apd_opt = apd(10.0851, 0.5, Inf, 1, 10e-9); % infinite gain x BW product
+apd_opt = apd(10.0851, 0.09, Inf, 1, 10e-9); % infinite gain x BW product
 apd_opt.optimize_gain(mpam, tx, fiber, rx, sim);
         
 %

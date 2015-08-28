@@ -9,7 +9,7 @@ classdef apd < handle
     end
     properties (Dependent)
         Fa % excess noise factor
-        GaindB
+        GaindB % Gain in dB 
     end
     
     properties (Constant, Hidden)
@@ -44,81 +44,102 @@ classdef apd < handle
 %         end       
 
         function M = Ms(this, s)
+            %% 
             options = optimoptions('fsolve', 'Display', 'off');
             for k = 1:length(s)
                 [M(k), ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s(k)), 2*sign(s(k)), options);
                 if exitflag ~= 1 
                     warning('Calculation of M(s) did not converge');
-    %                 [s, M]
                 end
             end  
-%             [s, M]
         end       
 
     end
     
     methods
-        %% constructor
-        function this = apd(GaindB, ka, GainBW, R, Id) 
-            this.GainBW = GainBW;
+        function this = apd(GaindB, ka, GainBW, R, Id)
+            %% Class constructors
+            % Input:
+            % - GaindB = gain in dB
+            % - ka = impact ionization factor
+            % - GainBW (optional, default = Inf) = gain bandwidth product
+            % - R (optional, default = 1) = responsivity
+            % - Id (optional defualt = 10 nA) = dark current (A)
+            
+            % Required parameters: GaindB and ka
             this.Gain = 10^(GaindB/10);
             this.ka = ka;
+            
+            if nargin <= 3
+                this.GainBW = GainBW;
+            else
+                this.GainBW = Inf;
+            end
                         
-            if nargin == 4
+            if nargin <= 4
                 this.R = R;
             else 
                 this.R = 1;
             end
             
-            if nargin == 5
+            if nargin <= 5
                 this.Id = Id;
             else 
                 this.Id = 0;
             end
-           
         end
                            
         %% Get Methods
         function Fa = get.Fa(this) % excess noise factor
+            %% Calculate Fa = Excess noise factor i.e., APD noise figure
             Fa = this.ka*this.Gain + (1 - this.ka)*(2 - 1/this.Gain); % Agrawal 4.4.18 (4th edition)
         end
                
-        function GaindB = get.GaindB(this) % excess noise factor
+        function GaindB = get.GaindB(this) 
+            %% Calculate gain in dB
             GaindB = 10*log10(this.Gain);
         end
         
-        function b = get.b(this) % implicit relations of APD: beta = 1/(1 - ka)
+        function b = get.b(this) 
+            %% Implicit relations of APD: beta = 1/(1 - ka)
             b = 1/(1-this.ka);
         end
         
-        function a = get.a(this) % implicit relations of APD: G = 1/(1 - ab)
+        function a = get.a(this) 
+            %% Implicit relations of APD: G = 1/(1 - ab)
             a =  1/this.b*(1-1/this.Gain);
         end
         
         %% Set methods
         function set.GaindB(this, GdB)
+            %% Set gain in dB
             this.Gain = 10^(GdB/10); % set Gain, since GaindB is dependent
         end
         
-        %% Rate of Possion process for a given P in a interval dt
-        function l = lambda(this, P, dt) 
+        %% Main Methods
+        function l = lambda(this, P, dt)
+            %% Rate of Possion process for a given P in a interval dt
             % From Personick, "Statistics of a General Class of Avalanche Detectors With Applications to Optical Communication"
             l = (this.R*P + this.Id)*dt/this.q; 
         end
         
-        %% Main methods
-        %% Calculate variance of shot noise
-        % Pin = input power of photodetector
-        % Df = noise bandwidth
-        function sig2 = var_shot(this, Pin, Df)
+        function sig2 = varShot(this, Pin, Df)
+            %% Shot noise variance
+            % Inputs:
+            % - Pin = input power of photodetector (W)
+            % - Df = noise bandwidth (Hz)
             sig2 = 2*this.q*this.Gain^2*this.Fa*(this.R*Pin + this.Id)*Df; % Agrawal 4.4.17 (4th edition)
         end
-                     
-        %% Detection
-        % Pin = received power; fs = sampling frequency
-        % noise_stats = 'gaussian' or 'doubly-stochastic'
-        % N0 = thermal noise psd
+
         function output = detect(this, Pin, fs, noise_stats, N0)
+            %% Direct detection
+            % Inputs:
+            % - Pin = received power (W)
+            % - fs = sampling frequency (Hz)
+            % - noise_stats = 'gaussian' or 'doubly-stochastic' (not
+            % implemented)
+            % - N0 (optional, if provided, thermal noise of psd N0 is added
+            % after direct detection) = thermal noise psd
             if nargin < 5
                 N0 = 0;
             end                
@@ -127,7 +148,7 @@ classdef apd < handle
                 % Assuming Gaussian statistics               
                 var_therm = N0*fs/2; % thermal noise
                 
-                output = this.R*this.Gain*Pin + sqrt(this.var_shot(Pin, fs/2) + var_therm).*randn(size(Pin));
+                output = this.R*this.Gain*Pin + sqrt(this.varShot(Pin, fs/2) + var_therm).*randn(size(Pin));
               
             % uses saddlepoint approximation to obtain pmf in order to generate 
             % output distributed according to that pmf
@@ -149,14 +170,17 @@ classdef apd < handle
                     output(pos) = x(ix); % distributed accordingly to px
                 end
                 
-                output = output + sqrt(N0*fs/2).*randn(size(Pin)); % includes thermal noise
+                if N0 ~= 0
+                    output = output + sqrt(N0*fs/2).*randn(size(Pin)); % includes thermal noise
+                end 
             else
                 error('Invalid Option!')
             end
         end
                
-        % Optimize apd gain
         function optimize_gain(this, mpam, tx, fiber, rx, sim)
+            %% Optimize apd gain
+            %% check if works for both optimized and equally spacing 
             disp('Optimizing APD gain...')
             
             originalGain = this.Gain;
@@ -189,14 +213,14 @@ classdef apd < handle
                 % function to calculate noise std
                 varTherm = rx.N0*Deltaf; % variance of thermal noise
 
-                if sim.RIN
+                if isfield(sim, 'RIN') && sim.RIN
                     varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
                 else
                     varRIN = @(Plevel) 0;
                 end
 
                 % Noise std for the level Plevel
-                noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + apd.var_shot(Plevel/apd.Gain, Deltaf));
+                noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + apd.varShot(Plevel/apd.Gain, Deltaf));
                 
                 % Level spacing optimization
                 if strcmp(mpam.level_spacing, 'optimized')
@@ -205,6 +229,8 @@ classdef apd < handle
                 
                  mpam.adjust_levels(tx.Ptx, tx.rexdB);
                  
+                 % if sim.awgn is set, then use AWGN approximation to
+                 % calculate the BER
                  if isfield(sim, 'awgn') && sim.awgn
                     ber = mpam.ber_awgn(noise_std);
                  else
@@ -212,15 +238,17 @@ classdef apd < handle
                  end
             end
         end        
-
-        %% Output sgnal distribution including thermal noise using the saddlepoint approximation
-        % px = output sgnal pdf
-        % x = current at output
-        % lambda = rate of the Poisson process
-        % N0 = thermal noise psd
-        % fs = sampling frequency
-        %% NOT FINISHED !!!
+        
+        %% Tail probabilities calculation
+        % Not working properly. fsolve doesn't work as well as fzero
         function [px, shat] = tail_saddlepoint_approx(this, xthresh, P, fs, N0, tail) 
+            %% Output sgnal distribution including thermal noise using the saddlepoint approximation
+            % px = output sgnal pdf
+            % x = current at output
+            % lambda = rate of the Poisson process
+            % N0 = thermal noise psd
+            % fs = sampling frequency
+            %% NOT FINISHED !!!
             options = optimoptions('fsolve', 'Display', 'off');
             
             % From implicit relations of APD: beta = 1/(1 - ka) and G = 1/(1 - ab)
@@ -309,13 +337,13 @@ classdef apd < handle
             end
         end
 
-        %% Output sgnal distribution including thermal noise using the saddlepoint approximation
-        % px = output sgnal pdf
-        % x = current at output
-        % lambda = rate of the Poisson process
-        % N0 = thermal noise psd
-        % fs = sampling frequency
         function [px, x] = output_pdf_saddlepoint(this, P, fs, N0)
+            %% Output sgnal distribution including thermal noise using the saddlepoint approximation
+            % px = output sgnal pdf
+            % x = current at output
+            % lambda = rate of the Poisson process
+            % N0 = thermal noise psd
+            % fs = sampling frequency
             options = optimoptions('fsolve', 'Display', 'off');
             
             % From implicit relations of APD: beta = 1/(1 - ka) and G = 1/(1 - ab)
@@ -437,7 +465,7 @@ classdef apd < handle
                 lpdf(k).mean = trapz(lpdf(k).I, lpdf(k).I.*lpdf(k).p);
                 lpdf(k).mean_gauss = Plevels(k)*this.Gain;
                 lpdf(k).var = trapz(lpdf(k).I, lpdf(k).I.^2.*lpdf(k).p) - lpdf(k).mean.^2;
-                lpdf(k).var_gauss = this.var_shot(Plevels(k), fs/2);
+                lpdf(k).var_gauss = this.varShot(Plevels(k), fs/2);
                 
                 lpdf(k).p_gauss = pdf('normal', lpdf(k).I, lpdf(k).mean_gauss, sqrt(lpdf(k).var_gauss));
             end

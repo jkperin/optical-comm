@@ -25,7 +25,7 @@ sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.verbose = false; % show stuff
 
 %% M-PAM
-mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(4, 100e9, 'optimized', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -50,14 +50,14 @@ end
    
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
-tx.RIN = -140;  % dB/Hz
-tx.rexdB = -5;  % extinction ratio in dB. Defined as Pmin/Pmax
+tx.RIN = -150;  % dB/Hz
+tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response
-tx.modulator.fc = 30e9; % modulator cut off frequency
-tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-tx.modulator.h = @(t) [0*t(t < 0) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0))];
-tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
+% tx.modulator.fc = 30e9; % modulator cut off frequency
+% tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+% tx.modulator.h = @(t) [0*t(t < 0) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0))];
+% tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
 %% Fiber
 fiber = fiber(); % fiber(L, att(lamb), D(lamb))
@@ -79,11 +79,11 @@ rx.optfilt = design_filter('fbg', 0, 200e9/(sim.fs/2));
 [rx.U_fourier, rx.D_fourier, rx.Fmax_fourier] = klse_fourier(rx, sim, sim.Mct*(mpam.M^sim.L + 2*sim.L)); 
 
 %% Equalization
-rx.eq.type = 'Fixed TD-SR-LE';
-% rx.eq.ros = 2;
-rx.eq.Ntaps = 15;
-rx.eq.Ntrain = 2e3;
-rx.eq.mu = 1e-2;
+% rx.eq.type = 'Fixed TD-SR-LE';
+% % rx.eq.ros = 2;
+% rx.eq.Ntaps = 15;
+% rx.eq.Ntrain = 2e3;
+% rx.eq.mu = 1e-2;
 
 %% PIN
 % (GaindB, ka, GainBW, R, Id) 
