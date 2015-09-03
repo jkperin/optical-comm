@@ -11,6 +11,7 @@ classdef PAM < handle
     
     properties (Dependent)
         Rs % symbol rate
+        optimize_level_spacing % logical variable
     end
     
     properties (GetAccess=private)
@@ -52,6 +53,13 @@ classdef PAM < handle
             Rs = this.Rb/log2(this.M);
         end
         
+        function optimize_level_spacing = get.optimize_level_spacing(this)
+            %% True if level_spacing == 'optimized'
+            optimize_level_spacing = strcmp(this.level_spacing, 'optimized');
+        end
+        
+        
+        %% Auxiliary functions
         function set_levels(this, levels, thresholds)
             %% Set levels to desired values
             % Levels and decision thresholds are normalized that last level is unit
@@ -125,26 +133,30 @@ classdef PAM < handle
             dataRX = bin2gray(dataRX, 'pam', this.M).';
         end
         
-        function ber = ber_awgn(this, noise_std)
+        function [ber, berk] = ber_awgn(this, noise_std)
             %% Calculate BER in AWGN channel where the noise standard deviation is given by the function noise_std
             % Input:
             % - noise_std = handle function that calculates the noise std for
             % a given signal level
-            ser = 0;
+            % Outputs:
+            % - ber = total ber
+            % - berk = ber of the kth level
+            ser = zeros(1, this.M);
             for k = 1:this.M
                 if k == 1
-                    ser = ser + qfunc((this.b(1) - this.a(1))/noise_std(this.a(1)));
+                    ser(k) = ser(k) + qfunc((this.b(1) - this.a(1))/noise_std(this.a(1)));
                 elseif k == this.M
-                    ser = ser + qfunc((this.a(k) - this.b(k-1))/noise_std(this.a(k)));
+                    ser(k) = ser(k) + qfunc((this.a(k) - this.b(k-1))/noise_std(this.a(k)));
                 else
-                    ser = ser + qfunc((this.b(k) - this.a(k))/noise_std(this.a(k)));
-                    ser = ser + qfunc((this.a(k) - this.b(k-1))/noise_std(this.a(k)));
+                    ser(k) = ser(k) + qfunc((this.b(k) - this.a(k))/noise_std(this.a(k)));
+                    ser(k) = ser(k) + qfunc((this.a(k) - this.b(k-1))/noise_std(this.a(k)));
                 end
             end
 
             ser = ser/this.M;
             
-            ber = ser/log2(this.M);
+            berk = ser/log2(this.M);
+            ber = sum(berk);
         end
         
         function [aopt, bopt] = optimize_level_spacing_gauss_approx(this, BERtarget, rexdB, noise_std, verbose)

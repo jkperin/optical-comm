@@ -19,7 +19,7 @@ sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
 sim.verbose = ~true; % show stuff
 
 % M-PAM
-mpam = PAM(4, 100e9, 'optimized', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -33,12 +33,12 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -25:0.5:-15;
+tx.PtxdBm = -25:0.5:-10;
 
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
-tx.RIN = -150;  % dB/Hz
-tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
+tx.RIN = -140;  % dB/Hz
+tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response
 % tx.modulator.fc = 2*mpam.Rs; % modulator cut off frequency
@@ -61,7 +61,8 @@ apd_opt = apd(10.0851, 0.09, Inf, 1, 10e-9); % infinite gain x BW product
 apd_opt.optimize_gain(mpam, tx, fiber, rx, sim);
         
 %
-GainsdB = sort([6:0.5:13 apd_opt.GaindB]);
+GainsdB = sort([(6:0.5:13) apd_opt.GaindB]);
+% GainsdB = apd_opt.GaindB;
 Gains = 10.^(GainsdB/10);
 
 % APD
@@ -86,6 +87,42 @@ for k= 1:length(GainsdB)
 
     legends = [legends, sprintf('Gain = %.1f dB', GainsdB(k))];
 end
+
+
+%% Noise calculations
+% Thermal noise
+Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
+varTherm = rx.N0*Deltaf; % variance of thermal noise
+
+% RIN
+if isfield(sim, 'RIN') && sim.RIN
+    varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
+else
+    varRIN = @(Plevel) 0;
+end
+
+Ptx = 1e-3*10.^(tx.PtxdBm/10);
+rex = 10^(-abs(tx.rexdB)/10);
+for k = 1:length(Ptx)
+    mpam.adjust_levels(Ptx(k), tx.rexdB);
+    
+    Gapd(k) = apdG.optGain_analytical(mpam, rx.N0);
+    
+    apdG.Gain = Gapd(k);
+    
+    mpam.adjust_levels(apdG.Gain*Ptx(k), tx.rexdB);
+    
+    noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + apdG.varShot(Plevel/apdG.Gain, Deltaf));
+    
+    ber2(k) = mpam.ber_awgn(noise_std);
+end
+    
+
+plot(tx.PtxdBm, log10(ber2), '-k')
+    
+    
+    
+    
 
 xlabel('Received Power (dBm)')
 ylabel('log(BER)')

@@ -29,7 +29,46 @@ classdef apd < handle
         b % auxiliary variable b = 1/(1-ka)
     end
     
-    methods (Access=public)        
+    methods (Access=private)     
+        function ber = calc_apd_ber(this, PtxdBm, Gapd, mpam, tx, fiber, rx, sim)
+            %% Iterate BER calculation: for given PtxdBm and Gapd calculates BER
+
+            % Set power level
+            tx.Ptx = 1e-3*10^(PtxdBm/10);
+
+            % Set APD gain
+            this.Gain = Gapd; % linear units
+
+            % Auxiliary variables
+            Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
+            % function to calculate noise std
+            varTherm = rx.N0*Deltaf; % variance of thermal noise
+
+            if isfield(sim, 'RIN') && sim.RIN
+                varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
+            else
+                varRIN = @(Plevel) 0;
+            end
+
+            % Noise std for the level Plevel
+            noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + this.varShot(Plevel/this.Gain, Deltaf));
+
+            % Level spacing optimization
+            if mpam.optimize_level_spacing
+                mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);  
+            end
+
+             mpam.adjust_levels(tx.Ptx, tx.rexdB);
+
+             % if sim.awgn is set, then use AWGN approximation to
+             % calculate the BER
+             if isfield(sim, 'awgn') && sim.awgn
+                ber = mpam.ber_awgn(noise_std);
+             else
+                 [~, ber] = ber_apd_doubly_stochastic(mpam, tx, fiber, this, rx, sim);
+             end
+        end   
+        
 %         function M = Ms(this, s)
 %             options = optimoptions('fsolve', 'Display', 'off');
 %             exitflag = 2;
@@ -177,67 +216,79 @@ classdef apd < handle
                 error('Invalid Option!')
             end
         end
-               
-        function optimize_gain(this, mpam, tx, fiber, rx, sim)
-            %% Optimize apd gain
-            %% check if works for both optimized and equally spacing 
+        
+        function Gopt = optGain_analytical(this, mpam, N0)
+            %% Optimize APD gain analytically for equally-spaced levels
+            % This assumes that the highest level dominates the BER
+            % The optimal solution doesn't depend on RIN or extinction
+            % ratio!
+            % Inputs:
+            % - mpam = PAM class
+            % - N0 = thermal noise PSD
+            b = 2*this.q*this.ka*(this.R*mpam.a(end) + this.Id)*mpam.Rs;
+            d = -2*this.q*(1-this.ka)*(this.R*mpam.a(end) + this.Id)*mpam.Rs;
+            e = N0*mpam.Rs;
+            
+            r = roots([-b 0 d e]);
+            
+            % Gets real root only
+            if any(imag(r) == 0)
+                Gopt = r(imag(r) == 0);
+            else
+            	% All roots are complex due to precision error. Thus, 
+                % gets root with smallest imaginary part
+                [~, ix] = min(abs(imag(r)));
+                Gopt = real(r(ix));
+            end
+            
+            % Eliminates negative solutions
+            Gopt = Gopt(Gopt > 0);
+                       
+            if isempty(Gopt)
+                error('Negative root found while optimizing APD gain')
+            end
+            
+        end
+        
+        function Gopt = optGain(this, mpam, tx, fiber, rx, sim)
+            %% Optimize APD gain: Given a certain input power calculates 
+            %% the APD gain that leads to the minimum BER
+                     
+            Gopt = zeros(size(tx.PtxdBm));
+            for k = 1:length(tx.PtxdBm)
+                % Optmize gain for uniform spacing: find Gapd that minimizes the required
+                % average power (Prec) to achieve a certain target SER.  
+                [Gopt(k), ~, exitflag] = fminbnd(@(Gapd) this.calc_apd_ber(tx.PtxdBm(k), Gapd, mpam, tx, fiber, rx, sim), eps, min(this.GainBW/mpam.Rs, 100));    
+
+                % Check whether solution is valid
+                if exitflag ~= 1
+                    warning('APD gain optimization did not converge (exitflag = %d)\n', exitflag);
+                end 
+
+                if Gopt(k) < 0
+                    error('Negative root found while optimizing APD gain')
+                end
+            end
+        end
+        
+        function Gopt = optimize_gain(this, mpam, tx, fiber, rx, sim)
+            %% Optimize APD gain: Given a certain input power calculates the APD gain that
+            %% the APD gain that leads to the minimum BER
             disp('Optimizing APD gain...')
-            
-            originalGain = this.Gain;
-            
+                       
             % Optmize gain for uniform spacing: find Gapd that minimizes the required
             % average power (Prec) to achieve a certain target SER.  
-            [Gapd_opt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, this, rx, sim) - sim.BERtarget, -20), 1, min(this.GainBW/mpam.Rs, 100));    
+            [Gopt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim) - sim.BERtarget, -20), eps, min(this.GainBW/mpam.Rs, 100));    
             
+            % Check whether solution is valid
             if exitflag ~= 1
                 warning('APD gain optimization did not converge (exitflag = %d)\n', exitflag);
             end 
 
-            if ~isnan(Gapd_opt) && ~isinf(Gapd_opt) && Gapd_opt >= 1
-                this.Gain = Gapd_opt;
-                fprintf('Optimal Gain = % .2f | %.2f dB\n', this.Gain, this.GaindB)
-            else
-                this.Gain = originalGain;
-                warning('optimize_gain: APD gain was not changed')
+            if Gopt < 0
+                error('Negative root found while optimizing APD gain')
             end
-              
-            function ber = calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, apd, rx, sim)
-                % Set power level
-                tx.Ptx = 1e-3*10^(PtxdBm/10);
-
-                % Set APD gain
-                apd.Gain = Gapd; % linear units
-               
-                % Auxiliary variables
-                Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
-                % function to calculate noise std
-                varTherm = rx.N0*Deltaf; % variance of thermal noise
-
-                if isfield(sim, 'RIN') && sim.RIN
-                    varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
-                else
-                    varRIN = @(Plevel) 0;
-                end
-
-                % Noise std for the level Plevel
-                noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + apd.varShot(Plevel/apd.Gain, Deltaf));
-                
-                % Level spacing optimization
-                if strcmp(mpam.level_spacing, 'optimized')
-                    mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);  
-                end
-                
-                 mpam.adjust_levels(tx.Ptx, tx.rexdB);
-                 
-                 % if sim.awgn is set, then use AWGN approximation to
-                 % calculate the BER
-                 if isfield(sim, 'awgn') && sim.awgn
-                    ber = mpam.ber_awgn(noise_std);
-                 else
-                     [~, ber] = ber_apd_doubly_stochastic(mpam, tx, fiber, apd, rx, sim);
-                 end
-            end
-        end        
+        end   
         
         %% Tail probabilities calculation
         % Not working properly. fsolve doesn't work as well as fzero

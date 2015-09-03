@@ -1,5 +1,7 @@
 clear, clc, close all
 
+addpath ../f/
+
 tx.PtxdBm = -30:1:-12;
 
 %% Equally-spaced levels
@@ -36,38 +38,45 @@ ber_apd_inf.optimized.count = [0.0758265046084356,0.0491620506012330,0.028240020
 ber_apd_inf.optimized.gauss = [0.0756709061354638,0.0492054044951657,0.0283698195498705,0.0140012679073031,0.00565788811842483,0.00177491387537260,0.000407524305678209,6.45779037046901e-05,6.67222422765784e-06,4.19063489960530e-07,1.43545166173706e-08,2.30772239756844e-10,1.45681035612740e-12,2.93119071775299e-15,1.46580828369098e-18,1.36034820412002e-22,1.66415457588676e-27,1.79236595320711e-33,1.07706353192394e-40];
 
 %% Figures
-figure, hold on, grid on, box on
-plot(tx.PtxdBm, log10(ber_soa.eq_spaced.est), '-b')
-plot(tx.PtxdBm, log10(ber_apd_fin.eq_spaced.gauss), '-r')
-plot(tx.PtxdBm, log10(ber_apd_inf.eq_spaced.gauss), '-m')
-plot(tx.PtxdBm, log10(ber_pin.eq_spaced.gauss), '-k')
-
-plot(tx.PtxdBm, log10(ber_soa.eq_spaced.count), '-ob')
-plot(tx.PtxdBm, log10(ber_apd_fin.eq_spaced.count), '-or')
-plot(tx.PtxdBm, log10(ber_apd_inf.eq_spaced.count), '-om')
-plot(tx.PtxdBm, log10(ber_pin.eq_spaced.count), '-ok')
-
+figure
+semilogy(tx.PtxdBm, ber_soa.eq_spaced.est, '-b')
+hold on, grid on
+semilogy(tx.PtxdBm, ber_apd_fin.eq_spaced.gauss, '-r')
+semilogy(tx.PtxdBm, ber_apd_inf.eq_spaced.gauss, '-m')
+semilogy(tx.PtxdBm, ber_pin.eq_spaced.gauss, '-k')
+% 
+% plot(tx.PtxdBm, log10(ber_soa.eq_spaced.count), '-ob')
+% plot(tx.PtxdBm, log10(ber_apd_fin.eq_spaced.count), '-or')
+% plot(tx.PtxdBm, log10(ber_apd_inf.eq_spaced.count), '-om')
+% plot(tx.PtxdBm, log10(ber_pin.eq_spaced.count), '-ok')
 
 xlabel('Received Power (dBm)')
 ylabel('log(BER)')
 legend('SOA', 'APD Gain x BW = 340 GHz', 'APD Gain x BW = Inf', 'PIN', 'Location', 'SouthWest')
-axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
+axis([tx.PtxdBm(1) tx.PtxdBm(end) 1e-8 1])
 set(gca, 'xtick', tx.PtxdBm)
+set(gca, 'ytick', logspace(-8, 0, 9))
+
+matlab2tikz('soa_vs_apd_eqs_log.tex')
 
 %%
-figure, hold on, grid on, box on
-plot(tx.PtxdBm, log10(ber_soa.optimized.est), '-b')
-plot(tx.PtxdBm, log10(ber_apd_fin.optimized.gauss), '-r')
-plot(tx.PtxdBm, log10(ber_apd_inf.optimized.gauss), '-m')
-plot(tx.PtxdBm, log10(ber_pin.optimized.gauss), '-k')
+figure
+semilogy(tx.PtxdBm, ber_soa.optimized.est, '-b')
+hold on, grid on
+semilogy(tx.PtxdBm, ber_apd_fin.optimized.gauss, '-r')
+semilogy(tx.PtxdBm, ber_apd_inf.optimized.gauss, '-m')
+semilogy(tx.PtxdBm, ber_pin.optimized.gauss, '-k')
 
-plot(tx.PtxdBm, log10(ber_soa.optimized.count), '-ob')
-plot(tx.PtxdBm, log10(ber_apd_fin.optimized.count), '-or')
-plot(tx.PtxdBm, log10(ber_apd_inf.optimized.count), '-om')
-plot(tx.PtxdBm, log10(ber_pin.optimized.count), '-ok')
+% plot(tx.PtxdBm, log10(ber_soa.optimized.count), '-ob')
+% plot(tx.PtxdBm, log10(ber_apd_fin.optimized.count), '-or')
+% plot(tx.PtxdBm, log10(ber_apd_inf.optimized.count), '-om')
+% plot(tx.PtxdBm, log10(ber_pin.optimized.count), '-ok')
 
 xlabel('Received Power (dBm)')
-ylabel('log(BER)')
+ylabel('BER')
 legend('SOA', 'APD Gain x BW = 340 GHz', 'APD Gain x BW = Inf', 'PIN', 'Location', 'SouthWest')
-axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
+axis([tx.PtxdBm(1) tx.PtxdBm(end) 1e-8 1])
 set(gca, 'xtick', tx.PtxdBm)
+set(gca, 'ytick', logspace(-8, 0, 9))
+
+matlab2tikz('soa_vs_apd_opt_log.tex')

@@ -36,7 +36,7 @@ else
 end
 
 %% Level Spacing Optimization
-if strcmp(mpam.level_spacing, 'optimized')
+if mpam.optimize_level_spacing
     % Optimize levels using Gaussian approximation
     mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std, sim.verbose);     
 end
@@ -49,10 +49,11 @@ ber.count = zeros(size(Ptx));
 ber.est = zeros(size(Ptx));
 ber.gauss = zeros(size(Ptx));
 ber.awgn = zeros(size(Ptx));
+ber.awgn_levels = zeros(mpam.M, length(Ptx));
 ber.awgn_ne = zeros(size(Ptx));
 for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
-         
+            
     % Montecarlo simulation
     ber.count(k) = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim);
     
@@ -62,7 +63,7 @@ for k = 1:length(Ptx)
     % AWGN  
     mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
 
-    ber.awgn(k) = mpam.ber_awgn(noise_std);
+    [ber.awgn(k), ber.awgn_levels(:, k)] = mpam.ber_awgn(noise_std);
     
     % AWGN including noise enhancement penalty
     ber.awgn_ne(k) = mpam.ber_awgn(@(P) sqrt(Kne)*noise_std(P));

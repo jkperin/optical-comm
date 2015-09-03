@@ -134,11 +134,87 @@ S_{shot} = G^2F_A(G)\cdot 2q(RP_{rec} + I_d)
 F_n &= \frac{SNR_{in}}{SNR_{out}} = \frac{\frac{(R\bar{P})^2}{2qR\bar{P}\Delta f}}{\frac{(GR\bar{P})^2}{G^2F_A(G)\cdot 2qR\bar{P}\Delta f}} = F_A(G)
 \end{align}
 
-\textbf{BER with equally-spaced levels}
+\subsection{BER}
+
+\begin{align} \label{eq:error-prob} \nonumber
+SER = p(\mathcal{E}) = &\frac{1}{M}Q\bigg(\frac{GR(b_1 - a_0)}{\sigma_{0}}\bigg) \\ \nonumber 
+& + \frac{1}{M}\sum_{k=1}^{M-2}\Bigg[Q\bigg(\frac{GR(a_k-b_k)}{\sigma_{k}}\bigg) + Q\bigg(\frac{GR(b_{k+1}-a_k)}{\sigma_{k}}\bigg)\Bigg] \\
+& + \frac{1}{M}Q\bigg(\frac{GR(a_{M-1}-b_{M-1})}{\sigma_{M-1}}\bigg)
+\end{align}
+where $\sigma_{k}^2$ is the noise variance of the $i$th level:
 \begin{equation}
-BER = \frac{1}{M}Q\bigg(\frac{\Delta P}{\sqrt{\sigma_{0}^2 + \sigma_T^2}}\bigg) + \frac{2}{M}Q\bigg(\frac{\Delta P}{\sqrt{\sigma_{1}^2 + \sigma_T^2}}\bigg) + \ldots + \frac{1}{M}Q\bigg(\frac{\Delta P}{\sqrt{\sigma_{M-1}^2 + \sigma_T^2}}\bigg)
+\sigma_{k}^2 = \sigma_{th}^2 + G^2F_A(G)\cdot 2q(RP_{k} + I_d)R_s + RIN\cdot (RGP_{k})^2R_s 
 \end{equation}
-where $\sigma_{i}^2$ signal-dependent noise variance of the $i$th level, $\sigma_{T}$ is thermal noise variance or any other signal-independent noise, $\Delta P = \frac{2\bar{P}}{M-1}\frac{1-r_{ex}}{1 + r_{ex}}$ is the level spacing.
+
+
+In the case of equally-spaced levels:
+\begin{equation}
+SER = \frac{1}{M}Q\bigg(\frac{\Delta P}{\sigma_{0}}\bigg) + \frac{2}{M}Q\bigg(\frac{\Delta P}{\sigma_{1}}\bigg) + \ldots + \frac{1}{M}Q\bigg(\frac{\Delta P}{\sigma_{M-1}}\bigg)
+\end{equation}
+where $\Delta P = \frac{2\bar{P}}{M-1}\frac{1-r_{ex}}{1 + r_{ex}}$ is the level spacing.
+
+The BER can be calculated by assuming Gray coding:
+\begin{equation}
+BER = \frac{SER}{\log_2 M}
+\end{equation}
+
+When shot noise or RIN are dominant the BER is dominated by the BER of the last level. Thus, we can write
+\begin{align}
+BER \approx \frac{1}{M\log_2 M}Q\bigg(\frac{\Delta P}{\sigma_{M-1}}\bigg)
+\end{align}
+
+\section{Gain and Level Spacing Optimization}
+
+\subsection{Equally-spaced levels}
+Since for equally-spaced levels the BER is dominated by the BER of the highest level, we can optimize the gain by optimizing the SNR of the last level. Thus,
+\begin{align} \nonumber
+G_{opt} &= \arg\max_{G} \frac{\Delta P^2}{\sigma_{th}^2 + G^2F_A(G)\cdot 2q(RP_{M-1} + I_d)R_s + RIN\cdot (RGP_{M-1})^2R_s} \\ \nonumber
+& = \arg\max_{G}\frac{G^2P^2_{M-1}\frac{(1-r_{ex})^2}{(M-1)^2}}{\sigma_{th}^2 + G^2F_A(G)\cdot 2q(RP_{M-1} + I_d)R_s + RIN\cdot (RGP_{M-1})^2R_s} \\ \nonumber
+& = \arg\max_{G}\frac{G^2P^2_{M-1}\frac{(1-r_{ex})^2}{(M-1)^2}}{\sigma_{th}^2 + G^2\Big(k_AG + (1-k_A)\Big(2 - \frac{1}{G}\Big)\Big)\cdot 2q(RP_{M-1} + I_d)R_s + RIN\cdot (RGP_{M-1})^2R_s} \\ \nonumber
+& = \arg\max_{G}\frac{G^2P^2_{M-1}\frac{(1-r_{ex})^2}{(M-1)^2}}{\sigma_{th}^2 + \Big(k_AG^3 + 2(1-k_A)G^2 - (1-k_A)G\Big)\cdot 2q(RP_{M-1} + I_d)R_s + RIN\cdot (RGP_{M-1})^2R_s} \\
+& = \arg\max_{G}\frac{aG^2}{bG^3 + cG^2 + dG + e}
+\end{align}
+where $P_{M-1}$ refers to the optical power of the highest level before the APD.
+
+\begin{align}
+& a = P^2_{M-1}\frac{(1-r_{ex})^2}{(M-1)^2} \\
+& b = 2qk_A(RP_{M-1} + I_d)R_s \\
+& c = 2(1-k_A) + RIN\cdot (RP_{M-1})^2R_s \\
+& d = -2q(1-k_A)(RP_{M-1} + I_d)R_s \\
+& e = \sigma_{th}^2 
+\end{align}
+
+\begin{align}
+& \frac{\partial}{\partial G}\bigg(\frac{aG^2}{bG^3 + cG^2 + dG + e}\bigg) = 0 \\
+& bG^3 = dG + 2e 
+\end{align}
+
+\subsection{Optimized level spacing}
+
+One heuristic to minimize \eqref{eq:error-prob} is to make all error events equally likely. That is,
+\begin{align} \label{eq:level-opt-condition} \nonumber
+Q\bigg(\frac{GR(b_1 - a_0)}{\sigma_{0}}\bigg) =& \ldots = Q\bigg(\frac{GR(a_k-b_k)}{\sigma_{k}}\bigg) = Q\bigg(\frac{GR(b_{k+1}-a_k)}{\sigma_{k}}\bigg) = \ldots = Q\bigg(\frac{GR(a_{M-1}-b_{M-1})}{\sigma_{M-1}}\bigg) \\
+& \frac{GR(b_k-a_{k-1})}{\sigma_{k-1}} = \frac{GR(a_{k}-b_k)}{\sigma_{k}} = \xi,~k = 1, \ldots, M-1
+\end{align}
+
+where $\xi$ depends on the target BER 
+This way the BER is given by
+\begin{equation}
+\xi = \frac{M\log_2 M}{2(M-1)}Q^{-1}(BER)
+\end{equation}
+
+From \eqref{eq:level-opt-condition} we have the following equations
+\begin{equation}
+\begin{cases}
+b_k - a_{k-1} = \sigma_{k-1}\frac{\xi}{GR} \\
+a_k - b_k = \sigma_{k}\frac{\xi}{GR}
+\end{cases}, k = 1, \ldots, M-1
+\end{equation}
+
+Solving for $a_k$
+\begin{equation}
+a_k = a_{k-1} + \frac{\xi}{GR}(\sigma_{k-1} + \sigma_k)
+\end{equation}
 
 \subsection{Power Penalty vs Noise Figure}
 
@@ -147,6 +223,21 @@ Shot noise is dominant, and the BER is determined by the argument of the Q-funct
 \frac{\Delta P}{\sigma_{shot}} \propto \frac{GP}{\sqrt{G^2F_A(G)P}} = \sqrt{\frac{P}{F_A(G)}}
 \end{equation}
 Thus, 1-dB increase in the noise figure corresponds in 1-dB power penalty. However, for APD the noise figure depends on the operation point i.e., Gain.
+
+
+\section{Frequency Response}
+
+When the avalanche build-up time dominates the frequency response we have \cite{}
+
+\begin{equation}
+G_{APD}(f) = \frac{1}{1 + (2\pi fMt_i)^2}
+\end{equation}
+where $M$ is the APD gain, and $t_i$ is the intrinsic response time given by \eqref{eq:ti}, which is a scattering limited transit time of carrier in the avalanche region. The product $t_iM$ is called the avalanche build-up time \cite{frequency-reponse-InP-InGaAs}.
+
+\begin{equation}
+t_i = Nk_a\frac{l_a}{\nu}
+\end{equation}
+where $N$ is a slowly varying factor from $1/3$ to 2, $l_a$ is the avalanche region width, and $\nu$ is the effective carrier drift velocity in the avalanche region.
 
 \begin{thebibliography}{9}
 \bibitem{personick-comp-4methos} Personick, S. D., Balaban, P., Bobsin, J. H., and Kumar, P.; ``R.A Detailed Comparison of Four Approaches to the Calculation of the Sensitivity of Optical Fiber System Receivers,'' \emph{IEEE Transactions on Communications}, 1976.
@@ -158,6 +249,10 @@ Thus, 1-dB increase in the noise figure corresponds in 1-dB power penalty. Howev
 \bibitem{personick} Personick, S. D.; ``Statistics of a General Class of Avalanche Detectors With Applications to Optical Communication,'' \emph{The Bell SystemTechnical Journal}, 1971.
 
 \bibitem{agilent-RIN-measurement} Product Note 86100-7; ``Digital Communication Analyzer (DCA), Measure Relative Intensity Noise (RIN),'' Agilent Technologies. 
+
+\bibitem{frequency-reponse-InP-InGaAs} Yasuda, K. and Mikawa, T. and Kishi, Y. and Kaneda, T.; ``Multiplication-dependent frequency responses of InP/ InGaAs Avalanche Photodiodes,'' 1981.
+
+
 
 \end{thebibliography}
 
