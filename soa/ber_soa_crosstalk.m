@@ -104,7 +104,7 @@ for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
     
     % Ajust levels to desired transmitted power and extinction ratio
-    mpam.adjust_levels(tx.Ptx, tx.rexdB);
+    mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
     Pmax = mpam.a(end);
 
     % Modulated PAM signal
@@ -177,7 +177,7 @@ for k = 1:length(Ptx)
     % Automatic gain control
     % Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
     yt = yt./(Pmax*link_gain); % just refer power values back to transmitter
-    mpam.norm_levels;
+    mpam = mpam.norm_levels;
 
     %% Equalization
     if isfield(rx, 'eq')

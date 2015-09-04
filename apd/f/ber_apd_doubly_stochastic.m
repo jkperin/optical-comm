@@ -27,7 +27,7 @@ sim.f = f*sim.fs; % redefine frequency to be used in optical_modulator.m
 link_gain = apd.Gain*fiber.link_attenuation(tx.lamb)*apd.R;
 
 % Ajust levels to desired transmitted power and extinction ratio
-mpam.adjust_levels(tx.Ptx, tx.rexdB);
+mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
 Pmax = mpam.a(end); % used in the automatic gain control stage
 
 % Modulated PAM signal
@@ -36,6 +36,10 @@ xt = mpam.mod(dataTX, sim.Mct);
 xt = [zeros(sim.Mct*Nzero, 1); xt; zeros(sim.Mct*Nzero, 1)]; % zero pad
 
 % Generate optical signal
+if ~isfield(sim, 'RIN')
+    sim.RIN = false;
+end
+
 RIN = sim.RIN;
 sim.RIN = false; % RIN is not modeled here since number of samples is not high enough to get accurate statistics
 [Et, ~] = optical_modulator(xt, tx, sim);
@@ -49,7 +53,7 @@ yt = apd.R*apd.Gain*Pt;
 % Automatic gain control
 % Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
 yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
-mpam.norm_levels;
+mpam = mpam.norm_levels;
 
 %% Equalization
 if isfield(rx, 'eq')

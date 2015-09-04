@@ -12,7 +12,7 @@ sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
-
+sim.awgn = true;
 %
 sim.shot = true; % include shot noise. Only included in montecarlo simulation (except for APD)
 sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
@@ -33,7 +33,7 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -20:1:10;
+tx.PtxdBm = -20:1:0;
 
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
@@ -58,21 +58,64 @@ rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 %% APD 
 apdG = apd(10, 0.1, Inf, 1, 10e-9);
 
+% Optimize APD gain: Given a certain input power calculates 
+% the APD gain that leads to the minimum BER
 Gopt = apdG.optGain(mpam, tx, fiber, rx, sim);
 
+% Optimizes APD gain assuming equally-spaced levels and that highest level
+% dominates BER
 Gopt_analytical = zeros(size(tx.PtxdBm));
 for k = 1:length(tx.PtxdBm)
     Ptx = 1e-3*10^(tx.PtxdBm(k)/10);
     
-    mpam.adjust_levels(Ptx, tx.rexdB);
+    mpam = mpam.adjust_levels(Ptx, tx.rexdB);
     
     Gopt_analytical(k) = apdG.optGain_analytical(mpam, rx.N0);    
 end
 
+% Optimize APD gain
+% 1) For a given APD gain, optimizes level spacing for the target BER
+% 2) Adjust power to the given received power
+% 3) Calculate BER
+% 4) Update APD gain until minimum BER is reached
+mpam.level_spacing = 'optimized'
+Gopt_opt = apdG.optGain(mpam, tx, fiber, rx, sim);
+Gopt_opt(:) = 10;
+
+figure, hold on
+for kk = -2:2:2
+    for k = 1:length(Gopt_opt)
+        apdG.Gain = Gopt_opt(k) + kk;
+
+        tx.Ptx = 1e-3*10^(tx.PtxdBm(k)/10);
+
+        noise_std = apdG.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN);
+
+        mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std, sim.verbose);
+
+        % Adjust levels to power after the APD, which is required by noise_std
+%         link_gain = apdG.R*apdG.Gain*fiber.link_attenuation(tx.lamb);
+
+%         mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
+
+%         bergauss(k) = mpam.ber_awgn(noise_std);
+        
+        [~, bergauss(k)] = ber_apd_doubly_stochastic(mpam, tx, fiber, apdG, rx, sim);
+    end
+    
+    plot(tx.PtxdBm, log10(bergauss))
+end
+
+xlabel('Received Power (dBm)')
+ylabel('log(BER)')
+legend('Gopt-2', 'Gopt', 'Gopt+2')
+axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
+
 figure, hold on, box on, grid on
 plot(tx.PtxdBm, Gopt)
-plot(tx.PtxdBm, Gopt_analytical)
-legend('Gopt', 'Gopt analytical')
+plot(tx.PtxdBm, Gopt_analytical, '--')
+plot(tx.PtxdBm, Gopt_opt)
+legend('Gopt equally-spaced', 'Gopt analytical equally-spaced', 'Gopt optimized level spacing')
 xlabel('Received Power (dBm)')
 ylabel('Gain')
     

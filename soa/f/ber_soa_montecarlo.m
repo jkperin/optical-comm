@@ -8,7 +8,7 @@ f = sim.f/sim.fs;
 link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
 
 % Ajust levels to desired transmitted power and extinction ratio
-mpam.adjust_levels(tx.Ptx, tx.rexdB);
+mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
 Pmax = mpam.a(end); % used in the automatic gain control stage
 
 % Modulated PAM signal
@@ -55,7 +55,7 @@ yt = yt + wshot + sqrt(rx.N0*sim.fs/2)*randn(size(Et));
 % Automatic gain control
 % Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
 yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
-mpam.norm_levels;
+mpam = mpam.norm_levels;
 
 %% Equalization
 if isfield(rx, 'eq')

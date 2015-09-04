@@ -9,20 +9,7 @@ dBm2Watt = @(x) 1e-3*10.^(x/10);
 link_gain = apd.Gain*fiber.link_attenuation(tx.lamb)*apd.R; % Overall link gain
 
 %% Noise calculations
-% Thermal noise
-Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
-varTherm = rx.N0*Deltaf; % variance of thermal noise
-
-% RIN
-if isfield(sim, 'RIN') && sim.RIN
-    varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
-else
-    varRIN = @(Plevel) 0;
-end
-
-% Noise std for the level Plevel
-noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + apd.varShot(Plevel/apd.Gain, Deltaf));
-% Note: Plevel is divided by APD gain to obtain power at the apd input
+noise_std = apd.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
 
 % Noise enhancement penalty
 if isfield(rx, 'eq')
@@ -38,7 +25,7 @@ end
 %% Level Spacing Optimization
 if mpam.optimize_level_spacing
     % Optimize levels using Gaussian approximation
-    mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std, sim.verbose);     
+    mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std, sim.verbose);     
 end
 
 %% Calculations BER
@@ -46,7 +33,7 @@ end
 Ptx = dBm2Watt(tx.PtxdBm);
 
 ber.count = zeros(size(Ptx));
-ber.est = zeros(size(Ptx));
+%ber.est = zeros(size(Ptx));
 ber.gauss = zeros(size(Ptx));
 ber.awgn = zeros(size(Ptx));
 ber.awgn_levels = zeros(mpam.M, length(Ptx));
@@ -61,7 +48,7 @@ for k = 1:length(Ptx)
     [~, ber.gauss(k)] = ber_apd_doubly_stochastic(mpam, tx, fiber, apd, rx, sim);
     
     % AWGN  
-    mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
+    mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
 
     [ber.awgn(k), ber.awgn_levels(:, k)] = mpam.ber_awgn(noise_std);
     

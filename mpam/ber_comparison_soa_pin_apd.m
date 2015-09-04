@@ -25,7 +25,7 @@ sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.verbose = false; % show stuff
 
 %% M-PAM
-mpam = PAM(4, 100e9, 'optimized', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -51,7 +51,7 @@ end
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
 tx.RIN = -150;  % dB/Hz
-tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
+tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response
 % tx.modulator.fc = 30e9; % modulator cut off frequency
@@ -93,20 +93,10 @@ pin = apd(0, 0, Inf, rx.R, rx.Id);
 % (GaindB, ka, GainBW, R, Id) 
 % finite Gain x BW
 apd_fin = apd(8.1956, 0.09, 340e9, rx.R, rx.Id); % gain optimized for uniformly-spaced 4-PAM with matched filter
-% apd_fin = apd(7.86577063943086, 0.09, 340e9, rx.R, rx.Id); % gain optimized for uniformly-spaced 8-PAM with matched filter
-% apd_fin.optimize_gain(mpam, tx, fiber, rx, sim);
+% apd_fin.optGain(this, mpam, tx, fiber, rx, sim, objective)
 
-if strcmp(mpam.level_spacing, 'equally-spaced')
-     % uniform, infinite Gain x BW (4-PAM)
-    apd_inf = apd(11.8876, 0.09, Inf, 1, 10e-9); % gain optimized for 4-PAM with matched filter
-%     apd_inf.optimize_gain(mpam, tx, fiber, rx, sim);
-
-%     apd_inf = apd(7.865770639430862, 0.09, Inf, rx.R, rx.Id); % gain optimized for 8-PAM with matched filter
-elseif strcmp(mpam.level_spacing, 'optimized')
-    % nonuniform, infinite gain x BW
-    apd_inf = apd(13.8408, 0.09, Inf, rx.R, rx.Id); % gain optimized for 4-PAM with matched filter
-%     apd_inf.optimize_gain(mpam, tx, fiber, rx, sim);
-end
+apd_inf = apd(11.8876, 0.09, Inf, 1, 10e-9); % gain optimized for 4-PAM with matched filter
+apd_inf.Gain = apd_inf.optGain(mpam, tx, fiber, rx, sim, 'margin');
 
 %% SOA
 % soa(GaindB, NF, lambda, maxGaindB)

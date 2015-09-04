@@ -33,7 +33,7 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -25:0.5:-10;
+tx.PtxdBm = -25:1:-10;
 
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
@@ -56,19 +56,14 @@ rx.N0 = (30e-12).^2; % thermal noise psd
 rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 
 %% APD 
-% (GaindB, ka, GainBW, R, Id)  
-apd_opt = apd(10.0851, 0.09, Inf, 1, 10e-9); % infinite gain x BW product
-apd_opt.optimize_gain(mpam, tx, fiber, rx, sim);
-        
-%
-GainsdB = sort([(6:0.5:13) apd_opt.GaindB]);
+% (GaindB, ka, GainBW, R, Id) 
+apdG = apd(10, 0.1, Inf, 1, 10e-9);
+
+GainsdB = (6:0.5:13)+4;
 % GainsdB = apd_opt.GaindB;
 Gains = 10.^(GainsdB/10);
 
-% APD
-apdG = apd(10, apd_opt.ka, Inf, 1, 10e-9);
-
-% 
+%  
 PtxdBm_BERtarget = zeros(size(GainsdB));
 figure, hold on, grid on
 legends = {};
@@ -88,51 +83,87 @@ for k= 1:length(GainsdB)
     legends = [legends, sprintf('Gain = %.1f dB', GainsdB(k))];
 end
 
+% for each power optimize APD gain
+for k = 1:length(tx.PtxdBm)
+    tx.Ptx = 1e-3*10^(tx.PtxdBm(k)/10);
+    
+    Gopt(k) = apdG.optGain(mpam, tx, fiber, rx, sim, 'BER'); 
+    apdG.Gain = Gopt(k);
 
-%% Noise calculations
-% Thermal noise
-Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
-varTherm = rx.N0*Deltaf; % variance of thermal noise
+    % Noise std
+    noise_std = apdG.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
 
-% RIN
-if isfield(sim, 'RIN') && sim.RIN
-    varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
-else
-    varRIN = @(Plevel) 0;
-end
+    % Level spacing optimization
+    if mpam.optimize_level_spacing
+        mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);  
+    end
+    
+    mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
+    
+    Gopt_analytical(k) = apdG.optGain_minBER_analytical(mpam, rx.N0);
+          
+    mpam = mpam.adjust_levels(tx.Ptx*apdG.Gain*apdG.R, tx.rexdB);
+    
+    beropt(k) = mpam.ber_awgn(noise_std);
+%     [~, beropt(k)] = ber_apd_doubly_stochastic(mpam, tx, fiber, apdG, rx, sim);
+end          
 
-Ptx = 1e-3*10.^(tx.PtxdBm/10);
-rex = 10^(-abs(tx.rexdB)/10);
-for k = 1:length(Ptx)
-    mpam.adjust_levels(Ptx(k), tx.rexdB);
-    
-    Gapd(k) = apdG.optGain_analytical(mpam, rx.N0);
-    
-    apdG.Gain = Gapd(k);
-    
-    mpam.adjust_levels(apdG.Gain*Ptx(k), tx.rexdB);
-    
-    noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + apdG.varShot(Plevel/apdG.Gain, Deltaf));
-    
-    ber2(k) = mpam.ber_awgn(noise_std);
-end
-    
+plot(tx.PtxdBm, log10(beropt), '-k')
 
-plot(tx.PtxdBm, log10(ber2), '-k')
-    
-    
-    
-    
-
+legends = [legends, 'Optimal gain at every P'];
 xlabel('Received Power (dBm)')
 ylabel('log(BER)')
 legend(legends{:})
 axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
 
+figure, hold on, box on, grid on
+plot(tx.PtxdBm, Gopt)
+plot(tx.PtxdBm, Gopt_analytical, '--')
+legend('Gopt', 'Gopt analytical')
+xlabel('Received Power (dBm)')
+ylabel('Gain')
+
+% Find optimal margin
+Gopt_margin = apdG.optGain(mpam, tx, fiber, rx, sim, 'margin'); 
+
 figure, hold on, grid on
 plot(Gains, PtxdBm_BERtarget)
-plot(apd_opt.Gain, PtxdBm_BERtarget(GainsdB == apd_opt.GaindB), 'ok')
+plot(Gopt_margin, interp1(Gains, PtxdBm_BERtarget, Gopt_margin), 'ok')
 xlabel('APD Gain (Linear Units)')
 ylabel(sprintf('Transmitted Optical Power (dBm) @ BER = %g', sim.BERtarget))
 % axis([Gains(1) Gains(end) -21 -19]);
+
+
+
+% %% Noise calculations
+% % Thermal noise
+% Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
+% varTherm = rx.N0*Deltaf; % variance of thermal noise
+% 
+% % RIN
+% if isfield(sim, 'RIN') && sim.RIN
+%     varRIN =  @(Plevel) 10^(tx.RIN/10)*Plevel.^2*Deltaf;
+% else
+%     varRIN = @(Plevel) 0;
+% end
+% 
+% Ptx = 1e-3*10.^(tx.PtxdBm/10);
+% rex = 10^(-abs(tx.rexdB)/10);
+% for k = 1:length(Ptx)
+%     mpam = mpam.adjust_levels(Ptx(k), tx.rexdB);
+%     
+%     Gapd(k) = apdG.optGain_analytical(mpam, rx.N0);
+%     
+%     apdG.Gain = Gapd(k);
+%     
+%     mpam = mpam.adjust_levels(apdG.Gain*apdG.R*Ptx(k), tx.rexdB);
+%     
+%     noise_std = apd.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN);
+%     
+%     ber2(k) = mpam.ber_awgn(noise_std);
+% end
+%     
+% 
+% plot(tx.PtxdBm, log10(ber2), '-k')
+    
     

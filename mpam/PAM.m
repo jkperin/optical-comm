@@ -1,4 +1,4 @@
-classdef PAM < handle
+classdef PAM
     %% Class PAM
     properties
         M % constellation size
@@ -17,6 +17,7 @@ classdef PAM < handle
     properties (GetAccess=private)
         % Used in level spacing optimization
         maxtol = 1e-6; % maximum tolerance for convergence
+        maxBERerror = 1e-3; % maximum acceptable BER error in level spacing optimization
         maxit = 20; % maximum number of iteratios
     end
        
@@ -60,20 +61,20 @@ classdef PAM < handle
         
         
         %% Auxiliary functions
-        function set_levels(this, levels, thresholds)
+        function this = set_levels(this, levels, thresholds)
             %% Set levels to desired values
             % Levels and decision thresholds are normalized that last level is unit
-            this.a = levels/levels(end);
-            this.b = thresholds/levels(end);
+            this.a = levels;
+            this.b = thresholds;
         end
         
-        function norm_levels(this)
+        function this = norm_levels(this)
             %% Normalize levels so that last level is unit
             this.b = this.b/this.a(end);
             this.a = this.a/this.a(end);
         end
                     
-        function [Plevels, Pthresh] = adjust_levels(this, Ptx, rexdB)
+        function this = adjust_levels(this, Ptx, rexdB)
             %% Adjust levels to desired transmitted power and extinction ratio
             % Inputs:
             % - Ptx = transmitted power (W)
@@ -159,7 +160,7 @@ classdef PAM < handle
             ber = sum(berk);
         end
         
-        function [aopt, bopt] = optimize_level_spacing_gauss_approx(this, BERtarget, rexdB, noise_std, verbose)
+        function this = optimize_level_spacing_gauss_approx(this, BERtarget, rexdB, noise_std, verbose)
             %% Level spacing (a) and decision threshold (b) optmization
             % Assumes infinite extinction ratio at first, then corrects power and
             % optmize levels again
@@ -216,8 +217,13 @@ classdef PAM < handle
                 k = k + 1;       
             end
             
-            this.b = bopt/aopt(end);
-            this.a = aopt/aopt(end);
+            this.b = bopt;
+            this.a = aopt;
+            
+            BERerror = abs(this.ber_awgn(noise_std) - BERtarget)/BERtarget;
+            if  BERerror > this.maxBERerror
+                warning('PAM>optimize_level_spacing_gauss_approx: BER error %g greater than maximum acceptable error\n', BERerror);
+            end                
 
             if nargin == 5 && verbose
                 figure, hold on

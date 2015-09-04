@@ -1,4 +1,4 @@
-classdef soa < handle
+classdef soa
     properties
         Gain % Gain in linear units
         Fn   % noise figure (dB)
@@ -42,7 +42,7 @@ classdef soa < handle
         end
         
         %% Set methods
-        function set.GaindB(this, GdB)
+        function this = set.GaindB(this, GdB)
             this.Gain = 10^(GdB/10); % set Gain, since GaindB is dependent
         end
                

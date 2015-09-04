@@ -43,7 +43,7 @@ ylabel('Amplifier Gain (dB)')
 % M-PAM
 % M, Rb, leve_spacing, pshape
 mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
-mpam.adjust_levels(1e-3*10^(-20/10), -5);
+mpam = mpam.adjust_levels(1e-3*10^(-20/10), -5);
 
 Ns = floor(carrier_lifetime*mpam.Rs); % number of symbols to be averaged
 Mch = 4; % Number of WDM channels

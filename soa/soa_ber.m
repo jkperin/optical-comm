@@ -58,11 +58,11 @@ if strcmp(mpam.level_spacing, 'optimized')
     % otherwise uses accurate statistics
     if isfield(sim, 'stats') && strcmp(sim.stats, 'gaussian')        
         % Optimize levels using Gaussian approximation
-        mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std, sim.verbose);     
+        mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std, sim.verbose);     
     else
         % Optimize levels using accurate noise statisitics
         [a, b] = level_spacing_optm(mpam, tx, soa, rx, sim);
-        mpam.set_levels(a, b);
+        mpam = mpam.set_levels(a, b);
     end
 end   
 
@@ -86,7 +86,7 @@ for k = 1:length(Ptx)
     [ber.est(k), ber.gauss(k)] = ber_soa_klse_fourier(mpam, tx, fiber, soa, rx, sim);
     
     % AWGN  
-    mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
+    mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
 
     ber.awgn(k) = mpam.ber_awgn(noise_std);
     

@@ -34,7 +34,7 @@ sim.f = f*sim.fs; % redefine frequency to be used in optical_modulator.m and fib
 link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R;
 
 % Ajust levels to desired transmitted power and extinction ratio
-mpam.adjust_levels(tx.Ptx, tx.rexdB);
+mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
 
 %% Modulated PAM signal
 dataTX = debruijn_sequence(mpam.M, sim.L).'; % de Bruijin sequence

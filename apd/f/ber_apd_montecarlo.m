@@ -4,7 +4,7 @@ function ber = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim)
 link_gain = apd.Gain*fiber.link_attenuation(tx.lamb)*apd.R;
 
 % Ajust levels to desired transmitted power and extinction ratio
-mpam.adjust_levels(tx.Ptx, tx.rexdB);
+mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
 Pmax = mpam.a(end); % used in the automatic gain control stage
 
 % Modulated PAM signal
@@ -25,7 +25,7 @@ yt = apd.detect(Pt, sim.fs, 'gaussian', rx.N0);
 % Automatic gain control
 % Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
 yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
-mpam.norm_levels;
+mpam = mpam.norm_levels;
 
 %% Equalization
 if isfield(rx, 'eq')
