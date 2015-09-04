@@ -101,19 +101,19 @@ classdef apd
             this.Gain = 10^(GaindB/10);
             this.ka = ka;
             
-            if nargin <= 3
+            if nargin >= 3
                 this.GainBW = GainBW;
             else
                 this.GainBW = Inf;
             end
                         
-            if nargin <= 4
+            if nargin >= 4
                 this.R = R;
             else 
                 this.R = 1;
             end
             
-            if nargin <= 5
+            if nargin >= 5
                 this.Id = Id;
             else 
                 this.Id = 0;

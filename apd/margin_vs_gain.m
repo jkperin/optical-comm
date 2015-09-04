@@ -19,7 +19,7 @@ sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
 sim.verbose = ~true; % show stuff
 
 % M-PAM
-mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(8, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -33,11 +33,11 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -25:1:-10;
+tx.PtxdBm = -18:0;
 
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
-tx.RIN = -140;  % dB/Hz
+tx.RIN = -150;  % dB/Hz
 tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response
@@ -56,27 +56,27 @@ rx.N0 = (30e-12).^2; % thermal noise psd
 rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 
 
-Gains = 1:20;
+Gains = 1:0.5:30;
 GainsdB = 10*log10(Gains);
 
 mpam_eqs = mpam;
 mpam_opt = mpam;
 mpam_opt.level_spacing = 'optimized';
 
-ka = [0.1 0.25 0.5];
+ka = [0.1 0.25 0.5 0.75];
 
 MargindB_eqs = zeros(length(ka), length(GainsdB));
 Gopt_margin_eqs = zeros(length(ka), 1);
 MargindB_opt = zeros(length(ka), length(GainsdB));
 Gopt_margin_opt = zeros(length(ka), 1);
 
-figure, hold on, grid on
 for n = 1:length(ka)
     [MargindB_eqs(n, :), Gopt_margin_eqs(n)] = iterate(GainsdB, mpam_eqs, ka(n));
     [MargindB_opt(n, :), Gopt_margin_opt(n)] = iterate(GainsdB, mpam_opt, ka(n));
 end
     
 leg = {};
+figure(1), hold on, grid on
 for n = 1:length(ka)
     hline(n) = plot(Gains, MargindB_eqs(n, :));
     leg = [leg sprintf('ka = %.2f', ka(n))];
@@ -98,12 +98,10 @@ function [MargindB, Gopt_margin] = iterate(GainsdB, mpam, ka)
     
     %% APD 
     % (GaindB, ka, GainBW, R, Id) 
-    apdG = apd(10, 0.1, Inf, 1, 10e-9);
+    apdG = apd(10, ka, Inf, 1, 10e-9);
     pin = apd(0, 0, Inf, 1, 10e-9);
     
     PtxdBm_BERtarget = zeros(size(GainsdB));
-    figure, hold on, grid on
-    legends = {};
     for k= 1:length(GainsdB)
 
         apdG.GaindB = GainsdB(k);
@@ -120,7 +118,7 @@ function [MargindB, Gopt_margin] = iterate(GainsdB, mpam, ka)
     
     PtxdBm_pin_BERtarget = interp1(log10(ber_pin.gauss), tx.PtxdBm, log10(sim.BERtarget));
     
-    MargindB = PtxdBm_BERtarget - PtxdBm_pin_BERtarget;
+    MargindB = PtxdBm_pin_BERtarget - PtxdBm_BERtarget;
 
       
     % Find optimal margin
