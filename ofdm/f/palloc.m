@@ -16,7 +16,7 @@ Hmod = Hmod.*exp(1j*2*pi*fc*tx.modulator.grpdelay);
 Gdac = tx.filter.H(fc/sim.fs);                    
 Gadc = rx.filter.H(fc/sim.fs);   
 
-Hfiber = fiber.Hfiber(fc, tx);
+Hfiber = fiber.H(fc, tx);
 
 % Frequency response of the channel at the subcarriers
 Gch = K*Gdac.*Hmod.*Hfiber.*rx.R.*Gadc;            

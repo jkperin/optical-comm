@@ -400,7 +400,7 @@ function sim_single_laser
                         figure(Hfiber_plot)
                     end
                     ff = linspace(0, 2*mpam.Rs, 100);
-                    Hfiber = fiber1.Hfiber(ff, tx);
+                    Hfiber = fiber1.H(ff, tx);
                     plot(ff/1e9, abs(Hfiber).^2, 'LineWidth', LineWidth, 'Color', get(hline, 'Color'))
                     xlabel('Frequency (GHz)')
                     ylabel('|H_{fiber}(f)|^2')

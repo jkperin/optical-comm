@@ -23,8 +23,18 @@ df = 1/N;
 f = (-0.5:df:0.5-df).';
 sim.f = f*sim.fs; % redefine frequency to be used in optical_modulator.m
 
-% Overall link gain
-link_gain = apd.Gain*fiber.link_attenuation(tx.lamb)*apd.R;
+% Channel Response
+Ptx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitted pulse shape
+
+% Hch does not include receiver filter
+if isfield(tx, 'modulator')
+    Hch = Ptx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+    .*fiber.H(sim.f, tx).*apd.H(sim.f);
+else
+    Hch = Ptx.H(sim.f/sim.fs).*fiber.H(sim.f, tx).*apd.H(sim.f);
+end
+
+link_gain = apd.Gain*apd.R*fiber.link_attenuation(tx.lamb); % Overall link gain. Equivalent to Hch(0)
 
 % Ajust levels to desired transmitted power and extinction ratio
 mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
@@ -48,7 +58,7 @@ sim.RIN = false; % RIN is not modeled here since number of samples is not high e
 [~, Pt] = fiber.linear_propagation(Et, sim.f, tx.lamb);
 
 % Direct detect
-yt = apd.R*apd.Gain*Pt;
+yt = apd.detect(Pt, sim.fs, 'no noise');
 
 % Automatic gain control
 % Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
@@ -56,7 +66,7 @@ yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
 mpam = mpam.norm_levels;
 
 %% Equalization
-if isfield(rx, 'eq')
+if isfield(rx, 'eq') && (isfield(tx, 'modulator') || ~isinf(apd.BW))
     rx.eq.type = strrep(rx.eq.type, 'Adaptive', 'Fixed'); % replace adaptive for fixed
     % Note: in this simulation there aren't many symbols to determine the
     % adaptive equalizer
@@ -65,7 +75,7 @@ else % otherwise only filter using rx.elefilt
 end
 
 % Equalizer
-[yd, rx.eq] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim);
+[yd, rx.eq] = equalize(rx.eq, yt, Hch, mpam, rx, sim);
 
 % Symbols to be discard in BER calculation
 yd = yd(Nzero+1:end-Nzero);
@@ -93,7 +103,8 @@ pe_gauss = 0;
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
-    varShot = apd.varShot(Pmax*link_gain*yd(k)/apd.Gain, Df);
+    varShot = apd.varShot(Pmax*link_gain*yd(k)/apd.Gain, min(Df, apd.BW)); 
+    % Note: apd.BW*pi/2 is the noise BW of the APD frequency response
     sig = 1/(Pmax*link_gain)*sqrt(rx.eq.Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
      
     if dat(k) == mpam.M-1

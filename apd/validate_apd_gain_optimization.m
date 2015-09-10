@@ -37,7 +37,7 @@ tx.PtxdBm = -25:1:-10;
 
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
-tx.RIN = -140;  % dB/Hz
+tx.RIN = -150;  % dB/Hz
 tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response

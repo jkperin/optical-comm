@@ -5,8 +5,18 @@ function [ber, mpam] = soa_ber(mpam, tx, fiber, soa, rx, sim)
 
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
-% Auxiliary variables
-link_gain = soa.Gain*fiber.link_attenuation(tx.lamb)*rx.R; % Overall link gain
+% Channel response
+Ptx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitted pulse shape
+
+% Hch does not include receiver filter
+if isfield(tx, 'modulator')
+    Hch = Ptx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+    .*fiber.H(sim.f, tx);
+else
+    Hch = Ptx.H(sim.f/sim.fs).*fiber.H(sim.f, tx);
+end
+
+link_gain = soa.Gain*rx.R*fiber.link_attenuation(tx.lamb); % Overall link gain
 
 %% Polarizer
 if isfield(sim, 'polarizer') && ~sim.polarizer
@@ -43,7 +53,7 @@ noise_std = @(Plevel) sqrt(varTherm + varShot(Plevel) + rx.R^2*varRIN(Plevel)...
 
 % Noise enhancement penalty
 if isfield(rx, 'eq')
-    [~, rx.eq] = equalize(rx.eq.type, [], mpam, tx, fiber, rx, sim); % design equalizer
+    [~, rx.eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer
     % This design assumes fixed zero-forcing equalizers
     Kne = rx.eq.Kne; % noise enhancement penalty
     % Kne = noise variance after equalizer/noise variance before equalizer

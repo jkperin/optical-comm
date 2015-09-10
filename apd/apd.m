@@ -3,7 +3,7 @@ classdef apd
     properties
         Gain % Gain
         ka   % impact ionization factor
-        GainBW % Gain x Bandwidth product
+        BW   % Bandwidth
         R    % responsivity
         Id   % dark current
     end
@@ -22,6 +22,7 @@ classdef apd
         cdf_accuracy = 1-1e-4; % Required accuracy of the cdf (i.e., pmf will have the minimum number of points that satistifes that sum pmf > cdf_accuracy.)
         Niterations = 1e6; % maximum number of iterations in a while loop
         Ptail = 1e-6; % probability of clipped tail
+        maxGain = 100; % max gain allowed in optimization
     end
     
     properties (Dependent, GetAccess=private)
@@ -88,12 +89,12 @@ classdef apd
     end
     
     methods
-        function this = apd(GaindB, ka, GainBW, R, Id)
+        function this = apd(GaindB, ka, BW, R, Id)
             %% Class constructors
             % Input:
             % - GaindB = gain in dB
             % - ka = impact ionization factor
-            % - GainBW (optional, default = Inf) = gain bandwidth product
+            % - BW (optional, default = Inf) = bandwidth
             % - R (optional, default = 1) = responsivity
             % - Id (optional defualt = 10 nA) = dark current (A)
             
@@ -102,9 +103,9 @@ classdef apd
             this.ka = ka;
             
             if nargin >= 3
-                this.GainBW = GainBW;
+                this.BW = BW;
             else
-                this.GainBW = Inf;
+                this.BW = Inf;
             end
                         
             if nargin >= 4
@@ -154,6 +155,15 @@ classdef apd
             l = (this.R*P + this.Id)*dt/this.q; 
         end
         
+        function Hapd = H(this, f)
+            %% APD frequency response
+            if isinf(this.BW)
+                Hapd = this.R*this.Gain;
+            else
+                Hapd = this.Gain*this.R./sqrt(1 + (f/this.BW).^2);
+            end
+        end
+        
         function sig2 = varShot(this, Pin, Df)
             %% Shot noise variance
             % Inputs:
@@ -167,46 +177,57 @@ classdef apd
             % Inputs:
             % - Pin = received power (W)
             % - fs = sampling frequency (Hz)
-            % - noise_stats = 'gaussian' or 'doubly-stochastic' (not
-            % implemented)
+            % - noise_stats = 'gaussian', 'doubly-stochastic' (not
+            % implemented), or 'no noise'
             % - N0 (optional, if provided, thermal noise of psd N0 is added
-            % after direct detection) = thermal noise psd
-            if nargin < 5
-                N0 = 0;
-            end                
+            % after direct detection) = thermal noise psd      
             
-            if strcmp(noise_stats, 'gaussian')
-                % Assuming Gaussian statistics               
-                var_therm = N0*fs/2; % thermal noise
-                
-                output = this.R*this.Gain*Pin + sqrt(this.varShot(Pin, fs/2) + var_therm).*randn(size(Pin));
-              
-            % uses saddlepoint approximation to obtain pmf in order to generate 
-            % output distributed according to that pmf
-            elseif  strcmp(noise_stats, 'doubly-stochastic')  
-                Plevels = unique(Pin);
-                               
-                output = zeros(size(Pin));
-                for k = 1:length(Plevels)
-                    [px, x] = this.output_pdf_saddlepoint(Plevels(k), fs, 0); % doesn't include thermal noise here
+            switch noise_stats 
+                case 'gaussian'
+                    % Assuming Gaussian statistics               
+                    output = this.R*this.Gain*Pin + sqrt(this.varShot(Pin, fs/2)).*randn(size(Pin));
                     
-                    cdf = cumtrapz(x, px);
-                                                   
-                    pos = (Pin == Plevels(k));
+                case 'doubly-stochastic'
+                    % uses saddlepoint approximation to obtain pmf in order to generate 
+                    % output distributed according to that pmf
+                    Plevels = unique(Pin);
+
+                    output = zeros(size(Pin));
+                    for k = 1:length(Plevels)
+                        [px, x] = this.output_pdf_saddlepoint(Plevels(k), fs, 0); % doesn't include thermal noise here
+
+                        cdf = cumtrapz(x, px);
+
+                        pos = (Pin == Plevels(k));
+
+                        % Sample according to pmf px
+                        u = rand(sum(pos), 1); % uniformly-distributed
+                        dist = abs(bsxfun(@minus, u, cdf));
+                        [~, ix] = min(dist, [], 2);
+                        output(pos) = x(ix); % distributed accordingly to px
+                    end
+                case 'no noise'
+                    % Only amplifies and filters the signal (no noise).
+                    % This is used in estimating the BER
+                    output = this.R*this.Gain*Pin;
                     
-                    % Sample according to pmf px
-                    u = rand(sum(pos), 1); % uniformly-distributed
-                    dist = abs(bsxfun(@minus, u, cdf));
-                    [~, ix] = min(dist, [], 2);
-                    output(pos) = x(ix); % distributed accordingly to px
-                end
-                
-                if N0 ~= 0
-                    output = output + sqrt(N0*fs/2).*randn(size(Pin)); % includes thermal noise
-                end 
-            else
-                error('Invalid Option!')
+                otherwise 
+                    error('Invalid Option!')
             end
+            
+            % Frequency
+            df = fs/length(Pin);
+            f = (-fs/2:df:fs/2-df).';
+            
+            % APD frequency response
+            output = real(ifft(fft(output).*ifftshift(this.H(f))))/(this.R*this.Gain);    
+            % Divide by this.R*this.Gain because gain was already included
+            % in output
+            
+            % Add thermal noise if N0 was provided
+            if nargin == 5
+                output = output + sqrt(N0*fs/2).*randn(size(Pin)); % includes thermal noise
+            end 
         end
               
         function noise_std = stdNoise(this, noiseBW, N0, RIN, sim)
@@ -288,7 +309,7 @@ classdef apd
                     % 4) Update APD gain until minimum BER is reached
 
                     % Find Gapd that minimizes BER
-                    [Gopt, ~, exitflag] = fminbnd(@(Gapd) this.calc_apd_ber(10*log10(tx.Ptx/1e-3), Gapd, mpam, tx, fiber, rx, sim), eps, min(this.GainBW/mpam.Rs, 100));    
+                    [Gopt, ~, exitflag] = fminbnd(@(Gapd) this.calc_apd_ber(10*log10(tx.Ptx/1e-3), Gapd, mpam, tx, fiber, rx, sim), eps, min(this.BW/mpam.Rs, this.maxGain));    
 
                     % Check whether solution is valid
                     if exitflag ~= 1
@@ -305,10 +326,10 @@ classdef apd
                         % Thus, find APD gain that leads to minimum average
                         % PAM levels
 
-                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) calcPmean(Gapd, mpam, tx, this, rx, sim), eps, min(this.GainBW/mpam.Rs, 100));    
+                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) calcPmean(Gapd, mpam, tx, this, rx, sim), eps, 100);    
                     else
                         % Adjust power to get to target BER
-                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim) - sim.BERtarget, -20), eps, min(this.GainBW/mpam.Rs, 100));
+                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim) - sim.BERtarget, -20), eps, this.maxGain);
                     end
 
                     % Check whether solution is valid

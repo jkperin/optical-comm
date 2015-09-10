@@ -173,7 +173,7 @@ end
 % else
 %     plot(f/1e9, ones(size(f)))
 % end
-% plot(f/1e9, abs(fiber.Hfiber(f, tx)).^2)
+% plot(f/1e9, abs(fiber.H(f, tx)).^2)
 % plot(f/1e9, abs(rx.optfilt.H(f/sim.fs)).^2)
 % plot(f/1e9, abs(rx.elefilt.H(f/sim.fs)).^2)
 % legend('Signal', 'Modulator', 'Fiber frequency response (small-signal)', 'Optical filter', 'Receiver electric filter')

@@ -1,5 +1,5 @@
 %% Design equalizer and equalize yt
-function [yd, eq] = equalize(type, yt, mpam, tx, fiber, rx, sim)
+function [yd, eq] = equalize(eq, yt, Hch, mpam, rx, sim)
 % Types supported:
 % - None: No equalizer. Filter using antialiasing filter (rx.elefilt) and
 % sample at symbol rate.
@@ -10,16 +10,17 @@ function [yd, eq] = equalize(type, yt, mpam, tx, fiber, rx, sim)
 % - Fixed or Adaptive TD-FS-LE: time-domain fractionally-spaced linear equalizer.
 % This assumes an anti-aliasing filter before sampling.
 
-eq = rx.eq;
-
 % Check if number of taps was defined and is even. If even, make it odd
 if isfield(eq, 'Ntaps') && mod(eq.Ntaps, 2) == 0
     eq.Ntaps = eq.Ntaps + 1;
 end
 
-% If modulator wasn't defined in tx, don't do equalization
-if ~isfield(tx, 'modulator')
-    type = 'None';
+% If channel response isn't define, and equalization type isn't set to adaptive FSE,
+% then don't equalize
+if isempty(Hch) && ~strcmp(eq.type, 'Adaptive TD-FS-LE')
+    eq.type = 'None';
+else % normalize channel response to have unit gain at DC
+    Hch = Hch/interp1(sim.f, Hch, 0);    
 end
 
 % Inserts delay of half of sample if oversampling of continuous time is even
@@ -29,34 +30,32 @@ else
     Delay = 1;
 end
 
-switch type
+switch eq.type
     case 'None'
         %% No equalization
         eq.H = ones(size(sim.f));
         eq.f = sim.f;
-               
-        % Receiver filter
-        yt = real(ifft(fft(yt).*ifftshift(Delay.*rx.elefilt.H(sim.f/sim.fs))));
-        
-        yd = yt(floor(sim.Mct/2)+1:sim.Mct:end); % +1 because indexing starts at 1
-        
         eq.Kne = 1;
-        
+               
+        if ~isempty(yt)
+            % Receiver filter
+            yt = real(ifft(fft(yt).*ifftshift(Delay.*rx.elefilt.H(sim.f/sim.fs))));
+
+            yd = yt(floor(sim.Mct/2)+1:sim.Mct:end); % +1 because indexing starts at 1
+        else
+            yd = [];
+        end
     case 'Analog'
         %% Analog Equalization
         Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitter frequency response
-        
-        % Channel response
-        Gch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
-            .*fiber.Hfiber(sim.f, tx);
-        
+               
         % Antialiasing filter
         Haa = design_filter('bessel', 5, 1/2*mpam.Rs/(sim.fs/2));
         Haa = Haa.H(sim.f/sim.fs);
                
         %        
         Heq = Haa;
-        Heq(abs(sim.f)<=mpam.Rs/2) = Heq(abs(sim.f)<=mpam.Rs/2)./(Gch(abs(sim.f)<=mpam.Rs/2));
+        Heq(abs(sim.f)<=mpam.Rs/2) = Heq(abs(sim.f)<=mpam.Rs/2)./(Hch(abs(sim.f)<=mpam.Rs/2));
 
         % Apply equalization filter
         if isempty(yt) % function was called just to calculate equalizer
@@ -78,18 +77,9 @@ switch type
         eq.Kne = trapz(sim.f, abs(Heq).^2)/(mpam.Rs);
         
     case 'Fixed TD-FS-LE'
-        Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); 
-
-        if fiber.L*fiber.D(tx.lamb) ~= 0
-            Hfiber = fiber.Hfiber(sim.f, tx)/fiber.link_attenuation(tx.lamb);
-        else
-            Hfiber = 1;
-        end                
-
-        Hmatched = Delay.*conj(Gtx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*...
-            exp(1j*2*pi*sim.f*tx.modulator.grpdelay).*Hfiber.*rx.elefilt.H(sim.f/sim.fs));
-        % Note: Fiber frequency response is real, thus its group delay
-        % is zero.
+        Hch = Hch.*rx.elefilt.H(sim.f/sim.fs); % include receiver antialiasing filter
+        
+        Hmatched = Delay.*conj(Hch);
 
         %% MMSE Time-domain symbol-rate equalizer
         n = -floor(eq.Ntaps/2)*sim.Mct:sim.Mct*floor(eq.Ntaps/2);
@@ -100,6 +90,7 @@ switch type
         hmatched = hmatched2(1:sim.Mct*floor(eq.Ntaps/2));
         hmatched = [hmatched2(end-sim.Mct*floor(eq.Ntaps/2):end); hmatched];
 
+        % p = matched filter, x = pulse shape after matched filter
         x = conv(hmatched, hmatched(end:-1:1), 'same');
         xd = interp1(n, x, nd, 'spline'); % oversampled impulse response
         pd = interp1(n, hmatched, nd, 'spline'); % oversampled impulse response
@@ -246,13 +237,8 @@ switch type
         mu = eq.mu;
         b = mpam.mod(rx.eq.TrainSeq, 1);
         
-        %% Time-domain symbol-rate equalizer
-        % matchedfilt = design_filter('matched', @(t) conv(mpam.pshape(t), 1/sim.fs*tx.modulator.h(t/sim.fs), 'full') , 1/sim.Mct); 
-        Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); 
-
         % Received Pulse Spectrum
-        Hmatched = Delay.*conj(Gtx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*...
-            exp(1j*2*pi*sim.f*tx.modulator.grpdelay).*fiber.Hfiber(sim.f, tx));
+        Hmatched = Delay.*conj(Hch);
 
         yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
 
@@ -291,32 +277,12 @@ switch type
         eq.Kne = 2*trapz(eq.f, abs(eq.H));
 
         case 'Fixed TD-SR-LE'            
-            Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); 
-
-            if fiber.L*fiber.D(tx.lamb) ~= 0
-                Hfiber = fiber.Hfiber(sim.f, tx)/fiber.link_attenuation(tx.lamb);
-            else
-                Hfiber = 1;
-            end                
-            
-            Hmatched = Delay.*conj(Gtx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*...
-                exp(1j*2*pi*sim.f*tx.modulator.grpdelay).*Hfiber);
+            Hmatched = Delay.*conj(Hch);
             % Note: Fiber frequency response is real, thus its group delay
             % is zero.
-            
-%             yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
-% 
-%             yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
-            
+                        
             %% MMSE Time-domain symbol-rate equalizer
             n = -floor(eq.Ntaps/2)*sim.Mct:sim.Mct*floor(eq.Ntaps/2);
-            
-            % calculating using impulse responses
-%             v = mpam.pshape(n);
-%             h = tx.modulator.h(n/sim.fs + tx.modulator.grpdelay);
-%             p = conv(h, v, 'same');
-%             x = conv(p, fliplr(p), 'same');
-%             xd = x(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
 
             hmatched2 = real(ifft(ifftshift(Hmatched)));
             hmatched = hmatched2(1:sim.Mct*floor(eq.Ntaps/2));
@@ -345,9 +311,6 @@ switch type
             % Note: if NSR = 0, or if NSR is not specified, then
             % zero-forcing equalizer is designed 
             
-%             % get filter coefficients
-%             W = conj(W(end:-1:1));
-
             % Filter using
             if isempty(yt) % only design
                 yd = []; 
@@ -366,49 +329,7 @@ switch type
             eq.den = 1;
             [eq.H, w] = freqz(eq.num, eq.den);
             eq.f = w/(2*pi);
-            eq.Kne = 2*trapz(eq.f, abs(eq.H));
-            
-            %% Design of zero-forcing TD-SR_L             
-%             % Fold spectrum
-%             df = sim.fs/length(sim.f);
-%             X = abs(Hmatched).^2;
-%             X = conj(flipud(X(1:floor(length(X)/2)+1)));
-%             ff = -flipud(sim.f(1:floor(length(sim.f)/2)+1));
-%             Nfold = floor(mpam.Rs/(2*df))+1;
-%             Xfolded = X(1:Nfold);
-%             ffolded = ff(1:Nfold);
-%             fold = true;
-%             for k = Nfold+1:Nfold:length(ff)-Nfold
-%                 if fold
-% %                     [ff(k+Nfold-1) ff(k)]/1e9
-% 
-%                     Xfolded = Xfolded + conj(flipud(X(k:k+Nfold-1)));
-% 
-%                     fold = false;
-%                 else
-% %                     [ff(k) ff(k+Nfold-1)]/1e9
-% 
-%                     Xfolded = Xfolded + X(k:k+Nfold-1);
-% 
-%                     fold = true;
-%                 end
-%             end
-% 
-%             Xfolded = [flipud(conj(Xfolded(2:end))); Xfolded(1:end-1)];
-%             ffolded = [-flipud((ffolded(2:end))); ffolded(1:end-1)];
-%            
-%             dff = 1/length(yk);
-%             ff = -0.5:dff:0.5-dff;
-%             ff = mpam.Rs*ff.';
-%             
-%             eq.f = ff;
-%             eq.H = interp1(ffolded, 1./Xfolded, ff, 'spline');
-%             
-%             % filter using Xfolded
-%             yd = real(ifft(fft(yk).*ifftshift(eq.H)));
-%             
-%             eq.Kne = trapz(eq.f, abs(eq.H))/(mpam.Rs);
-        
+            eq.Kne = 2*trapz(eq.f, abs(eq.H));        
     otherwise
         error('Equalization option not implemented yet!')
 end

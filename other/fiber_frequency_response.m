@@ -16,7 +16,7 @@ f = linspace(0, 50e9, 100);
 figure, hold on, grid on, box on
 for k= 1:length(L)
     fiber.L = L(k);
-    plot(f/1e9, 20*log10(abs(fiber.Hfiber(f, tx))))
+    plot(f/1e9, 20*log10(abs(fiber.H(f, tx))))
 end
 
 xlabel('Frequency (GHz)')

@@ -54,10 +54,10 @@ tx.RIN = -150;  % dB/Hz
 tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response
-% tx.modulator.fc = 30e9; % modulator cut off frequency
-% tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-% tx.modulator.h = @(t) [0*t(t < 0) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0))];
-% tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
+tx.modulator.fc = 30e9; % modulator cut off frequency
+tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+tx.modulator.h = @(t) [0*t(t < 0) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0))];
+tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
 %% Fiber
 fiber = fiber(); % fiber(L, att(lamb), D(lamb))
@@ -148,7 +148,7 @@ set(gca, 'xtick', tx.PtxdBm)
 % else
 %     plot(f/1e9, ones(size(f)))
 % end
-% plot(f/1e9, abs(fiber.Hfiber(f, tx)).^2)
+% plot(f/1e9, abs(fiber.H(f, tx)).^2)
 % plot(f/1e9, abs(rx.optfilt.H(f/sim.fs)).^2)
 % plot(f/1e9, abs(rx.elefilt.H(f/sim.fs)).^2)
 % legend('Signal', 'Modulator', 'Fiber frequency response (small-signal)', 'Optical filter', 'Receiver electric filter')

@@ -1,7 +1,17 @@
 function ber = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim)
 
-% Overall link gain
-link_gain = apd.Gain*fiber.link_attenuation(tx.lamb)*apd.R;
+% Channel response
+Ptx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitted pulse shape
+
+% Hch does not include receiver filter
+if isfield(tx, 'modulator')
+    Hch = Ptx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+    .*fiber.H(sim.f, tx).*apd.H(sim.f);
+else
+    Hch = Ptx.H(sim.f/sim.fs).*fiber.H(sim.f, tx).*apd.H(sim.f);
+end
+
+link_gain = apd.Gain*apd.R*fiber.link_attenuation(tx.lamb); % Overall link gain
 
 % Ajust levels to desired transmitted power and extinction ratio
 mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
@@ -28,16 +38,16 @@ yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
 mpam = mpam.norm_levels;
 
 %% Equalization
-if isfield(rx, 'eq')
+if isfield(rx, 'eq') && (isfield(tx, 'modulator') || ~isinf(apd.BW))
     rx.eq.TrainSeq = dataTX;
 else % otherwise only filter using rx.elefilt
     rx.eq.type = 'None';
 end
    
 % Equalize
-[yd, rx.eq] = equalize(rx.eq.type, yt, mpam, tx, fiber, rx, sim);
+[yd, rx.eq] = equalize(rx.eq, yt, Hch, mpam, rx, sim);
    
-% Symbols to be discard in BER calculation
+% Symbols to be discarded in BER calculation
 Ndiscard = sim.Ndiscard*[1 1];
 if isfield(rx.eq, 'Ntrain')
     Ndiscard(1) = Ndiscard(1) + rx.eq.Ntrain;

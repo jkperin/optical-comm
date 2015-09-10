@@ -95,7 +95,7 @@ classdef fiber
             Hele = exp(this.L*Dw);
         end
                
-        function Hatt = Hfiber(this, f, tx)
+        function Hatt = H(this, f, tx)
             %% Fiber small-signal frequency response assuming transient chirp dominant
             % This transfer function is for optical power not electic field
             % i.e., Hfiber = Pout/Pin. Moreover, it includes attenuation

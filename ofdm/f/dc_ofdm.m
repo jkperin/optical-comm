@@ -43,7 +43,7 @@ Hmod = Hmod.*exp(1j*2*pi*fc*tx.modulator.grpdelay);
 Gdac = tx.filter.H(fc/sim.fs);                    
 Gadc = rx.filter.H(fc/sim.fs); 
 
-Hfiber = fiber.Hfiber(fc, tx);
+Hfiber = fiber.H(fc, tx);
 
 % Frequency response of the channel at the subcarriers
 Gch = K*Gdac.*Hmod.*Hfiber.*rx.R.*Gadc;            
@@ -157,7 +157,7 @@ if isfield(sim, 'verbose') && sim.verbose
     subplot(211), box on, grid on, hold on
     plot(f/1e9, abs(tx.filter.H(f/sim.fs)).^2)
     plot(f/1e9, abs(tx.modulator.H(f)).^2)
-    plot(f/1e9, abs(fiber.Hfiber(f, tx)).^2)
+    plot(f/1e9, abs(fiber.H(f, tx)).^2)
     plot(f/1e9, abs(rx.filter.H(f/sim.fs)).^2)
     legend('DAC', 'Modulator', 'Fiber', 'Antialiasing (ADC)')
     xlabel('Frequency (GHz)')
@@ -166,7 +166,7 @@ if isfield(sim, 'verbose') && sim.verbose
     subplot(212), box on, grid on, hold on
     plot(f/1e9, 20*log10(abs(tx.filter.H(f/sim.fs))))
     plot(f/1e9, 20*log10(abs(tx.modulator.H(f))))
-    plot(f/1e9, 20*log10(fiber.Hfiber(f, tx)))
+    plot(f/1e9, 20*log10(fiber.H(f, tx)))
     plot(f/1e9, 20*log10(abs(rx.filter.H(f/sim.fs))))
     legend('DAC', 'Modulator', 'Fiber', 'Antialiasing (ADC)')
     xlabel('Frequency (GHz)')
