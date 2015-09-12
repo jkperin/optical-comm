@@ -41,7 +41,7 @@ tx.RIN = -150;  % dB/Hz
 tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 % Modulator frequency response
-% tx.modulator.fc = 2*mpam.Rs; % modulator cut off frequency
+% tx.modulator.fc = 30e9; % modulator cut off frequency
 % tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
 % tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
 % tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
@@ -55,11 +55,18 @@ rx.N0 = (30e-12).^2; % thermal noise psd
 % rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
 rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 
-%% APD 
-% (GaindB, ka, GainBW, R, Id) 
-apdG = apd(10, 0.1, Inf, 1, 10e-9);
+%% Equalization
+rx.eq.type = 'Fixed TD-SR-LE';
+% rx.eq.ros = 2;
+rx.eq.Ntaps = 31;
+% rx.eq.Ntrain = 2e3;
+% rx.eq.mu = 1e-2;
 
-GainsdB = (6:0.5:13)+4;
+%% APD 
+% (GaindB, ka, BW, R, Id) 
+apdG = apd(6, 0.1, 20e9, 1, 10e-9);
+
+GainsdB = (3:18);
 % GainsdB = apd_opt.GaindB;
 Gains = 10.^(GainsdB/10);
 
@@ -77,9 +84,9 @@ for k= 1:length(GainsdB)
     % Calculate power at the target BER
     PtxdBm_BERtarget(k) = interp1(log10(ber_apd.gauss), tx.PtxdBm, log10(sim.BERtarget));
     
-%     plot(tx.PtxdBm, log10(ber_apd.count), '-o')
-    plot(tx.PtxdBm, log10(ber_apd.gauss), '-')
-
+    hline = plot(tx.PtxdBm, log10(ber_apd.gauss), '-');
+    plot(tx.PtxdBm, log10(ber_apd.count), '-o', 'Color', get(hline, 'Color'))
+    
     legends = [legends, sprintf('Gain = %.1f dB', GainsdB(k))];
 end
 

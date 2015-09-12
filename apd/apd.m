@@ -29,65 +29,7 @@ classdef apd
         a % auxiliary variable G = 1/(1-ab)
         b % auxiliary variable b = 1/(1-ka)
     end
-    
-    methods (Access=private)     
-        function ber = calc_apd_ber(this, PtxdBm, Gapd, mpam, tx, fiber, rx, sim)
-            %% Iterate BER calculation: for given PtxdBm and Gapd calculates BER
-
-            % Set power level
-            tx.Ptx = 1e-3*10^(PtxdBm/10);
-
-            % Set APD gain
-            this.Gain = Gapd; % linear units
-
-            % Noise std
-            noise_std = this.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
-           
-            % Level spacing optimization
-            if mpam.optimize_level_spacing
-                mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);  
-            end
-
-             % if sim.awgn is set, then use AWGN approximation to
-             % calculate the BER
-             if isfield(sim, 'awgn') && sim.awgn
-                 % Adjust levels to power after the APD, which is required
-                 % by noise_std
-                 link_gain = this.R*this.Gain*fiber.link_attenuation(tx.lamb);
-                 
-                 mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
-                 
-                 ber = mpam.ber_awgn(noise_std);
-             else
-                 [~, ber] = ber_apd_doubly_stochastic(mpam, tx, fiber, this, rx, sim);
-             end
-        end   
-        
-%         function M = Ms(this, s)
-%             options = optimoptions('fsolve', 'Display', 'off');
-%             exitflag = 2;
-%             k = 1;
-%             while exitflag ~= 1 && k < 10
-%                 [M, ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s), 4*randn(1), options);
-%                 k = k + 1;
-%             end
-%             if exitflag ~= 1 
-%                 warning('Calculation of M did not converge');
-%             end  
-%         end       
-
-        function M = Ms(this, s)
-            %% 
-            options = optimoptions('fsolve', 'Display', 'off');
-            for k = 1:length(s)
-                [M(k), ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s(k)), 2*sign(s(k)), options);
-                if exitflag ~= 1 
-                    warning('Calculation of M(s) did not converge');
-                end
-            end  
-        end       
-    end
-    
+   
     methods
         function this = apd(GaindB, ka, BW, R, Id)
             %% Class constructors
@@ -114,7 +56,7 @@ classdef apd
                 this.R = 1;
             end
             
-            if nargin >= 5
+            if nargin == 5
                 this.Id = Id;
             else 
                 this.Id = 0;
@@ -309,7 +251,7 @@ classdef apd
                     % 4) Update APD gain until minimum BER is reached
 
                     % Find Gapd that minimizes BER
-                    [Gopt, ~, exitflag] = fminbnd(@(Gapd) this.calc_apd_ber(10*log10(tx.Ptx/1e-3), Gapd, mpam, tx, fiber, rx, sim), eps, min(this.BW/mpam.Rs, this.maxGain));    
+                    [Gopt, ~, exitflag] = fminbnd(@(Gapd) this.calc_apd_ber(10*log10(tx.Ptx/1e-3), Gapd, mpam, tx, fiber, rx, sim), eps, this.maxGain);    
 
                     % Check whether solution is valid
                     if exitflag ~= 1
@@ -326,7 +268,7 @@ classdef apd
                         % Thus, find APD gain that leads to minimum average
                         % PAM levels
 
-                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) calcPmean(Gapd, mpam, tx, this, rx, sim), eps, 100);    
+                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) calcPmean(Gapd, mpam, tx, this, rx, sim), eps, this.maxGain);    
                     else
                         % Adjust power to get to target BER
                         [Gopt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim) - sim.BERtarget, -20), eps, this.maxGain);
@@ -356,8 +298,69 @@ classdef apd
                 % Required power at the APD input
                 Pmean = mean(mpam.a)/apdG.Gain;
             end
+        end 
+    end
+           
+    methods (Access=private)     
+        function ber = calc_apd_ber(this, PtxdBm, Gapd, mpam, tx, fiber, rx, sim)
+            %% Iterate BER calculation: for given PtxdBm and Gapd calculates BER
+
+            % Set power level
+            tx.Ptx = 1e-3*10^(PtxdBm/10);
+
+            % Set APD gain
+            this.Gain = Gapd; % linear units
+
+            % Noise std
+            noise_std = this.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
+           
+            % Level spacing optimization
+            if mpam.optimize_level_spacing
+                mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);  
+            end
+
+             % if sim.awgn is set, then use AWGN approximation to
+             % calculate the BER
+             if isfield(sim, 'awgn') && sim.awgn
+                 % Adjust levels to power after the APD, which is required
+                 % by noise_std
+                 link_gain = this.R*this.Gain*fiber.link_attenuation(tx.lamb);
+                 
+                 mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
+                 
+                 ber = mpam.ber_awgn(noise_std);
+             else
+                 [~, ber] = ber_apd_doubly_stochastic(mpam, tx, fiber, this, rx, sim);
+             end
         end   
         
+%         function M = Ms(this, s)
+%             options = optimoptions('fsolve', 'Display', 'off');
+%             exitflag = 2;
+%             k = 1;
+%             while exitflag ~= 1 && k < 10
+%                 [M, ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s), 4*randn(1), options);
+%                 k = k + 1;
+%             end
+%             if exitflag ~= 1 
+%                 warning('Calculation of M did not converge');
+%             end  
+%         end       
+
+        function M = Ms(this, s)
+            %% 
+            options = optimoptions('fsolve', 'Display', 'off');
+            for k = 1:length(s)
+                [M(k), ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s(k)), 2*sign(s(k)), options);
+                if exitflag ~= 1 
+                    warning('Calculation of M(s) did not converge');
+                end
+            end  
+        end       
+    end
+          
+    %% Methods for calculating the accurate noise statistics
+    methods
         %% Tail probabilities calculation
         % Not working properly. fsolve doesn't work as well as fzero
         function [px, shat] = tail_saddlepoint_approx(this, xthresh, P, fs, N0, tail) 
@@ -639,69 +642,4 @@ classdef apd
             end
         end  
     end
-end
-
-
-%   %% Random Gain distribution using the saddle point approximation
-%         %% Does not include thermal noise
-%         % pn = probability of observing n electrons at the output
-%         % n = number of electrons at the output
-%         % lambda = rate of the Poisson process
-%         % Does not include thermal noise
-%         function [pn, n] = output_pmf_saddlepoint(this, lambda)
-%             a = this.a;
-%             b = this.b;
-%             
-%             if lambda == 0
-%                 pn = 1;
-%                 n = 0;
-%                 return;
-%             end
-%             
-%             % Estimate number of points sufficient to obtain great part of the pmf
-%             nmean = lambda*this.Gain;
-%             nvar = this.Gain^2*this.Fa*lambda;
-%             npos = fzero(@(x) qfunc(x/sqrt(nvar)) - this.Ptail, 5*sqrt(nvar));
-%             n = max(0, nmean-npos):(nmean+npos);
-% %             n = 0:(lambda*this.Gain*5);
-%             
-%             %% Calculate Saddle-point
-%             % based on the derivation by C. W. Helstrom in "Computation of
-%             % Output Electron Distributions in Avalanche Photodiodes"
-%             tau = n + 1;
-%             gamma = lambda*(1-a) + a*(b - 1)*tau;
-%             
-%             % probability generating function of p(n|1) evaluated at the
-%             % saddle point
-%             Msp = (sqrt(gamma.^2 + 4*a*(1-a)*lambda*tau) - gamma)/(2*a*lambda);
-%             
-%             % z at the saddle point (should be real)
-%             zsp = Msp.*(1 + a*(Msp-1)).^(-b);
-%             
-%             % First and second derivative of M(z) evaluated at the saddle point
-%             % M' = p/q
-%             % M'' = (p'q - q'p)/q^2
-%             
-%             M = Msp; 
-%             dM = M.*(1 + a*(M-1))./(zsp.*(1 + a*(M - 1) - a*b*M));
-%             
-%             p = M.*(1 + a*(M-1));
-%             pprime = dM.*(1 + a*(2*M-1));
-%             qq = zsp.*(1 + a*(M-1) - a*b*M);
-%             qprime = 1 + a*(M + zsp.*dM - 1) - a*b*(M + zsp.*dM);
-%             
-%             % Second derivative of M(z) evaluated at the saddle point
-%             ddM = (pprime.*qq - qprime.*p)./qq.^2;
-%             
-%             % Phase function (i.e., Ksp = lambda(M(z)-1) - nln(z)
-%             Ksp = lambda*(M -1) - n.*log(zsp);
-%             ddKsp = lambda*ddM + n./zsp.^2; % second derivative
-%             
-%             % Saddle point approximation
-%             pn = exp(Ksp)./sqrt(2*pi*ddKsp);  
-%         end
-
-
-
-
-            
+end           

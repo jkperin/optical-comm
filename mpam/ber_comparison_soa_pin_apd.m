@@ -79,9 +79,9 @@ rx.optfilt = design_filter('fbg', 0, 200e9/(sim.fs/2));
 [rx.U_fourier, rx.D_fourier, rx.Fmax_fourier] = klse_fourier(rx, sim, sim.Mct*(mpam.M^sim.L + 2*sim.L)); 
 
 %% Equalization
-% rx.eq.type = 'Fixed TD-SR-LE';
-% % rx.eq.ros = 2;
-% rx.eq.Ntaps = 15;
+rx.eq.type = 'Fixed TD-SR-LE';
+% rx.eq.ros = 2;
+rx.eq.Ntaps = 15;
 % rx.eq.Ntrain = 2e3;
 % rx.eq.mu = 1e-2;
 
@@ -92,8 +92,8 @@ pin = apd(0, 0, Inf, rx.R, rx.Id);
 %% APD 
 % (GaindB, ka, GainBW, R, Id) 
 % finite Gain x BW
-apd_fin = apd(8.1956, 0.09, 340e9, rx.R, rx.Id); % gain optimized for uniformly-spaced 4-PAM with matched filter
-% apd_fin.optGain(this, mpam, tx, fiber, rx, sim, objective)
+apd_fin = apd(8.1956, 0.09, 20e9, rx.R, rx.Id); % gain optimized for uniformly-spaced 4-PAM with matched filter
+apd_fin.optGain(mpam, tx, fiber, rx, sim, 'margin');
 
 apd_inf = apd(11.8876, 0.09, Inf, 1, 10e-9); % gain optimized for 4-PAM with matched filter
 apd_inf.Gain = apd_inf.optGain(mpam, tx, fiber, rx, sim, 'margin');
@@ -105,9 +105,9 @@ soa = soa(20, 7, 1310e-9, 20);
 % BER
 disp('BER with SOA')
 ber_soa = soa_ber(mpam, tx, fiber, soa, rx, sim);
-disp('BER with APD with finite gain-bandwidth product')
+disp('BER with APD with finite bandwidth')
 ber_apd_fin = apd_ber(mpam, tx, fiber, apd_fin, rx, sim);
-disp('BER with APD with infinite gain-bandwidth produc')
+disp('BER with APD with infinite bandwidth')
 ber_apd_inf = apd_ber(mpam, tx, fiber, apd_inf, rx, sim);
 disp('BER with PIN')
 ber_pin = apd_ber(mpam, tx, fiber, pin, rx, sim);
