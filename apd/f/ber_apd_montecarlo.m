@@ -1,14 +1,12 @@
 function ber = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim)
 
-% Channel response
-Ptx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitted pulse shape
-
-% Hch does not include receiver filter
+%% Channel response
+% Hch does not include transmitter or receiver filter
 if isfield(tx, 'modulator')
-    Hch = Ptx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+    Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
     .*fiber.H(sim.f, tx).*apd.H(sim.f);
 else
-    Hch = Ptx.H(sim.f/sim.fs).*fiber.H(sim.f, tx).*apd.H(sim.f);
+    Hch = fiber.H(sim.f, tx).*apd.H(sim.f);
 end
 
 link_gain = apd.Gain*apd.R*fiber.link_attenuation(tx.lamb); % Overall link gain
@@ -43,7 +41,7 @@ if isfield(rx, 'eq') && (isfield(tx, 'modulator') || ~isinf(apd.BW))
 else % otherwise only filter using rx.elefilt
     rx.eq.type = 'None';
 end
-   
+    
 % Equalize
 [yd, rx.eq] = equalize(rx.eq, yt, Hch, mpam, rx, sim);
    

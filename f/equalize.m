@@ -15,12 +15,21 @@ if isfield(eq, 'Ntaps') && mod(eq.Ntaps, 2) == 0
     eq.Ntaps = eq.Ntaps + 1;
 end
 
-% If channel response isn't define, and equalization type isn't set to adaptive FSE,
-% then don't equalize
-if isempty(Hch) && ~strcmp(eq.type, 'Adaptive TD-FS-LE')
+% If channel response isn't define don't do equalization
+if isempty(Hch)
     eq.type = 'None';
 else % normalize channel response to have unit gain at DC
+    Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitted pulse shape
+    
+    Gtx = Gtx.H(sim.f/sim.fs);
+
     Hch = Hch/interp1(sim.f, Hch, 0);    
+end
+
+% if yt is empty i.e., only design filter, then change equalization type
+% from adaptive to fixed
+if isempty(yt)
+    eq.type = strrep(eq.type, 'Adaptive', 'Fixed');
 end
 
 % Inserts delay of half of sample if oversampling of continuous time is even
@@ -47,26 +56,25 @@ switch eq.type
         end
     case 'Analog'
         %% Analog Equalization
-        Gtx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitter frequency response
-               
-        % Antialiasing filter
-        Haa = design_filter('bessel', 5, 1/2*mpam.Rs/(sim.fs/2));
-        Haa = Haa.H(sim.f/sim.fs);
-               
-        %        
-        Heq = Haa;
-        Heq(abs(sim.f)<=mpam.Rs/2) = Heq(abs(sim.f)<=mpam.Rs/2)./(Hch(abs(sim.f)<=mpam.Rs/2));
+        % -> Channel inversion filter -> matched filter matched to
+        % transmitted pulse.
+        % Channel inversion filter is defined as follows
+        % 1/Channel for |f| < mpam.Rs
+        % 0 for |f| > mpam.Rs   
+        
+        Heq = zeros(size(sim.f));
+        Heq(abs(sim.f)<mpam.Rs) = 1./(Hch(abs(sim.f)<mpam.Rs));
+        
+        % Channel inversion + Matched filter
+        Grx = Heq.*Delay.*conj(Gtx);
 
         % Apply equalization filter
         if isempty(yt) % function was called just to calculate equalizer
             yd = [];
         else
-            % Channel inversion
-            yteq = real(ifft(fft(yt).*ifftshift(Heq))); 
+            % Channel inversion + Matche filter
+            yteq = real(ifft(fft(yt).*ifftshift(Grx))); 
             
-            % Matched filter
-            yteq = real(ifft(fft(yteq).*ifftshift(Delay.*conj(Gtx.H(sim.f/sim.fs)))));
-
             % Sample
             yd = yteq(floor(sim.Mct/2)+1:sim.Mct:end); % +1 because indexing starts at 1
         end
@@ -74,10 +82,11 @@ switch eq.type
         eq.H = Heq;
         eq.f = sim.f;
         
-        eq.Kne = trapz(sim.f, abs(Heq).^2)/(mpam.Rs);
+        eq.Kne = trapz(sim.f, abs(Grx).^2)/(mpam.Rs);
         
     case 'Fixed TD-FS-LE'
-        Hch = Hch.*rx.elefilt.H(sim.f/sim.fs); % include receiver antialiasing filter
+        % include transmitted pulse shape and receiver antialiasing filter
+        Hch = Gtx.*Hch.*rx.elefilt.H(sim.f/sim.fs); 
         
         Hmatched = Delay.*conj(Hch);
 
@@ -238,7 +247,7 @@ switch eq.type
         b = mpam.mod(rx.eq.TrainSeq, 1);
         
         % Received Pulse Spectrum
-        Hmatched = Delay.*conj(Hch);
+        Hmatched = Delay.*conj(Gtx.*Hch);
 
         yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
 
@@ -277,7 +286,7 @@ switch eq.type
         eq.Kne = 2*trapz(eq.f, abs(eq.H));
 
         case 'Fixed TD-SR-LE'            
-            Hmatched = Delay.*conj(Hch);
+            Hmatched = Delay.*conj(Gtx.*Hch);
             % Note: Fiber frequency response is real, thus its group delay
             % is zero.
                         

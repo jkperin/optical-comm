@@ -146,7 +146,7 @@ rx.filterBw = 1e9*getValue(h.rxfilterBw);
 str = get(h.eq_type, 'String');
 val = get(h.eq_type, 'Value');
 rx.eq.type = str{val};
-rx.eq.ros = getValue(h.eq_ros);
+% rx.eq.ros = getValue(h.eq_ros);
 rx.eq.Ntaps = getValue(h.eq_taps);
 
 if strfind(rx.eq.type, 'Adaptive')
@@ -217,16 +217,16 @@ switch getOption(h.popup.system)
         ofdm1 = [];
                      
     case 'APD'
-        if getLogicalValue(h.check.GBw)
-            GBw = 1e9*getValue(h.GBw);
+        if getLogicalValue(h.check.BWapd)
+            BWapd = 1e9*getValue(h.BWapd);
         else
-            GBw = Inf;
+            BWapd = Inf;
         end
         
         ka = getValue(h.ka);
         GapddB =  getValue(h.Gapd);
         
-        apd1 = apd(GapddB, ka, GBw, rx.R, rx.Id);
+        apd1 = apd(GapddB, ka, BWapd, rx.R, rx.Id);
         
         sim.OptimizeGain = ~getLogicalValue(h.check.Gapd);
         

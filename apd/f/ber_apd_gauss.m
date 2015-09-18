@@ -1,13 +1,7 @@
 %% Calculate BER for unamplified IM-DD link with APD
-% bertail = BER using saddlepoint approximation for the tail probability. 
-% Although it's much faster than using the pdf, it can be innacurate due to
-% the singularity at the origin.
-
 % bergauss = BER using gaussian approximation
 
-% berpdf (optional) = calculate BER using saddlepoint approximation for the
-% pdf, and then calculate tail probability using numerical integration
-function [bertail, bergauss, berpdf] = ber_apd_doubly_stochastic(mpam, tx, fiber, apd, rx, sim)
+function [bergauss] = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim)
 
 Nsymb = mpam.M^sim.L; % number of data symbols 
 % number of zero symbols pad to begin and end of sequnece.
@@ -24,7 +18,7 @@ f = (-0.5:df:0.5-df).';
 sim.f = f*sim.fs; % redefine frequency to be used in optical_modulator.m
 
 %% Channel Response
-% Hch does not include receiver filter
+% Hch does not include transmitter or receiver filter
 if isfield(tx, 'modulator')
     Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
     .*fiber.H(sim.f, tx).*apd.H(sim.f);
@@ -102,7 +96,7 @@ else
     varRIN = @(Pnorm) 0;
 end
 
-pe = 0;
+%% Calculate error probabilities using Gaussian approximation for each transmitted symbol
 pe_gauss = 0;
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
@@ -113,29 +107,17 @@ for k = 1:Nsymb
     sig = 1/(Pmax*link_gain)*sqrt(rx.eq.Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
      
     if dat(k) == mpam.M-1
-%         pe = pe + apd.tail_saddlepoint_approx(Pthresh(end), lambda, sim.fs/sim.Mct, rx.N0, 'left');
-        
-        % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((mu-Pthresh(end))/sig);
     elseif dat(k) == 0;
-%         pe = pe + apd.tail_saddlepoint_approx(Pthresh(1), lambda, sim.fs/sim.Mct, rx.N0, 'right');
-        
-        % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(1)-mu)/sig);
     else 
-%         pe = pe + apd.tail_saddlepoint_approx(Pthresh(dat(k) + 1), lambda, sim.fs/sim.Mct, rx.N0, 'right');
-%         pe = pe + apd.tail_saddlepoint_approx(Pthresh(dat(k)), lambda, sim.fs/sim.Mct, rx.N0, 'left');
-        
-        % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(dat(k) + 1) - mu)/sig);
         pe_gauss = pe_gauss + qfunc((mu - Pthresh(dat(k)))/sig);
     end
 end
 
-pe = real(pe)/Nsymb;
 pe_gauss = real(pe_gauss)/Nsymb;
 
-bertail = pe/log2(mpam.M);
 bergauss = pe_gauss/log2(mpam.M);
 
 if sim.verbose
@@ -143,37 +125,4 @@ if sim.verbose
     plot(link_gain*xt)
     plot(ix, yd, 'o')
     legend('Transmitted power', 'Sampled received signal')
-end
-
-%% Calculate pdfs using saddlepoint approximation
-if nargout == 3
-    berpdf = 0;
-%     y = linspace(0, 2*max(abs(x).^2), 100);
-%     px = pdf_saddlepoint_approx(y, D, ck, varASE, varTherm, sim.verbose);
-%     if sim.verbose
-%         for k = 1:length(Pthresh)
-%             plot(Pthresh(k)*[1 1], [0, 5e4])
-%         end
-%         for k = 1:length(Plevels)
-%             plot(Plevels(k)*[1 1], [0, 10e4])
-%         end
-%         for k= 1:length(yd)
-%             plot(yd(k)*[1 1], [0, 10e4], '--k')
-%         end
-%     end
-%     
-%     pe2 = 0;
-%     for k = 1:Nsymb
-%         if dat(k) == mpam.M-1
-%             pe2 = pe2 + trapz(y(y < Pthresh(end)), px(y < Pthresh(end), k));
-%         elseif dat(k) == 0
-%             pe2 = pe2 + trapz(y(y > Pthresh(1)), px(y > Pthresh(1), k));
-%         else 
-%             pe2 = pe2 + trapz(y(y > Pthresh(dat(k) + 1)), px(y > Pthresh(dat(k) + 1), k));
-%             pe2 = pe2 + trapz(y(y < Pthresh(dat(k))), px(y < Pthresh(dat(k)), k));
-%         end
-%     end
-%     pe2 = real(pe2)/Nsymb;
-%     
-%     berpdf = pe2/log2(mpam.M);   
 end

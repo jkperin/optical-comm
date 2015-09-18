@@ -4,15 +4,13 @@ function ber = ber_soa_montecarlo(mpam, tx, fiber, soa, rx, sim)
 % Normalized frequency
 f = sim.f/sim.fs;
 
-% Channel response
-Ptx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitted pulse shape
-
-% Hch does not include receiver filter
+%% Channel response
+% Hch does not include transmitter or receiver filter
 if isfield(tx, 'modulator')
-    Hch = Ptx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+    Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
     .*fiber.H(sim.f, tx);
 else
-    Hch = Ptx.H(sim.f/sim.fs).*fiber.H(sim.f, tx);
+    Hch = fiber.H(sim.f, tx);
 end
 
 link_gain = soa.Gain*rx.R*fiber.link_attenuation(tx.lamb); % Overall link gain

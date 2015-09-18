@@ -1,19 +1,21 @@
-function [ber, mpam] = apd_ber(mpam, tx, fiber, apd, rx, sim)
+function [ber, mpam, apd] = apd_ber(mpam, tx, fiber, apd, rx, sim)
 %% Calculate BER of unamplified IM-DD system with APD detector 
 % BER is calculated via montecarlo simulation, analytically, AWGN channel, 
 % AWGN channel including noise enhancement penalty.
 
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
-% Channel response
-Ptx = design_filter('matched', mpam.pshape, 1/sim.Mct); % transmitted pulse shape
+if isfield(sim, 'OptimizeGain') && sim.OptimizeGain
+    apd.Gain = apd.optGain(mpam, tx, fiber, rx, sim, 'margin');
+end
 
-% Hch does not include receiver filter
+%% Channel response
+% Hch does not include transmitter or receiver filter
 if isfield(tx, 'modulator')
-    Hch = Ptx.H(sim.f/sim.fs).*tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+    Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
     .*fiber.H(sim.f, tx).*apd.H(sim.f);
 else
-    Hch = Ptx.H(sim.f/sim.fs).*fiber.H(sim.f, tx).*apd.H(sim.f);
+    Hch = fiber.H(sim.f, tx).*apd.H(sim.f);
 end
 
 link_gain = apd.Gain*apd.R*fiber.link_attenuation(tx.lamb); % Overall link gain
@@ -23,9 +25,9 @@ noise_std = apd.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
 
 % Noise enhancement penalty
 if isfield(rx, 'eq') && (isfield(tx, 'modulator') || ~isinf(apd.BW))
-    [~, rx.eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer
+    [~, eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer
     % This design assumes fixed zero-forcing equalizers
-    Kne = rx.eq.Kne; % noise enhancement penalty
+    Kne = eq.Kne; % noise enhancement penalty
     % Kne = noise variance after equalizer/noise variance before equalizer
 else 
     rx.eq.type = 'None';
@@ -55,7 +57,7 @@ for k = 1:length(Ptx)
     ber.count(k) = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim);
     
     % Analytical BER
-    [~, ber.gauss(k)] = ber_apd_doubly_stochastic(mpam, tx, fiber, apd, rx, sim);
+    ber.gauss(k) = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim);
     
     % AWGN  
     mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);

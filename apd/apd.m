@@ -238,6 +238,8 @@ classdef apd
             %% Optimize APD gain for two different objectives:
             %% (1) BER: Given input power finds the APD gain that leads to the minimum BER
             %% (2) Margin: Given target BER finds APD gain that leads to minimum required optical power
+            
+            disp(['Optimizing APD gain for ' objective]);
         
             switch objective
                 case 'BER'

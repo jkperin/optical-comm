@@ -64,12 +64,9 @@ if ~isempty(soa1)
     [ber, mpam] = soa_ber(mpam, tx, fiber1, soa1, rx, sim);
     1;
 elseif ~isempty(apd1)
-    if sim.OptimizeGain
-        apd1.optimize_gain(mpam, tx, fiber1, rx, sim);
-        GdB = apd1.GaindB;
-    end
-        
-    [ber, mpam] = apd_ber(mpam, tx, fiber1, apd1, rx, sim);      
+    [ber, mpam, apd1] = apd_ber(mpam, tx, fiber1, apd1, rx, sim);      
+    
+    GdB = apd1.GaindB;
     ber.est = ber.gauss;
 else
     pin = apd(0, 0, Inf, rx.R, rx.Id);

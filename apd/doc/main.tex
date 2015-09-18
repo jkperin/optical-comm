@@ -6,6 +6,9 @@
 \usepackage{graphicx}
 \usepackage[numbered]{bookmark}
 \usepackage[colorinlistoftodos]{todonotes}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{pifont}
 
 \title{APD Analysis and Simulations}
 
@@ -163,11 +166,72 @@ When shot noise or RIN are dominant the BER is dominated by the BER of the last 
 BER \approx \frac{1}{M\log_2 M}Q\bigg(\frac{\Delta P}{\sigma_{M-1}}\bigg)
 \end{align}
 
-\section{Gain and Level Spacing Optimization}
 
-\subsection{Equally-spaced levels}
+\section{Optimized level spacing}
+
+One heuristic to minimize \eqref{eq:error-prob} is to make all error events equally likely. That is,
+\begin{align} \label{eq:level-opt-condition} \nonumber
+Q\bigg(\frac{GR(b_1 - a_0)}{\sigma_{0}}\bigg) =& \ldots = Q\bigg(\frac{GR(a_k-b_k)}{\sigma_{k}}\bigg) = Q\bigg(\frac{GR(b_{k+1}-a_k)}{\sigma_{k}}\bigg) = \ldots = Q\bigg(\frac{GR(a_{M-1}-b_{M-1})}{\sigma_{M-1}}\bigg) \\
+& \frac{GR(b_k-a_{k-1})}{\sigma_{k-1}} = \frac{GR(a_{k}-b_k)}{\sigma_{k}} = \xi,~k = 1, \ldots, M-1
+\end{align}
+
+where $\xi$ depends on the target BER 
+This way the BER is given by
+\begin{equation}
+\xi = Q^{-1}\bigg(\frac{M\cdot BER\log_2 M}{2(M-1)}\bigg)
+\end{equation}
+%log2(this.M)*BERtarget*(this.M/(2*(this.M-1)))
+
+From \eqref{eq:level-opt-condition} we have the following equations
+\begin{equation}
+\begin{cases}
+b_k - a_{k-1} = \sigma_{k-1}\frac{\xi}{GR} \\
+a_k - b_k = \sigma_{k}\frac{\xi}{GR}
+\end{cases}, k = 1, \ldots, M-1
+\end{equation}
+
+Solving for $a_k$
+\begin{equation} \label{eq:level-spacing-opt}
+a_k = a_{k-1} + \frac{\xi}{GR}(\sigma_{k-1} + \sigma_k), k = 1, \ldots, M-1
+\end{equation}
+
+Given $a_{k-1}$, $\sigma_{k-1}$, $a_k$ can be calculated sequentially. Moreover, since $\sigma_k^2$ is a quadratic function of $a_k$, \eqref{eq:level-spacing-opt} can be written as a quadratic function of $a_k$
+
+% Making $\delta = \frac{\xi}{GR}$ and given $a_{k-1}$, $\sigma_{k-1}$ can be determined and we can solve for $a_k$.
+
+% \begin{align}
+% & \frac{a_k - a_{k-1}}{\delta} - \sigma_{k-1} =  \sigma_k \\
+% & \frac{a_k - a_{k-1} - \sigma_{k-1}\delta}{\delta} =  \sigma_k \\
+% & \frac{(a_k - a_{k-1} - \sigma_{k-1}\delta)^2}{\delta^2} =  \sigma_k^2 \\
+% & \frac{(a_k - a_{k-1} - \sigma_{k-1}\delta)^2}{\delta^2} =  \alpha + \beta a_k+ \gamma a_k^2 \\
+% & \frac{(a_k - a_{k-1} - \sigma_{k-1}\delta)^2}{\delta^2} =  \alpha + \beta a_k+ \gamma a_k^2 \\
+% & \frac{(a_k - c_1)^2}{\delta^2} =  \alpha + \beta a_k+ \gamma a_k^2 \\
+% & a_k^2 - 2a_kc_1 + c_1^2 =  \delta^2\alpha + \delta^2\beta a_k+ \delta^2\gamma a_k^2 \\
+% & a_k^2(1 - \delta^2\gamma) - a_k(2c_1 + \delta^2\beta) + c_1^2 - \delta^2\alpha = 0
+% \end{align}
+
+% $c_1 = a_{k-1} + \sigma_{k-1}\delta$
+
+% Sanity check: if shot noise is dominant ($\alpha = \gamma = 0$, $\sigma_k^2 = \beta a_k$, $a_0 = 0$)
+% \begin{align}
+% & a_k^2 - a_k(2c_1 + \delta^2\beta) + c_1^2 = 0 \\
+% & a_k = \frac{(2c_1 + \delta^2\beta) \pm \sqrt{(2c_1 + \delta^2\beta)^2 - 4c_1^2}}{2} \\
+% & a_k = \frac{(2c_1 + \delta^2\beta) \pm \sqrt{4c_1\delta^2\beta + \delta^4\beta^2}}{2}
+% \end{align}
+
+
+
+\section{APD Gain Optimization}
+
+The gain and level-spacing optimization can be done in terms of two distinct design objectives: (1) minimize BER, and (2) maximize the margin. 
+
+In the BER minimization design, given a received power, we calculate the optimal APD gain that leads to the minimum BER. This is the traditional approach to minimize the BER. Furthermore, this design approach is only reasonable if we assume equally-spaced levels. For optimized level spacing the BER can be made arbitrarily close to zero.
+
+In the margin maximization design, we calculate the minimum received power required to achieve the target BER. In the case of optimized level-spacing the target BER is ensured in the level-optimization part, and the APD gain optimization essentially has to minimize the average power.
+
+\subsection{BER minimization}
 Since for equally-spaced levels the BER is dominated by the BER of the highest level, we can optimize the gain by optimizing the SNR of the last level. Thus,
-\begin{align} \nonumber
+\begin{align} \label{eq:Gopt-ber} \nonumber
 G_{opt} &= \arg\max_{G} \frac{\Delta P^2}{\sigma_{th}^2 + G^2F_A(G)\cdot 2q(RP_{M-1} + I_d)R_s + RIN\cdot (RGP_{M-1})^2R_s} \\ \nonumber
 & = \arg\max_{G}\frac{G^2P^2_{M-1}\frac{(1-r_{ex})^2}{(M-1)^2}}{\sigma_{th}^2 + G^2F_A(G)\cdot 2q(RP_{M-1} + I_d)R_s + RIN\cdot (RGP_{M-1})^2R_s} \\ \nonumber
 & = \arg\max_{G}\frac{G^2P^2_{M-1}\frac{(1-r_{ex})^2}{(M-1)^2}}{\sigma_{th}^2 + G^2\Big(k_AG + (1-k_A)\Big(2 - \frac{1}{G}\Big)\Big)\cdot 2q(RP_{M-1} + I_d)R_s + RIN\cdot (RGP_{M-1})^2R_s} \\ \nonumber
@@ -184,37 +248,38 @@ where $P_{M-1}$ refers to the optical power of the highest level before the APD.
 & e = \sigma_{th}^2 
 \end{align}
 
+The optimal gain is a solution to the equation
 \begin{align}
 & \frac{\partial}{\partial G}\bigg(\frac{aG^2}{bG^3 + cG^2 + dG + e}\bigg) = 0 \\
 & bG^3 = dG + 2e 
 \end{align}
 
-\subsection{Optimized level spacing}
+\subsection{Receiver Sensitivity or Margin Maximization}
 
-One heuristic to minimize \eqref{eq:error-prob} is to make all error events equally likely. That is,
-\begin{align} \label{eq:level-opt-condition} \nonumber
-Q\bigg(\frac{GR(b_1 - a_0)}{\sigma_{0}}\bigg) =& \ldots = Q\bigg(\frac{GR(a_k-b_k)}{\sigma_{k}}\bigg) = Q\bigg(\frac{GR(b_{k+1}-a_k)}{\sigma_{k}}\bigg) = \ldots = Q\bigg(\frac{GR(a_{M-1}-b_{M-1})}{\sigma_{M-1}}\bigg) \\
-& \frac{GR(b_k-a_{k-1})}{\sigma_{k-1}} = \frac{GR(a_{k}-b_k)}{\sigma_{k}} = \xi,~k = 1, \ldots, M-1
+We would like to determine the APD gain that leads to the maximum margin i.e., the smallest received power required to achieve the target BER. Formally,
+\begin{align}
+&\min_G \bar{P} \\
+&\text{subject to } BER(G, P) = BER_{target}
 \end{align}
 
-where $\xi$ depends on the target BER 
-This way the BER is given by
-\begin{equation}
-\xi = \frac{M\log_2 M}{2(M-1)}Q^{-1}(BER)
-\end{equation}
+For equally-spaced levels we can write instead
+\begin{align}
+&\min_G P_{M-1} \\
+&\text{subject to } \frac{\Delta P}{\sigma_{M-1}} = Q^{-1}\Big(M\log_2 MBER_{target}\Big)
+\end{align}
 
-From \eqref{eq:level-opt-condition} we have the following equations
-\begin{equation}
+Using Lagrange Multipliers we have the following set of equations:
+\begin{align}
 \begin{cases}
-b_k - a_{k-1} = \sigma_{k-1}\frac{\xi}{GR} \\
-a_k - b_k = \sigma_{k}\frac{\xi}{GR}
-\end{cases}, k = 1, \ldots, M-1
-\end{equation}
+& \lambda \frac{\partial}{\partial G} \frac{\Delta P}{\sigma_{M-1}} = 0 \\
+& 1 + \lambda \frac{\partial}{\partial P_{M-1}} \frac{\Delta P}{\sigma_{M-1}} = 0 \\
+& \frac{\Delta P}{\sigma_{M-1}} = Q^{-1}\Big(M\log_2 MBER_{target}\Big)
+\end{cases}
+\end{align}
 
-Solving for $a_k$
-\begin{equation}
-a_k = a_{k-1} + \frac{\xi}{GR}(\sigma_{k-1} + \sigma_k)
-\end{equation}
+Which leads to non-linear set of equations.
+
+For optimized level spacing
 
 \subsection{Power Penalty vs Noise Figure}
 
@@ -223,6 +288,23 @@ Shot noise is dominant, and the BER is determined by the argument of the Q-funct
 \frac{\Delta P}{\sigma_{shot}} \propto \frac{GP}{\sqrt{G^2F_A(G)P}} = \sqrt{\frac{P}{F_A(G)}}
 \end{equation}
 Thus, 1-dB increase in the noise figure corresponds in 1-dB power penalty. However, for APD the noise figure depends on the operation point i.e., Gain.
+
+\subsection{Gain optimization with optimized level spacing}
+
+Given $G$ find $\min\bar{P}$ that meets the target BER. This is also the solution to highest power margin improvement.
+
+\begin{algorithm}
+\caption{Matlab level spacing optimization given $G$}
+\label{level-space-opt-given-G}
+\begin{algorithmic}[1]
+\State noiseSTD = apd.stdNoise(this, noiseBW, N0, RIN);
+\State mpam.optimize$\_$level$\_$spacing$\_$gauss$\_$approx(sim.BERtarget, tx.rexdB, noiseSTD); $\%$ PAM levels are the smallest to achieve target BER
+\end{algorithmic}
+\end{algorithm}
+
+We have two scenarios: (i) given input power what is the optimal gain, and (ii) find gain that minimizes required input power.
+
+
 
 
 \section{Frequency Response}
@@ -238,6 +320,16 @@ where $M$ is the APD gain, and $t_i$ is the intrinsic response time given by \eq
 t_i = Nk_a\frac{l_a}{\nu}
 \end{equation}
 where $N$ is a slowly varying factor from $1/3$ to 2, $l_a$ is the avalanche region width, and $\nu$ is the effective carrier drift velocity in the avalanche region.
+
+We consider that the APD has bandwidth $W_{APD}$, and that the frequency response is given by
+\begin{equation}
+H_{APD}(f) = \frac{1}{\sqrt{1 + \bigg(\frac{f}{W_{APD}}\bigg)^2}}
+\end{equation}
+
+The noise bandwidth is given by
+\begin{equation}
+\Delta f = \int_{0}^{\infty} |H_{APD}(f)|^2 df = W_{APD}\frac{\pi}{4}
+\end{equation}
 
 \begin{thebibliography}{9}
 \bibitem{personick-comp-4methos} Personick, S. D., Balaban, P., Bobsin, J. H., and Kumar, P.; ``R.A Detailed Comparison of Four Approaches to the Calculation of the Sensitivity of Optical Fiber System Receivers,'' \emph{IEEE Transactions on Communications}, 1976.

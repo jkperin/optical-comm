@@ -121,7 +121,7 @@ function sim_single_laser
    align([h.Ptx h.fc h.lamb h.rex h.rin h.rin_shape h.chirp], 'Right', 'Fixed', 6);
     
    %% Modulation Panel
-   scale = 9.5;
+   scale = 10;
    dH = 1/7;
    h.panel.mod = uipanel('Title', 'Modulation', 'FontSize', HeaderFontSize,...
        'Position', [0 maxY-scale*BlockHeigth panelWidht scale*BlockHeigth]); 
@@ -171,7 +171,7 @@ function sim_single_laser
    align([h.L h.att h.D], 'Left', 'Fixed', 6)
    
    %% Receiver
-   scale = 8.5; % 8
+   scale = 9; % 8
    dH = 1/6;
    maxY = maxY-scale*BlockHeigth;
    h.panel.rx = uipanel('Title', 'Receiver', 'FontSize', HeaderFontSize,...
@@ -204,13 +204,13 @@ function sim_single_laser
    align([h.text.shot, h.check.shot], 'None', 'Bottom')
    
    %% Equalization
-   scale = 7;
-   dH = 1/6;
+   scale = 6;
+   dH = 1/5;
    maxY = 1-h.panel.sim_height-scale*BlockHeigth;
    h.panel.eq = uipanel('Title', 'Equalization', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.text.eq_type, h.eq_type] = table_entry(h.panel.eq, [0 4*dH 1/scale], 'Equalization Type:', 0);
+   [h.text.eq_type, h.eq_type] = table_entry(h.panel.eq, [0 3*dH 1/scale], 'Equalization Type:', 0);
    set(h.eq_type, 'Style', 'popupmenu');
    set(h.eq_type, 'String', {'None', 'Analog', 'Fixed TD-SR-LE', 'Adaptive TD-SR-LE'});
        %'Fixed Frequency-Domain FS-LE',...
@@ -219,13 +219,13 @@ function sim_single_laser
    set(h.eq_type, 'FontSize', FontSize-1);
    set(h.eq_type, 'Position', get(h.eq_type, 'Position') + [-0.1 0 0.1 0]);  
    
-   [h.text.eq_ros, h.eq_ros] = table_entry(h.panel.eq, [0 3*dH 1/scale], 'Oversampling ratio (ros): ', 1);   
+%    [h.text.eq_ros, h.eq_ros] = table_entry(h.panel.eq, [0 3*dH 1/scale], 'Oversampling ratio (ros): ', 1);   
    [h.text.eq_taps, h.eq_taps] = table_entry(h.panel.eq, [0 2*dH 1/scale], 'Number of taps:', 15);   
    [h.text.eq_mu, h.eq_mu] = table_entry(h.panel.eq, [0 dH 1/scale], 'Adaptation step (mu):', 1e-2);   
    [h.text.eq_Ntrain, h.eq_Ntrain] = table_entry(h.panel.eq, [0 dH/4 1/scale], 'Training Sequence Length:', 5e3);   
    
-   align([h.text.eq_type, h.text.eq_ros, h.text.eq_taps, h.text.eq_mu h.text.eq_Ntrain], 'None', 'Fixed', 6);
-   align([h.eq_type, h.eq_ros, h.eq_taps, h.eq_mu h.eq_Ntrain], 'None', 'Fixed', 6);   
+   align([h.text.eq_type, h.text.eq_taps, h.text.eq_mu h.text.eq_Ntrain], 'None', 'Fixed', 6);
+   align([h.eq_type, h.eq_taps, h.eq_mu h.eq_Ntrain], 'None', 'Fixed', 6);   
    
    %% APD
    scale = 4.5;
@@ -234,15 +234,15 @@ function sim_single_laser
    h.panel.apd = uipanel('Title', 'APD', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.check.GBw, h.text.GBw, h.GBw] = table_entry(h.panel.apd, [0 2*dH 1/scale], 'Finite Gain-Bandwidth Product (GHz):', 340, true,...
+   [h.check.BWapd, h.text.BWapd, h.BWapd] = table_entry(h.panel.apd, [0 2*dH 1/scale], 'Bandwidth (GHz):', 20, true,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
    [h.text.ka, h.ka] = table_entry(h.panel.apd, [0 dH 1/scale], 'Impact Ionization Factor (ka):', 0.09);
    [h.check.Gapd, h.text.Gapd, h.Gapd] = table_entry(h.panel.apd, [0 dH/4 1/scale], 'Set Gain (dB):', 10, false,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
    
-   align([h.check.GBw, h.text.ka, h.check.Gapd], 'None', 'Fixed', 6);
-   align([h.text.GBw, h.text.ka, h.text.Gapd], 'None', 'Fixed', 6);
-   align([h.GBw, h.ka, h.Gapd], 'None', 'Fixed', 6);   
+   align([h.check.BWapd, h.text.ka, h.check.Gapd], 'None', 'Fixed', 6);
+   align([h.text.BWapd, h.text.ka, h.text.Gapd], 'None', 'Fixed', 6);
+   align([h.BWapd, h.ka, h.Gapd], 'None', 'Fixed', 6);   
    
    %% SOA
    scale = 7.5;
@@ -372,7 +372,7 @@ function sim_single_laser
                 end
                 
                 if exist('GdB', 'var') && ~isempty(GdB)
-                    set(handle, 'String', num2str(GdB, 2));
+                    set(handle, 'String', num2str(GdB, '%.1f'));
                 end
 
                 axes(h.axes.results), hold on, box on, grid on
@@ -393,12 +393,13 @@ function sim_single_laser
                 if fiber1.L ~= 0 && getValue(h.D) ~= 0
                     persistent Hfiber_plot;
                     
-                    if isempty(Hfiber_plot) || ~isvalid(Hfiber_plot)
+                    try
+                       figure(Hfiber_plot)
+                    catch e
                         Hfiber_plot = figure;
                         box on, hold on, grid on
-                    else
-                        figure(Hfiber_plot)
                     end
+                    
                     ff = linspace(0, 2*mpam.Rs, 100);
                     Hfiber = fiber1.H(ff, tx);
                     plot(ff/1e9, abs(Hfiber).^2, 'LineWidth', LineWidth, 'Color', get(hline, 'Color'))
@@ -638,7 +639,7 @@ function sim_single_laser
          %% Call callbacks
          switch str{val}
              case 'APD'
-                call_handle_Callback(h.check.GBw, h.check.GBw, []);
+                call_handle_Callback(h.check.BWapd, h.check.BWapd, []);
                 call_handle_Callback(h.check.Gapd, h.check.Gapd, []);
              case 'SOA'
                 call_handle_Callback(h.check.polarizer, h.check.polarizer, []);
@@ -652,36 +653,30 @@ function sim_single_laser
          val = get(src, 'Value');
          switch str{val}
              case 'None'
-                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
+                 set_property([h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
                  set_property([h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'on')
-                 set(h.eq_ros, 'String', '--');
                  call_handle_Callback(h.rxfilterType, h.rxfilterType, []);
              case 'Analog'
-                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
+                 set_property([h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
                  set_property([h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'off')
-                 set(h.eq_ros, 'String', '--');
                  set(h.rxfilterType, 'Value', length(get(h.rxfilterType, 'String'))); % assume that matched filter is the last one in the list
              case 'Fixed TD-FS-LE'
-                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps], 'Enable', 'on');
+                 set_property([h.text.eq_taps, h.eq_taps], 'Enable', 'on');
                  set_property([h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
-                 set(h.eq_ros, 'String', '2');
                  set_property([h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'on');
                  call_handle_Callback(h.rxfilterType, h.rxfilterType, []);
              case 'Adaptive TD-FS-LE'
-                 set_property([h.text.eq_ros h.eq_ros h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'on');           
+                 set_property([h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'on');           
                  set_property([h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'on');
-                 set(h.eq_ros, 'String', '2');
                  call_handle_Callback(h.rxfilterType, h.rxfilterType, []);
              case 'Fixed TD-SR-LE'
-                 set_property([h.text.eq_ros, h.eq_ros, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
+                 set_property([h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'off');
                  set_property([h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'off');
                  set_property([h.text.eq_taps, h.eq_taps], 'Enable', 'on');
-                 set(h.eq_ros, 'String', '1');
                  set(h.rxfilterType, 'Value', length(get(h.rxfilterType, 'String'))); % assume that matched filter is the last one in the list
              case 'Adaptive TD-SR-LE'
                  set_property([h.text.eq_taps, h.eq_taps, h.text.eq_mu, h.eq_mu, h.text.eq_Ntrain, h.eq_Ntrain], 'Enable', 'on');           
-                 set_property([h.text.eq_ros h.eq_ros h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'off');
-                 set(h.eq_ros, 'String', '1');
+                 set_property([h.text.rxfilterBw, h.rxfilterBw, h.rxfilterN, h.text.rxfilterType, h.rxfilterType], 'Enable', 'off');
                  set(h.rxfilterType, 'Value', length(get(h.rxfilterType, 'String'))); % assume that matched filter is the last one in the list
              otherwise
                  error('Callback for equalizaton type [%s] not implemented yet\n', str{val});

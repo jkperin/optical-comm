@@ -87,9 +87,10 @@ for k= 1:length(GainsdB)
     hline = plot(tx.PtxdBm, log10(ber_apd.gauss), '-');
     plot(tx.PtxdBm, log10(ber_apd.count), '-o', 'Color', get(hline, 'Color'))
     
-    legends = [legends, sprintf('Gain = %.1f dB', GainsdB(k))];
+    legends = [legends, sprintf('Gain = %.1f dB', GainsdB(k)), sprintf('Gain = %.1f dB (Count)', GainsdB(k))];
 end
 
+%% APD gain optimization for BER
 % for each power optimize APD gain
 for k = 1:length(tx.PtxdBm)
     tx.Ptx = 1e-3*10^(tx.PtxdBm(k)/10);
@@ -112,7 +113,7 @@ for k = 1:length(tx.PtxdBm)
     mpam = mpam.adjust_levels(tx.Ptx*apdG.Gain*apdG.R, tx.rexdB);
     
     beropt(k) = mpam.ber_awgn(noise_std);
-%     [~, beropt(k)] = ber_apd_doubly_stochastic(mpam, tx, fiber, apdG, rx, sim);
+%     [~, beropt(k)] = ber_apd_gauss(mpam, tx, fiber, apdG, rx, sim);
 end          
 
 plot(tx.PtxdBm, log10(beropt), '-k')
@@ -130,7 +131,7 @@ legend('Gopt', 'Gopt analytical')
 xlabel('Received Power (dBm)')
 ylabel('Gain')
 
-% Find optimal margin
+%% APD gain optimization for margin
 Gopt_margin = apdG.optGain(mpam, tx, fiber, rx, sim, 'margin'); 
 
 figure, hold on, grid on

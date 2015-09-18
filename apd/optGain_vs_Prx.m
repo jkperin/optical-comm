@@ -100,7 +100,7 @@ for kk = -2:2:2
 
 %         bergauss(k) = mpam.ber_awgn(noise_std);
         
-        [~, bergauss(k)] = ber_apd_doubly_stochastic(mpam, tx, fiber, apdG, rx, sim);
+        [~, bergauss(k)] = ber_apd_gauss(mpam, tx, fiber, apdG, rx, sim);
     end
     
     plot(tx.PtxdBm, log10(bergauss))
