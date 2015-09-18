@@ -1,25 +1,37 @@
-function ber_ads = mpam_ber_vs_Ptx_ADS(tx, fiber1, soa1, apd1, rx, sim)
+function ber_ads = mpam_ber_vs_Ptx_ADS(mpam, tx, fiber1, soa1, apd1, rx, sim)
+
+assert(mpam.M == 4, 'ADS co-simulation only supports PAM 4.')
+
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
 % Load file with ADS simulation results
-load(sim.ads.filename)
+try
+    load(sim.ads.filename)
+    
+    % Simulation parameters
+    sim.Nsymb = Nsymb; % Number of symbols in montecarlo simulation
+    sim.Mct = Mct;     % Oversampling ratio to simulate continuous time (must be odd) 
+    sim.N = Nsymb*sim.Mct; % number points in 'continuous-time' simulation
+    
+    % If they don't exist an error will be thrown
+    Pout;
+    Poutnf;    
+catch e
+    disp('Invalid ADS file!')
+    rethrow(e);
+end
 
 % Optimize levels and decision instant
-[Pthresh, Plevels, OptDecisionInstant] = ADS_decision_thershold_optimization(Pout, sim.ads.Pthresh, Mct, false);
+[Pthresh, Plevels, OptDecisionInstant] = PAM4_timing_opt(Pout, Mct, false);
 
 % Set optimized levels
-mpam.set_levels(Plevels, Pthresh);
+mpam = mpam.set_levels(Plevels, Pthresh);
 
 % Shift signal so that optimal decision threshold appears in the middle of
 % the pulse (required for matched filtering)
 Poutnf = circshift(Poutnf, [0, (Mct+1)/2 - OptDecisionInstant-1]);
 
 %% Matlab Simulation
-% Simulation parameters
-sim.Nsymb = Nsymb; % Number of symbols in montecarlo simulation
-sim.Mct = Mct;     % Oversampling ratio to simulate continuous time (must be odd) 
-sim.N = Nsymb*sim.Mct; % number points in 'continuous-time' simulation
-
 % Time and frequency
 sim.fs = mpam.Rs*Mct;  % sampling frequency in 'continuous-time'
 
@@ -66,11 +78,15 @@ end
 
 filt = design_filter('bessel', 5, 19e9/(sim.fs/2));
 
-% Overall link gain
-link_gain = fiber1.link_attenuation(tx.lamb)*Gsoa*photodiode.R*photodiode.Gain;
+%% Channel Response
+% Hch does not include transmitter or receiver filter
+Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+    .*fiber1.H(sim.f, tx).*photodiode.H(sim.f);
+
+link_gain = Gsoa*photodiode.R*photodiode.Gain*fiber1.link_attenuation(tx.lamb); % Overall link gain. Equivalent to Hch(0)
 
 % Symbols to be discard in BER calculation
-Ndiscard = 200*Mct*[1 1]; % discard 200 symbols to account for transients in ADS simulation
+Ndiscard = 50*Mct*[1 1]; % discard symbols to account for transients in ADS simulation
 if rx.eq.adaptive
     Ndiscard(1) = Ndiscard(1) + rx.eq.Ntrain;
 end
@@ -83,19 +99,18 @@ ndiscard = [1:Ndiscard(1) sim.Nsymb-Ndiscard(2):sim.Nsymb];
 
 % Equalization
 rx.eq.TrainSeq = dataTXref;
-Noise_Realizations = 15;
 
 Ptx = dBm2Watt(tx.PtxdBm);
 
-ber_ads = zeros(Noise_Realizations, length(Ptx));
-for kk = 1:Noise_Realizations
+ber_ads = zeros(sim.ads.Nrealizations, length(Ptx));
+for kk = 1:sim.ads.Nrealizations
     for k = 1:length(Ptx)
         tx.Ptx = Ptx(k);
 
         % Ajust levels to desired transmitted power and extinction ratio
         Ptads = Poutnf.'/mean(Poutnf)*tx.Ptx;
-        Pmax = sim.ads.Plevels(end)/mean(Poutnf)*tx.Ptx;
-        mpam.adjust_levels(tx.Ptx, tx.rexdB);
+        Pmax = Plevels(end)/mean(Poutnf)*tx.Ptx;
+        mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
         Pthresh = mpam.b;
         
         Ptads([sim.Mct*Ndiscard(1) end-sim.Mct*Ndiscard(2):end]) = 0; % zero sim.Ndiscard last symbbols
@@ -132,10 +147,10 @@ for kk = 1:Noise_Realizations
         % Automatic gain control
 %         Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10));
         ytads = ytads/(Pmax*link_gain);
-        mpam.norm_levels;
+        mpam = mpam.norm_levels;
 
-        % Equalization
-        ydads = equalize(rx.eq.type, ytads, mpam, tx, fiber1, rx, sim);
+        % Equalize       
+        ydads = equalize(rx.eq, ytads, Hch, mpam, rx, sim);
 
         ydads(ndiscard) = [];
         dataTX = dataTXref;
@@ -163,14 +178,7 @@ ber_ads = mean(ber_ads, 1);
 if sim.ads.eyediagram
     n = Ndiscard(1):length(t)-Ndiscard(2);
     n = n(1:min(2^14, length(n)));
-    eyediagram(circshift(abs(Etads(n)).^2, [-(Mct+1)/2+1, 0]), 2*sim.Mct)
-    hold on
-    plot([-0.5 0.5], Pthresh*[1 1], 'k', 'LineWidth', 2);
-    xlabel('T/(2T_s)')
-    ylabel('Transmitted Optical Signal')
-    axis([-0.5, 0.5 0 1.2*Pmax])
-    title(sprintf('Transmitted Optical Signal: Ptx = %.2f mW, RIN = %.1f dB/Hz, ER = %.1f dB', tx.Ptx*1e3, tx.RIN, tx.rexdB))
-    
+        
     eyediagram(circshift(ytads(n), [-(Mct+1)/2+1, 0]), 2*sim.Mct)
     xlabel('T/(2T_s)')
     ylabel('Received Electric Signal')

@@ -1,7 +1,9 @@
 %% Calculate BER for unamplified IM-DD link with APD
 % bergauss = BER using gaussian approximation
+% bertail_levels = BER of each level individually. This actually
+% corresponds bertail_levels = p(error | given symbol)p(symbol)
 
-function [bergauss] = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim)
+function [bergauss, bergauss_levels] = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim)
 
 Nsymb = mpam.M^sim.L; % number of data symbols 
 % number of zero symbols pad to begin and end of sequnece.
@@ -97,7 +99,7 @@ else
 end
 
 %% Calculate error probabilities using Gaussian approximation for each transmitted symbol
-pe_gauss = 0;
+pe_gauss = zeros(mpam.M, 1);
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
@@ -107,18 +109,19 @@ for k = 1:Nsymb
     sig = 1/(Pmax*link_gain)*sqrt(rx.eq.Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
      
     if dat(k) == mpam.M-1
-        pe_gauss = pe_gauss + qfunc((mu-Pthresh(end))/sig);
+        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((mu-Pthresh(end))/sig);
     elseif dat(k) == 0;
-        pe_gauss = pe_gauss + qfunc((Pthresh(1)-mu)/sig);
+        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(1)-mu)/sig);
     else 
-        pe_gauss = pe_gauss + qfunc((Pthresh(dat(k) + 1) - mu)/sig);
-        pe_gauss = pe_gauss + qfunc((mu - Pthresh(dat(k)))/sig);
+        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(dat(k) + 1) - mu)/sig);
+        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((mu - Pthresh(dat(k)))/sig);
     end
 end
 
 pe_gauss = real(pe_gauss)/Nsymb;
 
-bergauss = pe_gauss/log2(mpam.M);
+bergauss_levels = pe_gauss/log2(mpam.M); % this corresponds to p(error | given symbol)p(symbol)
+bergauss = sum(pe_gauss)/log2(mpam.M);
 
 if sim.verbose
     figure(102), hold on

@@ -48,6 +48,7 @@ ber.count = zeros(size(Ptx));
 %ber.est = zeros(size(Ptx));
 ber.gauss = zeros(size(Ptx));
 ber.awgn = zeros(size(Ptx));
+ber.gauss_levels = zeros(mpam.M, length(Ptx));
 ber.awgn_levels = zeros(mpam.M, length(Ptx));
 ber.awgn_ne = zeros(size(Ptx));
 for k = 1:length(Ptx)
@@ -57,7 +58,7 @@ for k = 1:length(Ptx)
     ber.count(k) = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim);
     
     % Analytical BER
-    ber.gauss(k) = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim);
+    [ber.gauss(k), ber.gauss_levels(:, k)] = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim);
     
     % AWGN  
     mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);

@@ -9,7 +9,9 @@
 
 % berpdf (optional) = calculate BER using saddlepoint approximation for the
 % pdf, and then calculate tail probability using numerical integration
-function [bertail, bergauss, berpdf] = ber_soa_klse_fourier(mpam, tx, fiber, soa, rx, sim)
+% bertail_levels = BER of each level individually. This actually
+% corresponds bertail_levels = p(error | given symbol)p(symbol)
+function [bertail, bergauss, berpdf, bertail_levels] = ber_soa_klse_fourier(mpam, tx, fiber, soa, rx, sim)
 
 % From klse_fourier.m
 U = rx.U_fourier;
@@ -102,7 +104,7 @@ end
 varSigDependent = @(Plevel) varShot(Plevel) + varRIN(Plevel);
 
 %% BER calculation using saddle-point approximation and Gaussian approximation
-pe = 0;
+pe = zeros(mpam.M, 1);
 pe_gauss = 0;
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
@@ -112,18 +114,18 @@ for k = 1:Nsymb
     sig = sqrt(sum(betan.*(2*alphan + Npol*betan)) + varTherm + varSigDependent(yd(k))); % std of output random variable (including thermal noise)
     
     if dat(k) == mpam.M-1
-        pe = pe + tail_saddlepoint_approx(Pthresh(end), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
+        pe(k) = pe(k) + tail_saddlepoint_approx(Pthresh(end), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((mu-Pthresh(end))/sig);
     elseif dat(k) == 0;
-        pe = pe + tail_saddlepoint_approx(Pthresh(1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
+        pe(k) = pe(k) + tail_saddlepoint_approx(Pthresh(1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(1)-mu)/sig);
     else 
-        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
-        pe = pe + tail_saddlepoint_approx(Pthresh(dat(k)), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
+        pe(k) = pe(k) + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
+        pe(k) = pe(k) + tail_saddlepoint_approx(Pthresh(dat(k)), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(dat(k) + 1) - mu)/sig);
@@ -134,7 +136,8 @@ end
 pe = real(pe)/Nsymb;
 pe_gauss = real(pe_gauss)/Nsymb;
 
-bertail = pe/log2(mpam.M);
+bertail = sum(pe)/log2(mpam.M);
+bertail_levels = pe/log2(mpam.M);  % this corresponds to p(error | given symbol)p(symbol)
 bergauss = pe_gauss/log2(mpam.M);
 
 if sim.verbose

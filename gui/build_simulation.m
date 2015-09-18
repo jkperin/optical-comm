@@ -162,25 +162,24 @@ sim.ads.cosim = getLogicalValue(h.check.ads);
 sim.ads.model = getOption(h.ads);
 sim.ads.eyediagram = getLogicalValue(h.check.ads_eye);
 sim.ads.risetime = str2double(strrep(getOption(h.trise), ' ps', ''));
+sim.ads.Nrealizations = getValue(h.noise_ads);
 
 switch sim.ads.model
     case 'DFB 25C'
         sim.ads.Temp = 25;
-        sim.ads.Plevels = [3.5 6.2 9 11.8]; % rough estimates of the levels
-        sim.ads.Pthresh = [5 7.8 10.6]; % rough estimates of the decision thresholds
+        sim.ads.filename = sprintf('ADS_DFB_%dC_%dps.mat', sim.ads.Temp, sim.ads.risetime);
     case 'DFB -5C'
         sim.ads.Temp = -5;
-        sim.ads.Plevels = [3 6 9 12.5]; % rough estimates of the levels
-        sim.ads.Pthresh = [4.3 7.6 11]; % rough estimates of the decision thresholds
+        sim.ads.filename = sprintf('ADS_DFB_%dC_%dps.mat', sim.ads.Temp, sim.ads.risetime);
     case 'DFB 75C'
         sim.ads.Temp = 75;
-        sim.ads.Plevels = [4 6.8 9.8 12.2]; % rough estimates of the levels
-        sim.ads.Pthresh = [5.35 8.25 11.3]; % rough estimates of the decision thresholds
+        sim.ads.filename = sprintf('ADS_DFB_%dC_%dps.mat', sim.ads.Temp, sim.ads.risetime);
+    case 'Browse'
+        sim.ads.filename = h.ads_file;
     otherwise 
         error('Invalid ADS model.')
 end
 
-sim.ads.filename = sprintf('ADS_DFB_%dC_%dps.mat', sim.ads.Temp, sim.ads.risetime);
 
 %% System simulation
 switch getOption(h.popup.system)

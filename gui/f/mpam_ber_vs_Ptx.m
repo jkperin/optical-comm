@@ -68,25 +68,26 @@ elseif ~isempty(apd1)
     
     GdB = apd1.GaindB;
     ber.est = ber.gauss;
+    ber.est_levels = ber.gauss_levels;
 else
     pin = apd(0, 0, Inf, rx.R, rx.Id);
     
     [ber, mpam] = apd_ber(mpam, tx, fiber1, pin, rx, sim);
     ber.est = ber.gauss;
+    ber.est_levels = ber.gauss_levels;
 end
 
 if strcmp(mpam.level_spacing, 'optimized')
     persistent levels_plot;
 
-    if isempty(levels_plot) || ~isvalid(levels_plot)
+    try
+        figure(levels_plot)
+    catch e
         levels_plot = figure;
         box on, hold on, grid on
-    else
-        figure(levels_plot)
-        hold on
     end
-    
-    mpam.norm_levels;
+        
+    mpam = mpam.norm_levels;
     mpam.a = mpam.a*(mpam.M-1);
     mpam.b = mpam.b*(mpam.M-1);
     plot(-10, -10, 'k', 'LineWidth', 2)

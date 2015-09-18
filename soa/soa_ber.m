@@ -83,6 +83,7 @@ ber.est = zeros(size(Ptx));
 ber.gauss = zeros(size(Ptx));
 ber.awgn = zeros(size(Ptx));
 ber.awgn_ne = zeros(size(Ptx));
+ber.est_levels = zeros(mpam.M, length(Ptx));
 for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
          
@@ -91,7 +92,7 @@ for k = 1:length(Ptx)
     
     % Estimated BER using KLSE Fourier and saddlepoint approximation of
     % tail probabilities
-    [ber.est(k), ber.gauss(k)] = ber_soa_klse_fourier(mpam, tx, fiber, soa, rx, sim);
+    [ber.est(k), ber.gauss(k), ~, ber.est_levels(:, k)] = ber_soa_klse_fourier(mpam, tx, fiber, soa, rx, sim);
     
     % AWGN  
     mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);

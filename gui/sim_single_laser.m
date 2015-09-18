@@ -92,6 +92,8 @@ function sim_single_laser
    h.clear = uicontrol('Parent', h.panel.results, 'Style', 'pushbutton', 'Units', 'normalized',...
        'String', 'Clear Plot', 'Position', [1-0.1 0.05 0.1 0.05],...
        'FontSize', FontSize, 'Callback', @clear_Callback);
+   h.text.results = uicontrol('Parent', h.panel.results, 'HorizontalALignment', 'Left', 'BackGroundColor', 'w', 'Style', 'text', 'String', '--------------------------------',...
+       'Units', 'normalized', 'Position', [0.02 0.95 0.9 0.05], 'FontSize', FontSize+1, 'Visible', 'off');
    
    %% Transmitter Panel
    scale = 10; %9.5
@@ -270,34 +272,37 @@ function sim_single_laser
    align([h.Gsoa, h.Fn, h.optfiltType, h.Bopt, h.check.polarizer], 'None', 'Fixed', 6); 
          
    %% Simulation
-   scale = 9;
-   dH = 1/6;
+   scale = 9.5;
+   dH = 1/7;
    maxY = maxY - scale*BlockHeigth;
    h.panel.param = uipanel('Title', 'Simulation', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
    
-   [h.text.Rb, h.Rb] = table_entry(h.panel.param, [0 5*dH 1/scale], 'Bit Rate (Gbps):', 50);
-   [h.text.BER, h.BER] = table_entry(h.panel.param, [0 4*dH 1/scale], 'Target BER: ', 1e-4);
-   [h.text.Nsymb, h.Nsymb] = table_entry(h.panel.param, [0 3*dH 1/scale], 'Number of Symbols:', 2^15);
-   [h.text.Mct, h.Mct] = table_entry(h.panel.param, [0 2*dH 1/scale], 'Oversampling Ratio for Continuous Time:', 15);
+   [h.text.Rb, h.Rb] = table_entry(h.panel.param, [0 6*dH 1/scale], 'Bit Rate (Gbps):', 50);
+   [h.text.BER, h.BER] = table_entry(h.panel.param, [0 5*dH 1/scale], 'Target BER: ', 1e-4);
+   [h.text.Nsymb, h.Nsymb] = table_entry(h.panel.param, [0 4*dH 1/scale], 'Number of Symbols:', 2^15);
+   [h.text.Mct, h.Mct] = table_entry(h.panel.param, [0 3*dH 1/scale], 'Oversampling Ratio for Continuous Time:', 15);
    
-   [h.check.quantiz, h.text.ENOB, h.ENOB] = table_entry(h.panel.param, [0 dH 1/scale], 'ENOB (bits):', 6, false,...
+   [h.check.quantiz, h.text.ENOB, h.ENOB] = table_entry(h.panel.param, [0 2*dH 1/scale], 'ENOB (bits):', 6, false,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, internal_handles, false));
       
-   [h.text.Lseq, h.Lseq] = table_entry(h.panel.param, [0 dH/4 1/scale], 'de Bruijn Sub-Sequence Length:', 2);
-   align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.text.ENOB, h.text.Lseq], 'None', 'Fixed', 6);
-   align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.check.quantiz, h.text.Lseq], 'None', 'Fixed', 6);
+   [h.text.Lseq, h.Lseq] = table_entry(h.panel.param, [0 dH 1/scale], 'de Bruijn Sub-Sequence Length:', 2);
+   [h.check.berlevels, h.text.berlevels, temp] = table_entry(h.panel.param, [0 dH/4 1/scale], 'Show BER of individual levels', 2, false);
+   set(temp, 'Visible', 'off')
+      
+   align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.text.ENOB, h.text.Lseq, h.text.berlevels], 'None', 'Fixed', 6);
+   align([h.text.Rb, h.text.BER, h.text.Nsymb, h.text.Mct, h.check.quantiz, h.text.Lseq, h.check.berlevels], 'None', 'Fixed', 6);
    align([h.Rb, h.BER, h.Nsymb, h.Mct, h.ENOB h.Lseq], 'None', 'Fixed', 6);
    
    
    %% ADS co-simulaton
-   scale = 4.5;
+   scale = 6;
    dH = 1/4;
    maxY = maxY - scale*BlockHeigth;
    h.panel.ads = uipanel('Title', 'ADS Co-Simulation', 'FontSize', HeaderFontSize,...
        'Position', [panelWidht+0.01 maxY panelWidht scale*BlockHeigth]); 
 
-    [h.text.trise, h.trise] = table_entry(h.panel.ads, [0 dH 1/scale], 'Rise Time:', 0, false,...
+    [h.text.trise, h.trise] = table_entry(h.panel.ads, [0 2*dH 1/scale], 'Rise Time:', 0, false,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt, [h.check.ads_eye, h.text.ads_eye internal_handles], false));
     set(h.trise, 'Style', 'popupmenu');
     set(h.trise, 'String', {'10 ps', '5 ps'});
@@ -305,21 +310,24 @@ function sim_single_laser
     set(h.trise, 'FontSize', FontSize-1)
     align([h.text.trise, h.trise], 'None', 'Top');
     
-   [h.check.ads_eye, h.text.ads_eye, temp] = table_entry(h.panel.ads, [0 dH/4 1/scale], 'Show Eye Diagram', 0, false);
+   [h.check.ads_eye, h.text.ads_eye, temp] = table_entry(h.panel.ads, [0 dH 1/scale], 'Show Eye Diagram', 0, false);
    set(temp, 'Visible', 'off')
+   [h.text.noise_ads, h.noise_ads] = table_entry(h.panel.ads, [0 dH/4 1/scale], 'Noise Realizations', 10);
    
-   [h.check.ads, h.text.ads, h.ads] = table_entry(h.panel.ads, [0 2*dH 1/scale], 'ADS DFB model', 0, false,...
+   [h.check.ads, h.text.ads, h.ads] = table_entry(h.panel.ads, [0 3*dH 1/scale], 'ADS DFB Model', 0, false,...
        @(src, evt, internal_handles) disable_handles_Callback(src, evt,...
-       [h.check.ads_eye, h.text.ads_eye, h.text.trise, h.trise, internal_handles], false));
+       [h.check.ads_eye, h.text.ads_eye, h.text.trise, h.trise, h.text.noise_ads, h.noise_ads, internal_handles], false));
     set(h.ads, 'Style', 'popupmenu');
-    set(h.ads, 'String', {'DFB 25C', 'DFB -5C', 'DFB 75C'});
+    set(h.ads, 'String', {'DFB 25C', 'DFB -5C', 'DFB 75C', 'Browse'});
     set(h.ads, 'Position', get(h.ads, 'Position') + [-0.1 0 0.1 0]);
     set(h.ads, 'FontSize', FontSize-1)
+    set(h.ads, 'Callback', @(src, evt) ads_model_Callback(src, evt));
     align([h.text.ads, h.ads], 'None', 'Top');
     
-   align([h.check.ads, h.trise, h.check.ads_eye], 'None', 'Fixed', 6);
-   align([h.text.ads, h.text.trise, h.text.ads_eye], 'None', 'Fixed', 6);
-   align([h.ads, h.trise, temp], 'None', 'Fixed', 6);
+        
+    align([h.check.ads, h.trise, h.check.ads_eye, h.text.noise_ads], 'None', 'Fixed', 6);
+    align([h.text.ads, h.text.trise, h.text.ads_eye, h.text.noise_ads], 'None', 'Fixed', 6);
+    align([h.ads, h.trise, temp, h.noise_ads], 'None', 'Fixed', 6);
      
    % Create a plot in the axes.
    popup_system_Callback(h.popup.system, 0)
@@ -350,101 +358,136 @@ function sim_single_laser
         clc
         LineWidth = 1.2;
         
-        [mpam, ofdm1, tx, fiber1, soa1, apd1, rx, sim] = build_simulation(h);
+        logger('Running...')
         
-        switch getOption(h.popup.results)
-            case 'BER vs Transmitted Power'
-                switch getOption(h.popup.modulation)
-                    case 'M-PAM'
-                        [ber, GdB] = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim);
-                        
-                        if getLogicalValue(h.check.ads)
-                            ber_ads = mpam_ber_vs_Ptx_ADS(tx, fiber1, soa1, apd1, rx, sim);
-                        end
-                    case 'DMT/OFDM'
-                        ber = ofdm_ber_vs_Ptx(ofdm1, tx, fiber1, rx, sim);
-                end
-                
-                if isempty(soa1)
-                    handle = h.Gapd;
-                else
-                    handle = h.Gsoa;
-                end
-                
-                if exist('GdB', 'var') && ~isempty(GdB)
-                    set(handle, 'String', num2str(GdB, '%.1f'));
-                end
+        try        
+            [mpam, ofdm1, tx, fiber1, soa1, apd1, rx, sim] = build_simulation(h);
 
-                axes(h.axes.results), hold on, box on, grid on
-                hline = plot(tx.PtxdBm, log10(ber.count), '--o', 'Color', getNewColor(), 'LineWidth', LineWidth);
-                plot(tx.PtxdBm, log10(ber.est), '-', 'Color', get(hline, 'Color'), 'LineWidth', LineWidth)   
-                if exist('ber_ads', 'var')
-                    plot(tx.PtxdBm, log10(ber_ads), '--*', 'Color', get(hline, 'Color'), 'LineWidth', LineWidth)
-                    legend('Montecarlo', 'Estimated', 'ADS')
-                else
-                    legend('Montecarlo', 'Estimated')
-                end
-                xlabel('Transmitted Power (dBm)')
-                ylabel('log_{10}(BER)')
-                a = axis;
-                axis([min(a(1), tx.PtxdBm(1)) max(a(2), tx.PtxdBm(end)) ceil(2*log10(sim.BERtarget)) 0])
-                plot(-1e3, -1e3, '--*', 'Color', get(hline, 'Color')); % just so that symbol for ADS be recognized
-                
-                if fiber1.L ~= 0 && getValue(h.D) ~= 0
-                    persistent Hfiber_plot;
-                    
-                    try
-                       figure(Hfiber_plot)
-                    catch e
-                        Hfiber_plot = figure;
-                        box on, hold on, grid on
+            switch getOption(h.popup.results)
+                case 'BER vs Transmitted Power'
+                    switch getOption(h.popup.modulation)
+                        case 'M-PAM'
+                            [ber, GdB] = mpam_ber_vs_Ptx(mpam, tx, fiber1, soa1, apd1, rx, sim);
+
+                            if getLogicalValue(h.check.ads)
+                                ber_ads = mpam_ber_vs_Ptx_ADS(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                            end
+                        case 'DMT/OFDM'
+                            ber = ofdm_ber_vs_Ptx(ofdm1, tx, fiber1, rx, sim);
                     end
-                    
-                    ff = linspace(0, 2*mpam.Rs, 100);
-                    Hfiber = fiber1.H(ff, tx);
-                    plot(ff/1e9, abs(Hfiber).^2, 'LineWidth', LineWidth, 'Color', get(hline, 'Color'))
-                    xlabel('Frequency (GHz)')
-                    ylabel('|H_{fiber}(f)|^2')
-                    title('Fiber Small-Signal Frequency Response')
-                    axis([ff([1 end])/1e9 0 1.2*max(abs(Hfiber).^2)]) 
-                    axis auto
-                end
-                
-            case 'Power Penalty vs Modulator Cutoff Frequency'
-                switch getOption(h.popup.modulation)
-                    case 'M-PAM'
-                        %pp = mpam_pp_vs_mod_cutoff(mpam, tx, fiber1, soa1, apd1, rx, sim);
-                        error('Not implemented yet.')
-                    case 'DMT/OFDM'
-                        pp = ofdm_pp_vs_mod_cutoff(ofdm1, tx, fiber1, rx, sim);
-                end
-                
-                axes(h.axes.results), hold on, box on, grid on
-                hline = plot(tx.modulator.Fc/1e9, pp.power_pen_ook_m, '--o', 'LineWidth', 2);
-                plot(tx.modulator.Fc/1e9, pp.power_pen_ook_e, '-', 'LineWidth', 2, 'Color', get(hline, 'Color'))
-                legend('Montecarlo', 'Estimated', 'Location', 'NorthEast')
-                xlabel('Modulator Cutoff Frequency (GHz)')
-                ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
-                
-            case 'Power Penalty vs Fiber Length'
-                switch getOption(h.popup.modulation)
-                    case 'M-PAM'
-%                         pp = mpam_pp_vs_L(mpam, tx, fiber1, soa1, apd1, rx, sim);
-                          error('Not implemented yet.')
-                    case 'DMT/OFDM'
-                        pp = ofdm_pp_vs_L(ofdm1, tx, fiber1, rx, sim);
-                end
-                
-                axes(h.axes.results), hold on, box on, grid on
-                hline = plot(sim.fiberL/1e3, pp.power_pen_ook_m, '--o', 'LineWidth', 2);
-                plot(sim.fiberL/1e3, pp.power_pen_ook_e, '-', 'LineWidth', 2, 'Color', get(hline, 'Color'))
-                legend('Montecarlo', 'Estimated', 'Location', 'NorthEast')
-                xlabel('Fiber Length (km)')
-                ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
-                
-            otherwise
-                error('Selected results not implemented yet')
-        end             
+
+                    if isempty(soa1)
+                        handle = h.Gapd;
+                    else
+                        handle = h.Gsoa;
+                    end
+
+                    if exist('GdB', 'var') && ~isempty(GdB)
+                        set(handle, 'String', num2str(GdB, '%.1f'));
+                    end
+
+                    axes(h.axes.results), hold on, box on, grid on
+                    hline = plot(tx.PtxdBm, log10(ber.count), '--o', 'Color', getNewColor(), 'LineWidth', LineWidth);
+                    pest = plot(tx.PtxdBm, log10(ber.est), '-', 'Color', get(hline, 'Color'), 'LineWidth', LineWidth);
+
+                    if exist('ber_ads', 'var')
+                        pads = plot(tx.PtxdBm, log10(ber_ads), '--*', 'Color', get(hline, 'Color'), 'LineWidth', LineWidth);
+                        legend([hline, pest, pads], 'Montecarlo', 'Estimated', 'ADS')
+
+                        if isfield(h, 'ads_file')
+                            title(h.ads_file)
+                        else
+                            title('')
+                        end                    
+                    else
+                        legend([hline, pest], 'Montecarlo', 'Estimated')
+
+                    end
+
+                    if isfield(ber, 'est_levels') && getLogicalValue(h.check.berlevels)
+                        for kk = 1:mpam.M 
+                            pl = plot(tx.PtxdBm, log10(ber.est_levels(kk, :)), '--', 'Color', get(hline, 'Color'), 'LineWidth', LineWidth);
+                        end
+
+                        try
+                            if exist('pads', 'var')
+                                legend([hline, pest, pads, pl], 'Montecarlo', 'Estimated', 'ADS', 'Levels')
+                            else
+                                legend([hline, pest, pl], 'Montecarlo', 'Estimated', 'Levels')
+                            end
+                        catch e
+                            warning(e.message)
+                        end                      
+
+                    end
+
+                    xlabel('Transmitted Power (dBm)')
+                    ylabel('log_{10}(BER)')
+                    a = axis;
+                    axis([min(a(1), tx.PtxdBm(1)) max(a(2), tx.PtxdBm(end)) ceil(2*log10(sim.BERtarget)) 0])
+                    plot(-1e3, -1e3, '--*', 'Color', get(hline, 'Color')); % just so that symbol for ADS be recognized
+
+                    if fiber1.L ~= 0 && getValue(h.D) ~= 0
+                        persistent Hfiber_plot;
+
+                        try
+                           figure(Hfiber_plot)
+                        catch e
+                            Hfiber_plot = figure;
+                            box on, hold on, grid on
+                        end
+
+                        ff = linspace(0, 2*mpam.Rs, 100);
+                        Hfiber = fiber1.H(ff, tx);
+                        plot(ff/1e9, abs(Hfiber).^2, 'LineWidth', LineWidth, 'Color', get(hline, 'Color'))
+                        xlabel('Frequency (GHz)')
+                        ylabel('|H_{fiber}(f)|^2')
+                        title('Fiber Small-Signal Frequency Response')
+                        axis([ff([1 end])/1e9 0 1.2*max(abs(Hfiber).^2)]) 
+                        axis auto
+                    end
+
+                case 'Power Penalty vs Modulator Cutoff Frequency'
+                    switch getOption(h.popup.modulation)
+                        case 'M-PAM'
+                            %pp = mpam_pp_vs_mod_cutoff(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                            error('Not implemented yet.')
+                        case 'DMT/OFDM'
+                            pp = ofdm_pp_vs_mod_cutoff(ofdm1, tx, fiber1, rx, sim);
+                    end
+
+                    axes(h.axes.results), hold on, box on, grid on
+                    hline = plot(tx.modulator.Fc/1e9, pp.power_pen_ook_m, '--o', 'LineWidth', 2);
+                    plot(tx.modulator.Fc/1e9, pp.power_pen_ook_e, '-', 'LineWidth', 2, 'Color', get(hline, 'Color'))
+                    legend('Montecarlo', 'Estimated', 'Location', 'NorthEast')
+                    xlabel('Modulator Cutoff Frequency (GHz)')
+                    ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
+
+                case 'Power Penalty vs Fiber Length'
+                    switch getOption(h.popup.modulation)
+                        case 'M-PAM'
+    %                         pp = mpam_pp_vs_L(mpam, tx, fiber1, soa1, apd1, rx, sim);
+                              error('Not implemented yet.')
+                        case 'DMT/OFDM'
+                            pp = ofdm_pp_vs_L(ofdm1, tx, fiber1, rx, sim);
+                    end
+
+                    axes(h.axes.results), hold on, box on, grid on
+                    hline = plot(sim.fiberL/1e3, pp.power_pen_ook_m, '--o', 'LineWidth', 2);
+                    plot(sim.fiberL/1e3, pp.power_pen_ook_e, '-', 'LineWidth', 2, 'Color', get(hline, 'Color'))
+                    legend('Montecarlo', 'Estimated', 'Location', 'NorthEast')
+                    xlabel('Fiber Length (km)')
+                    ylabel('Power Penalty w.r. to NRZ-OOK (dB)')
+
+                otherwise
+                    error('Selected results not implemented yet')
+            end 
+        catch e
+            logger('Error! Check command line for details.')
+            rethrow(e)
+        end
+            
+        set(h.text.results, 'Visible', 'off')
     end   
    
    %% Popup Callbacks
@@ -457,7 +500,7 @@ function sim_single_laser
              set_property([h.Nc, h.level, h.text.level, h.text.Nc, h.Nu,...
                  h.text.Nu, h.palloc, h.text.palloc, h.text.rclip, h.rclip, h.check.quantiz, h.text.ENOB, h.ENOB], 'Enable', 'off')
              set_property([h.level, h.text.level h.pshape h.text.pshape, h.rxfilterN,...
-                 h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'on')
+                 h.text.rxfilterBw, h.rxfilterBw, h.check.berlevels, h.text.berlevels], 'Enable', 'on')
                           
              set(h.popup.system, 'String', {'Basic', 'SOA', 'APD'})
 %              set(h.rxfilterType, 'String', {'Matched', 'Gaussian', 'Bessel'})
@@ -485,12 +528,13 @@ function sim_single_laser
              set(h.Ptx, 'String', '-30:2:-10')
              set(h.Nsymb, 'String', num2str(2^14))
              set(h.Mct, 'String', num2str(15))     
+             set(h.rin, 'String', num2str(-140))
          else
              set_property([h.Nc, h.text.Nc, h.Nu, h.text.Nu, h.palloc, h.text.palloc,...
                  h.text.rclip, h.rclip, h.rxfilterN,h.check.quantiz, h.text.ENOB, h.ENOB,...
                  h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'on')
              set_property([h.level, h.text.level h.pshape h.text.pshape,...
-                 h.text.rxfilterBw, h.rxfilterBw], 'Enable', 'off')
+                 h.text.rxfilterBw, h.rxfilterBw, h.check.berlevels, h.text.berlevels], 'Enable', 'off')
              
              % Equalization
              eq_child = allchild(h.panel.eq);
@@ -515,7 +559,8 @@ function sim_single_laser
              set(h.M, 'String', 16); 
              set(h.Ptx, 'String', '-20:2:-4')
              set(h.Nsymb, 'String', num2str(2^12))
-             set(h.Mct, 'String', num2str(9))             
+             set(h.Mct, 'String', num2str(9)) 
+             set(h.rin, 'String', num2str(-150))
          end
     end
 
@@ -591,8 +636,18 @@ function sim_single_laser
         for k = 1:length(handles)
             set(handles, 'Enable', s)
         end     
-     end
-        
+    end
+    
+    function ads_model_Callback(src, evt)
+        if strcmp(getOption(src), 'Browse')
+            [filename, pathname] = uigetfile({'*.mat'}, 'File Selector');
+            
+            h.ads_file = [pathname filename];
+            logger(h.ads_file)
+        end
+    end
+ 
+
     function popup_system_Callback(source, ~)
          % Determine the selected data set.
          str = get(source, 'String');
@@ -689,6 +744,13 @@ function sim_single_laser
             set(handle_array, property, value)
         end
     end
+
+    function logger(str)
+        set(h.text.results, 'Visible', 'on')
+        set(h.text.results, 'String', str)
+        drawnow
+    end
+        
 
     function call_handle_Callback(handle, src, evt)
         fun = get(handle, 'Callback');

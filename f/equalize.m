@@ -66,7 +66,7 @@ switch eq.type
         Heq(abs(sim.f)<mpam.Rs) = 1./(Hch(abs(sim.f)<mpam.Rs));
         
         % Channel inversion + Matched filter
-        Grx = Heq.*Delay.*conj(Gtx);
+        Grx = Heq.*Delay.*conj(Gtx.*Heq);
 
         % Apply equalization filter
         if isempty(yt) % function was called just to calculate equalizer
