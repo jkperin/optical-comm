@@ -9,7 +9,7 @@ addpath f
 sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
 sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
-sim.BERtarget = 1e-4; 
+sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 

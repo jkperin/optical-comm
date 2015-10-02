@@ -30,19 +30,23 @@ xt(end-sim.Mct*sim.Ndiscard+1:end) = 0; % zero sim.Ndiscard last symbbols
 %% Detect and add noises
 yt = apd.detect(Pt, sim.fs, 'gaussian', rx.N0);
 
-% Automatic gain control
+%% Noise whitening filter
+% if ~isinf(apd.BW)
+%     Nshot = apd.varShot(tx.Ptx*fiber.link_attenuation(tx.lamb), 1);
+%         
+%     Hw = sqrt((rx.N0+Nshot)./(Nshot.*apd.H(sim.f)/(apd.Gain*apd.R) + rx.N0));   
+%     
+%     Hch = Hch.*Hw;
+%     
+%     yt = real(ifft(fft(yt).*ifftshift(Hw)));
+% end
+
+%% Automatic gain control
 % Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
 yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
 mpam = mpam.norm_levels;
 
 %% Equalization
-if isfield(rx, 'eq') && (isfield(tx, 'modulator') || ~isinf(apd.BW))
-    rx.eq.TrainSeq = dataTX;
-else % otherwise only filter using rx.elefilt
-    rx.eq.type = 'None';
-end
-    
-% Equalize
 [yd, rx.eq] = equalize(rx.eq, yt, Hch, mpam, rx, sim);
    
 % Symbols to be discarded in BER calculation

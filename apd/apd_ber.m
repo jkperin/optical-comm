@@ -5,6 +5,12 @@ function [ber, mpam, apd] = apd_ber(mpam, tx, fiber, apd, rx, sim)
 
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
+% If equalizer is not defined assume no equalization
+if ~isfield(rx, 'eq')
+    rx.eq.type = 'None';
+end
+
+% Optimize APD gain
 if isfield(sim, 'OptimizeGain') && sim.OptimizeGain
     apd.Gain = apd.optGain(mpam, tx, fiber, rx, sim, 'margin');
 end
@@ -20,25 +26,23 @@ end
 
 link_gain = apd.Gain*apd.R*fiber.link_attenuation(tx.lamb); % Overall link gain
 
-%% Noise calculations
-noise_std = apd.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
+% Design equalizer
+[~, eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer
+% This design assumes fixed zero-forcing equalizers
 
-% Noise enhancement penalty
-if isfield(rx, 'eq') && (isfield(tx, 'modulator') || ~isinf(apd.BW))
-    [~, eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer
-    % This design assumes fixed zero-forcing equalizers
-    Kne = eq.Kne; % noise enhancement penalty
-    % Kne = noise variance after equalizer/noise variance before equalizer
-else 
-    rx.eq.type = 'None';
-    Kne = 1;
-end
+%% Noise calculations
+noise_std = apd.stdNoise(eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
 
 %% Level Spacing Optimization
-if mpam.optimize_level_spacing
+if mpam.optimize_level_spacing  
+    % Doesn't include whitening filter
+    noise_std = apd.stdNoise(eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
+    
     % Optimize levels using Gaussian approximation
     mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std, sim.verbose);     
 end
+
+rx.noise_std = noise_std;
 
 %% Calculations BER
 % Transmitted power
@@ -66,7 +70,7 @@ for k = 1:length(Ptx)
     [ber.awgn(k), ber.awgn_levels(:, k)] = mpam.ber_awgn(noise_std);
     
     % AWGN including noise enhancement penalty
-    ber.awgn_ne(k) = mpam.ber_awgn(@(P) sqrt(Kne)*noise_std(P));
+    ber.awgn_ne(k) = mpam.ber_awgn(@(P) sqrt(eq.Kne)*noise_std(P));
 end
 
 if sim.verbose

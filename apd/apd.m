@@ -106,6 +106,15 @@ classdef apd
             end
         end
         
+        function bw = noisebw(this) 
+            %% Noise bandwidth (one-sided)
+            if isinf(this.BW)
+                bw = Inf;
+            else
+                bw = pi/2*this.BW; % pi/2 appears because this.Hapd enery is pi*BW
+            end
+        end
+        
         function sig2 = varShot(this, Pin, Df)
             %% Shot noise variance
             % Inputs:
@@ -172,29 +181,42 @@ classdef apd
             end 
         end
               
-        function noise_std = stdNoise(this, noiseBW, N0, RIN, sim)
+        function noise_std = stdNoise(this, Hrx, Hff, N0, RIN, sim)
             %% Returns function handle noise_std, which calculates the noise standard deviation for a given power level P. 
             % !! The power level P is assumed to be after the APD.
             % Thermal, shot and RIN are assumed to be white AWGN.
             % Inputs:
-            % - noiseBW = noise bandwidth in Hz
-            % - N0 = noise PSD
+            % - Hrx = receiver filter evaluated at sim.f e.g., matched filter 
+            % - Heq = equalizer frequency response evaluated at sim.f
+            % - N0 = thermal noise PSD
             % - RIN (optional, by default is not included) = RIN in dB/Hz
 
+            Htot = Hrx.*Hff; % !! must be change to include oversampling 
+            if isinf(this.BW)
+                Df  = 1/2*trapz(sim.f, abs(Htot).^2); % matched filter noise BW
+                Dfshot = Df;
+                DfRIN = Df; % !! approximated: needs to include fiber response
+            else
+                Df  = 1/2*trapz(sim.f, abs(Htot).^2); % matched filter noise BW
+                Dfshot = 1/2*trapz(sim.f, abs(this.H(sim.f).*Htot).^2)/(this.Gain*this.R)^2;
+                DfRIN = Dfshot; % !! approximated: needs to include fiber response
+            end
+         
             %% Noise calculations
             % Thermal noise
-            varTherm = N0*noiseBW; % variance of thermal noise
+            varTherm = N0*Df; % variance of thermal noise
 
             % RIN
             if nargin >= 4 && isfield(sim, 'RIN') && sim.RIN
-                varRIN =  @(Plevel) 10^(RIN/10)*Plevel.^2*noiseBW;
+                varRIN =  @(Plevel) 10^(RIN/10)*Plevel.^2*DfRIN;
             else
                 varRIN = @(Plevel) 0;
             end
 
             % Shot
-            varShot = @(Plevel) this.varShot(Plevel/(this.Gain*this.R), noiseBW);
-            % Note: Plevel is divided by APD gain to obtain power at the apd input
+            varShot = @(Plevel) this.varShot(Plevel/(this.Gain*this.R), Dfshot);
+            % Note: Plevel is divided by APD gain to obtain power at the
+            % apd input, which determines the noise variance
 
             % Noise std for the level Plevel
             noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + varShot(Plevel));
@@ -238,9 +260,22 @@ classdef apd
             %% Optimize APD gain for two different objectives:
             %% (1) BER: Given input power finds the APD gain that leads to the minimum BER
             %% (2) Margin: Given target BER finds APD gain that leads to minimum required optical power
-            
             disp(['Optimizing APD gain for ' objective]);
         
+            % Calculate equalizer
+            % Hch does not include transmitter or receiver filter
+            if isfield(tx, 'modulator')
+                Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
+                .*fiber.H(sim.f, tx).*this.H(sim.f);
+            else
+                Hch = fiber.H(sim.f, tx).*this.H(sim.f);
+            end
+
+            [~, rx.eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer, which is used in apd.calc_apd_ber and calc_Pmean
+            % This design assumes fixed zero-forcing equalizers 
+            % Note: !! This part doesn't depend on the APD gain because Hch
+            % is normalized to unit gain at DC in equalize.m
+            
             switch objective
                 case 'BER'
                     %% Optimize APD gain: Given a certain input power calculates 
@@ -253,7 +288,7 @@ classdef apd
                     % 4) Update APD gain until minimum BER is reached
 
                     % Find Gapd that minimizes BER
-                    [Gopt, ~, exitflag] = fminbnd(@(Gapd) this.calc_apd_ber(10*log10(tx.Ptx/1e-3), Gapd, mpam, tx, fiber, rx, sim), eps, this.maxGain);    
+                    [Gopt, ~, exitflag] = fminbnd(@(Gapd) this.calc_apd_ber(10*log10(tx.Ptx/1e-3), Gapd, mpam, tx, fiber, rx, sim), 1, this.maxGain);    
 
                     % Check whether solution is valid
                     if exitflag ~= 1
@@ -273,7 +308,7 @@ classdef apd
                         [Gopt, ~, exitflag] = fminbnd(@(Gapd) calcPmean(Gapd, mpam, tx, this, rx, sim), eps, this.maxGain);    
                     else
                         % Adjust power to get to target BER
-                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim) - sim.BERtarget, -20), eps, this.maxGain);
+                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm) this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim) - sim.BERtarget, -20), 1, this.maxGain);
                     end
 
                     % Check whether solution is valid
@@ -288,17 +323,18 @@ classdef apd
             end
             
             % Auxiliary function
-            function Pmean = calcPmean(Gapd, mpam, tx, apdG, rx, sim)
-                apdG.Gain = Gapd;
+            function Pmean = calcPmean(Gapd, mpam, tx, apd, rx, sim)
+                apd.Gain = Gapd;
                 
-                % Noise bandwidth
-                noiseBW = rx.elefilt.noisebw(sim.fs)/2;
-                noise_std = apdG.stdNoise(noiseBW, rx.N0, tx.RIN, sim);
+                % Noise standard deviation
+                % Doesn't include whitening filter
+                noise_std = apd.stdNoise(rx.eq.Hrx, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
                 
+                % Optimize levels
                 mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);
-            
+                           
                 % Required power at the APD input
-                Pmean = mean(mpam.a)/apdG.Gain;
+                Pmean = mean(mpam.a)/apd.Gain;
             end
         end 
     end
@@ -313,8 +349,16 @@ classdef apd
             % Set APD gain
             this.Gain = Gapd; % linear units
 
-            % Noise std
-            noise_std = this.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
+            % Noise standard deviation
+            if false % ~isinf(this.BW)
+                Nshot = this.varShot(tx.Ptx*fiber.link_attenuation(tx.lamb), 1);
+
+                Hw = sqrt((rx.N0+Nshot)./(Nshot.*this.H(sim.f)/(this.Gain*this.R) + rx.N0)); 
+                
+                noise_std = this.stdNoise(rx.eq.Hrx.*Hw, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
+            else
+                noise_std = this.stdNoise(rx.eq.Hrx, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
+            end
            
             % Level spacing optimization
             if mpam.optimize_level_spacing
@@ -332,7 +376,7 @@ classdef apd
                  
                  ber = mpam.ber_awgn(noise_std);
              else
-                 [~, ber] = ber_apd_doubly_stochastic(mpam, tx, fiber, this, rx, sim);
+                 ber = ber_apd_gauss(mpam, tx, fiber, this, rx, sim);
              end
         end   
         
