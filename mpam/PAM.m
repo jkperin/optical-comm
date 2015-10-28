@@ -165,7 +165,8 @@ classdef PAM
             %% Level spacing (a) and decision threshold (b) optmization
             % Assumes infinite extinction ratio at first, then corrects power and
             % optmize levels again
-            % The levels and thresholds calculated are after APD amplification
+            % The levels and thresholds calculated are at the receiver
+            % (i.e., after any amplification)
             % Error probability under a single tail for a given symbol
             % Inputs:
             % - BERtarget = target BER
@@ -220,7 +221,7 @@ classdef PAM
             
             this.b = bopt;
             this.a = aopt;
-            
+
             BERerror = abs(this.ber_awgn(noise_std) - BERtarget)/BERtarget;
             if  BERerror > this.maxBERerror
                 warning('PAM>optimize_level_spacing_gauss_approx: BER error %g greater than maximum acceptable error\n', BERerror);

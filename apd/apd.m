@@ -135,7 +135,7 @@ classdef apd
             
             switch noise_stats 
                 case 'gaussian'
-                    % Assuming Gaussian statistics               
+                    % Assuming Gaussian statistics    
                     output = this.R*this.Gain*Pin + sqrt(this.varShot(Pin, fs/2)).*randn(size(Pin));
                     
                 case 'doubly-stochastic'
@@ -163,7 +163,7 @@ classdef apd
                     output = this.R*this.Gain*Pin;
                     
                 otherwise 
-                    error('Invalid Option!')
+                    error('apd>detect: Invalid Option!')
             end
             
             % Frequency
@@ -171,12 +171,14 @@ classdef apd
             f = (-fs/2:df:fs/2-df).';
             
             % APD frequency response
-            output = real(ifft(fft(output).*ifftshift(this.H(f))))/(this.R*this.Gain);    
-            % Divide by this.R*this.Gain because gain was already included
-            % in output
+            if ~isinf(this.BW)
+                output = real(ifft(fft(output).*ifftshift(this.H(f))))/(this.R*this.Gain);    
+               % Divide by this.R*this.Gain because gain was already
+               % included in output
+            end
             
             % Add thermal noise if N0 was provided
-            if nargin == 5
+            if exist('N0', 'var')
                 output = output + sqrt(N0*fs/2).*randn(size(Pin)); % includes thermal noise
             end 
         end
@@ -190,7 +192,7 @@ classdef apd
             % - Heq = equalizer frequency response evaluated at sim.f
             % - N0 = thermal noise PSD
             % - RIN (optional, by default is not included) = RIN in dB/Hz
-
+            
             Htot = Hrx.*Hff; % !! must be change to include oversampling 
             if isinf(this.BW)
                 Df  = 1/2*trapz(sim.f, abs(Htot).^2); % matched filter noise BW
@@ -379,7 +381,10 @@ classdef apd
                  ber = ber_apd_gauss(mpam, tx, fiber, this, rx, sim);
              end
         end   
-        
+    end
+          
+    %% Methods for calculating the accurate noise statistics (DEPRECTED)
+    methods
 %         function M = Ms(this, s)
 %             options = optimoptions('fsolve', 'Display', 'off');
 %             exitflag = 2;
@@ -403,10 +408,7 @@ classdef apd
                 end
             end  
         end       
-    end
-          
-    %% Methods for calculating the accurate noise statistics
-    methods
+        
         %% Tail probabilities calculation
         % Not working properly. fsolve doesn't work as well as fzero
         function [px, shat] = tail_saddlepoint_approx(this, xthresh, P, fs, N0, tail) 

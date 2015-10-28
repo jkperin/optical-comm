@@ -10,7 +10,7 @@ fiber = fiber(L(1));
 
 tx.lamb = 1250e-9;
 tx.alpha = 2;
-f = linspace(0, 50e9, 100);
+f = linspace(0, 200e9, 100);
 
 
 figure, hold on, grid on, box on
@@ -22,7 +22,7 @@ end
 xlabel('Frequency (GHz)')
 ylabel('Frequency Response (dB)')
 legend('1 km', '5 km', '10 km', '20 km', 'Location', 'SouthWest')
-axis([0 50 -10 10])
+axis([0 200 -10 10])
 
 matlab2tikz('Hfiber.tex')
 

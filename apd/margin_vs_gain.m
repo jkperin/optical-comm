@@ -41,10 +41,10 @@ tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 tx.PtxdBm = -22:1:-8; % range for equally spaced levels
 
 % Modulator frequency response
-tx.modulator.fc = 30e9; % modulator cut off frequency
-tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
-tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
+% tx.modulator.fc = 30e9; % modulator cut off frequency
+% tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+% tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
+% tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
 %% b2b
 b2b = fiber();
@@ -58,7 +58,7 @@ rx.Id = 10e-9;
 rx.R = 1;
 
 %% Equalization
-rx.eq.type = 'Fixed TD-SR-LE';
+rx.eq.type = 'None';
 % rx.eq.ros = 2;
 rx.eq.Ntaps = 15;
 % rx.eq.Ntrain = 2e3;
@@ -71,7 +71,7 @@ ber_pin = apd_ber(mpam, tx, b2b, pin, rx, sim);
 % Variables to iterate
 Gains = 1:1:20;
 ka = [0.1 0.25 0.5 0.75];
-BW = [(10:2.5:50)*1e9 Inf];
+BW = Inf; % (10:2.5:50)*1e9;
 
 MargindB = zeros(length(ka), length(BW), length(Gains));
 Gopt_margin = zeros(length(ka), length(BW));
@@ -128,10 +128,10 @@ ylabel('Optimal Gain (dB)')
 legend(legs)
 
 % Save results
-filename = sprintf('margin_vs_gain_results_%d-PAM_%s', mpam.M, mpam.level_spacing);
-sim = rmfield(sim, 't');
-sim = rmfield(sim, 'f');
-save(filename)
+% filename = sprintf('margin_vs_gain_results_%d-PAM_%s', mpam.M, mpam.level_spacing);
+% sim = rmfield(sim, 't');
+% sim = rmfield(sim, 'f');
+% save(filename)
 
 function [BER, MargindB, Gopt_margin, OptMargindB] = iterate(Gains, mpam, ka, BW, sim)
     % BER [1 x length(Gains)] struct = BER struct for each gain in Gains

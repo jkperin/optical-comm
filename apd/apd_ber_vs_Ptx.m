@@ -82,7 +82,7 @@ rx.eq.Ntaps = 15;
 % (GaindB, ka, GainBW, R, Id) 
 pin = apd(0, 0, Inf, rx.R, rx.Id);
 
-apd = apd(10, 0.1, 40e9, rx.R, rx.Id);
+apd = apd(10, 0.1, 20e9, rx.R, rx.Id);
 
 % Calculate BER
 disp('BER with PIN')

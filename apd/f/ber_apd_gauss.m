@@ -54,22 +54,9 @@ sim.RIN = false; % RIN is not modeled here since number of samples is not high e
 % Direct detect
 yt = apd.detect(Pt, sim.fs, 'no noise');
 
-%% Noise whitening filter
-if false % ~isinf(apd.BW)
-    Nshot = apd.varShot(tx.Ptx*fiber.link_attenuation(tx.lamb), 1);
-        
-    Hw = sqrt((rx.N0+Nshot)./(Nshot.*apd.H(sim.f)/(apd.Gain*apd.R) + rx.N0));   
-    
-    Hch = Hch.*Hw;
-    
-    yt = real(ifft(fft(yt).*ifftshift(Hw)));
-else
-    Hw = 1;
-end
-
 %% Automatic gain control
-% Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
-yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
+% Normalize signal so that highest level is equal to 1
+yt = yt/(Pmax*link_gain); 
 mpam = mpam.norm_levels;
 
 %% Equalization
@@ -82,21 +69,18 @@ yd = yd(Nzero+1:end-Nzero);
 Pthresh = mpam.b; % refer decision thresholds to receiver
 
 % Noise bandwidth
-noise_std = apd.stdNoise(rx.eq.Hrx.*Hw, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
+noise_std = apd.stdNoise(rx.eq.Hrx, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
     
 %% Calculate error probabilities using Gaussian approximation for each transmitted symbol
 pe_gauss = zeros(mpam.M, 1);
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
-%     varShot = apd.varShot(Pmax*link_gain*yd(k)/apd.Gain, Dfshot); 
-    % Note: apd.BW*pi/2 is the noise BW of the APD frequency response
     sig = 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*yd(k));
-%     sig = 1/(Pmax*link_gain)*sqrt(rx.eq.Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
      
     if dat(k) == mpam.M-1
         pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((mu-Pthresh(end))/sig);
-    elseif dat(k) == 0;
+    elseif dat(k) == 0
         pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(1)-mu)/sig);
     else 
         pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(dat(k) + 1) - mu)/sig);

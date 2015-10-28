@@ -13,6 +13,7 @@ end
 % Optimize APD gain
 if isfield(sim, 'OptimizeGain') && sim.OptimizeGain
     apd.Gain = apd.optGain(mpam, tx, fiber, rx, sim, 'margin');
+    fprintf('Optimal APD Gain = %.2f (%2.f dB)\n', apd.Gain, apd.GaindB);
 end
 
 %% Channel response
@@ -28,16 +29,16 @@ link_gain = apd.Gain*apd.R*fiber.link_attenuation(tx.lamb); % Overall link gain
 
 % Design equalizer
 [~, eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer
-% This design assumes fixed zero-forcing equalizers
+% This design assumes fixed zero-forcing equalizers. Assuming ZF here isn't
+% a problem because SNR is high
 
 %% Noise calculations
+% eq.Hrx = receiver analog filter, eq.Hff = receiver digital feedforward filter
+% noise_std(P) = (thermal + shot + RIN) standard deviation for received power P
 noise_std = apd.stdNoise(eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
 
 %% Level Spacing Optimization
-if mpam.optimize_level_spacing  
-    % Doesn't include whitening filter
-    noise_std = apd.stdNoise(eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
-    
+if mpam.optimize_level_spacing     
     % Optimize levels using Gaussian approximation
     mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std, sim.verbose);     
 end
