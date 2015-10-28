@@ -6,7 +6,7 @@ addpath ../f
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
 sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
@@ -41,10 +41,10 @@ tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 tx.PtxdBm = -22:1:-8; % range for equally spaced levels
 
 % Modulator frequency response
-% tx.modulator.fc = 30e9; % modulator cut off frequency
-% tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-% tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
-% tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
+tx.modulator.fc = 30e9; % modulator cut off frequency
+tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
+tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
 %% b2b
 b2b = fiber();
@@ -53,14 +53,14 @@ b2b = fiber();
 rx.N0 = (30e-12).^2; % thermal noise psd
 % Electric Lowpass Filter
 % rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
-rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
+% rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 rx.Id = 10e-9;
 rx.R = 1;
 
 %% Equalization
-rx.eq.type = 'None';
+rx.eq.type = 'Fixed TD-SR-LE';
 % rx.eq.ros = 2;
-rx.eq.Ntaps = 15;
+rx.eq.Ntaps = 31;
 % rx.eq.Ntrain = 2e3;
 % rx.eq.mu = 1e-2;
 
@@ -69,19 +69,29 @@ pin = apd(0, 0, Inf, rx.R, rx.Id);
 ber_pin = apd_ber(mpam, tx, b2b, pin, rx, sim);
 
 % Variables to iterate
-Gains = 1:1:20;
-ka = [0.1 0.25 0.5 0.75];
-BW = Inf; % (10:2.5:50)*1e9;
+Gains = 1:20;
+ka = [0.1 0.25 0.5];
+BW = 1e9*[20 100; 20 200; 20 300;...
+    30 100; 30 200; 30 300]; % (10:2.5:50)*1e9;
 
 MargindB = zeros(length(ka), length(BW), length(Gains));
 Gopt_margin = zeros(length(ka), length(BW));
 OptMargindB = zeros(length(ka), length(BW));
 
+legs = {};
 for n = 1:length(ka)
-    for m = 1:length(BW)
+    figure(1000+n), hold on, box on, grid on
+    for m = 1:size(BW, 1)
         try
             [BER{n, m}, MargindB(n, m, :), Gopt_margin(n, m), OptMargindB(n, m)]...
-                = iterate(Gains, mpam, ka(n), BW(m), sim); 
+                = iterate(Gains, mpam, ka(n), BW(m, :), sim); 
+            
+            figure(1000+n), hold on
+            margin = MargindB(n, m, :);
+            margin = margin(:);
+            hlinem(m) = plot(Gains, margin);
+            plot(Gopt_margin(n, m), OptMargindB(n, m), 'o', 'Color', get(hlinem(m), 'Color'));
+            legs = [legs sprintf('ka = %.2f, BW0 = %.2f, GainBW = %.2f', ka(n), BW(m, 1)/1e9, BW(m, 2)/1e9)];
         catch e
             warning(e.message)
             MargindB(n, m, :) = NaN;
@@ -89,49 +99,39 @@ for n = 1:length(ka)
             OptMargindB(n, m) = NaN;
         end       
     end
+    figure(1000+n)
+    xlabel('APD Gain (Linear Units)')
+    ylabel('Margin Improvement (dB)')
+    legend(hlinem, legs, 'Location', 'SouthEast')
+    drawnow
 end
  
-% Plot
-% leg = {};
-% figure(1), hold on, grid on
+% figure, hold on, box on
+% legs = {};
 % for n = 1:length(ka)
-%     hline(n) = plot(Gains, MargindB(n, :));
-%     leg = [leg sprintf('ka = %.2f', ka(n))];
-%     plot(Gopt_margin(n), interp1(Gains, MargindB(n, :), Gopt_margin(n)), 'o', 'Color', get(hline(n), 'Color'));
-%     plot(Gains, MargindB_opt(n, :), '--', 'Color', get(hline(n), 'Color'))
-%     plot(Gopt_margin_opt(n), interp1(Gains, MargindB_opt(n, :), Gopt_margin_opt(n)), 'o', 'Color', get(hline(n), 'Color'));
-% end  
+%     plot(BW/1e9, OptMargindB(n, :), '-');
+%     legs = [legs sprintf('ka = %.2f', ka(n))];
+% end
+% xlabel('Bandwidth (GHz)')
+% ylabel('Optimal Margin (dB)')
+% legend(legs)
 % 
-% xlabel('APD Gain (Linear Units)')
-% ylabel(sprintf('Transmitted Optical Power (dBm) @ BER = %g', sim.BERtarget))
-% legend(hline, leg)
-
-figure, hold on, box on
-legs = {};
-for n = 1:length(ka)
-    plot(BW/1e9, OptMargindB(n, :), '-');
-    legs = [legs sprintf('ka = %.2f', ka(n))];
-end
-xlabel('Bandwidth (GHz)')
-ylabel('Optimal Margin (dB)')
-legend(legs)
-
-
-figure, box on, hold on
-legs = {};
-for n = 1:length(ka)
-    plot(BW/1e9, Gopt_margin(n, :), '-');
-    legs = [legs sprintf('ka = %.2f', ka(n))];
-end
-xlabel('Bandwidth (GHz)')
-ylabel('Optimal Gain (dB)')
-legend(legs)
+% 
+% figure, box on, hold on
+% legs = {};
+% for n = 1:length(ka)
+%     plot(BW/1e9, Gopt_margin(n, :), '-');
+%     legs = [legs sprintf('ka = %.2f', ka(n))];
+% end
+% xlabel('Bandwidth (GHz)')
+% ylabel('Optimal Gain (dB)')
+% legend(legs)
 
 % Save results
-% filename = sprintf('margin_vs_gain_results_%d-PAM_%s', mpam.M, mpam.level_spacing);
-% sim = rmfield(sim, 't');
-% sim = rmfield(sim, 'f');
-% save(filename)
+filename = sprintf('margin_vs_gain_BW_results_%d-PAM_%s', mpam.M, mpam.level_spacing);
+sim = rmfield(sim, 't');
+sim = rmfield(sim, 'f');
+save(filename)
 
 function [BER, MargindB, Gopt_margin, OptMargindB] = iterate(Gains, mpam, ka, BW, sim)
     % BER [1 x length(Gains)] struct = BER struct for each gain in Gains
@@ -156,7 +156,7 @@ function [BER, MargindB, Gopt_margin, OptMargindB] = iterate(Gains, mpam, ka, BW
     plot(tx.PtxdBm, log10(ber_pin.count), '-o', 'Color', get(hline(1), 'Color'))
     leg = [leg 'PIN'];
     for k= 1:length(Gains)
-        fprintf('- %d-PAM, %s, ka = %.2f, BW = %.2f, Gain = %.2f\n', mpam.M, mpam.level_spacing, ka, BW/1e9, Gains(k))
+        fprintf('- %d-PAM, %s, ka = %.2f, BW0 = %.2f, GainBW = %.2f, Gain = %.2f\n', mpam.M, mpam.level_spacing, ka, BW(1)/1e9, BW(2)/1e9, Gains(k))
         
         apdG.Gain = Gains(k);
 

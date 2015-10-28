@@ -65,7 +65,7 @@ rx.eq.Ntaps = 30;
 
 %% APD 
 % (GaindB, ka, BW, R, Id) 
-apdG = apd(20, 0.7, Inf, 1, 10e-9);
+apdG = apd(20, 0.1, Inf, 1, 10e-9);
 
 % BER
 sim.OptimizeGain = true;

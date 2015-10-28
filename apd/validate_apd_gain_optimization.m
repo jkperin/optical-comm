@@ -6,7 +6,7 @@ addpath ../f
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
 sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
@@ -64,7 +64,7 @@ rx.eq.Ntaps = 31;
 
 %% APD 
 % (GaindB, ka, BW, R, Id) 
-apdG = apd(6, 0.1, 20e9, 1, 10e-9);
+apdG = apd(6, 0.1, [20e9 200e9], 1, 10e-9);
 
 GainsdB = (3:18);
 % GainsdB = apd_opt.GaindB;
@@ -90,46 +90,46 @@ for k= 1:length(GainsdB)
     legends = [legends, sprintf('Gain = %.1f dB', GainsdB(k)), sprintf('Gain = %.1f dB (Count)', GainsdB(k))];
 end
 
-%% APD gain optimization for BER
-% for each power optimize APD gain
-for k = 1:length(tx.PtxdBm)
-    tx.Ptx = 1e-3*10^(tx.PtxdBm(k)/10);
-    
-    Gopt(k) = apdG.optGain(mpam, tx, fiber, rx, sim, 'BER'); 
-    apdG.Gain = Gopt(k);
-
-    % Noise std
-    noise_std = apdG.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
-
-    % Level spacing optimization
-    if mpam.optimize_level_spacing
-        mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);  
-    end
-    
-    mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
-    
-    Gopt_analytical(k) = apdG.optGain_minBER_analytical(mpam, rx.N0);
-          
-    mpam = mpam.adjust_levels(tx.Ptx*apdG.Gain*apdG.R, tx.rexdB);
-    
-    beropt(k) = mpam.ber_awgn(noise_std);
-%     [~, beropt(k)] = ber_apd_gauss(mpam, tx, fiber, apdG, rx, sim);
-end          
-
-plot(tx.PtxdBm, log10(beropt), '-k')
-
-legends = [legends, 'Optimal gain at every P'];
-xlabel('Received Power (dBm)')
-ylabel('log(BER)')
-legend(legends{:})
-axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
-
-figure, hold on, box on, grid on
-plot(tx.PtxdBm, Gopt)
-plot(tx.PtxdBm, Gopt_analytical, '--')
-legend('Gopt', 'Gopt analytical')
-xlabel('Received Power (dBm)')
-ylabel('Gain')
+% %% APD gain optimization for BER
+% % for each power optimize APD gain
+% for k = 1:length(tx.PtxdBm)
+%     tx.Ptx = 1e-3*10^(tx.PtxdBm(k)/10);
+%     
+%     Gopt(k) = apdG.optGain(mpam, tx, fiber, rx, sim, 'BER'); 
+%     apdG.Gain = Gopt(k);
+% 
+%     % Noise std
+%     noise_std = apdG.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
+% 
+%     % Level spacing optimization
+%     if mpam.optimize_level_spacing
+%         mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);  
+%     end
+%     
+%     mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
+%     
+%     Gopt_analytical(k) = apdG.optGain_minBER_analytical(mpam, rx.N0);
+%           
+%     mpam = mpam.adjust_levels(tx.Ptx*apdG.Gain*apdG.R, tx.rexdB);
+%     
+%     beropt(k) = mpam.ber_awgn(noise_std);
+% %     [~, beropt(k)] = ber_apd_gauss(mpam, tx, fiber, apdG, rx, sim);
+% end          
+% 
+% plot(tx.PtxdBm, log10(beropt), '-k')
+% 
+% legends = [legends, 'Optimal gain at every P'];
+% xlabel('Received Power (dBm)')
+% ylabel('log(BER)')
+% legend(legends{:})
+% axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
+% 
+% figure, hold on, box on, grid on
+% plot(tx.PtxdBm, Gopt)
+% plot(tx.PtxdBm, Gopt_analytical, '--')
+% legend('Gopt', 'Gopt analytical')
+% xlabel('Received Power (dBm)')
+% ylabel('Gain')
 
 %% APD gain optimization for margin
 Gopt_margin = apdG.optGain(mpam, tx, fiber, rx, sim, 'margin'); 
