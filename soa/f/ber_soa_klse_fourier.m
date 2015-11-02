@@ -114,18 +114,18 @@ for k = 1:Nsymb
     sig = sqrt(sum(betan.*(2*alphan + Npol*betan)) + varTherm + varSigDependent(yd(k))); % std of output random variable (including thermal noise)
     
     if dat(k) == mpam.M-1
-        pe(k) = pe(k) + tail_saddlepoint_approx(Pthresh(end), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
+        pe(mpam.M) = pe(mpam.M) + tail_saddlepoint_approx(Pthresh(end), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((mu-Pthresh(end))/sig);
     elseif dat(k) == 0;
-        pe(k) = pe(k) + tail_saddlepoint_approx(Pthresh(1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
+        pe(1) = pe(1) + tail_saddlepoint_approx(Pthresh(1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(1)-mu)/sig);
     else 
-        pe(k) = pe(k) + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
-        pe(k) = pe(k) + tail_saddlepoint_approx(Pthresh(dat(k)), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
+        pe(dat(k)+1) = pe(dat(k)+1) + tail_saddlepoint_approx(Pthresh(dat(k) + 1), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'right', Npol);
+        pe(dat(k)+1) = pe(dat(k)+1) + tail_saddlepoint_approx(Pthresh(dat(k)), D, ck(:, k), varASE, varTherm + varSigDependent(yd(k)), 'left', Npol);
         
         % Error probability using Gaussian approximation
         pe_gauss = pe_gauss + qfunc((Pthresh(dat(k) + 1) - mu)/sig);
@@ -157,6 +157,7 @@ if sim.verbose
 end
 
 %% Calculate pdfs using saddlepoint approximation
+berpdf = 'not calculated';
 if nargout == 3
     y = linspace(0, 2*max(abs(x).^2), 100);
     px = pdf_saddlepoint_approx(y, D, ck, varASE, varTherm, Npol, sim.verbose);
