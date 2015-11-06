@@ -1,6 +1,7 @@
 classdef soa
+    %% Semiconductor Optical Amplifier
     properties
-        Gain % Gain in linear units
+        Gain % Gain in linear units (same gain is assumed for both polarizations)
         Fn   % noise figure (dB)
         lamb % wavelength of operation (m)
         maxGaindB % maximum gain (dB)
@@ -9,20 +10,21 @@ classdef soa
         GaindB
         N0 % one-sided baseband equivalent of psd of ASE noise (complex Gaussian) per polarization 
     end
-    properties (Constant, GetAccess=protected)
+    properties (Constant, Hidden)
         h = 6.62606957e-34; % Planck
         q = 1.60217657e-19; % electron charge
         c = 299792458;      % speed of light
     end
     
     methods
-        %% constructor
         function obj = soa(GaindB, Fn, lamb, maxGaindB)
+            %% Class constructors
+            % maxGaindB is optional
             obj.Gain = 10^(GaindB/10);
             obj.Fn = Fn;
             obj.lamb = lamb;
                         
-            if nargin == 4
+            if exist('maxGaindB', 'var')
                 obj.maxGaindB = maxGaindB;
             else
                 obj.maxGaindB = Inf;
@@ -31,6 +33,7 @@ classdef soa
         
         %% Get methods
         function N0 = get.N0(obj)
+            %% ASE noise one-sided power spectrum density per polarization
             % assumming Gain >> 1
             Ssp = (obj.Gain - 1)*10^(obj.Fn/10)/2*(obj.h*obj.c/obj.lamb); % Agrawal 6.1.15 3rd edition
             
@@ -38,21 +41,27 @@ classdef soa
         end
         
         function GaindB = get.GaindB(obj)
-            GaindB = 10*log10(obj.Gain); % one-sided PSD
+            %% Gain in dB
+            GaindB = 10*log10(obj.Gain); 
         end
         
         %% Set methods
         function this = set.GaindB(this, GdB)
             this.Gain = 10^(GdB/10); % set Gain, since GaindB is dependent
         end
-               
-        %% Noise variance using AWGN approximation
-        % Plevel = power before amplifier
-        % Deltaf = Noise bandwidth of electric filter
-        % Deltafopt = Noise bandwidth of optical filter (!! bandpass filter)
-        % Npol = Number of noise polarizations. Default Npol = 1
+    end
+    
+    %% Main Methods
+    methods
         function sig2 = var_awgn(this, Plevel, Deltaf, Deltafopt, Npol)
-            if nargin < 5 % default Noise polarizations = 1
+            %% Noise variance using AWGN approximation
+            % - Plevel = power before amplifier
+            % - Deltaf = Noise bandwidth of electric filter
+            % - Deltafopt = Noise bandwidth of optical filter (!! bandpass filter)
+            % - Npol = Number of noise polarizations. Default Npol = 1
+            % !! Note: Responsivity is assumed to be 1. For different
+            % responsivity make sig2 = R^2*sig2
+            if exist('Npol', 'var') % default Noise polarizations = 1
                 Npol = 1;
             end
             % Signal-Spontaneous beat noise + Spont-Spont beat noise
@@ -62,11 +71,12 @@ classdef soa
             % Note 2: Responsivity is assumed to be 1. For different
             % responsivity make sig2 = R^2*sig2
         end
-        
-        %% Amplification
-        % Ein = received electric field in one pol; fs = sampling frequency
+       
         function output = amp(obj, Ein, fs)
-            % noise            
+            %% Amplification
+            % - Ein = received electric field (must be a N x 1 or 2 matrix
+            % depending on number of polarizations)
+            % - fs = sampling frequency     
             N = length(Ein);
             
             % N0 is the psd per polarization
@@ -75,9 +85,12 @@ classdef soa
             % Note: soa.N0 is one-sided baseband equivalent of ASE PSD.
             % Thus we multiply by sim.fs/2
             
-            output = [Ein*sqrt(obj.Gain) + w_x, w_y]; 
-        end
-            
+            if any(size(Ein) == 1) % 1-Pol
+                output = [Ein(:, 1)*sqrt(obj.Gain) + w_x, w_y]; 
+            else % 2-Pols
+                output = [Ein(:, 1)*sqrt(obj.Gain) + w_x, Ein(:, 2)*sqrt(obj.Gain) + w_y]; 
+            end
+        end   
     end
 end
             

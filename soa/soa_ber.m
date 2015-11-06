@@ -26,7 +26,7 @@ end
 %% Noise calculations
 % Thermal noise
 Deltaf = rx.elefilt.noisebw(sim.fs)/2; % electric filter one-sided noise bandwidth
-Deltafopt = rx.optfilt.noisebw(sim.fs); % optical filter noise bandwidth
+Deltafopt = rx.optfilt.noisebw(sim.fs); % optical filter noise bandwidth; Not divided by 2 because optical filter is a bandpass filter
 % Thermal noise
 varTherm = rx.N0*Deltaf; % variance of thermal noise
 

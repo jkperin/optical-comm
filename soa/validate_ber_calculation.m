@@ -56,7 +56,7 @@ tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 fiber = fiber(); % back-to-back
 
 %% Receiver
-rx.N0 = (20e-12).^2; % thermal noise psd
+rx.N0 = (30e-12).^2; % thermal noise psd
 rx.Id = 10e-9; % dark current
 rx.R = 1; % responsivity
 % Electric Lowpass Filter
@@ -66,7 +66,7 @@ rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
 rx.optfilt = design_filter('fbg', 4, 200e9/(sim.fs/2));
 
 %% SOA
-soa = soa(20, 7, 1310e-9, 20); % soa(GaindB, NF, lambda, maxGaindB)
+soa = soa(5, 7, 1310e-9, 20); % soa(GaindB, NF, lambda, maxGaindB)
 
 %% Time and frequency
 dt = 1/sim.fs;

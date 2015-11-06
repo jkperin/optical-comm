@@ -1,0 +1,12 @@
+diff a/soa/f/ber_soa_klse_fourier.m b/soa/f/ber_soa_klse_fourier.m	(rejected hunks)
+@@ -9,7 +9,9 @@
+ 
+ % berpdf (optional) = calculate BER using saddlepoint approximation for the
+ % pdf, and then calculate tail probability using numerical integration
+-function [bertail, bergauss, berpdf] = ber_soa_klse_fourier(mpam, tx, fiber, soa, rx, sim)
++% bertail_levels = BER of each level individually. This actually
++% corresponds bertail_levels = p(error | given symbol)p(symbol)
++function [bertail, bergauss, berpdf, bertail_levels] = ber_soa_klse_fourier(mpam, tx, fiber, soa, rx, sim)
+ 
+ % From klse_fourier.m
+ U = rx.U_fourier;
