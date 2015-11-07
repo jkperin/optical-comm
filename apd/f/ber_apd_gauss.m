@@ -54,21 +54,12 @@ sim.RIN = false; % RIN is not modeled here since number of samples is not high e
 % Direct detect
 yt = apd.detect(Pt, sim.fs, 'no noise');
 
-% Automatic gain control
-% Pmax = 2*tx.Ptx/(1 + 10^(-abs(tx.rexdB)/10)); % calculated from mpam.a
-yt = yt/(Pmax*link_gain); % just refer power values back to transmitter
+%% Automatic gain control
+% Normalize signal so that highest level is equal to 1
+yt = yt/(Pmax*link_gain); 
 mpam = mpam.norm_levels;
 
 %% Equalization
-if isfield(rx, 'eq') && (isfield(tx, 'modulator') || ~isinf(apd.BW))
-    rx.eq.type = strrep(rx.eq.type, 'Adaptive', 'Fixed'); % replace adaptive for fixed
-    % Note: in this simulation there aren't many symbols to determine the
-    % adaptive equalizer
-else % otherwise only filter using rx.elefilt
-    rx.eq.type = 'None';
-end
-
-% Equalizer
 [yd, rx.eq] = equalize(rx.eq, yt, Hch, mpam, rx, sim);
 
 % Symbols to be discard in BER calculation
@@ -78,39 +69,18 @@ yd = yd(Nzero+1:end-Nzero);
 Pthresh = mpam.b; % refer decision thresholds to receiver
 
 % Noise bandwidth
-Df  = rx.elefilt.noisebw(sim.fs)/2;
-% if strcmp(rx.eq.type, 'None')
-%     Heq = 1;
-% else
-%     Heq = freqz(rx.eq.num, rx.eq.den, sim.f, mpam.Rs);
-% end
-% Htot = Hch.*Heq; 
-% Df  = (1/(abs(Htot(sim.f==0)).^2))*trapz(sim.f, abs(Htot).^2)/2; % matched filter noise BW
-% Dfshot = (1/(abs(apd.H(0).*Htot(sim.f==0)).^2))*trapz(sim.f, abs(apd.H(sim.f).*Htot).^2)/2;
-% DfRIN = (1/(abs(fiber.H(0, tx).*apd.H(0).*Htot(sim.f==0)).^2))*trapz(sim.f, abs(fiber.H(sim.f, tx).*apd.H(sim.f).*Htot).^2)/2;
-
-% Variance of thermal noise
-varTherm = rx.N0*Df; 
-
-if RIN
-    varRIN =  @(Pnorm) 10^(tx.RIN/10)*(Pmax*link_gain*Pnorm).^2*Df;
-else
-    varRIN = @(Pnorm) 0;
-end
-
+noise_std = apd.stdNoise(rx.eq.Hrx, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
+    
 %% Calculate error probabilities using Gaussian approximation for each transmitted symbol
 pe_gauss = zeros(mpam.M, 1);
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
-    varShot = apd.varShot(Pmax*link_gain*yd(k)/apd.Gain, Df); 
-    % Note: apd.BW*pi/2 is the noise BW of the APD frequency response
-%     sig = 1/(Pmax*link_gain)*sqrt(varTherm + varShot + varRIN(yd(k)));
-    sig = 1/(Pmax*link_gain)*sqrt(rx.eq.Kne)*sqrt(varTherm + varShot + varRIN(yd(k)));
+    sig = 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*yd(k));
      
     if dat(k) == mpam.M-1
         pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((mu-Pthresh(end))/sig);
-    elseif dat(k) == 0;
+    elseif dat(k) == 0
         pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(1)-mu)/sig);
     else 
         pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(dat(k) + 1) - mu)/sig);

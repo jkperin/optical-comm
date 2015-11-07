@@ -43,7 +43,7 @@ function [Et, Pt] = optical_modulator(xt, tx, sim)
     
     % Ensures signal is non-negative
     Pt(Pt < 0) = 0;
-    
+
     if isfield(tx, 'alpha')
         %% Add chirp
         % Calculate electric field including chirp

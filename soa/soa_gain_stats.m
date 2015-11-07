@@ -11,7 +11,7 @@ q = 1.60217657e-19; % electron charge
 c = 299792458;      % speed of light
 
 %% SOA Parameters
-carrier_lifetime = 2000e-12;
+carrier_lifetime = 200e-12;
 PsatdBm = 10;
 G0 = 20; % unsaturated SOA gain
 
@@ -40,13 +40,14 @@ xlabel('Input Power (dBm)')
 ylabel('Amplifier Gain (dB)')
 
 %% 
+Mch = 1; % Number of WDM channels
 % M-PAM
 % M, Rb, leve_spacing, pshape
 mpam = PAM(4, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
-mpam = mpam.adjust_levels(1e-3*10^(-20/10), -5);
+mpam = mpam.adjust_levels(1e-3*10^(-20/10 - log10(Mch)), -5);
 
 Ns = floor(carrier_lifetime*mpam.Rs); % number of symbols to be averaged
-Mch = 4; % Number of WDM channels
+
 
 % 0 <= ki <= Mch x Ns 
 % k1 + k2 + k3 + k4 = Mch x Ns
