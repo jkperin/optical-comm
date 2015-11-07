@@ -17,7 +17,7 @@ addpath ../f % general functions
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^20; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
 sim.Mct = 15;      % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.Me = 16;       % Number of used eigenvalues
 sim.L = 2; % de Bruijin sub-sequence length (ISI symbol length)

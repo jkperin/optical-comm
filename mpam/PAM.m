@@ -28,8 +28,8 @@ classdef PAM
             % - M = constellation size
             % - Rb = bit rate
             % - level_spacing = 'equally-spaced' or 'optimized'
-            % - pshape = function handle of pulse shape
-           
+            % - pshape = function handle of pulse shape 
+            
             obj.M = M;
             obj.Rb = Rb;
             obj.level_spacing = level_spacing;
