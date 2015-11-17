@@ -6,13 +6,13 @@
 function [bergauss, bergauss_levels] = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim)
 
 Nsymb = mpam.M^sim.L; % number of data symbols 
-% number of zero symbols pad to begin and end of sequnece.
+% Number of symbols to be discared from begin and end of sequence
 if isfield(rx, 'eq') && isfield(rx.eq, 'Ntaps')
-    Nzero = max(rx.eq.Ntaps, sim.L);
+    Ndisc = max(rx.eq.Ntaps, sim.L);
 else
-    Nzero = sim.L;
+    Ndisc = sim.L;
 end
-N = sim.Mct*(Nsymb + 2*Nzero); % total number of points 
+N = sim.Mct*(Nsymb + 2*Ndisc); % total number of points 
 
 % Frequency
 df = 1/N;
@@ -36,8 +36,8 @@ Pmax = mpam.a(end); % used in the automatic gain control stage
 
 % Modulated PAM signal
 dataTX = debruijn_sequence(mpam.M, sim.L).'; % de Bruijin sequence
-xt = mpam.mod(dataTX, sim.Mct);
-xt = [zeros(sim.Mct*Nzero, 1); xt; zeros(sim.Mct*Nzero, 1)]; % zero pad
+dataTXext = wextend('1D', 'ppd', dataTX, Ndisc); % periodic extension
+xt = mpam.mod(dataTXext, sim.Mct);
 
 % Generate optical signal
 if ~isfield(sim, 'RIN')
@@ -63,20 +63,47 @@ mpam = mpam.norm_levels;
 [yd, rx.eq] = equalize(rx.eq, yt, Hch, mpam, rx, sim);
 
 % Symbols to be discard in BER calculation
-yd = yd(Nzero+1:end-Nzero);
+yd = yd(Ndisc+1:end-Ndisc);
 
 %% Detection
-Pthresh = mpam.b; % refer decision thresholds to receiver
+Pthresh = mpam.b; % decision thresholds referred to the receiver
 
-% Noise bandwidth
+% Noise std: includes RIN, shot and thermal noise (assumes gaussian stats)
 noise_std = apd.stdNoise(rx.eq.Hrx, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
-    
+
+%% Calculate signal-dependent noise variance after matched filtering and equalizer 
+% Since noise variance only depends on signal power, calculations are
+% performed using Pd (discrete-time power at the APD ouput)
+Pd = apd.Gain*apd.R*Pt(floor(sim.Mct/2)+1:sim.Mct:end);
+Pd = Pd/(Pmax*link_gain);
+
+if isfield(rx, 'eq') && isfield(rx.eq, 'Ntaps')
+    % Calculate impulse response of receiver filter (rx.eq.Hrx)
+    hrx2 = real(ifft(ifftshift(rx.eq.Hrx)));
+    hrx = hrx2(1:sim.Mct*floor(rx.eq.Ntaps/2));
+    hrx = [hrx2(end-sim.Mct*floor(rx.eq.Ntaps/2):end); hrx];
+
+    n = -floor(rx.eq.Ntaps/2)*sim.Mct:sim.Mct*floor(rx.eq.Ntaps/2);
+    hrxd = hrx(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
+
+    % Calculate discrete time g[n] = hrx[n] * heq[n]
+    g = conv(hrxd, rx.eq.num);
+    gg = g.*conj(g);
+    gg = gg/abs(sum(gg)); % normalize to unit gain at DC
+
+    % Filter power to obtain equivalent power that is used to calculate
+    % shot noise variance at decision instant n
+    Pd = filter(gg, 1, Pd);
+    Pd = circshift(Pd, [-round(grpdelay(gg, 1, 1)) 0]); % remove delay due to equalizer
+end
+Pd = Pd(Ndisc+1:end-Ndisc);
+
 %% Calculate error probabilities using Gaussian approximation for each transmitted symbol
 pe_gauss = zeros(mpam.M, 1);
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
-    sig = 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*yd(k));
+    sig = 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*Pd(k));
      
     if dat(k) == mpam.M-1
         pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((mu-Pthresh(end))/sig);

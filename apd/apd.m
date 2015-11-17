@@ -10,6 +10,7 @@ classdef apd
     end
     properties (Dependent)
         Fa % excess noise factor
+        Geff % effective gain = Gain*Responsivity
         BW   % Bandwidth
         GaindB % Gain in dB 
     end
@@ -90,6 +91,10 @@ classdef apd
             else
                 BW = this.BW0;
             end
+        end
+        
+        function Geff = get.Geff(this)
+            Geff = this.Gain*this.R;
         end
         
         function b = get.b(this) 
@@ -194,7 +199,7 @@ classdef apd
                % Divide by this.R*this.Gain because gain was already
                % included in output
             end
-            
+                        
             % Add thermal noise if N0 was provided
             if exist('N0', 'var')
                 output = output + sqrt(N0*fs/2).*randn(size(Pin)); % includes thermal noise
@@ -207,9 +212,10 @@ classdef apd
             % Thermal, shot and RIN are assumed to be white AWGN.
             % Inputs:
             % - Hrx = receiver filter evaluated at sim.f e.g., matched filter 
-            % - Heq = equalizer frequency response evaluated at sim.f
+            % - Hff = equalizer frequency response evaluated at sim.f
             % - N0 = thermal noise PSD
-            % - RIN (optional, by default is not included) = RIN in dB/Hz
+            % - RIN = RIN in dB/Hz (if empty RIN is not included)
+            % - sim = sim struct            
             
             Htot = Hrx.*Hff; % !! must be change to include oversampling 
             if isinf(this.BW)
@@ -227,7 +233,7 @@ classdef apd
             varTherm = N0*Df; % variance of thermal noise
 
             % RIN
-            if nargin >= 4 && isfield(sim, 'RIN') && sim.RIN
+            if ~isempty(RIN) && isfield(sim, 'RIN') && sim.RIN
                 varRIN =  @(Plevel) 10^(RIN/10)*Plevel.^2*DfRIN;
             else
                 varRIN = @(Plevel) 0;

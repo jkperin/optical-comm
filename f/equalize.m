@@ -337,6 +337,8 @@ switch eq.type
                 yd = filter(W, 1, yk);
                 yd = circshift(yd, [-(eq.Ntaps-1)/2 0]); % remove delay due to equalizer
             end  
+            
+            eq.hmatched = hmatched;
 
             % Aux
             eq.num = W;

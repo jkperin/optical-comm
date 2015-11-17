@@ -48,7 +48,7 @@ end
 if isfield(rx.eq, 'Ntaps')
     Ndiscard = Ndiscard + rx.eq.Ntaps;
 end
-ndiscard = [1:10*Ndiscard(1) sim.Nsymb-10*Ndiscard(2):sim.Nsymb];
+ndiscard = [1:Ndiscard(1) sim.Nsymb-Ndiscard(2):sim.Nsymb];
 yd(ndiscard) = []; 
 % shotd(ndiscard) = [];
 dataTX(ndiscard) = [];
