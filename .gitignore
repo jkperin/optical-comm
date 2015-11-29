@@ -18,3 +18,4 @@ soa/trash/
 apd/trash/
 mpam/trash/
 !gui/data/*.png
+*.o*

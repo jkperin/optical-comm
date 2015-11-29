@@ -1,4 +1,6 @@
 function ber = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim)
+verbose = sim.verbose;
+sim.verbose = max(sim.verbose-1, 0);
 
 %% Channel response
 % Hch does not include transmitter or receiver filter
@@ -30,6 +32,13 @@ xt(end-sim.Mct*sim.Ndiscard+1:end) = 0; % zero sim.Ndiscard last symbbols
 %% Detect and add noises
 yt = apd.detect(Pt, sim.fs, 'gaussian', rx.N0);
 
+%% Whitening filter
+if sim.WhiteningFilter
+    [Hw, yt] = apd.Hwhitening(sim.f, tx.Ptx, rx.N0, yt);
+else
+    Hw = 1;
+end
+
 %% Automatic gain control
 % Normalize signal so that highest level is equal to 1
 yt = yt/(Pmax*link_gain);
@@ -37,8 +46,7 @@ yt = yt/(Pmax*link_gain);
 mpam = mpam.norm_levels;
 
 %% Equalization
-% [shotd, ~] =  equalize(rx.eq, shot, Hch, mpam, rx, sim);
-[yd, rx.eq] = equalize(rx.eq, yt, Hch, mpam, rx, sim);
+[yd, rx.eq] = equalize(rx.eq, yt, Hw.*Hch, mpam, rx, sim);
 
 % Symbols to be discarded in BER calculation
 Ndiscard = sim.Ndiscard*[1 1];
@@ -50,7 +58,6 @@ if isfield(rx.eq, 'Ntaps')
 end
 ndiscard = [1:Ndiscard(1) sim.Nsymb-Ndiscard(2):sim.Nsymb];
 yd(ndiscard) = []; 
-% shotd(ndiscard) = [];
 dataTX(ndiscard) = [];
 
 % Demodulate
@@ -59,14 +66,7 @@ dataRX = mpam.demod(yd);
 % True BER
 [~, ber] = biterr(dataRX, dataTX);
 
-if sim.verbose
-    % Signal
-    figure(102), hold on
-    plot(link_gain*Pt)
-    plot(yt, '-k')
-    plot(ix, yd, 'o')
-    legend('Transmitted power', 'Received signal', 'Samples')
-    
+if verbose  
     % Heuristic pdf for a level
     figure(100)
     [nn, xx] = hist(yd(dataTX == 2), 50);

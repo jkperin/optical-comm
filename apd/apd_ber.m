@@ -2,6 +2,8 @@ function [ber, mpam, apd] = apd_ber(mpam, tx, fiber, apd, rx, sim)
 %% Calculate BER of unamplified IM-DD system with APD detector 
 % BER is calculated via montecarlo simulation, analytically, AWGN channel, 
 % AWGN channel including noise enhancement penalty.
+verbose = sim.verbose;
+sim.verbose = max(sim.verbose-1, 0);
 
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
@@ -12,78 +14,46 @@ end
 
 % Optimize APD gain
 if isfield(sim, 'OptimizeGain') && sim.OptimizeGain
-    apd.Gain = apd.optGain(mpam, tx, fiber, rx, sim, 'margin');
+    [apd.Gain, mpam] = apd.optGain(mpam, tx, fiber, rx, sim, 'margin');
     fprintf('Optimal APD Gain = %.2f (%2.f dB)\n', apd.Gain, apd.GaindB);
-end
-
-%% Channel response
-% Hch does not include transmitter or receiver filter
-if isfield(tx, 'modulator')
-    Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
-    .*fiber.H(sim.f, tx).*apd.H(sim.f);
-else
-    Hch = fiber.H(sim.f, tx).*apd.H(sim.f);
-end
-
-link_gain = apd.Gain*apd.R*fiber.link_attenuation(tx.lamb); % Overall link gain
-
-% Design equalizer
-[~, eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer
-% This design assumes fixed zero-forcing equalizers. Assuming ZF here isn't
-% a problem because SNR is high
-
-%% Noise calculations
-% eq.Hrx = receiver analog filter, eq.Hff = receiver digital feedforward filter
-% noise_std(P) = (thermal + shot + RIN) standard deviation for received power P
-noise_std = apd.stdNoise(eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
-
-%% Level Spacing Optimization
-if mpam.optimize_level_spacing     
+    % if mpam.level_spacing = 'optimized', then apd.optGain returns mpam 
+    % with optimal level spacing
+elseif mpam.optimize_level_spacing  %% Level Spacing Optimization
     % Optimize levels using Gaussian approximation
-    mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std, sim.verbose);     
+    [~, mpam] = apd.optimize_PAM_levels(apd.Gain, mpam, tx, fiber, rx, sim);
+    mpam = mpam.norm_levels();
 end
 
-rx.noise_std = noise_std;
-
-%% Calculations BER
+%% BER
 % Transmitted power
 Ptx = dBm2Watt(tx.PtxdBm);
 
 ber.count = zeros(size(Ptx));
-%ber.est = zeros(size(Ptx));
 ber.gauss = zeros(size(Ptx));
 ber.awgn = zeros(size(Ptx));
 ber.gauss_levels = zeros(mpam.M, length(Ptx));
-ber.awgn_levels = zeros(mpam.M, length(Ptx));
-ber.awgn_ne = zeros(size(Ptx));
 for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
             
     % Montecarlo simulation
     ber.count(k) = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim);
     
-    % Analytical BER
-    [ber.gauss(k), ber.gauss_levels(:, k)] = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim);
-    
-    % AWGN  
-    mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
-
-    [ber.awgn(k), ber.awgn_levels(:, k)] = mpam.ber_awgn(noise_std);
-    
-    % AWGN including noise enhancement penalty
-    ber.awgn_ne(k) = mpam.ber_awgn(@(P) sqrt(eq.Kne)*noise_std(P));
+    % BER using Gaussian stats approximation for shot noise (enumeration)
+    % AWGN approximation is also included by this function
+    [ber.gauss(k), ber.gauss_levels(:, k), ber.awgn(k)] = ...
+        ber_apd_gauss(mpam, tx, fiber, apd, rx, sim);
 end
 
-if sim.verbose
-    figure, hold on
-    plot(tx.PtxdBm, log10(ber.count), '-o')
-%     plot(tx.PtxdBm, log10(ber.est))
-    plot(tx.PtxdBm, log10(ber.gauss))
-    % plot(tx.PtxdBm, log10(ber.est_pdf))
-    plot(tx.PtxdBm, log10(ber.awgn))
-    plot(tx.PtxdBm, log10(ber.awgn_ne))
-    legend('Counted', 'Gaussian approximation', 'AWGN approximation',...
-        'AWGN + noise enhancement', 'Location', 'SouthWest')
-    axis([tx.PtxdBm(1) tx.PtxdBm(end) -10 0])
+if verbose
+    PrxdBm = tx.PtxdBm - 10*log10(fiber.link_attenuation(tx.lamb));
+    figure(1), hold on, box on
+    hline = plot(PrxdBm, log10(ber.count), 'o');
+    plot(PrxdBm, log10(ber.gauss), '-', 'Color', get(hline, 'Color'))
+    plot(PrxdBm, log10(ber.awgn), '--', 'Color', get(hline, 'Color'))
+    legend('Counted', 'Gaussian stats approximation', 'AWGN approximation',...
+        'Location', 'SouthWest')
+    xlabel('Received Power (dBm)')
+    ylabel('log_{10}(BER)')
+    grid on
+    axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
 end
-    

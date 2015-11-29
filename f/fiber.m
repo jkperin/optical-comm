@@ -45,11 +45,12 @@ classdef fiber
             end           
         end
         
-        function link_att = link_attenuation(this, lamb)
+        function [link_att, link_attdB] = link_attenuation(this, lamb)
             %% Calculate link attenuation in linear units
             % Input:
             % - lamb = wavelength (m)
             link_att = 10^(-this.att(lamb)*this.L/1e4);
+            link_attdB = this.L/1e3*this.att(lamb);
         end
 
         function [Eout, Pout] = linear_propagation(this, Ein, f, lambda)

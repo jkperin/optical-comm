@@ -282,7 +282,7 @@ The optimal gain is a solution to the equation
 & bG^3 = dG + 2e 
 \end{align}
 
-\subsection{Receiver Sensitivity or Margin Maximization}
+\subsection{Receiver sensitivity or margin maximization}
 
 We would like to determine the APD gain that leads to the maximum margin i.e., the smallest received power required to achieve the target BER. Formally,
 \begin{align}
@@ -346,9 +346,90 @@ The noise bandwidth is given by
 \Delta f = \int_{0}^{\infty} |H_{APD}(f)|^2 df = W_{APD}\frac{\pi}{4}
 \end{equation}
 
-\section{ISI enhanced signal-dependent noise}
+Another common representation of the APD frequency response is to use the deterministic exponential decay: $h_{APD}(t) = Be^{-tB}u(t)$. Which corresponds to the frequency response:
+\begin{equation}
+H_{APD}(f) = \frac{1}{1 + j\frac{f}{W_{APD}}}
+\end{equation}
 
-Fig. \ref{fig:eq_discrete_time} shows the equivalent discrete-time system model, where $x[n]$ are the transmitted symbols, $p[n]$ corresponds to the pulse shape and includes any other frequency response limitations such as modulator and fiber.  $s[n]$ is the signal dependent noise whose variance is determined by $x[n]\ast g[n]$. Note, that $s[n]$ is signal-dependent only for simplicity. The effects of signal-independent noises can be added later by superposition. $h[n]$ includes the other frequency response limitations such as the APD frequency response. Moreover, $h[n]$ includes the matched filter and the linear equalizer.
+The amplitude response of this transfer function is identical to the one used before. However, their phase responses are different.
+
+\section{System design}
+\begin{figure}[!h]
+	\centering
+	\begin{tikzpicture}[auto, node distance=2cm,>=latex']   
+	
+	% Place nodes using a matrix
+	\matrix (m1) [row sep=4mm, column sep=4mm]
+	{
+		%--------------------------------------------------------------------
+		\node [coordinate, label=$x(t)$] (m00) {};          &
+		\node [dspfilter] (m01) {$p(t)$};   		&
+		\node [dspfilter] (m02) {$h_{ch}(t)$};   		&
+		\node [dspadder] (m03) {};   		&
+		\node [dspfilter] (m04) {$h_{APD}(t)$}; 	&
+		\node [dspadder] (m05) {};   		&
+		\node [dspfilter] (m06) {$h_W(t)$}; &
+		\node [dspfilter] (m07) {$h_{rx}(t)$}; &
+		\node [coordinate, label=$z(t)$] (m08) {}; \\
+		&
+		&
+		&
+		\node [coordinate] (shot) {}; &
+		&
+		\node [coordinate] (thermal) {}; &
+		&
+		& \\
+		%--------------------------------------------------------------------
+	};
+	\foreach \i [evaluate = \i as \j using int(\i+1)] in {0, 1,2,3, 4,5,6, 7}
+		\draw[dspflow] (m0\i) -- (m0\j);
+	
+	\draw[dspconn] (shot) -- node[below] {$s(t)$} (m03); %-- node[midway, above] {$p[n]$} 
+	\draw[dspconn] (thermal) -- node[below] {$n(t)$} (m05);
+	\end{tikzpicture}
+	\caption{System model block diagram.} \label{fig:sys-diagram}
+\end{figure}
+
+
+\subsection{Noise whitening filter}
+
+Shot noise is shaped by the APD frequency response, and consequently the total noise (shot plus thermal noise) is not white. Thus, we must use the whitening filter so that the total noise is white:
+
+\begin{align} \nonumber
+|H_W(f)|^2\Big(N_0 + |H_{APD}(f)|^2S_{shot}\Big) &= N_0 + S_{shot} \\ \nonumber
+|H_W(f)|^2 &= \frac{N_0 + S_{shot}}{N_0 + |H_{APD}(f)|^2S_{shot}} \\
+ &= \frac{1 + \frac{N_0}{S_{shot}}}{\frac{N_0}{S_{shot}} + |H_{APD}(f)|^2}
+\end{align}
+
+The effect of this filter in the performance is virtually negligible. Probably this occurs because the temporal correlation of shot noise is not that significant compared to the symbol period.
+
+\subsection{Detected noise variance}
+
+The total noise after the noise whitening filter is
+\begin{equation}
+w(t) = h_W(t)\ast h_{APD} \ast s(t) + h_W(t)\ast n(t)
+\end{equation}
+
+The noise variance is given by
+\begin{equation}
+\text{Var}(w(t)) = \sigma_s^2(t)\ast \Big((h_W(t)\ast h_{APD}(t))(h_W^*(t)\ast h_{APD}^*(t)) + \sigma^2_n \int_{-\infty}^{\infty} |h_W(\tau)|^2 d\tau
+\end{equation}
+
+If thermal noise is dominant, then $h_W(t)\ast h_{APD} \approx h_APD(t)$:
+\begin{equation}
+\text{Var}(w(t)) = \sigma_s^2(t)\ast (h_{APD}(t) \ast h_{APD}^*(t)) + \sigma^2_n
+\end{equation}
+
+If shot noise is dominant, then $h_W(t)\ast h_{APD} \approx \delta(t)$:
+\begin{equation}
+\text{Var}(w(t)) = \sigma_s^2(t) + \sigma^2_n \int_{-\infty}^{\infty} |h_W(\tau)|^2 d\tau
+\end{equation}
+
+\subsection{ISI enhanced signal-dependent noise}
+
+In the case of interest when shot noise is dominant, the shot noise is approximately white as shown in the previous section; however, it is still time-dependent. This time dependency will enhance the effective variance of the noise after matched filtering and equalization.
+
+Fig. \ref{fig:eq_discrete_time} shows the equivalent discrete-time system model, where $x[n]$ are the transmitted symbols, $p[n]$ corresponds to the pulse shape and includes all frequency response limitations such as transmitter filter, modulator, fiber, APD, and whitening filter.  $s[n]$ is the whitened signal dependent noise whose variance is determined by $x[n]\ast \tilde{p}[n]$, where $\tilde{p}[n]$ is the impulse response corresponding to the filter before the APD i.e., transmitter, modulator, and fiber. Note, that $s[n]$ is signal-dependent only for simplicity. The effects of signal-independent noises can be added later by superposition. $g[n]$ corresponds to the cascade of the matched filter $h[n] = p^*[-n]$ and the equalizer $h_{eq}[n]$. 
 
 \begin{figure}[!h]
 	\centering
@@ -379,14 +460,12 @@ Fig. \ref{fig:eq_discrete_time} shows the equivalent discrete-time system model,
 	\caption{Equivalent discrete-time system with symbol-rate sampling} \label{fig:eq_discrete_time}
 \end{figure}
 
-If $x[n]\ast g[n]$ is ISI free, then the noise samples $s[n]$ will be uncorrelated and the system penalty will be due only to noise enhancement penalty. When $x[n]\ast p[n]$ is not ISI free there will be an additional penalty caused by the ISI enhanced signal-dependent noise.
-
 Using the equivalent discrete-time system:
 \begin{align}
 y_s[n] &= h_{eq}[n]\ast(s[n]\ast h[n]) \\
 & = \sum_{m=-L_1}^{L_2} s[n-m]g[m]
 \end{align}
-where $g[m] = h_{eq}[n]\ast h[n]$
+where $g[n] = h_{eq}[n]\ast h[n]$
 
 For the variance
 \begin{align}
@@ -396,7 +475,7 @@ For the variance
 & = \sum_{m_1=-L_1}^{L_2}\sum_{m_2=-L_1}^{L_2}  E\Big(s[n-m_1]s^*[n-m_2]\Big)g[m_1]g^*[m_2]
 \end{align}
 
-Assuming firs that the variance is time-independent: $E\Big(s[n-m_1]s^*[n-m_2]\Big) = \sigma^2\delta[m_1-m_2]$
+Assuming first that the variance is time-independent: $E\Big(s[n-m_1]s^*[n-m_2]\Big) = \sigma^2\delta[m_1-m_2]$
 
 \begin{align}
 \text{Var}(y_s[n]) & = \sigma^2\sum_{m=-L_1}^{L_2} g[m]g^*[m] \\
@@ -410,11 +489,10 @@ Now assuming that the variance is time-dependent: $E\Big(s[n-m_1]s^*[n-m_2]\Big)
 
 \begin{align}
 \text{Var}(y_s[n]) & = \sum_{m=-L_1}^{L_2} \sigma^2[n-m]g[m]g^*[m] \\
-& = \sum_{m=-L_1}^{L_2}  \sigma^2[n-m]g[m]\bigg(\sum_{\nu= -N_1}^{N_2} h^*_{eq}[m-\nu]h^*[\nu]\bigg)
+& = \sigma^2[n]\ast (g[n]g^*[n])
 \end{align}
 
-More compactly, it can be written as $\text{Var}(y_s[n]) = \sigma^2[n]\ast (g^*[m]g[m])$.
-
+The variance $\sigma^2[n]$ is a function of time because the noise is signal dependent, but the noise has no temporal correlation.
 
 \begin{thebibliography}{9}
 \bibitem{personick-comp-4methos} Personick, S. D., Balaban, P., Bobsin, J. H., and Kumar, P.; ``R.A Detailed Comparison of Four Approaches to the Calculation of the Sensitivity of Optical Fiber System Receivers,'' \emph{IEEE Transactions on Communications}, 1976.

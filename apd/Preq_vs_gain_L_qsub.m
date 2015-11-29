@@ -1,4 +1,4 @@
-function margin_vs_gain_qsub(M, ka, level_spacing, BW0GHz, GainBWGHz, modBWGHz)
+function Preq_vs_gain_L_qsub(M, ka, level_spacing, BW0GHz, GainBWGHz, modBWGHz, Lkm)
 %% Function to calculate power margin vs gain in bactch simulation on corn
 % On server inputs are passed as strings
 % - M = PAM order
@@ -16,12 +16,13 @@ addpath ../f
 addpath f
 
 % Convert inputs to double
-if ~isnumeric([M, ka, BW0GHz, GainBWGHz, modBWGHz])
+if ~isnumeric([M, ka, BW0GHz, GainBWGHz, modBWGHz, Lkm])
     M = str2double(M);
     ka = str2double(ka);
     BW0GHz = str2double(BW0GHz);
     GainBWGHz = str2double(GainBWGHz);
     modBWGHz = str2double(modBWGHz);
+    Lkm = str2double(Lkm);
 end
 
 % Simulation parameters
@@ -31,13 +32,13 @@ sim.L = 4;      % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
-sim.WhiteningFilter = true;
+sim.WhiteningFilter = false;
 
 %
 sim.shot = true; % include shot noise (apd simulations always include shot noise)
 sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
 sim.verbose = 0; % show stuff
-sim.plots = 1;
+sim.plots = 0;
 
 % M-PAM
 mpam = PAM(M, 107e9, level_spacing, @(n) double(n >= 0 & n < sim.Mct)); 
@@ -54,13 +55,13 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.lamb = 1310e-9; % wavelength
-tx.alpha = 0; % chirp parameter
+tx.lamb = 1330e-9; % wavelength
+tx.alpha = 2; % chirp parameter
 tx.RIN = -150;  % dB/Hz
 tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
 if mpam.M == 4
-    tx.PtxdBm = -25:1:-6; % range for equally spaced levels
+    tx.PtxdBm = -25:1:-3; % range for equally spaced levels
 elseif mpam.M == 8
     tx.PtxdBm = -20:1:-5; % range for equally spaced levels
 end
@@ -74,8 +75,8 @@ if ~isinf(modBWGHz)
     tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 end
 
-%% b2b
-b2b = fiber();
+%% Fiber
+link = fiber(1e3*Lkm, @(lamb) 0.35); % fix attenuation of 0.35 dB/km, SSMF
 
 %% Receiver
 rx.N0 = (30e-12).^2; % thermal noise psd
@@ -102,15 +103,17 @@ else
 end
 
 %% Calculate BER for PIN with same properties, but inifinite bandwidth
-% ber_pin = apd_ber(mpam, tx, b2b, pin, rx, sim);
-% 
-% PtxdBm_pin_BERtarget = interp1(log10(ber_pin.gauss), tx.PtxdBm, log10(sim.BERtarget));
+pin = apd(0, 0, Inf, rx.R, rx.Id);
+
+ber_pin = apd_ber(mpam, tx, link, pin, rx, sim);
+
+PtxdBm_pin_BERtarget = interp1(log10(ber_pin.gauss), tx.PtxdBm, log10(sim.BERtarget));
 
 % Variable to iterate
 if isinf(BW0GHz) && isinf(GainBWGHz) && isinf(modBWGHz)
     Gains = 1:0.5:30;
 else
-    Gains = 1:2:20;
+    Gains = 1:0.5:20;
 end
 
 % APD
@@ -126,13 +129,13 @@ if sim.plots
 %     leg = [leg 'PIN'];
 end
 for k= 1:length(Gains)
-    fprintf('- %d-PAM, %s, ka = %.2f, BW0 = %.2f, GainBW = %.2f, Gain = %.2f\n',...
-        mpam.M, mpam.level_spacing, ka, apdG.BW0/1e9, apdG.GainBW/1e9, Gains(k))
+    fprintf('- %d-PAM, %s, ka = %.2f, BW0 = %.2f, GainBW = %.2f, Gain = %.2f, L = %.2f\n',...
+        mpam.M, mpam.level_spacing, ka, apdG.BW0/1e9, apdG.GainBW/1e9, Gains(k), Lkm)
 
     apdG.Gain = Gains(k);
 
     % BER
-    ber_apd = apd_ber(mpam, tx, b2b, apdG, rx, sim);
+    ber_apd = apd_ber(mpam, tx, link, apdG, rx, sim);
     BER(k) = ber_apd;
 
     % Calculate power at the target BER
@@ -161,26 +164,21 @@ end
 sim.OptimizeGain = true;
 
 % Optimal gain
-[ber_apd_opt, ~, apdG] = apd_ber(mpam, tx, b2b, apdG, rx, sim);
+[ber_apd_opt, ~, apdG] = apd_ber(mpam, tx, link, apdG, rx, sim);
 Gopt_margin = apdG.Gain;
 
 PtxdBm_BERtarget_opt = interp1(log10(ber_apd_opt.gauss), tx.PtxdBm, log10(sim.BERtarget));
 
-% OptMargindB = PtxdBm_pin_BERtarget - PtxdBm_BERtarget_opt;  
+%% Main results
+[~, link_attdB] = link.link_attenuation(tx.lamb);
+PrxdBm_BERtarget_opt = PtxdBm_BERtarget_opt - link_attdB;
+% Gopt_margin, Gains
+PrxdBm_BERtarget = PtxdBm_BERtarget - link_attdB;
+PrxdBm_pin_BERtarget = PtxdBm_pin_BERtarget - link_attdB;
 
-% Plot optimal gain
-if sim.plots
-    hline(end+1) = plot(tx.PtxdBm, log10(ber_apd_opt.gauss), '-k');
-    plot(tx.PtxdBm, log10(ber_apd_opt.awgn), '--', 'Color', get(hline(end), 'Color'))
-    plot(tx.PtxdBm, log10(ber_apd_opt.count), '-o', 'Color', get(hline(end), 'Color'))
-    leg = [leg sprintf('Optimal Gain = %.2f', apdG.Gain)];
-    legend(hline, leg)  
-    drawnow
-end
-
-% Save results
-filename = sprintf('results/data/margin_vs_gain_%d-PAM_%s_ka=%d_BW0=%d_GainBW=%d_modBW=%d',...
-    mpam.M, mpam.level_spacing, round(100*ka), BW0GHz, GainBWGHz, modBWGHz);
+%% Save results
+filename = sprintf('results/data_fiber2/Preq_vs_gain_L_%d-PAM_%s_ka=%d_BW0=%d_GainBW=%d_modBW=%d_L=%dkm',...
+    mpam.M, mpam.level_spacing, round(100*ka), BW0GHz, GainBWGHz, modBWGHz, Lkm);
 sim = rmfield(sim, 't');
 sim = rmfield(sim, 'f');
 clear f t

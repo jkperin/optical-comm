@@ -8,18 +8,19 @@ addpath f
 % Simulation parameters
 sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
 sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
-sim.L = 5;        % de Bruijin sub-sequence length (ISI symbol length)
+sim.L = 3;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
+sim.WhiteningFilter = ~true;
 
 %
 sim.shot = true; % include shot noise. Only included in montecarlo simulation (except for APD)
-sim.RIN = ~true; % include RIN noise. Only included in montecarlo simulation
-sim.verbose = ~true; % show stuff
+sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
+sim.verbose = 1; % verbose level: verbose is decremented on each function. If verbose=0, nothing is shown
 
 % M-PAM
-mpam = PAM(4, 100e9, 'optimized', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(4, 107e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -33,7 +34,7 @@ sim.t = t;
 sim.f = f;
 
 %% Transmitter
-tx.PtxdBm = -26:-10;
+tx.PtxdBm = -25:-10;
 
 tx.lamb = 1310e-9; % wavelength
 tx.alpha = 0; % chirp parameter
@@ -65,21 +66,12 @@ rx.eq.Ntaps = 31;
 
 %% APD 
 % (GaindB, ka, BW, R, Id) 
-apdG = apd(20, 0.1, 20e9, 1, 10e-9);
+apdG = apd(15, 0.1, 20e9, 1, 10e-9);
 
 % BER
-sim.OptimizeGain = true;
+sim.OptimizeGain = ~true;
 ber_apd = apd_ber(mpam, tx, fiber, apdG, rx, sim);
-     
-figure(1), hold on, box on
-plot(tx.PtxdBm, log10(ber_apd.gauss), '-');
-plot(tx.PtxdBm, log10(ber_apd.count), '--o')
-plot(tx.PtxdBm, log10(ber_apd.awgn), '--')    
-legend('Estimated', 'Montecarlo', 'AWGN')
-xlabel('Received Power (dBm)')
-ylabel('log_{10}(BER)')
-grid on
-axis([tx.PtxdBm([1 end]) -8 0])
 
-
-    
+mpam.level_spacing = 'optimized';
+ber_apd_eq = apd_ber(mpam, tx, fiber, apdG, rx, sim);
+        

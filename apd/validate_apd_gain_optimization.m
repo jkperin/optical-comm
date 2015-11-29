@@ -6,20 +6,21 @@ addpath ../f
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
 sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
+sim.WhiteningFilter = true;
 
 %
 sim.shot = true; % include shot noise. Only included in montecarlo simulation (except for APD)
 sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
-sim.verbose = ~true; % show stuff
+sim.verbose = 0; % show stuff
 
 % M-PAM
-mpam = PAM(8, 100e9, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
+mpam = PAM(4, 100e9, 'optimized', @(n) double(n >= 0 & n < sim.Mct));
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -79,6 +80,7 @@ PtxdBm_BERtarget = zeros(size(GainsdB));
 figure, hold on, grid on
 legends = {};
 for k= 1:length(GainsdB)
+    fprintf('Gain = %.2f dB\n', GainsdB(k));
 
     apdG.GaindB = GainsdB(k);
 
@@ -98,6 +100,16 @@ xlabel('Received Power (dBm)')
 ylabel('log(BER)')
 legend(legends{:})
 axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
+
+%% APD gain optimization for margin
+Gopt_margin = apdG.optGain(mpam, tx, fiber, rx, sim, 'margin'); 
+
+figure, hold on, grid on
+plot(Gains, PtxdBm_BERtarget)
+plot(Gopt_margin, interp1(Gains, PtxdBm_BERtarget, Gopt_margin), 'ok')
+xlabel('APD Gain (Linear Units)')
+ylabel(sprintf('Transmitted Optical Power (dBm) @ BER = %g', sim.BERtarget))
+% axis([Gains(1) Gains(end) -21 -19]);
 
 % %% APD gain optimization for BER
 % % for each power optimize APD gain
@@ -139,16 +151,3 @@ axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
 % legend('Gopt', 'Gopt analytical')
 % xlabel('Received Power (dBm)')
 % ylabel('Gain')
-
-%% APD gain optimization for margin
-Gopt_margin = apdG.optGain(mpam, tx, fiber, rx, sim, 'margin'); 
-
-figure, hold on, grid on
-plot(Gains, PtxdBm_BERtarget)
-plot(Gopt_margin, interp1(Gains, PtxdBm_BERtarget, Gopt_margin), 'ok')
-xlabel('APD Gain (Linear Units)')
-ylabel(sprintf('Transmitted Optical Power (dBm) @ BER = %g', sim.BERtarget))
-% axis([Gains(1) Gains(end) -21 -19]);
-
-
-   

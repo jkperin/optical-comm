@@ -3,7 +3,9 @@
 % bertail_levels = BER of each level individually. This actually
 % corresponds bertail_levels = p(error | given symbol)p(symbol)
 
-function [bergauss, bergauss_levels] = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim)
+function [bergauss, bergauss_levels, ber_awgn] = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim)
+verbose = sim.verbose;
+sim.verbose = max(sim.verbose-1, 0);
 
 Nsymb = mpam.M^sim.L; % number of data symbols 
 % Number of symbols to be discared from begin and end of sequence
@@ -72,39 +74,31 @@ Pthresh = mpam.b; % decision thresholds referred to the receiver
 noise_std = apd.stdNoise(rx.eq.Hrx, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
 
 %% Calculate signal-dependent noise variance after matched filtering and equalizer 
-% Since noise variance only depends on signal power, calculations are
-% performed using Pd (discrete-time power at the APD ouput)
-Pd = apd.Gain*apd.R*Pt(floor(sim.Mct/2)+1:sim.Mct:end);
-Pd = Pd/(Pmax*link_gain);
+Ssh = apd.varShot(Pt, 1)/2;
 
-if isfield(rx, 'eq') && isfield(rx.eq, 'Ntaps')
-    % Calculate impulse response of receiver filter (rx.eq.Hrx)
-    hrx2 = real(ifft(ifftshift(rx.eq.Hrx)));
-    hrx = hrx2(1:sim.Mct*floor(rx.eq.Ntaps/2));
-    hrx = [hrx2(end-sim.Mct*floor(rx.eq.Ntaps/2):end); hrx];
+HH = apd.H(sim.f).*rx.eq.Hrx.*rx.eq.Hff(sim.f/mpam.Rs).*exp(1j*2*pi*sim.f/mpam.Rs*grpdelay(rx.eq.num, rx.eq.den, 1));
+hh2 = real(ifft(ifftshift(HH)));
+hh = hh2(1:sim.Mct*floor(rx.eq.Ntaps/2));
+hh = [hh2(end-sim.Mct*floor(rx.eq.Ntaps/2):end); hh];
 
-    n = -floor(rx.eq.Ntaps/2)*sim.Mct:sim.Mct*floor(rx.eq.Ntaps/2);
-    hrxd = hrx(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
+hh = hh.*conj(hh);
+hh = hh/abs(sum(hh));
+ 
+Ssh = 2*mpam.Rs*conv(hh, Ssh);
+Ssh = circshift(Ssh, [-round(grpdelay(hh, 1, 1)) 0]); % remove delay due to equalizer
 
-    % Calculate discrete time g[n] = hrx[n] * heq[n]
-    g = conv(hrxd, rx.eq.num);
-    gg = g.*conj(g);
-    gg = gg/abs(sum(gg)); % normalize to unit gain at DC
-
-    % Filter power to obtain equivalent power that is used to calculate
-    % shot noise variance at decision instant n
-    Pd = filter(gg, 1, Pd);
-    Pd = circshift(Pd, [-round(grpdelay(gg, 1, 1)) 0]); % remove delay due to equalizer
-end
-Pd = Pd(Ndisc+1:end-Ndisc);
+Ssh = Ssh + rx.N0/2*trapz(sim.f, abs(rx.eq.Hrx.*rx.eq.Hff(sim.f/mpam.Rs)).^2); % filter noise BW (includes noise enhancement penalty)
+Ssh = Ssh(floor(sim.Mct/2)+1:sim.Mct:end);
+Ssh = Ssh/(link_gain*Pmax)^2;
+Sshd = Ssh(Ndisc+1:end-Ndisc);
 
 %% Calculate error probabilities using Gaussian approximation for each transmitted symbol
 pe_gauss = zeros(mpam.M, 1);
 dat = gray2bin(dataTX, 'pam', mpam.M);
 for k = 1:Nsymb
     mu = yd(k);
-    sig = 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*Pd(k));
-     
+    sig = sqrt(Sshd(k));
+    
     if dat(k) == mpam.M-1
         pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((mu-Pthresh(end))/sig);
     elseif dat(k) == 0
@@ -120,9 +114,18 @@ pe_gauss = real(pe_gauss)/Nsymb;
 bergauss_levels = pe_gauss/log2(mpam.M); % this corresponds to p(error | given symbol)p(symbol)
 bergauss = sum(pe_gauss)/log2(mpam.M);
 
-if sim.verbose
-    figure(102), hold on
-    plot(link_gain*xt)
-    plot(ix, yd, 'o')
-    legend('Transmitted power', 'Sampled received signal')
+%% AWGN Approximation:
+% AWGN (including noise enhancement penalty)
+% mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
+hh0 = round(grpdelay(hh, 1, 1));
+hhd_prev = hh(hh0:-sim.Mct:1);
+hhd_post = hh(hh0:sim.Mct:end);
+hhd = [hhd_prev(end:-1:2); hhd_post];
+hh0 = length(hhd_prev);
+hhd = hhd/abs(sum(hhd));
+if isfield(rx, 'eq') && isfield(rx.eq, 'Ntaps')
+    ber_awgn = mpam.ber_awgn(@(P) 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*(P*hhd(hh0) + (sum(hhd)-hhd(hh0)))));
+%     ber_awgn = mpam.ber_awgn(@(P) 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*P));
+else
+    ber_awgn = mpam.ber_awgn(@(P) 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*P));
 end

@@ -23,7 +23,7 @@ pdfs = apd.levels_pdf(Plevels, mpam.Rs);
 
 for k = 1:length(Plevels)
    
-    Pin = Plevels(k)*ones(1, Nsamples);
+    Pin = Plevels(k)*ones(Nsamples, 1);
 
     % Get heuristic pdfs
     out_gauss = apd.detect(Pin, mpam.Rs, 'gaussian');

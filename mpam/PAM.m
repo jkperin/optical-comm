@@ -59,8 +59,7 @@ classdef PAM
             optimize_level_spacing = strcmp(this.level_spacing, 'optimized');
         end
         
-        
-        %% Auxiliary functions
+        %% Auxiliary functions       
         function this = set_levels(this, levels, thresholds)
             %% Set levels to desired values
             % Levels and decision thresholds are normalized that last level is unit
@@ -159,6 +158,17 @@ classdef PAM
             
             berk = ser/log2(this.M); % this corresponds to p(error | given symbol)p(symbol)
             ber = sum(berk);
+        end
+        
+        function PreqdBm = required_power(self, N0, BERtarget)
+            %% Required received power to achieve target BER for a thermal noise limited receiver with N0
+            % Responsivity is assumed to be 1
+            R = 1;
+            Preq = (self.M-1)*sqrt(self.Rb*N0/(2*R^2*log2(self.M)))*qfuncinv(self.M*BERtarget*log2(self.M)/(2*(self.M-1)));
+            PreqdBm = 10*log10(Preq/1e-3);      
+            
+            BER = 1/log2(self.M)*2*(self.M-1)/self.M*qfunc(sqrt(log2(self.M)/((self.M-1)^2)*Preq^2/(self.Rb*N0/2)))
+            
         end
         
         function this = optimize_level_spacing_gauss_approx(this, BERtarget, rexdB, noise_std, verbose)
