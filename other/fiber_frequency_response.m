@@ -3,6 +3,7 @@ clear, clc, close all
 
 addpath ../f/
 
+m2tikz = matlab2tikz();
 
 L = [1, 5, 10, 20]*1e3;
 
@@ -10,21 +11,31 @@ fiber = fiber(L(1));
 
 tx.lamb = 1250e-9;
 tx.alpha = 2;
-f = linspace(0, 200e9, 100);
-
+f = linspace(0, 50e9, 50);
+Colors = {'green', 'blue', 'orange', 'red'};
 
 figure, hold on, grid on, box on
 for k= 1:length(L)
     fiber.L = L(k);
     plot(f/1e9, 20*log10(abs(fiber.H(f, tx))))
+    % addplot(x, y, line, color, marker, label)
+    m2tikz.addplot(f/1e9, 20*log10(abs(fiber.H(f, tx))), '-', Colors{k}, 'none', sprintf('%d km', L(k)/1e3))
 end
 
 xlabel('Frequency (GHz)')
 ylabel('Frequency Response (dB)')
 legend('1 km', '5 km', '10 km', '20 km', 'Location', 'SouthWest')
-axis([0 200 -10 10])
+axis([0 50 -10 10])
 
-matlab2tikz('Hfiber.tex')
+%% Extract curves and formatting from matlab 
+% m2tikz.extract(gca)
+% m2tikz.write('Hfiber.tex')
+
+%% Extract just formatting from matlab 
+m2tikz.extract(gca, 'just axis')
+m2tikz.write('Hfiber.tex')
+
+% matlab2tikz('Hfiber.tex')
 
 
     
