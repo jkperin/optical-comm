@@ -1,0 +1,58 @@
+\documentclass[a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[numbered]{bookmark}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{pifont}
+\usepackage{tikz}
+
+
+\title{Coherent Detection Systems for Data Centers}
+
+\author{JKP}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Transmitter}
+\subsection{Laser Phase Noise}
+\subsection{Modulator Bandwidth Limitations}
+
+
+\section{Fiber Propagation}
+\subsection{Chromatic Dispersion}
+\begin{equation}
+E(f, L) = E(f, 0)e^{j\theta}e^{-\frac{1}{2}\frac{att(\lambda)L}{10^4}}
+\end{equation}
+where $E(f, L)$ is the frequency response of the electric field at distance $L$ in meters; $\theta = -1/2\beta_2(2\pi f)^2L$; $\beta_2 = -\frac{D(\lambda)\lambda^2}{2\pi c}$; and $att(\lambda)$ is the fiber attenuation at wavelength $\lambda$ in dB/km.
+
+For SMF28 the fiber dispersion is specified in terms of the zero-dispersion ($\lambda_0$) wavelength and the dispersion slope ($S_0$):
+\begin{equation}
+D(\lambda) = \frac{S_0}{4}\bigg(\lambda - \frac{\lambda_0^4}{\lambda^3}\bigg), 1200~\text{nm} < \lambda < 1600~\text{nm}
+\end{equation}
+
+\subsection{Polarization-Mode Dispersion}
+
+\section{Receiver}
+\subsection{Polarization Recovery and PMD Compensation}
+\subsection{CD Compensation}
+\subsection{Carrier and Frequency Recovery}
+\subsection{Equalization}
+
+
+
+\begin{thebibliography}{9}
+
+
+
+
+\end{thebibliography}
+
+\end{document}
