@@ -41,7 +41,7 @@ classdef apd
             % - BW (optional, default = Inf) = if number, then BW specifies bandwidth
             %   if BW is 2x1 vector, then 1st element is the low-gain bandwidth 
             %   and the second is the gain-bandwidth product    
-            % - R (optional, default = 1) = responsivity
+            % - R (optional, default = 1 A/W) = responsivity
             % - Id (optional defualt = 10 nA) = dark current (A)
             
             % Required parameters: GaindB and ka
@@ -87,11 +87,9 @@ classdef apd
         
         function BW = get.BW(this)
             %% APD bandwidth
-            if this.Gain*this.BW0 > this.GainBW
-                BW = this.GainBW/this.Gain;
-            else
-                BW = this.BW0;
-            end
+            BW = min(this.BW0, this.GainBW/this.Gain);
+            % if this.GainBW/this.Gain < this.BW0, the APD is in the
+            % avalanche buildup time limited regime
         end
         
         function Geff = get.Geff(this)
@@ -123,7 +121,7 @@ classdef apd
         end
         
         function Hapd = H(this, f)
-            %% APD frequency response. Normalize to have unit gain at DC
+            %% APD frequency response. Normalized to have unit gain at DC
             if isinf(this.BW)
                 Hapd = 1;
             else
@@ -169,11 +167,7 @@ classdef apd
         
         function bw = noisebw(this) 
             %% Noise bandwidth (one-sided)
-            if isinf(this.BW)
-                bw = Inf;
-            else
-                bw = pi/2*this.BW; % pi/2 appears because this.Hapd enery is pi*BW
-            end
+            bw = pi/2*this.BW; % pi/2 appears because this.Hapd energy is pi*BW
         end
         
         function sig2 = varShot(this, Pin, Df)
@@ -224,7 +218,7 @@ classdef apd
                     output = this.R*this.Gain*Pin;
                     
                 otherwise 
-                    error('apd>detect: Invalid Option!')
+                    error('apd/detect: Invalid Option!')
             end
             
             % Frequency
@@ -283,62 +277,35 @@ classdef apd
             noise_std = @(Plevel) sqrt(varTherm + varRIN(Plevel) + varShot(Plevel));
         end
         
-        function [Gopt, mpam] = optGain(this, mpam, tx, fiber, rx, sim, objective)
+        function [Gopt, mpam] = optGain(this, mpam, tx, fiber, rx, sim)
             %% Optimize APD gain for two different objectives:
             %% (1) BER: Given input power finds the APD gain that leads to the minimum BER
             %% (2) Margin: Given target BER finds APD gain that leads to minimum required optical power
-            disp(['Optimizing APD gain for ' objective]);
+            disp('Optimizing APD gain for sensitivity');
                    
-            switch objective
-                case 'BER'
-                    %% Optimize APD gain: Given a certain input power calculates 
-                    %% the APD gain that leads to the minimum BER
-                    % if level_spacing = 'optimized' uses the following
-                    % algorithm
-                    % 1) For a given APD gain, optimizes level spacing for the target BER
-                    % 2) Adjust power to the given received power
-                    % 3) Calculate BER
-                    % 4) Update APD gain until minimum BER is reached
+            % Find Gapd that minimizes required power to achieve
+            % target BER
+            if mpam.optimize_level_spacing
+                % Level spacing optimization ensures that target BER is met for a given gain
+                % Thus, find APD gain that leads to minimum average
+                % PAM levels
+                [Gopt, ~, exitflag] = fminbnd(@(Gapd) ...
+                    this.optimize_PAM_levels(Gapd, mpam, tx, fiber, rx, sim), eps, maxGain(this, mpam.Rs/5));  
 
-                    % Find Gapd that minimizes BER
-                    [Gopt, ~, exitflag] = fminbnd(@(Gapd) this.calc_apd_ber(10*log10(tx.Ptx/1e-3), Gapd, mpam, tx, fiber, rx, sim), 1, maxGain(this, mpam.Rs/5));    
-
-                    % Check whether solution is valid
-                    if exitflag ~= 1
-                        warning('apd/optGain (BER): APD gain optimization did not converge (exitflag = %d)\n', exitflag);
-                    end 
-
-                    assert(Gopt >= 0, 'apd/optGain (BER): Negative root found while optimizing APD gain');
-
-                case 'margin'     
-                    % Find Gapd that minimizes required power to achieve
-                    % target BER
-                    if mpam.optimize_level_spacing
-                        % Level spacing optimization ensures that target BER is met for a given gain
-                        % Thus, find APD gain that leads to minimum average
-                        % PAM levels
-
-                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) ...
-                            this.optimize_PAM_levels(Gapd, mpam, tx, fiber, rx, sim), eps, maxGain(this, mpam.Rs/5));  
-                        
-                        [~, mpam] = this.optimize_PAM_levels(Gopt, mpam, tx, fiber, rx, sim);
-                    else
-                        % Adjust power to get to target BER
-                        [Gopt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm)...
-                            this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim) - sim.BERtarget, -20), 1, maxGain(this, mpam.Rs/5));
-                    end
-
-                    % Check whether solution is valid
-                    if exitflag ~= 1
-                        warning('apd/optGain (margin): APD gain optimization did not converge (exitflag = %d)\n', exitflag);
-                    end 
-
-                    assert(Gopt >= 0, 'apd/optGain (margin): Negative root found while optimizing APD gain')
-                    
-                otherwise
-                    error('apd>optGain: unknown objective');
+                [~, mpam] = this.optimize_PAM_levels(Gopt, mpam, tx, fiber, rx, sim);
+            else
+                % Adjust power to get to target BER
+                [Gopt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm)...
+                    this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim) - sim.BERtarget, -20), 1, maxGain(this, mpam.Rs/5));
             end
-            
+
+            % Check whether solution is valid
+            if exitflag ~= 1
+                warning('apd/optGain (margin): APD gain optimization did not converge (exitflag = %d)\n', exitflag);
+            end 
+
+            assert(Gopt >= 0, 'apd/optGain (margin): Negative gain found while optimizing APD gain')
+                    
             % Auxiliary function
             function Gmax = maxGain(apd, minBW)
                 % Max gain allowed during gain optimization
@@ -371,38 +338,20 @@ classdef apd
             Pmean_old = 1;
             tol = 1e-3;
             n = 0;
-            maxIterations = 10;
-            while abs(Pmean-Pmean_old)/Pmean > tol && n < maxIterations               
+            maxIterations = 50;
+            Hw = 1; % begin with no noise whitening filter
+            while abs(Pmean-Pmean_old)/Pmean > tol && n < maxIterations     
                 % Design equalizer
-                [~, eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer
+                [~, eq] = equalize(rx.eq, [], Hw.*Hch, mpam, rx, sim); % design equalizer
                 % This design assumes fixed zero-forcing equalizers  
-
+                
                 % Noise standard deviation
-                noise_std = this.stdNoise(eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
+                noise_std = this.stdNoise(Hw.*eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
                 
                 % Calculate impulse response of receiver filter (rx.eq.Hrx)
                 if isfield(eq, 'Ntaps')
-                    %% Old method
-%                     hrx2 = real(ifft(ifftshift(eq.Hrx)));
-%                     hrx = hrx2(1:sim.Mct*floor(eq.Ntaps/2));
-%                     hrx = [hrx2(end-sim.Mct*floor(eq.Ntaps/2):end); hrx];
-% 
-%                     nn = -floor(eq.Ntaps/2)*sim.Mct:sim.Mct*floor(eq.Ntaps/2);
-%                     hrxd = hrx(mod(abs(nn), sim.Mct) == 0); % symbol-rate sample received pulse
-% 
-%                     % Calculate discrete time g[n] = hrx[n] * heq[n]
-%                     g = conv(hrxd, eq.num);
-%                     gg = g.*conj(g);
-%                     gg = gg/abs(sum(gg)); % normalize to unit gain at DC
-%                         
-%                     gg0 = floor(length(gg)/2)+1; % 0 time tap
-%                     
-%                     % Optimize levels
-%                     mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB,...
-%                         @(P) noise_std(P*gg(gg0) + Pmax*(sum(gg)-gg(gg0))));
-
-                    %% New method
-                    HH = this.H(sim.f).*eq.Hrx.*eq.Hff(sim.f/mpam.Rs).*...
+                    %% Calculate signal-dependent noise variance after matched filtering and equalizer 
+                    HH = Hw.*this.H(sim.f).*eq.Hrx.*eq.Hff(sim.f/mpam.Rs).*...
                         exp(1j*2*pi*sim.f/mpam.Rs*grpdelay(eq.num, eq.den, 1));
                     hh2 = real(ifft(ifftshift(HH)));
                     hh = hh2(1:sim.Mct*floor(eq.Ntaps/2));
@@ -432,6 +381,11 @@ classdef apd
                 Pmean_old = Pmean;
                 Pmean = mean(mpam.a)/this.Geff;
                 Pmax = mpam.a(end);
+                
+                % Update noise whitening filter
+                if sim.WhiteningFilter
+                    Hw = this.Hwhitening(sim.f, Pmean, rx.N0);
+                end
 
                 n = n+1; 
             end
@@ -489,12 +443,18 @@ classdef apd
                 Hch = fiber.H(sim.f, tx).*this.H(sim.f);
             end
             
+            if sim.WhiteningFilter
+                Hw = this.Hwhitening(sim.f, tx.Ptx, rx.N0);
+            else
+                Hw = 1;
+            end
+            
             % Equalization
-            [~, eq] = equalize(rx.eq, [], Hch, mpam, rx, sim); % design equalizer
+            [~, eq] = equalize(rx.eq, [], Hw.*Hch, mpam, rx, sim); % design equalizer
             % This design assumes fixed zero-forcing equalizers             
 
             % Noise standard deviation
-            noise_std = this.stdNoise(eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
+            noise_std = this.stdNoise(Hw.*eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
            
             % Level spacing optimization
             if mpam.optimize_level_spacing

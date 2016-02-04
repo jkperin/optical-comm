@@ -66,7 +66,7 @@ end
 %% Automatic gain control
 % Normalize signal so that highest level is equal to 1
 yt = yt/(Pmax*link_gain); 
-mpam = mpam.norm_levels;
+mpam = mpam.norm_levels();
 
 %% Equalization
 [yd, rx.eq] = equalize(rx.eq, yt, Hw.*Hch, mpam, rx, sim);
@@ -99,7 +99,7 @@ Ssh = BW*conv(hh, Ssh);
 Ssh = circshift(Ssh, [-round(grpdelay(hh, 1, 1)) 0]); % remove delay due to equalizer
 
 % Add thermal noise
-Ssh = Ssh + rx.N0/2*trapz(sim.f, abs(rx.eq.Hrx.*rx.eq.Hff(sim.f/mpam.Rs)).^2); % filter noise BW (includes noise enhancement penalty)
+Ssh = Ssh + rx.N0/2*trapz(sim.f, abs(Hw.*rx.eq.Hrx.*rx.eq.Hff(sim.f/mpam.Rs)).^2); % filter noise BW (includes noise enhancement penalty)
 
 % Normalize and sample
 Sshd = Ssh(floor(sim.Mct/2)+1:sim.Mct:end);

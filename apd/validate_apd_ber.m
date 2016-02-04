@@ -6,11 +6,11 @@ addpath ../f
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
 sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
-sim.L = 3;        % de Bruijin sub-sequence length (ISI symbol length)
+sim.L = 4;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
+sim.Ndiscard = 64; % number of symbols to be discarded from the begining and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.WhiteningFilter = true;
 
@@ -48,7 +48,7 @@ tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator
 tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
 %% Fiber
-fiber = fiber(5e3);
+fiber = fiber(10e3);
 
 %% Receiver
 rx.N0 = (30e-12).^2; % thermal noise psd
@@ -66,10 +66,10 @@ rx.eq.Ntaps = 31;
 
 %% APD 
 % (GaindB, ka, [BW GBP=Inf], R, Id) 
-apdG = apd(15, 0.1, 20e9, 1, 10e-9);
+apdG = apd(15, 0.1, [20e9 100e9], 1, 10e-9);
 
 % BER
-sim.OptimizeGain = ~true;
+sim.OptimizeGain = true;
 ber_apd = apd_ber(mpam, tx, fiber, apdG, rx, sim);
 
 mpam.level_spacing = 'optimized';
