@@ -6,13 +6,13 @@ addpath ../f
 addpath f
 
 % Simulation parameters
-sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
 sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.L = 3;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
-sim.WhiteningFilter = ~true;
+sim.WhiteningFilter = true;
 
 %
 sim.shot = true; % include shot noise. Only included in montecarlo simulation (except for APD)
@@ -36,8 +36,8 @@ sim.f = f;
 %% Transmitter
 tx.PtxdBm = -25:-10;
 
-tx.lamb = 1310e-9; % wavelength
-tx.alpha = 0; % chirp parameter
+tx.lamb = 1250e-9; % wavelength
+tx.alpha = 2; % chirp parameter
 tx.RIN = -150;  % dB/Hz
 tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 
@@ -48,7 +48,7 @@ tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator
 tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
 
 %% Fiber
-fiber = fiber();
+fiber = fiber(5e3);
 
 %% Receiver
 rx.N0 = (30e-12).^2; % thermal noise psd
@@ -65,7 +65,7 @@ rx.eq.Ntaps = 31;
 % rx.eq.mu = 1e-2;
 
 %% APD 
-% (GaindB, ka, BW, R, Id) 
+% (GaindB, ka, [BW GBP=Inf], R, Id) 
 apdG = apd(15, 0.1, 20e9, 1, 10e-9);
 
 % BER

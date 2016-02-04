@@ -96,7 +96,7 @@ classdef fiber
             Hele = exp(this.L*Dw);
         end
                
-        function Hatt = H(this, f, tx)
+        function Hfib = H(this, f, tx)
             %% Fiber small-signal frequency response assuming transient chirp dominant
             % This transfer function is for optical power not electic field
             % i.e., Hfiber = Pout/Pin. Moreover, it includes attenuation
@@ -117,10 +117,7 @@ classdef fiber
                 alpha = 0;
             end
             
-            H = cos(theta) - alpha*sin(theta);  % fiber small-signal frequency response
-            
-            % Include attenuation
-            Hatt = H.*this.link_attenuation(tx.lamb);
+            Hfib = cos(theta) - alpha*sin(theta);  % fiber small-signal frequency response           
         end  
     end
 
@@ -130,8 +127,5 @@ classdef fiber
             beta2 = -D*lamb^2/(2*pi*this.c); 
         end
     end
-        
-
-    
 end
         

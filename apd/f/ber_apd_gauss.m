@@ -56,13 +56,20 @@ sim.RIN = false; % RIN is not modeled here since number of samples is not high e
 % Direct detect
 yt = apd.detect(Pt, sim.fs, 'no noise');
 
+% Noise whitening filter
+if sim.WhiteningFilter
+    [Hw, yt] = apd.Hwhitening(sim.f, tx.Ptx, rx.N0, yt);
+else
+    Hw = 1;
+end
+
 %% Automatic gain control
 % Normalize signal so that highest level is equal to 1
 yt = yt/(Pmax*link_gain); 
 mpam = mpam.norm_levels;
 
 %% Equalization
-[yd, rx.eq] = equalize(rx.eq, yt, Hch, mpam, rx, sim);
+[yd, rx.eq] = equalize(rx.eq, yt, Hw.*Hch, mpam, rx, sim);
 
 % Symbols to be discard in BER calculation
 yd = yd(Ndisc+1:end-Ndisc);
@@ -71,41 +78,46 @@ yd = yd(Ndisc+1:end-Ndisc);
 Pthresh = mpam.b; % decision thresholds referred to the receiver
 
 % Noise std: includes RIN, shot and thermal noise (assumes gaussian stats)
-noise_std = apd.stdNoise(rx.eq.Hrx, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
+noise_std = apd.stdNoise(Hw.*rx.eq.Hrx, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
 
 %% Calculate signal-dependent noise variance after matched filtering and equalizer 
-Ssh = apd.varShot(Pt, 1)/2;
+Ssh = apd.varShot(Pt, 1)/2; % two-sided shot noise PSD
 
-HH = apd.H(sim.f).*rx.eq.Hrx.*rx.eq.Hff(sim.f/mpam.Rs).*exp(1j*2*pi*sim.f/mpam.Rs*grpdelay(rx.eq.num, rx.eq.den, 1));
-hh2 = real(ifft(ifftshift(HH)));
-hh = hh2(1:sim.Mct*floor(rx.eq.Ntaps/2));
-hh = [hh2(end-sim.Mct*floor(rx.eq.Ntaps/2):end); hh];
+% Receiver filter
+% For symbol-rate sampling linear equalizer = APD -> Whitening filter ->
+% matched filter -> equalizer (in continuous time)
+H = Hw.*apd.H(sim.f).*rx.eq.Hrx.*rx.eq.Hff(sim.f/mpam.Rs).*exp(1j*2*pi*sim.f/mpam.Rs*grpdelay(rx.eq.num, rx.eq.den, 1));
+h2 = real(ifft(ifftshift(H)));
+h = h2(1:sim.Mct*floor(rx.eq.Ntaps/2));
+hh = [h2(end-sim.Mct*floor(rx.eq.Ntaps/2):end); h];
 
-hh = hh.*conj(hh);
-hh = hh/abs(sum(hh));
+hh = hh.*conj(hh); % |h(t)|^2
+hh = hh/abs(sum(hh)); % normalize
  
-Ssh = 2*mpam.Rs*conv(hh, Ssh);
+BW = trapz(sim.f, abs(H).^2); % shot noise bandwidth
+Ssh = BW*conv(hh, Ssh);
 Ssh = circshift(Ssh, [-round(grpdelay(hh, 1, 1)) 0]); % remove delay due to equalizer
 
+% Add thermal noise
 Ssh = Ssh + rx.N0/2*trapz(sim.f, abs(rx.eq.Hrx.*rx.eq.Hff(sim.f/mpam.Rs)).^2); % filter noise BW (includes noise enhancement penalty)
-Ssh = Ssh(floor(sim.Mct/2)+1:sim.Mct:end);
-Ssh = Ssh/(link_gain*Pmax)^2;
-Sshd = Ssh(Ndisc+1:end-Ndisc);
+
+% Normalize and sample
+Sshd = Ssh(floor(sim.Mct/2)+1:sim.Mct:end);
+Sshd = Sshd(Ndisc+1:end-Ndisc)/(link_gain*Pmax)^2;
 
 %% Calculate error probabilities using Gaussian approximation for each transmitted symbol
-pe_gauss = zeros(mpam.M, 1);
-dat = gray2bin(dataTX, 'pam', mpam.M);
+pe_gauss = zeros(mpam.M, 1); % symbol error probability for each level
+dat = gray2bin(dataTX, 'pam', mpam.M); % fix index mapping
 for k = 1:Nsymb
-    mu = yd(k);
     sig = sqrt(Sshd(k));
     
     if dat(k) == mpam.M-1
-        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((mu-Pthresh(end))/sig);
+        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((yd(k)-Pthresh(end))/sig);
     elseif dat(k) == 0
-        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(1)-mu)/sig);
+        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(1)-yd(k))/sig);
     else 
-        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(dat(k) + 1) - mu)/sig);
-        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((mu - Pthresh(dat(k)))/sig);
+        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((Pthresh(dat(k) + 1) - yd(k))/sig);
+        pe_gauss(dat(k)+1) = pe_gauss(dat(k)+1) + qfunc((yd(k) - Pthresh(dat(k)))/sig);
     end
 end
 
@@ -125,7 +137,8 @@ hh0 = length(hhd_prev);
 hhd = hhd/abs(sum(hhd));
 if isfield(rx, 'eq') && isfield(rx.eq, 'Ntaps')
     ber_awgn = mpam.ber_awgn(@(P) 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*(P*hhd(hh0) + (sum(hhd)-hhd(hh0)))));
-%     ber_awgn = mpam.ber_awgn(@(P) 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*P));
+    % In calculating noise_std for AWGN channel, all other symbols in hh
+    % are assumed to be the highest PAM level.
 else
     ber_awgn = mpam.ber_awgn(@(P) 1/(Pmax*link_gain)*noise_std(Pmax*link_gain*P));
 end
