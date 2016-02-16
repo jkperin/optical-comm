@@ -2,7 +2,8 @@ function ber = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim)
 verbose = sim.verbose;
 sim.verbose = max(sim.verbose-1, 0);
 
-%% Channel response
+%% Pre calculations
+% Channel response
 % Hch does not include transmitter or receiver filter
 if isfield(tx, 'modulator')
     Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
@@ -17,16 +18,16 @@ link_gain = apd.Gain*apd.R*fiber.link_attenuation(tx.lamb); % Overall link gain
 mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
 Pmax = mpam.a(end); % used in the automatic gain control stage
 
-% Modulated PAM signal
+%% Modulated PAM signal
 dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence
 xt = mpam.mod(dataTX, sim.Mct);
 xt(1:sim.Mct*sim.Ndiscard) = 0; % zero sim.Ndiscard first symbols
 xt(end-sim.Mct*sim.Ndiscard+1:end) = 0; % zero sim.Ndiscard last symbbols
 
-% Generate optical signal
+%% Generate optical signal
 [Et, ~] = optical_modulator(xt, tx, sim);
 
-% Fiber propagation
+%% Fiber propagation
 [~, Pt] = fiber.linear_propagation(Et, sim.f, tx.lamb);
 
 %% Detect and add noises
@@ -42,28 +43,25 @@ end
 %% Automatic gain control
 % Normalize signal so that highest level is equal to 1
 yt = yt/(Pmax*link_gain);
-% shot = shot/(Pmax*link_gain);
 mpam = mpam.norm_levels;
 
 %% Equalization
+rx.eq.TrainSeq = dataTX;
 [yd, rx.eq] = equalize(rx.eq, yt, Hw.*Hch, mpam, rx, sim);
 
 % Symbols to be discarded in BER calculation
 Ndiscard = sim.Ndiscard*[1 1];
-if isfield(rx.eq, 'Ntrain')
-    Ndiscard(1) = Ndiscard(1) + rx.eq.Ntrain;
-end
-if isfield(rx.eq, 'Ntaps')
-    Ndiscard = Ndiscard + rx.eq.Ntaps;
+if isfield(rx.eq, 'Ndiscard') % must increase discareded symbols to account for filter length, adaptation period, etc
+    Ndiscard = Ndiscard + rx.eq.Ndiscard; 
 end
 ndiscard = [1:Ndiscard(1) sim.Nsymb-Ndiscard(2):sim.Nsymb];
 yd(ndiscard) = []; 
 dataTX(ndiscard) = [];
 
-% Demodulate
+%% Demodulate
 dataRX = mpam.demod(yd);
 
-% True BER
+%% True BER
 [~, ber] = biterr(dataRX, dataTX);
 
 if verbose  

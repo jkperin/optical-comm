@@ -342,22 +342,20 @@ classdef apd
             Hw = 1; % begin with no noise whitening filter
             while abs(Pmean-Pmean_old)/Pmean > tol && n < maxIterations     
                 % Design equalizer
+                rx.eq.type = 'Fixed TD-SR-LE'; % always use fixed symbol-rate equalizer for analysis
                 [~, eq] = equalize(rx.eq, [], Hw.*Hch, mpam, rx, sim); % design equalizer
                 % This design assumes fixed zero-forcing equalizers  
                 
                 % Noise standard deviation
                 noise_std = this.stdNoise(Hw.*eq.Hrx, eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
                 
-                % Calculate impulse response of receiver filter (rx.eq.Hrx)
-                if isfield(eq, 'Ntaps')
-                    %% Calculate signal-dependent noise variance after matched filtering and equalizer 
-                    HH = Hw.*this.H(sim.f).*eq.Hrx.*eq.Hff(sim.f/mpam.Rs).*...
-                        exp(1j*2*pi*sim.f/mpam.Rs*grpdelay(eq.num, eq.den, 1));
-                    hh2 = real(ifft(ifftshift(HH)));
-                    hh = hh2(1:sim.Mct*floor(eq.Ntaps/2));
-                    hh = [hh2(end-sim.Mct*floor(eq.Ntaps/2):end); hh];
+                %% Calculate signal-dependent noise variance after matched filtering and equalizer 
+                if ~strcmp(eq.type, 'None')
+                    H = Hw.*this.H(sim.f).*eq.Hrx.*eq.Hff(sim.f/mpam.Rs);
+                    h2 = fftshift(real(ifft(ifftshift(H))));
+                    hn = h2(cumsum(abs(h2).^2)/sum(abs(h2).^2) > 0.01 & cumsum(abs(h2).^2)/sum(abs(h2).^2) < 0.99);
 
-                    hh = hh.*conj(hh);
+                    hh = hn.*conj(hn);
                     hh = hh/abs(sum(hh));
 
                     hh0 = round(grpdelay(hh, 1, 1));
@@ -366,7 +364,7 @@ classdef apd
                     hhd = [hhd_prev(end:-1:2); hhd_post];
                     hh0 = length(hhd_prev);
                     hhd = hhd/abs(sum(hhd));
-                    
+
                     % Optimize levels
                     mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB,...
                         @(P) noise_std(P*hhd(hh0) + Pmax*(sum(hhd)-hhd(hh0))));
@@ -450,6 +448,7 @@ classdef apd
             end
             
             % Equalization
+            rx.eq.type = 'Fixed TD-SR-LE'; % always use fixed symbol-rate equalizer for analysis
             [~, eq] = equalize(rx.eq, [], Hw.*Hch, mpam, rx, sim); % design equalizer
             % This design assumes fixed zero-forcing equalizers             
 

@@ -1,14 +1,21 @@
 \section{Modulator}
 \subsection{Frequency response}
 
-Second-order system with unit damping and cutoff frequecy $f_c$:
+Second-order system with unit damping:
 \begin{equation}
 	H_{mod}(f) =  \frac{1}{1 + 2jf/f_c - (f/f_c)^2}
 \end{equation}
+
+The modulator bandwidth is related to $f_c$ by
+\begin{equation}
+f_{3dB} = \sqrt{\sqrt{2}-1}f_c = 0.64359f_c
+\end{equation}
+
 Group delay:
 \begin{equation}
 	\Delta\tau_g = \frac{2}{2\pi f_c}
 \end{equation}
+
 
 \subsection{Extinction ratio}
 \begin{equation}
@@ -139,4 +146,4 @@ We can define $K(s,x) = \ln\frac{M(s)}{s} - sx$. Applying the saddlepoint approx
 Q(x) \approx e^{K(\hat{s},x)}\bigg(\frac{1}{2\pi K^{\prime\prime}(\hat{s},x)}\bigg)^{1/2}
 \end{equation}
 where in this case $K^{\prime}(\hat{s},x) = 0$.
-Using the saddlepoint approximation in this form might lead to inaccurate results because of the pole at $s = 0$ (i.e., $\hat{s}$ small). 
+Using the saddlepoint approximation in this form might lead to inaccurate results because of the pole at $s = 0$ (i.e., $\hat{s}$ small).

@@ -1,4 +1,4 @@
-function margin_vs_gain_qsub(M, ka, level_spacing, BW0GHz, GainBWGHz, modBWGHz)
+function Preq_vs_gain_qsub(M, ka, level_spacing, BW0GHz, GainBWGHz, modBWGHz)
 %% Function to calculate power margin vs gain in bactch simulation on corn
 % On server inputs are passed as strings
 % - M = PAM order
@@ -25,7 +25,7 @@ if ~isnumeric([M, ka, BW0GHz, GainBWGHz, modBWGHz])
 end
 
 % Simulation parameters
-sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
 sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
 sim.L = 4;      % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
@@ -37,7 +37,7 @@ sim.WhiteningFilter = true;
 sim.shot = true; % include shot noise (apd simulations always include shot noise)
 sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
 sim.verbose = 0; % show stuff
-sim.plots = 1;
+sim.plots = 0;
 
 % M-PAM
 mpam = PAM(M, 107e9, level_spacing, @(n) double(n >= 0 & n < sim.Mct)); 
@@ -67,8 +67,8 @@ end
 
 % Modulator frequency response
 if ~isinf(modBWGHz)
-    disp('> Modulator included')
-    tx.modulator.fc = 1e9*modBWGHz; % modulator cut off frequency
+    tx.modulator.BW = 1e9*modBWGHz; % modulator bandwidth
+    tx.modulator.fc = tx.modulator.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
     tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
     tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
     tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
@@ -82,16 +82,8 @@ rx.N0 = (30e-12).^2; % thermal noise psd
 rx.Id = 10e-9;
 rx.R = 1;
 
-%% PIN
-% (GaindB, ka, BW, R, Id) 
-% pin = apd(0, 0, Inf, rx.R, rx.Id);
-   
-%% APD 
-% (GaindB, ka, BW, R, Id) 
-apdG = apd(10, ka, 1e9*[BW0GHz GainBWGHz], rx.R, rx.Id);
-
 %% Equalization
-if isinf(apdG.BW) && isinf(modBWGHz) % awgn simulation
+if isinf(BW0GHz) && isinf(modBWGHz) % awgn simulation
     disp('> Equalizer = None')
     rx.eq.type = 'None';
     rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
@@ -102,28 +94,35 @@ else
 end
 
 %% Calculate BER for PIN with same properties, but inifinite bandwidth
-% ber_pin = apd_ber(mpam, tx, b2b, pin, rx, sim);
-% 
-% PtxdBm_pin_BERtarget = interp1(log10(ber_pin.gauss), tx.PtxdBm, log10(sim.BERtarget));
+%% PIN
+% (GaindB, ka, BW, R, Id) 
+pin = apd(0, 0, Inf, rx.R, rx.Id);
+  
+ber_pin = apd_ber(mpam, tx, b2b, pin, rx, sim);
+
+PrxdBm_pin_BERtarget = interp1(log10(ber_pin.gauss), tx.PtxdBm, log10(sim.BERtarget));
+
+%% APD 
+% (GaindB, ka, BW, R, Id) 
+apdG = apd(10, ka, 1e9*[BW0GHz GainBWGHz], rx.R, rx.Id);
 
 % Variable to iterate
 if isinf(BW0GHz) && isinf(GainBWGHz) && isinf(modBWGHz)
-    Gains = 1:0.5:30;
+    Gains = 1:1:30;
 else
-    Gains = 1:2:20;
+    Gains = 1:1:20;
 end
 
-% APD
-PtxdBm_BERtarget = zeros(size(Gains));
+PrxdBm_BERtarget = zeros(size(Gains));
 
 if sim.plots
     figure, hold on, box on
     leg = {};
     hline = [];
-%     hline(1) = plot(tx.PtxdBm, log10(ber_pin.gauss), '-b');
-%     plot(tx.PtxdBm, log10(ber_pin.awgn), '--', 'Color', get(hline(1), 'Color'))
-%     plot(tx.PtxdBm, log10(ber_pin.count), '-o', 'Color', get(hline(1), 'Color'))
-%     leg = [leg 'PIN'];
+    hline(1) = plot(tx.PtxdBm, log10(ber_pin.gauss), '-b');
+    plot(tx.PtxdBm, log10(ber_pin.awgn), '--', 'Color', get(hline(1), 'Color'))
+    plot(tx.PtxdBm, log10(ber_pin.count), '-o', 'Color', get(hline(1), 'Color'))
+    leg = [leg 'PIN'];
 end
 for k= 1:length(Gains)
     fprintf('- %d-PAM, %s, ka = %.2f, BW0 = %.2f, GainBW = %.2f, Gain = %.2f\n',...
@@ -136,13 +135,13 @@ for k= 1:length(Gains)
     BER(k) = ber_apd;
 
     % Calculate power at the target BER
-    PtxdBm_BERtarget(k) = interp1(log10(ber_apd.gauss), tx.PtxdBm, log10(sim.BERtarget));
+    PrxdBm_BERtarget(k) = interp1(log10(ber_apd.gauss), tx.PtxdBm, log10(sim.BERtarget));
 
     % Figures
     if sim.plots
-        hline(k) = plot(tx.PtxdBm, log10(ber_apd.gauss), '-');
-        plot(tx.PtxdBm, log10(ber_apd.awgn), '--', 'Color', get(hline(k), 'Color'))
-        plot(tx.PtxdBm, log10(ber_apd.count), '-o', 'Color', get(hline(k), 'Color'))
+        hline(k+1) = plot(tx.PtxdBm, log10(ber_apd.gauss), '-');
+        plot(tx.PtxdBm, log10(ber_apd.awgn), '--', 'Color', get(hline(k+1), 'Color'))
+        plot(tx.PtxdBm, log10(ber_apd.count), '-o', 'Color', get(hline(k+1), 'Color'))
         leg = [leg sprintf('Gain = %.2f', apdG.Gain)];
     end
 end   
@@ -164,7 +163,7 @@ sim.OptimizeGain = true;
 [ber_apd_opt, ~, apdG] = apd_ber(mpam, tx, b2b, apdG, rx, sim);
 Gopt_margin = apdG.Gain;
 
-PtxdBm_BERtarget_opt = interp1(log10(ber_apd_opt.gauss), tx.PtxdBm, log10(sim.BERtarget));
+PrxdBm_BERtarget_opt = interp1(log10(ber_apd_opt.gauss), tx.PtxdBm, log10(sim.BERtarget));
 
 % OptMargindB = PtxdBm_pin_BERtarget - PtxdBm_BERtarget_opt;  
 

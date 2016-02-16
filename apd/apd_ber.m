@@ -14,7 +14,7 @@ end
 
 % Optimize APD gain
 if isfield(sim, 'OptimizeGain') && sim.OptimizeGain
-    [apd.Gain, mpam] = apd.optGain(mpam, tx, fiber, rx, sim, 'margin');
+    [apd.Gain, mpam] = apd.optGain(mpam, tx, fiber, rx, sim);
     fprintf('Optimal APD Gain = %.2f (%2.f dB)\n', apd.Gain, apd.GaindB);
     % if mpam.level_spacing = 'optimized', then apd.optGain returns mpam 
     % with optimal level spacing
@@ -28,10 +28,10 @@ end
 % Transmitted power
 Ptx = dBm2Watt(tx.PtxdBm);
 
-ber.count = zeros(size(Ptx));
-ber.gauss = zeros(size(Ptx));
-ber.awgn = zeros(size(Ptx));
-ber.gauss_levels = zeros(mpam.M, length(Ptx));
+ber.count = zeros(size(Ptx)); % counted BER
+ber.gauss = zeros(size(Ptx)); % analysis assuming Gaussian stats
+ber.awgn = zeros(size(Ptx)); % AWGN approximation (includes noise enhancement penalty)
+ber.gauss_levels = zeros(mpam.M, length(Ptx)); % symbol error prob for each level
 for k = 1:length(Ptx)
     tx.Ptx = Ptx(k);
             

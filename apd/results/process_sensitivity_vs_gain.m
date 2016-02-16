@@ -9,14 +9,13 @@ addpath ../../other
 
 m2tikz = matlab2tikz();
 
-M = 4;
-ka = [0.1, 0.2];
-BW = [20 100; 20 300; 30 100; 30 300]; % (10:2.5:50)*1e9;
-lineStyle = {'-', '-', '--', '--'};
-level_spacing = {'equally-spaced'};
+M = 8;
+ka = 0.1;
+BW = [20 300]; % (10:2.5:50)*1e9;
+lineStyle = {'-', '--'};
+level_spacing = {'equally-spaced', 'optimized'};
 modBWGHz = 30;
-Gains = 1:0.5:30;
-att = 0.35
+Gains = 1:0.5:20;
 ReferencePowerdBm = -12.890616516961265; 
 % power required to achieve 1.8e-4 with 4-PAM in an ideal channel with 
 % input referred noise of 30 pA/sqrt(Hz)
@@ -49,31 +48,30 @@ for n = 1:length(ka)
             set(gca, 'xtick', S.tx.PtxdBm)
             title(sprintf('%d-PAM, %s, ka=%.2f, BW0=%d, GainBW, %d, modBW=%d', M, level_spacing{kk}, ka(n), BW0GHz, GainBWGHz, modBWGHz));     
 
-            %% Margin vs gain plot
-            % MargindB = interp1(S.Gains, S.MargindB, Gains, 'spline');
+            %% Sensitivity vs gain plot
+            % SensitivitydB = interp1(S.Gains, S.SensitivitydB, Gains, 'spline');
             
-            MargindB = ReferencePowerdBm - S.PtxdBm_BERtarget;
-            OptMargindB = ReferencePowerdBm - S.PtxdBm_BERtarget_opt;
+            SensitivitydB = ReferencePowerdBm - S.PrxdBm_BERtarget;
+            OptSensitivitydB = ReferencePowerdBm - S.PrxdBm_BERtarget_opt;
             
             ind = (S.Gains == GainBWGHz/BW0GHz | S.Gains == GainBWGHz/BW0GHz-0.5 | S.Gains == GainBWGHz/BW0GHz+0.5);
             
-            MargindB(ind) = [];
-            Gains = S.Gains;
-            Gains(ind) = [];
-            MargindB = interp1(Gains, MargindB, S.Gains, 'spline');
+            SensitivitydB(ind) = [];
+            S.Gains(ind) = [];
+            SensitivitydB = interp1(S.Gains, SensitivitydB, Gains, 'spline');
             
-            if abs(max(MargindB)-OptMargindB) > 0.1
-                warning('Incorret optimal gain found in file: margin_vs_gain_%d-PAM_%s_ka=%d_BW0=%d_GainBW=%d_modBW=%d',...
+            if abs(max(SensitivitydB)-OptSensitivitydB) > 0.1
+                warning('Incorret optimal gain found in file: Sensitivity_vs_gain_%d-PAM_%s_ka=%d_BW0=%d_GainBW=%d_modBW=%d',...
                 M, level_spacing{kk}, round(100*ka(n)), BW0GHz, GainBWGHz, modBWGHz)
                 disp('Expected: ')
-                disp(max(MargindB))
+                disp(max(SensitivitydB))
                 disp('Found:')
-                disp(OptMargindB)
+                disp(OptSensitivitydB)
             end
             
             figure(ff), hold on, box on            
-            hlines(count) = plot(S.Gains, MargindB, lineStyle{kk});
-            plot(S.Gopt_margin, OptMargindB, 'o', 'Color', get(hlines(count), 'Color'));
+            hlines(count) = plot(Gains, SensitivitydB, lineStyle{kk});
+            plot(S.Gopt_margin, OptSensitivitydB, 'o', 'Color', get(hlines(count), 'Color'));
             
             if strcmp(level_spacing{kk}, 'equally-spaced')
                 label = sprintf('$k_A = %.1f$', ka(n));
@@ -82,8 +80,8 @@ for n = 1:length(ka)
                 label = '';
                 mark = 'o';
             end
-            m2tikz.addplot(S.Gains, MargindB, lineStyle{kk}, Colors{n}, 'none', label)
-            m2tikz.addplot(S.Gopt_margin, OptMargindB, 'none', Colors{n}, mark)                
+            m2tikz.addplot(Gains, SensitivitydB, lineStyle{kk}, Colors{n}, 'none', label)
+            m2tikz.addplot(S.Gopt_margin, OptSensitivitydB, 'none', Colors{n}, mark)                
 
             legs = [legs sprintf('ka = %.1f', ka(n))];
             count = count + 1;
@@ -93,10 +91,10 @@ end
 
 figure(ff)
 xlabel('APD Gain (Linear Units)')
-ylabel('Margin Improvement (dB)')
+ylabel('Sensitivity Improvement (dB)')
 leg = legend(hlines, legs);
 set(leg, 'Location', 'SouthEast')
 drawnow
 
 m2tikz.extract(gca, 'just axis'); % extract only axis, xlabel, etc
-m2tikz.write('ISI_4PAM_30GHz.tex')
+m2tikz.write('ISI_8PAM.tex')
