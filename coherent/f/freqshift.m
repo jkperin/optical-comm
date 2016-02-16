@@ -4,5 +4,5 @@
 % t: time (one-row vector)
 function xshift = freqshift(x,t,fshift)
 %xshift = [x(1,:).*exp(sqrt(-1)*2*pi*fshift*t); x(2,:).*exp(sqrt(-1)*2*pi*fshift*t)];
-xshift = x.*repmat(exp(sqrt(-1)*2*pi*fshift*t),size(x,1),1);
+xshift = x.*repmat(exp(1j*2*pi*fshift*t),size(x,1),1);
 end

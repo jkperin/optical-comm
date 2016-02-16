@@ -1,5 +1,3 @@
-function out=NgiCoOFDM_v8()
-run=1
 % Ngi_CoOFDM.m     Milad Sharif
 % No-Gaurd Interval Co-OFDM with M subcarriers per sampling and one
 % modulator for group of M subcarriers.
@@ -10,8 +8,6 @@ close all
 %clear all
 addpath([pwd '\plots_scripts'])
 addpath([pwd '\DSP'])
-addpath old/
-addpath f/
 %% ====== Simulation Parameter =======                                                      
 DumpData = 0;                                                               % Dump data for adap. equ. optimization - make sure to be zero if you dont want to dump the data (takes a while to dumb all of te data) 
 Save = 1;                                                                   % Save the final result        
@@ -289,7 +285,7 @@ Pt.decwtvec = (1:Nsymb)<Pt.startdd;                                         % ve
 
 %% ============ Launched Power ============
 PlaunchdBm = -1;                        
-PindBm = PlaunchdBm;      
+PindBm = PlaunchdBm + DROP.ILdB;      
 Pin = 1e-3*10^(PindBm/10);
 
 %% ========= Performance Metrics =========

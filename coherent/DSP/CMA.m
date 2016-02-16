@@ -4,7 +4,7 @@
 % using a digital coherent receiver", Optics Express, Vol. 15, Issue 5,
 % pp. 2120-2126 (2007)
 
-function [xhat, eps, WT] = CMA(tsamp, Ysq, Nsymb, oversamp, AdEq)
+function [yhat, eps, WT] = CMA(Xsq, AdEq, sim)
 
 Lfilt    = AdEq.LFilt;
 mu       = AdEq.mu;
@@ -31,16 +31,18 @@ Y1sq = Ysq(1,:);
 Y2sq = Ysq(2,:);
 
 % Run LMS adaptive algorithm. The index k runs over symbols.
-for k = 1:Nsymb;
-    
+window = (1:Ntaps) - ceil(Ntaps/2); % {-(Ntaps-1)/2, ..., 0, ..., (Ntaps-1)/2}.
+kstart = ceil(Ntaps/(2*Nsamp))*Nsamp+1; 
+k = kstart; % runs over samples
+for n = ((kstart-1)/ros+1):Nsymb-ceil(Ntaps/2) % n runs over symbols
+   
 %     imagesc(abs(WT));
 %     colormap hot; axis image
 %     title(['k: ' num2str(k) ', equalizer coefficients |\itW\rm^{T}|'])
 %     pause(.01)
 
     % form the Yk
-    eqindk = mod(floor(oversamp*(k-1))+Lfilt:-1:floor(oversamp*(k-1))-Lfilt,size(tsamp,2))+1; % indices for Yk
-    Yk = [Y1sq(eqindk),Y2sq(eqindk)].';        % form the Yk
+    Yk = [Y1sq(eqindk), Y2sq(eqindk)].';        % form the Yk
     % select the correct WT
 
     % compute and store equalizer output at time k

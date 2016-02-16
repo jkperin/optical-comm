@@ -165,82 +165,93 @@ switch eq.type
         
     case 'Adaptive TD-FS-LE'
         %% Adaptive Time-domain fractionally-spaced equalizer
-        error('Adaptive TD-FS-LE has to be updated')
-%         if mod(rx.eq.Ntaps, 2) == 0
-%             eq.Ntaps = eq.Ntaps + 1;
-%         end
-%         Ntaps = eq.Ntaps;
-%         ros = eq.ros;
-%         Ntrain = eq.Ntrain;
-%         mu = eq.mu;
-%         b = mpam.mod(rx.eq.TrainSeq, 1);
-%         
-%         % Antialiasing filter
-%         ytaa = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(sim.f/sim.fs))));
-%         
-%         if mod(sim.Mct/ros, 2) == 0
-%             yk = ytaa(1:sim.Mct/ros:end);
-%             tk = sim.t(1:sim.Mct/ros:end);
-%         else % if sim.Mct is not multiple of ros, then interpolate
-%             yk = interp1(1:length(ytaa), ytaa, 1:sim.Mct/ros:length(ytaa));
-%             tk = interp1(1:length(ytaa), sim.t, 1:sim.Mct/ros:length(ytaa));
-%             
-% %             yk = resample(ytaa, sim.ros, sim.Mct);
-% %             tk = resample(sim.t, sim.ros, sim.Mct);            
-%         end
-%         
-%         if size(yk, 1) < size(yk, 2)
-%             yk = yk.';
-%         end
-%                 
-%         W = zeros(Ntaps, 1); % Filter taps
-%         W((Ntaps+1)/2) = 1;
-%         y = zeros(size(yk));
-%         n = 1;
-%         e = zeros(1, length(yk)/ros);
-%         for k = max(Ntaps, sim.Ndiscard*ros):length(yk)
-%             z = yk(k-Ntaps+1:k);
-% 
-%             y(k) = sum(W.*z);
-% 
-%             if mod(k-(Ntaps+1)/2, ros) == 0
-%                 if n < Ntrain % Training
-%                     e(k/ros) = y(k) - b((k-(Ntaps+1)/2)/ros);
-%                 else
-%                     e(k/ros) = y(k) - mpam.mod(mpam.demod(y(k)), 1);
-%                 end
-%                 n = n + 1;
-% 
-%                 W = W - 2*mu*e(k/ros)*z;
-%             end
-%         end
-%         
-%         % remove delay inserted by the transversal FIR filter
-%         y = circshift(y, [-(Ntaps+1)/2 0]);
-% 
-%         yd = y(ros:ros:end);
-%         
-%         if sim.verbose
-%             figure, plot(e)
-%             xlabel('Iteration')
-%             ylabel('Error')
-%             
-%             figure, hold on
-%             plot(sim.t, yt)
-%             plot(tk, yk, 'o')
-%             plot(tk(ros:ros:end), yd, '*')
-%             
-%             [H, w] = freqz(W(end:-1:1), 1);
-%             figure, hold on
-%             plot(2*mpam.Rs/1e9*w/(2*pi), abs(H).^2)
-%         end
-%         
-%         eq.num = W(end:-1:1);
-%         eq.den = 1;
-%         [eq.H, w] = freqz(eq.num, eq.den);
-%         eq.f = w/(2*pi);
-%         eq.Kne = 2*eq.ros*trapz(eq.f, abs(eq.H).^2);
-%         % Note: eq.f is one-sided (x2) and the sampling rate here is rosxRs
+        ros = eq.ros;
+        Ntrain = eq.Ntrain;
+        mu = eq.mu;
+        b = mpam.mod(rx.eq.TrainSeq, 1);
+        
+        if mod(rx.eq.Ntaps, 2) == 0
+            eq.Ntaps = eq.Ntaps + 1;
+        end
+        Ntaps = eq.Ntaps;
+        
+        % Number of filters
+        [Nsamp, Nfilters]  = rat(ros);
+
+        % Antialiasing filter
+        ytaa = real(ifft(fft(yt).*ifftshift(rx.elefilt.H(sim.f/sim.fs).*...
+            exp(1j*2*pi*sim.f/sim.fs*(sim.Mct-1)/2)))); % time-shift signal
+        % so that first sample corresponds to first symbol
+        
+        % Downsample
+        if mod(sim.Mct/ros, 2) == 0
+            yk = ytaa(1:sim.Mct/ros:end);
+            tk = sim.t(1:sim.Mct/ros:end);
+        else % if sim.Mct is not multiple of ros, then interpolate
+            warning('equalize: sequence had to be interpolated because oversmapling ratio to simulation continuous time (Mct) is not a interger multiple of eq.ros')
+            yk = interp1(1:length(ytaa), ytaa, 1:sim.Mct/ros:length(ytaa));
+            tk = interp1(1:length(ytaa), sim.t, 1:sim.Mct/ros:length(ytaa));     
+        end
+        
+        if size(yk, 1) < size(yk, 2)
+            yk = yk.';
+        end
+        
+        % Initialize filter coefficients
+        W = zeros(Ntaps, Nfilters);
+        W(ceil(Ntaps/2), :) = 1;
+       
+        e = zeros(1, length(yk)/ros);
+        filt = 1;
+        window = (1:Ntaps) - ceil(Ntaps/2); % {-(Ntaps-1)/2,...,0,... (Ntaps-1)/2}.
+        kstart = ceil(ceil(Ntaps/(2))/Nsamp)*Nsamp+1; % loop through detected symbols
+        k = kstart;
+        yd = zeros(size(b)); % output
+        for n = ((kstart-1)/2+1):length(b)-ceil(Ntaps/(2*ros)) 
+            % k indexes samples and n indexes symbols
+            z = yk(k + window); % input of filter
+
+            yd(n) = W(:, filt).'*z;
+
+            if n < Ntrain % Training
+                e(n) = yd(n) - b(n);
+            else
+                e(n) = yd(n) - mpam.mod(mpam.demod(yd(n)), 1);
+            end
+
+            W(:, filt) = W(:, filt) - 2*mu*e(n)*z;
+            
+            filt = mod(filt, Nfilters) + 1;
+            
+            % ensures that the center of the window of samples remains 
+            % close to the nth symbol
+            if abs((k+1)/ros - n-1) > 0.5
+                k = k + 2;
+            else
+                k = k + 1;
+            end
+        end
+             
+        if sim.verbose
+            figure, plot(abs(e).^2)
+            xlabel('Iteration')
+            ylabel('Error')
+            
+            figure, hold on
+            plot(sim.t, yt)
+            plot(tk, yk, 'o')
+            plot(tk(1:ros:end), y, '*')
+            axis([tk(end-200) tk(end) -0.5 1.5])
+            
+            [H, w] = freqz(W(end:-1:1), 1);
+            figure, hold on
+            plot(w/(2*pi), abs(H).^2)
+        end
+               
+        eq.num = W(end:-1:1);
+        eq.den = 1;
+        eq.Hff = @(f) freqz(eq.num, eq.den, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.num, eq.den, 1)); % removed group delay
+        % Note: eq.f is one-sided (x2) and the sampling rate here is rosxRs
         
     case 'Adaptive TD-SR-LE'
         Ntaps = eq.Ntaps;
@@ -343,7 +354,7 @@ switch eq.type
             % Aux
             eq.num = W;
             eq.den = 1;
-            eq.Hff = @(f) freqz(eq.num, eq.den, 2*pi*f); % must remove group delay
+            eq.Hff = @(f) freqz(eq.num, eq.den, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.num, eq.den, 1)); % removed group delay
             eq.Hrx = Hmatched;
                         
             [eq.H, w] = freqz(eq.num, eq.den);

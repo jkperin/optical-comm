@@ -1,10 +1,16 @@
-classdef fiber
-    % Single-mode fiber
-    
+classdef fiber < handle
+    %% Single-mode fiber
     properties
         L % fiber length (m)
         att % attenuation function i.e., alpha = att(lambda) (dB/km)
         D % dispersion function i.e., Dispersion = D(lambda)
+        PMD = false; % whether PMD is included in simulations
+        meanDGDps = 0; % mean DGD in ps
+        PMD_section_length = 1e3  % Section length for simulating PMD (m)
+    end
+    
+    properties(GetAccess=private, Dependent)
+        JonesMatrix % Jones Matrix 
     end
     
     properties(Constant)
@@ -14,8 +20,8 @@ classdef fiber
     
     properties(Constant, GetAccess=private)
         c = 299792458;  % speed of light
-    end
-    
+    end    
+
     methods
         function obj = fiber(L, att, D)
             %% Class constructor 
@@ -44,6 +50,13 @@ classdef fiber
                 obj.D = @(lamb) fiber.S0/4*(lamb - fiber.lamb0^4./(lamb.^3)); % Dispersion curve
             end           
         end
+             
+        %% Main Methods
+        
+        function b2 = beta2(this, lamb)
+            %% Calculates beta2 at wavelength lamb
+            b2 = -this.D(lamb)*lamb^2/(2*pi*this.c); 
+        end    
         
         function [link_att, link_attdB] = link_attenuation(this, lamb)
             %% Calculate link attenuation in linear units
@@ -54,7 +67,7 @@ classdef fiber
         end
 
         function [Eout, Pout] = linear_propagation(this, Ein, f, lambda)
-            %% Linear propagation
+            %% Linear propagation including only dispersion and first-order PMD if pmd flag is set and input signal has 2 dimensions
             % Perform linear propagation including chromatic dispersion,
             % and attenuation
             % Inputs: 
@@ -71,14 +84,38 @@ classdef fiber
                 return
             end
             
-            Hele = this.Hdisp(f, lambda);
+            two_pols = false;
+            if all(size(Ein) >= 2) % two pols
+                two_pols = true;
+                if size(Ein, 1) > size(Ein, 2)
+                    Ein = Ein.';
+                end
+            end
+            
+            % PMD
+            Einf = fftshift(fft(Ein, [], 2), 2);
+            if this.PMD
+                M = this.generateJonesMatrix(2*pi*f); % 2 x 2 x length(f)
 
-            Eout = ifft(ifftshift(Hele).*fft(Ein));
+                for k = 1:length(f)
+                    Einf(:, k) = M(:,:,k)*Einf(:, k);
+                end
+            end
+
+            % Chromatic dispersion
+            Hele = this.Hdisp(f, lambda);
+            if two_pols
+                Eout = Einf;
+                Eout(1, :) = ifft(ifftshift(Hele.*Einf(1, :)));
+                Eout(2, :) = ifft(ifftshift(Hele.*Einf(2, :)));
+            else
+                Eout = ifft(ifftshift(Hele.*Einf));
+            end
 
             % Received power 
             Eout = Eout*sqrt(this.link_attenuation(lambda));
             
-            Pout = abs(Eout).^2;
+            Pout = sum(abs(Eout).^2, 1);
         end
         
         function Hele = Hdisp(this, f, lambda)
@@ -89,14 +126,13 @@ classdef fiber
             % Outputs:
             % - Hele = Eout(f)/Ein(f)
             
-            Dispersion =  this.D(lambda);
-            beta2 = this.D2beta2(Dispersion, lambda);
+            beta2 = this.beta2(lambda);
             w = 2*pi*f;
             Dw = -1j*1/2*beta2*(w.^2);
             Hele = exp(this.L*Dw);
         end
                
-        function Hatt = H(this, f, tx)
+        function Hf = H(this, f, tx)
             %% Fiber small-signal frequency response assuming transient chirp dominant
             % This transfer function is for optical power not electic field
             % i.e., Hfiber = Pout/Pin. Moreover, it includes attenuation
@@ -104,8 +140,7 @@ classdef fiber
             % - f = frequency vector (Hz)
             % - tx = transmitter struct. Required fields: lamb (wavelenth
             % in m), and alpha (optional, default zero) (chirp paramter). 
-            
-            
+                        
             beta2 = this.D2beta2(this.D(tx.lamb), tx.lamb);
 
             % CD frequency response
@@ -117,17 +152,68 @@ classdef fiber
                 alpha = 0;
             end
             
-            H = cos(theta) - alpha*sin(theta);  % fiber small-signal frequency response
-            
-            % Include attenuation
-            Hatt = H.*this.link_attenuation(tx.lamb);
+            Hf = cos(theta) - alpha*sin(theta);  % fiber small-signal frequency response
         end  
-    end
+        
+        function tau = calcDGD(self, omega)
+            %% Calculate differential group delay from Jones Matrix
+            if ~self.PMD 
+                tau = zeros(size(omega));
+                warning('fiber/calcDGD: PMD is disable')
+                return
+            end
+                
+            if isempty(self.JonesMatrix)
+                tau = [];
+                warning('fiber/calcDGD: Jones Matrix was not calculated yet')
+                return
+            end
+            
+            tau = zeros(1,length(omega)-1);
+            dw = abs(omega(1)-omega(2));
+            for m = 1:length(omega)-1;
+                tau(m) = 2/dw*sqrt(det(self.JonesMatrix(:,:,m+1)-self.JonesMatrix(:,:,m)));
+            end
+         end
+        
+    end  
 
     methods(Access=private)
-        function beta2 = D2beta2(this, D, lamb)
+        function M = generateJonesMatrix(self, omega)
+            %% Function to generate Jones Matrix, modified from Milad Sharif's code
+            Nsect = ceil(self.L/self.PMD_section_length);
+            
+            dtau = self.meanDGDps*1e-12/sqrt(Nsect);
+
+            U = randomRotationMatrix();
+
+            M = repmat(U,[1,1,length(omega)]);
+
+            for k = 1:Nsect
+                U = randomRotationMatrix();
+
+                for m = 1:length(omega)
+                    Dw = [exp(1j*dtau*omega(m)/2), 0; 0, exp(-1j*dtau*omega(m)/2)]; % Birefringence matrix
+                    M(:,:,m) = M(:,:,m)*U'*Dw*U;
+                end
+            end
+
+            function U = randomRotationMatrix()
+                phi = rand(1, 3)*2*pi;
+                U1 = [exp(-1j*phi(1)/2), 0; 0 exp(1j*phi(1)/2)];
+                U2 = [cos(phi(2)/2) -1j*sin(phi(2)/2); -1j*sin(phi(2)/2) cos(phi(2)/2)];
+                U3 = [cos(phi(3)/2) -sin(phi(3)/2); sin(phi(3)/2) cos(phi(3)/2)];
+
+                U = U1*U2*U3;
+            end
+            
+            this.JonesMatrix = M;
+        end
+        
+        
+        function b2 = D2beta2(this, D, lamb)
             % Calculates beta2 from dispersion D and wavelength lamb
-            beta2 = -D*lamb^2/(2*pi*this.c); 
+            b2 = -D*lamb^2/(2*pi*this.c); 
         end
     end
         
