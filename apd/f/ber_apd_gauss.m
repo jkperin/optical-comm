@@ -4,8 +4,6 @@
 % corresponds bertail_levels = p(error | given symbol)p(symbol)
 
 function [bergauss, bergauss_levels, ber_awgn] = ber_apd_gauss(mpam, tx, fiber, apd, rx, sim)
-sim.verbose = max(sim.verbose-1, 0);
-
 %% Pre calculations
 Nsymb = mpam.M^sim.L; % number of data symbols 
 N = sim.Mct*(Nsymb + 2*sim.Ndiscard); % total number of points 
@@ -45,10 +43,10 @@ sim.RIN = false; % RIN is not modeled here since number of samples is not high e
 [Et, ~] = optical_modulator(xt, tx, sim);
 
 %% Fiber propagation
-[~, Pt] = fiber.linear_propagation(Et, sim.f, tx.lamb);
+Et = fiber.linear_propagation(Et, sim.f, tx.lamb);
 
 %% Direct detect
-yt = apd.detect(Pt, sim.fs, 'no noise');
+yt = apd.detect(Et, sim.fs, 'no noise');
 
 %% Noise whitening filter
 if sim.WhiteningFilter
@@ -63,7 +61,10 @@ yt = yt/(Pmax*link_gain);
 mpam = mpam.norm_levels();
 
 %% Equalization
-rx.eq.type = 'Fixed TD-SR-LE'; % always use fixed time-domain symbol rate LE for analysis
+if ~strcmpi(rx.eq.type, 'none') % if equalization is necessary
+    rx.eq.type = 'Fixed TD-SR-LE'; % always use fixed time-domain symbol rate LE for analysis
+    rx.eq.ros = 1;
+end
 [yd, rx.eq] = equalize(rx.eq, yt, Hw.*Hch, mpam, rx, sim);
 
 % Symbols to be discard in BER calculation
@@ -72,11 +73,8 @@ yd = yd(sim.Ndiscard+1:end-sim.Ndiscard);
 %% Detection
 Pthresh = mpam.b; % decision thresholds referred to the receiver
 
-% Noise std: includes RIN, shot and thermal noise (assumes gaussian stats)
-noise_std = apd.stdNoise(Hw.*rx.eq.Hrx, rx.eq.Hff(sim.f/mpam.Rs), rx.N0, tx.RIN, sim);
-
 %% Calculate signal-dependent noise variance after matched filtering and equalizer 
-Ssh = apd.varShot(Pt, 1)/2; % two-sided shot noise PSD
+Ssh = apd.varShot(abs(Et).^2, 1)/2; % two-sided shot noise PSD
 
 % Receiver filter
 % For symbol-rate sampling linear equalizer = APD -> Whitening filter ->
@@ -120,8 +118,10 @@ pe_gauss = real(pe_gauss)/Nsymb;
 bergauss_levels = pe_gauss/log2(mpam.M); % this corresponds to p(error | given symbol)p(symbol)
 bergauss = sum(pe_gauss)/log2(mpam.M);
 
-%% AWGN Approximation:
-% AWGN (including noise enhancement penalty)
+%% AWGN Approximation: including noise enhancement penalty
+% Noise std: includes RIN, shot and thermal noise (assumes gaussian stats)
+noise_std = apd.stdNoise(Hw.*rx.eq.Hrx, rx.eq.Hff(sim.f/(rx.eq.ros*mpam.Rs)), rx.N0, tx.RIN, sim);
+
 % mpam = mpam.adjust_levels(tx.Ptx*link_gain, tx.rexdB);
 hh0 = round(grpdelay(hh, 1, 1));
 hhd_prev = hh(hh0:-sim.Mct:1);

@@ -2,14 +2,12 @@ function [ber, mpam, apd] = apd_ber(mpam, tx, fiber, apd, rx, sim)
 %% Calculate BER of unamplified IM-DD system with APD detector 
 % BER is calculated via montecarlo simulation, analytically, AWGN channel, 
 % AWGN channel including noise enhancement penalty.
-verbose = sim.verbose;
-sim.verbose = max(sim.verbose-1, 0);
-
 dBm2Watt = @(x) 1e-3*10.^(x/10);
 
 % If equalizer is not defined assume no equalization
 if ~isfield(rx, 'eq')
     rx.eq.type = 'None';
+    rx.eq.ros = 1; % assuming symbol-rate sampling
 end
 
 % Optimize APD gain
@@ -44,7 +42,7 @@ for k = 1:length(Ptx)
         ber_apd_gauss(mpam, tx, fiber, apd, rx, sim);
 end
 
-if verbose
+if isfield(sim, 'plots') && sim.plots('BER')
     PrxdBm = tx.PtxdBm - 10*log10(fiber.link_attenuation(tx.lamb));
     figure(1), hold on, box on
     hline = plot(PrxdBm, log10(ber.count), 'o');
@@ -55,5 +53,18 @@ if verbose
     xlabel('Received Power (dBm)')
     ylabel('log_{10}(BER)')
     grid on
-    axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
+    axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])  
+    drawnow
+    
+    % Difference between montecarlo simulation and analysis @ target BER
+    try
+        valid = not(isnan(log10(ber.count)) | isinf(log10(ber.count)));
+        Pdiff = spline(log10(ber.count(valid)), PrxdBm(valid), log10(sim.BERtarget))...
+            -spline(log10(ber.gauss(valid)), PrxdBm(valid), log10(sim.BERtarget));
+        fprintf('Difference between montecarlo simulation and analysis @ target BER: %.2f dB\n', Pdiff)
+    catch e
+        disp('Could not calculate difference between montecarlo simulation and analysis @ target BER')
+        warning(e.message)
+    end       
+end
 end

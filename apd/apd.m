@@ -21,13 +21,13 @@ classdef apd
         c = 299792458;      % speed of light
     end
     
-    properties (Constant, GetAccess=private)
+    properties (Constant, GetAccess=protected)
         cdf_accuracy = 1-1e-4; % Required accuracy of the cdf (i.e., pmf will have the minimum number of points that satistifes that sum pmf > cdf_accuracy.)
         Niterations = 1e6; % maximum number of iterations in a while loop
         Ptail = 1e-6; % probability of clipped tail
     end
     
-    properties (Dependent, GetAccess=private)
+    properties (Dependent, GetAccess=protected)
         a % auxiliary variable G = 1/(1-ab)
         b % auxiliary variable b = 1/(1-ka)
     end
@@ -178,22 +178,31 @@ classdef apd
             sig2 = 2*this.q*this.Gain^2*this.Fa*(this.R*Pin + this.Id)*Df; % Agrawal 4.4.17 (4th edition)
         end
 
-        function output = detect(this, Pin, fs, noise_stats, N0)
+        function output = detect(this, Ein, fs, noise_stats, N0)
             %% Direct detection
             % Inputs:
-            % - Pin = received power (W)
+            % - Ein = input electric field
             % - fs = sampling frequency (Hz)
             % - noise_stats = 'gaussian', 'doubly-stochastic' (not
             % implemented), or 'no noise'
             % - N0 (optional, if provided, thermal noise of psd N0 is added
             % after direct detection) = thermal noise psd      
             
+            if any(size(Ein) == 2) % two pols
+                if size(Ein, 1) ~= 2
+                    Ein = Ein.'; % put in 2 x N format
+                end
+                Pin = sum(abs(Ein).^2, 1);
+            else
+                Pin = abs(Ein).^2;
+            end     
+            
             switch noise_stats 
                 case 'gaussian'
                     % Assuming Gaussian statistics    
                     output = this.R*this.Gain*Pin + sqrt(this.varShot(Pin, fs/2)).*randn(size(Pin));
                     
-                case 'doubly-stochastic'
+                case 'doubly-stochastic' % DEPRECTED
                     % uses saddlepoint approximation to obtain pmf in order to generate 
                     % output distributed according to that pmf
                     Plevels = unique(Pin);
@@ -342,7 +351,11 @@ classdef apd
             Hw = 1; % begin with no noise whitening filter
             while abs(Pmean-Pmean_old)/Pmean > tol && n < maxIterations     
                 % Design equalizer
-                rx.eq.type = 'Fixed TD-SR-LE'; % always use fixed symbol-rate equalizer for analysis
+                % If equalization is required, then assume fixed symbol-rate equalizer for analysis
+                if isfield(rx, 'eq') && ~strcmpi(rx.eq.type, 'none')
+                    rx.eq.type = 'Fixed TD-SR-LE'; 
+                    rx.eq.ros = 1;
+                end
                 [~, eq] = equalize(rx.eq, [], Hw.*Hch, mpam, rx, sim); % design equalizer
                 % This design assumes fixed zero-forcing equalizers  
                 
@@ -448,7 +461,11 @@ classdef apd
             end
             
             % Equalization
-            rx.eq.type = 'Fixed TD-SR-LE'; % always use fixed symbol-rate equalizer for analysis
+            % If equalization is required, then assume fixed symbol-rate equalizer for analysis
+            if isfield(rx, 'eq') && ~strcmpi(rx.eq.type, 'none')
+                rx.eq.type = 'Fixed TD-SR-LE'; 
+                rx.eq.ros = 1;
+            end
             [~, eq] = equalize(rx.eq, [], Hw.*Hch, mpam, rx, sim); % design equalizer
             % This design assumes fixed zero-forcing equalizers             
 
@@ -475,312 +492,316 @@ classdef apd
              end
         end
     end
-          
-    %% Methods for calculating the accurate noise statistics (DEPRECTED)
-    methods
+end
+
+
+%%%% Deprected methods %%%%
+% Functions for modeling non-Gaussian noise statistics. These methods are
+% no longer compatible with many functions they call.
+%     %% Methods for calculating the accurate noise statistics (DEPRECTED)
+%     methods
+% %         function M = Ms(this, s)
+% %             options = optimoptions('fsolve', 'Display', 'off');
+% %             exitflag = 2;
+% %             k = 1;
+% %             while exitflag ~= 1 && k < 10
+% %                 [M, ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s), 4*randn(1), options);
+% %                 k = k + 1;
+% %             end
+% %             if exitflag ~= 1 
+% %                 warning('Calculation of M did not converge');
+% %             end  
+% %         end       
+% 
 %         function M = Ms(this, s)
+%             %% 
 %             options = optimoptions('fsolve', 'Display', 'off');
-%             exitflag = 2;
-%             k = 1;
-%             while exitflag ~= 1 && k < 10
-%                 [M, ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s), 4*randn(1), options);
-%                 k = k + 1;
-%             end
-%             if exitflag ~= 1 
-%                 warning('Calculation of M did not converge');
+%             for k = 1:length(s)
+%                 [M(k), ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s(k)), 2*sign(s(k)), options);
+%                 if exitflag ~= 1 
+%                     warning('Calculation of M(s) did not converge');
+%                 end
 %             end  
 %         end       
-
-        function M = Ms(this, s)
-            %% 
-            options = optimoptions('fsolve', 'Display', 'off');
-            for k = 1:length(s)
-                [M(k), ~, exitflag] = fsolve(@(M) M*(1 + this.a*(M-1))^(-this.b) - exp(s(k)), 2*sign(s(k)), options);
-                if exitflag ~= 1 
-                    warning('Calculation of M(s) did not converge');
-                end
-            end  
-        end       
-        
-        %% Tail probabilities calculation
-        % Not working properly. fsolve doesn't work as well as fzero
-        function [px, shat] = tail_saddlepoint_approx(this, xthresh, P, fs, N0, tail) 
-            %% Output sgnal distribution including thermal noise using the saddlepoint approximation
-            % px = output sgnal pdf
-            % x = current at output
-            % lambda = rate of the Poisson process
-            % N0 = thermal noise psd
-            % fs = sampling frequency
-            %% NOT FINISHED !!!
-            options = optimoptions('fsolve', 'Display', 'off');
-            
-            % From implicit relations of APD: beta = 1/(1 - ka) and G = 1/(1 - ab)
-            a = this.a;
-            b = this.b;
-
-            if P == 0
-                px = 1;
-                return;
-            end
-            
-            lambda = this.lambda(P, 1/fs);
-
-%             if strcmp(tail, 'right')
-%                 sgn = 1;
-%             elseif strcmp(tail, 'left')
-%                 sgn = -1;
-%             else
-%                 error('invalid option');
+%         
+%         %% Tail probabilities calculation
+%         % Not working properly. fsolve doesn't work as well as fzero
+%         function [px, shat] = tail_saddlepoint_approx(this, xthresh, P, fs, N0, tail) 
+%             %% Output sgnal distribution including thermal noise using the saddlepoint approximation
+%             % px = output sgnal pdf
+%             % x = current at output
+%             % lambda = rate of the Poisson process
+%             % N0 = thermal noise psd
+%             % fs = sampling frequency
+%             %% NOT FINISHED !!!
+%             options = optimoptions('fsolve', 'Display', 'off');
+%             
+%             % From implicit relations of APD: beta = 1/(1 - ka) and G = 1/(1 - ab)
+%             a = this.a;
+%             b = this.b;
+% 
+%             if P == 0
+%                 px = 1;
+%                 return;
 %             end
-           
-            dt = 1/fs; % pulse width
-            
-            % Calculate electron number variance corresponding to thermal noise
-            varTherm = (N0*fs/2)*(dt/this.q)^2;
-            
-            %
-            nthresh = xthresh*(dt/this.q);
-
-            % dM(e^s)/ds
-            dMds = @(M) M*(1 + a*(M-1))/((1 + a*(M-1) - a*b*M)); 
-
-            %% Calculate Saddlepoint
-            % Solve value of s 
-            % Can't use fzero because objective function might be complex
-            % Use real(s) instead of s to force real solution
-            % Solve value of M(e^s) at the saddlepoint 
-            % Can't use fzero because M(e^s) might be complex
-            [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M))...
-                + varTherm*(log(M) - b*log(1 + a*(M-1))) - nthresh - 1/(log(M) - b*log(1 + a*(M-1))), 1e-2, options);
-
-            if exitflag ~= 1 % if didn't converge try again with opposite sgn
-                [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M))...
-                    + varTherm*(log(M) - b*log(1 + a*(M-1))) - nthresh - 1/(log(M) - b*log(1 + a*(M-1))), -1e-2, options);
-                if exitflag ~= 1
-                    warning('Calculation of M at the saddlepoint did not converge');
-                end
-            end
-            
-            % From M(e^s) at the saddlepoint calculate real part of s
-            shat = real(log(Mhat) - b*log(1 + a*(Mhat-1)));
-            
-            % Get new M(shat)
-            [Mhat, ~, exitflag] = fsolve(@(M) M*(1 + a*(M-1))^(-b) - exp(shat), real(Mhat), options);
-            if exitflag ~= 1 
-                warning('Calculation of M at the saddlepoint did not converge');
-            end          
-
-            
-            % First derivative of M(s) at the saddlepoint
-            dMhat = dMds(Mhat);
-
-            % Second derivative of M(e^(s)) evaluated at the saddlepoint
-            d2Mhatds = d2Mds2(Mhat, dMhat);
-
-            % 
-            Ksp = lambda*(Mhat - 1) + 1/2*varTherm*shat^2 - shat*nthresh - log(abs(shat));
-            d2Ksp = lambda*d2Mhatds + varTherm + 1/shat^2; % second derivative
-
-            % Saddle point approximation
-            px = real(exp(Ksp)./sqrt(2*pi*d2Ksp));  
-                       
-            % Second derivative of M(e^s)
-            % M = M(e^s)
-            % dM = dM(e^s)/ds
-            function d2M = d2Mds2(M, dM)
-                % M'' = (p'q - q'p)/q^2
-
-                p = M.*(1 + a*(M-1));
-                pprime = dM.*(1 + a*(2*M-1));
-                qq = (1 + a*(M-1) - a*b*M);
-                qprime = a*dM*(1 - b);
-
-                % Second derivative of M(e^s)
-                d2M = (pprime.*qq - qprime.*p)./qq.^2;
-            end
-        end
-
-        function [px, x] = output_pdf_saddlepoint(this, P, fs, N0)
-            %% Output sgnal distribution including thermal noise using the saddlepoint approximation
-            % px = output sgnal pdf
-            % x = current at output
-            % lambda = rate of the Poisson process
-            % N0 = thermal noise psd
-            % fs = sampling frequency
-            options = optimoptions('fsolve', 'Display', 'off');
-            
-            % From implicit relations of APD: beta = 1/(1 - ka) and G = 1/(1 - ab)
-            a = this.a;
-            b = this.b;
-
-            if P == 0
-                px = 1;
-                x = 0;
-                return;
-            end
-            
-            % Rate of Poisson process
-            lambda = this.lambda(P, 1/fs);
-
-            dt = 1/fs; % pulse width
-            
-            % Calculate electron number variance corresponding to thermal noise
-            varTherm = (N0*fs/2)*(dt/this.q)^2;
-
-            % dM(e^s)/ds
-            dMds = @(M) M*(1 + a*(M-1))/((1 + a*(M-1) - a*b*M));
-
-            % Uses gaussian appproximation to estimate number of points sufficient to obtain great part of the pdf
-            % this.Ptail is the probability of the tails not spanned by the
-            % calculated pdf
-            nmean = lambda*this.Gain;
-            nvar = this.Gain^2*this.Fa*lambda + varTherm;
-            npos = ceil(sqrt(nvar)*qfuncinv(this.Ptail));
-            N = max(0, nmean-npos):(nmean+npos);
-
-            %% Calculate Saddlepoint
-            px = zeros(size(N));
-            for k = 1:length(N)
-                n = N(k);
-                
-               % Solve value of M(e^s) at the saddlepoint 
-                % Can't use fzero because M(e^s) might be complex
-                [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M)) + varTherm*(log(M) - b*log(1 + a*(M-1))) - n, 1, options);
-
-                if exitflag ~= 1 % if didn't converge try again with opposite sgn
-                    [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M)) + varTherm*(log(M) - b*log(1 + a*(M-1))) - n, -1, options);
-                    if exitflag ~= 1
-                        warning('Calculation of M at the saddlepoint did not converge');
-                        continue
-                    end
-                end
-               
-                % From M(e^s) at the saddlepoint calculate real part of s
-                shat = real(log(Mhat) - b*log(1 + a*(Mhat-1)));
-                
-%                 Mhat = this.Ms(shat);
-
-                % Get new M(shat)
-                [Mhat, ~, exitflag] = fsolve(@(M) M*(1 + a*(M-1))^(-b) - exp(shat), real(Mhat), options);
-                if exitflag ~= 1 
-                    warning('Calculation of M at the saddlepoint did not converge');
-                end  
-                
-                % First derivative of M(s) at the saddlepoint
-                dMhat = dMds(Mhat);
-
-                % Second derivative of M(e^(s)) evaluated at the saddlepoint
-                d2Mhatds = d2Mds2(Mhat, dMhat);
-
-                % 
-                Ksp = lambda*(Mhat - 1) + 1/2*varTherm*shat^2 - shat*n;
-                d2Ksp = lambda*d2Mhatds + varTherm; % second derivative
-
-                % Saddle point approximation
-                px(k) = real(exp(Ksp)./sqrt(2*pi*d2Ksp));  
-            end
-
-            x = N*(this.q/dt);
-            px = px*(dt/this.q);
-            
-            intpx = trapz(x, px);
-            
-            if intpx < 1 - 2*this.Ptail
-                warning(sprintf('output_pdf_saddlepoint: pdf accounts only for %g of probability, %g was expected', intpx, 1 - 2*this.Ptail));
-            end
-            
-            % renormalized pdf
-            px = px/intpx;
-                                    
-            % Second derivative of M(e^s)
-            % M = M(e^s)
-            % dM = dM(e^s)/ds
-            function d2M = d2Mds2(M, dM)
-                % M'' = (p'q - q'p)/q^2
-
-                p = M.*(1 + a*(M-1));
-                pprime = dM.*(1 + a*(2*M-1));
-                qq = (1 + a*(M-1) - a*b*M);
-                qprime = a*dM*(1 - b);
-
-                % Second derivative of M(e^s)
-                d2M = (pprime.*qq - qprime.*p)./qq.^2;
-            end            
-        end
-        
-        % Calculate noise pdf for a sgnal levels Plevels with duration dt.
-        % The Gaussian approximation is compared with the distribution 
-        % calculated using the saddlepoint approximation
-        function lpdf = levels_pdf(this, Plevels, fs)           
-            % Struct of levels pdf: 
-            lpdf = struct('p', 0, 'p_gauss', 0, 'I', 0,... % p(I) = true pdf, p_gauss(I) = pdf under Gaussian approximation
-                'mean', 0, 'mean_gauss', 0,... % true mean and mean under Gaussian approximation
-                'var', 0, 'var_gauss', num2cell(zeros(size(Plevels)))); % true variance and variance under Gaussian approximation
-            
-            for k = 1:length(Plevels)                  
-                
-                if Plevels(k) == 0
-                    continue
-                end
-                
-                [lpdf(k).p, lpdf(k).I] = this.output_pdf_saddlepoint(Plevels(k), fs, 0);
-                                               
-                lpdf(k).mean = trapz(lpdf(k).I, lpdf(k).I.*lpdf(k).p);
-                lpdf(k).mean_gauss = Plevels(k)*this.Gain;
-                lpdf(k).var = trapz(lpdf(k).I, lpdf(k).I.^2.*lpdf(k).p) - lpdf(k).mean.^2;
-                lpdf(k).var_gauss = this.varShot(Plevels(k), fs/2);
-                
-                lpdf(k).p_gauss = pdf('normal', lpdf(k).I, lpdf(k).mean_gauss, sqrt(lpdf(k).var_gauss));
-            end
-        end
-        
-        %% Output sgnal pmf (without thermal noise)
-        % pn = probability of observing n electrons at the output
-        % lambda = rate of the Poisson process
-        function pn = output_pmf(this, lambda)          
-            pn = exp(-lambda); % n = 0;
-            
-            psum = pn;
-            k = 0; % current iteration   
-            r = 0;
-            mr1 = this.calc_mr(r+1);
-            while psum  < this.cdf_accuracy && k < this.Niterations              
-                pn(k+2) = lambda/(k+1)*sum((r+1).*mr1.*fliplr(pn(r+1)));
-                
-                psum = psum + pn(k+2);
-                
-                k = k + 1;
-                
-                r = [r k];
-                
-                mr1 = [mr1 calc_mr(k+1)];
-            end
-            
-            if k >= this.Niterations
-                warning(sprintf('output_pmf(this, lambda): max number of iterations exceeded. pmf accounts only for %f of probability', psum));
-            end
-            
-            % Calculate mr given in C. Helstrom "Computattion of Output
-            % Electron Distributions in Avalanche Photodiodes"
-            function mr = calc_mr(r)
-
-                P2 = (r-1)*log(this.a);
-                P3 = (r*(this.b-1)+1)*log(1 - this.a);
-                P4 = sum(log(1:r)); % P4 = log(factorial(r));
-
-                if r < 100 % calculate exactly
-                    P1 = log(gamma(this.b*r + 1));
-                    P5 = log(gamma(r*(this.b-1) + 2));
-                else % use Stirling's formula for the factorial and Gamma functions
-                    stirling_approx = @(z) log(sqrt(2*pi/z)) + z*log(z/exp(1));
-                    P1 = stirling_approx(this.b*r + 1);
-                    P5 = stirling_approx(r*(this.b-1) + 2);                
-                end      
-
-                P = P1 + P2 + P3 - P4 - P5;
-
-                mr = exp(P);
-            end
-        end  
-    end
-end           
+%             
+%             lambda = this.lambda(P, 1/fs);
+% 
+% %             if strcmp(tail, 'right')
+% %                 sgn = 1;
+% %             elseif strcmp(tail, 'left')
+% %                 sgn = -1;
+% %             else
+% %                 error('invalid option');
+% %             end
+%            
+%             dt = 1/fs; % pulse width
+%             
+%             % Calculate electron number variance corresponding to thermal noise
+%             varTherm = (N0*fs/2)*(dt/this.q)^2;
+%             
+%             %
+%             nthresh = xthresh*(dt/this.q);
+% 
+%             % dM(e^s)/ds
+%             dMds = @(M) M*(1 + a*(M-1))/((1 + a*(M-1) - a*b*M)); 
+% 
+%             %% Calculate Saddlepoint
+%             % Solve value of s 
+%             % Can't use fzero because objective function might be complex
+%             % Use real(s) instead of s to force real solution
+%             % Solve value of M(e^s) at the saddlepoint 
+%             % Can't use fzero because M(e^s) might be complex
+%             [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M))...
+%                 + varTherm*(log(M) - b*log(1 + a*(M-1))) - nthresh - 1/(log(M) - b*log(1 + a*(M-1))), 1e-2, options);
+% 
+%             if exitflag ~= 1 % if didn't converge try again with opposite sgn
+%                 [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M))...
+%                     + varTherm*(log(M) - b*log(1 + a*(M-1))) - nthresh - 1/(log(M) - b*log(1 + a*(M-1))), -1e-2, options);
+%                 if exitflag ~= 1
+%                     warning('Calculation of M at the saddlepoint did not converge');
+%                 end
+%             end
+%             
+%             % From M(e^s) at the saddlepoint calculate real part of s
+%             shat = real(log(Mhat) - b*log(1 + a*(Mhat-1)));
+%             
+%             % Get new M(shat)
+%             [Mhat, ~, exitflag] = fsolve(@(M) M*(1 + a*(M-1))^(-b) - exp(shat), real(Mhat), options);
+%             if exitflag ~= 1 
+%                 warning('Calculation of M at the saddlepoint did not converge');
+%             end          
+% 
+%             
+%             % First derivative of M(s) at the saddlepoint
+%             dMhat = dMds(Mhat);
+% 
+%             % Second derivative of M(e^(s)) evaluated at the saddlepoint
+%             d2Mhatds = d2Mds2(Mhat, dMhat);
+% 
+%             % 
+%             Ksp = lambda*(Mhat - 1) + 1/2*varTherm*shat^2 - shat*nthresh - log(abs(shat));
+%             d2Ksp = lambda*d2Mhatds + varTherm + 1/shat^2; % second derivative
+% 
+%             % Saddle point approximation
+%             px = real(exp(Ksp)./sqrt(2*pi*d2Ksp));  
+%                        
+%             % Second derivative of M(e^s)
+%             % M = M(e^s)
+%             % dM = dM(e^s)/ds
+%             function d2M = d2Mds2(M, dM)
+%                 % M'' = (p'q - q'p)/q^2
+% 
+%                 p = M.*(1 + a*(M-1));
+%                 pprime = dM.*(1 + a*(2*M-1));
+%                 qq = (1 + a*(M-1) - a*b*M);
+%                 qprime = a*dM*(1 - b);
+% 
+%                 % Second derivative of M(e^s)
+%                 d2M = (pprime.*qq - qprime.*p)./qq.^2;
+%             end
+%         end
+% 
+%         function [px, x] = output_pdf_saddlepoint(this, P, fs, N0)
+%             %% Output sgnal distribution including thermal noise using the saddlepoint approximation
+%             % px = output sgnal pdf
+%             % x = current at output
+%             % lambda = rate of the Poisson process
+%             % N0 = thermal noise psd
+%             % fs = sampling frequency
+%             options = optimoptions('fsolve', 'Display', 'off');
+%             
+%             % From implicit relations of APD: beta = 1/(1 - ka) and G = 1/(1 - ab)
+%             a = this.a;
+%             b = this.b;
+% 
+%             if P == 0
+%                 px = 1;
+%                 x = 0;
+%                 return;
+%             end
+%             
+%             % Rate of Poisson process
+%             lambda = this.lambda(P, 1/fs);
+% 
+%             dt = 1/fs; % pulse width
+%             
+%             % Calculate electron number variance corresponding to thermal noise
+%             varTherm = (N0*fs/2)*(dt/this.q)^2;
+% 
+%             % dM(e^s)/ds
+%             dMds = @(M) M*(1 + a*(M-1))/((1 + a*(M-1) - a*b*M));
+% 
+%             % Uses gaussian appproximation to estimate number of points sufficient to obtain great part of the pdf
+%             % this.Ptail is the probability of the tails not spanned by the
+%             % calculated pdf
+%             nmean = lambda*this.Gain;
+%             nvar = this.Gain^2*this.Fa*lambda + varTherm;
+%             npos = ceil(sqrt(nvar)*qfuncinv(this.Ptail));
+%             N = max(0, nmean-npos):(nmean+npos);
+% 
+%             %% Calculate Saddlepoint
+%             px = zeros(size(N));
+%             for k = 1:length(N)
+%                 n = N(k);
+%                 
+%                % Solve value of M(e^s) at the saddlepoint 
+%                 % Can't use fzero because M(e^s) might be complex
+%                 [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M)) + varTherm*(log(M) - b*log(1 + a*(M-1))) - n, 1, options);
+% 
+%                 if exitflag ~= 1 % if didn't converge try again with opposite sgn
+%                     [Mhat, ~, exitflag] = fsolve(@(M) lambda*(M*(1 + a*(M-1))/(1 + a*(M-1) - a*b*M)) + varTherm*(log(M) - b*log(1 + a*(M-1))) - n, -1, options);
+%                     if exitflag ~= 1
+%                         warning('Calculation of M at the saddlepoint did not converge');
+%                         continue
+%                     end
+%                 end
+%                
+%                 % From M(e^s) at the saddlepoint calculate real part of s
+%                 shat = real(log(Mhat) - b*log(1 + a*(Mhat-1)));
+%                 
+% %                 Mhat = this.Ms(shat);
+% 
+%                 % Get new M(shat)
+%                 [Mhat, ~, exitflag] = fsolve(@(M) M*(1 + a*(M-1))^(-b) - exp(shat), real(Mhat), options);
+%                 if exitflag ~= 1 
+%                     warning('Calculation of M at the saddlepoint did not converge');
+%                 end  
+%                 
+%                 % First derivative of M(s) at the saddlepoint
+%                 dMhat = dMds(Mhat);
+% 
+%                 % Second derivative of M(e^(s)) evaluated at the saddlepoint
+%                 d2Mhatds = d2Mds2(Mhat, dMhat);
+% 
+%                 % 
+%                 Ksp = lambda*(Mhat - 1) + 1/2*varTherm*shat^2 - shat*n;
+%                 d2Ksp = lambda*d2Mhatds + varTherm; % second derivative
+% 
+%                 % Saddle point approximation
+%                 px(k) = real(exp(Ksp)./sqrt(2*pi*d2Ksp));  
+%             end
+% 
+%             x = N*(this.q/dt);
+%             px = px*(dt/this.q);
+%             
+%             intpx = trapz(x, px);
+%             
+%             if intpx < 1 - 2*this.Ptail
+%                 warning(sprintf('output_pdf_saddlepoint: pdf accounts only for %g of probability, %g was expected', intpx, 1 - 2*this.Ptail));
+%             end
+%             
+%             % renormalized pdf
+%             px = px/intpx;
+%                                     
+%             % Second derivative of M(e^s)
+%             % M = M(e^s)
+%             % dM = dM(e^s)/ds
+%             function d2M = d2Mds2(M, dM)
+%                 % M'' = (p'q - q'p)/q^2
+% 
+%                 p = M.*(1 + a*(M-1));
+%                 pprime = dM.*(1 + a*(2*M-1));
+%                 qq = (1 + a*(M-1) - a*b*M);
+%                 qprime = a*dM*(1 - b);
+% 
+%                 % Second derivative of M(e^s)
+%                 d2M = (pprime.*qq - qprime.*p)./qq.^2;
+%             end            
+%         end
+%         
+%         % Calculate noise pdf for a sgnal levels Plevels with duration dt.
+%         % The Gaussian approximation is compared with the distribution 
+%         % calculated using the saddlepoint approximation
+%         function lpdf = levels_pdf(this, Plevels, fs)           
+%             % Struct of levels pdf: 
+%             lpdf = struct('p', 0, 'p_gauss', 0, 'I', 0,... % p(I) = true pdf, p_gauss(I) = pdf under Gaussian approximation
+%                 'mean', 0, 'mean_gauss', 0,... % true mean and mean under Gaussian approximation
+%                 'var', 0, 'var_gauss', num2cell(zeros(size(Plevels)))); % true variance and variance under Gaussian approximation
+%             
+%             for k = 1:length(Plevels)                  
+%                 
+%                 if Plevels(k) == 0
+%                     continue
+%                 end
+%                 
+%                 [lpdf(k).p, lpdf(k).I] = this.output_pdf_saddlepoint(Plevels(k), fs, 0);
+%                                                
+%                 lpdf(k).mean = trapz(lpdf(k).I, lpdf(k).I.*lpdf(k).p);
+%                 lpdf(k).mean_gauss = Plevels(k)*this.Gain;
+%                 lpdf(k).var = trapz(lpdf(k).I, lpdf(k).I.^2.*lpdf(k).p) - lpdf(k).mean.^2;
+%                 lpdf(k).var_gauss = this.varShot(Plevels(k), fs/2);
+%                 
+%                 lpdf(k).p_gauss = pdf('normal', lpdf(k).I, lpdf(k).mean_gauss, sqrt(lpdf(k).var_gauss));
+%             end
+%         end
+%         
+%         %% Output sgnal pmf (without thermal noise)
+%         % pn = probability of observing n electrons at the output
+%         % lambda = rate of the Poisson process
+%         function pn = output_pmf(this, lambda)          
+%             pn = exp(-lambda); % n = 0;
+%             
+%             psum = pn;
+%             k = 0; % current iteration   
+%             r = 0;
+%             mr1 = this.calc_mr(r+1);
+%             while psum  < this.cdf_accuracy && k < this.Niterations              
+%                 pn(k+2) = lambda/(k+1)*sum((r+1).*mr1.*fliplr(pn(r+1)));
+%                 
+%                 psum = psum + pn(k+2);
+%                 
+%                 k = k + 1;
+%                 
+%                 r = [r k];
+%                 
+%                 mr1 = [mr1 calc_mr(k+1)];
+%             end
+%             
+%             if k >= this.Niterations
+%                 warning(sprintf('output_pmf(this, lambda): max number of iterations exceeded. pmf accounts only for %f of probability', psum));
+%             end
+%             
+%             % Calculate mr given in C. Helstrom "Computattion of Output
+%             % Electron Distributions in Avalanche Photodiodes"
+%             function mr = calc_mr(r)
+% 
+%                 P2 = (r-1)*log(this.a);
+%                 P3 = (r*(this.b-1)+1)*log(1 - this.a);
+%                 P4 = sum(log(1:r)); % P4 = log(factorial(r));
+% 
+%                 if r < 100 % calculate exactly
+%                     P1 = log(gamma(this.b*r + 1));
+%                     P5 = log(gamma(r*(this.b-1) + 2));
+%                 else % use Stirling's formula for the factorial and Gamma functions
+%                     stirling_approx = @(z) log(sqrt(2*pi/z)) + z*log(z/exp(1));
+%                     P1 = stirling_approx(this.b*r + 1);
+%                     P5 = stirling_approx(r*(this.b-1) + 2);                
+%                 end      
+% 
+%                 P = P1 + P2 + P3 - P4 - P5;
+% 
+%                 mr = exp(P);
+%             end
+%         end  
+%     end

@@ -9,7 +9,7 @@ L = [1, 5, 10, 20]*1e3;
 
 fiber = fiber(L(1));
 
-tx.lamb = 1250e-9;
+tx.lamb = 1330e-9;
 tx.alpha = 2;
 f = linspace(0, 50e9, 50);
 Colors = {'green', 'blue', 'orange', 'red'};
