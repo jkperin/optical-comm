@@ -1,0 +1,28 @@
+\begin{thebibliography}{1}
+
+\bibitem{agilent-RIN-measurement}
+Product~Note 86100-7.
+\newblock Digital communication analyzer (dca), measure relative intensity
+  noise (rin).
+\newblock {\em Agilent Technologies}.
+
+\bibitem{Hoffmann2008}
+Sebastian Hoffmann, Suhas Bhandare, Timo Pfau, Olaf Adamczyk, Christian
+  W{\"{o}}rdehoff, Ralf Peveling, Mario Porrmann, and Reinhold No{\'{e}}.
+\newblock {Frequency and phase estimation for coherent QPSK transmission with
+  unlocked DFB lasers}.
+\newblock {\em IEEE Photonics Technology Letters}, 20(18):1569--1571, 2008.
+
+\bibitem{Ip2008}
+E.~Ip, A.~P.~T. Lau, D.~J.~F. Barros, and J.~M. Kahn.
+\newblock {Coherent detection in optical fiber systems}.
+\newblock {\em Opt. Express}, 16(2):753--791, 2008.
+
+\bibitem{Phase1995}
+Carrier Phase and Recovery Algorithm.
+\newblock {Modified constant modulus algorithm: blind equalization and carrier
+  phase recovery algorithm}.
+\newblock {\em Proceedings IEEE International Conference on Communications ICC
+  '95}, 1:498--502, 1995.
+
+\end{thebibliography}

@@ -1,4 +1,4 @@
-function [Y, ACG] = PDM_QAM_Rx(Erec, M, Rx, sim)
+function [Y, SNR_est, ACG] = PDM_QAM_Rx(Erec, M, Rx, sim)
 
 E1rec = Erec(1,:);      % received signal in x pol.
 E2rec = Erec(2,:);      % received signal in y pol.
@@ -19,7 +19,7 @@ elseif strcmp(Rx.PolSplit.sig,'3dB')
 end
 
 % Create LO field 
-ELO = cw_laser(Rx.LO, sim);
+ELO = Rx.LO.cw(sim);
 EL1 = sqrt(1/2)*ELO;    % LO field in x polarization at PBS or BS input
 EL2 = sqrt(1/2)*ELO;    % LO field in y polarization at PBS or BS input
 
@@ -70,10 +70,17 @@ E12Qb = -sqrt(fS)*sqrt(fQ)*ifft(exp(1i*phiQ2).*fft(E12)) + 1i*sqrt(fL)*sqrt(1-fQ
 E22Qb = -sqrt(fS)*sqrt(fQ)*ifft(exp(1i*phiQ2).*fft(E22)) + 1i*sqrt(fL)*sqrt(1-fQ)*EL22;    % field in y polarization at second Q output in pol. branch 2
 
 % perform photodetection
-Y1idet = -Rx.PD.detect([E11Ia; E21Ia], sim.fs, 'gaussian') + Rx.PD.detect([E11Ib; E21Ib], sim.fs, 'gaussian'); % I output, pol. branch 1
-Y1qdet = Rx.PD.detect([E11Qa; E21Qa], sim.fs, 'gaussian') - Rx.PD.detect([E11Qb; E21Qb], sim.fs, 'gaussian'); % Q output, pol. branch 1
-Y2idet = -Rx.PD.detect([E12Ia; E22Ia], sim.fs, 'gaussian') + Rx.PD.detect([E12Ib; E22Ib], sim.fs, 'gaussian'); % I output, pol. branch 2
-Y2qdet = Rx.PD.detect([E12Qa; E22Qa], sim.fs, 'gaussian') - Rx.PD.detect([E12Qb; E22Qb], sim.fs, 'gaussian'); % Q output, pol. branch 2
+Y1idet = -Rx.PD.detect([E11Ia; E21Ia], sim.fs, 'gaussian')...
+    + Rx.PD.detect([E11Ib; E21Ib], sim.fs, 'gaussian'); % I output, pol. branch 1
+
+Y1qdet = Rx.PD.detect([E11Qa; E21Qa], sim.fs, 'gaussian')...
+    - Rx.PD.detect([E11Qb; E21Qb], sim.fs, 'gaussian'); % Q output, pol. branch 1
+
+Y2idet = -Rx.PD.detect([E12Ia; E22Ia], sim.fs, 'gaussian')...
+    + Rx.PD.detect([E12Ib; E22Ib], sim.fs, 'gaussian'); % I output, pol. branch 2
+
+Y2qdet = Rx.PD.detect([E12Qa; E22Qa], sim.fs, 'gaussian')...
+    - Rx.PD.detect([E12Qb; E22Qb], sim.fs, 'gaussian'); % Q output, pol. branch 2
 
 % Add thermal noise
 Y1idet = Y1idet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y1idet));
@@ -84,12 +91,17 @@ Y2qdet = Y2qdet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y2qdet));
 % Form output
 Y = [Y1idet + 1j*Y1qdet; Y2idet + 1j*Y2qdet];
 
+Pin = mean(abs(E11Ia).^2 + abs(E21Ia).^2);
+Df = Rx.ADC.filt.noisebw(sim.fs)/2; % receiver equivalent noise bandwidth (one-sided)
+varShot = 4*Rx.PD.varShot(Pin, Df); % x 4 because of 4 photodiodes are used per polarization
+
+% Thermal noise is assumed to be per real dimension
+SNR_est = 10*log10(0.5*mean(abs(Y(1, :)).^2)/(varShot + 2*Rx.N0*Df) - 1);
+
 % AGC
 % Normalize signals so that constellations be in original form
 Enorm = mean(abs(qammod(0:M-1, M)).^2);
 ACG = sqrt(Enorm./[mean(abs(Y(1, :)).^2), mean(abs(Y(2, :)).^2)]);
-    
+
 Y(1, :) = ACG(1)*Y(1, :);
 Y(2, :) = ACG(1)*Y(2, :);
-
-1;

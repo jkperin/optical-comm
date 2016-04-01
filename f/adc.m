@@ -23,7 +23,7 @@ xa = real(ifft(fft(x).*Hrx)); % filter
 xs = xa(1:sim.Mct/ADC.ros:end);
 
 % Quantize
-if isfield(sim, 'quantiz') && sim.quantiz
+if isfield(sim, 'quantiz') && sim.quantiz && ~isinf(ADC.ENOB)
     enob = ADC.ENOB;
     rclip = ADC.rclip;
     

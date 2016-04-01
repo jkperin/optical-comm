@@ -1,17 +1,18 @@
-function [Y, W, MSE] = fse_cma(X, eq, sim)
-%% Fractionally spaced equalization (FSE) using constant modulus algorithm (CMA)
-%% Equalization is done in time domain
+function [Y, W, MSE] = lms_td_fse(X, eq, Ytrain, M)
+%% Adaptive time-domain fractionally spaced linear equalizer adapted using LMS algorithm
 % Inputs:
 % - eq : equalizer parameters {eq.ros = oversampling ratio, eq.Ntrain = 
 % number of traning symbols, eq.mu = adaptation rate}
 % - X : input samples in the two polarizations [2 x N] at rate ros x Rs
+% - Xtrain : symbols for training length(Xtrain) >= Ntrain
+% - M : qam order
 % Output:
 % - Y : Equalized symbols at rate 1 x Rs
-% - W : cell containing Wx, Wy, Wmix filters coefficients 
-% - MSE : mean square error
-ros = sim.ros;
+% - Wx, Wy : Filters coefficients 
+% - MSE: mean square error
+ros = eq.ros;
+Ntrain = eq.Ntrain;
 mu = eq.mu;
-Nsymb = floor(length(X)/ros);
 
 if mod(eq.Ntaps, 2) == 0 % always uses odd number of taps
     eq.Ntaps = eq.Ntaps + 1;
@@ -22,7 +23,6 @@ Ntaps = eq.Ntaps;
 [Nsamp, Nfilters]  = rat(ros);
 
 if strcmpi(eq.structure, '4 filters')
-    %% Implementation using 4 filters
     % Initialize filters coefficients
     Wx = zeros(2*Ntaps, Nfilters); % used for x polarization
     Wy = zeros(2*Ntaps, Nfilters); % used for y polarization
@@ -30,7 +30,8 @@ if strcmpi(eq.structure, '4 filters')
     % Initialize filters as if there were no ISI and there was no mixing between the two pols
     Wx(ceil(Ntaps/2), :) = 1; 
     Wy(ceil(Ntaps/2)+Ntaps, :) = 1;
-    
+
+    Nsymb = length(Ytrain);
     ex = zeros(1, Nsymb);
     ey = zeros(1, Nsymb);
     yx_hat = zeros(1, Nsymb); % output in x pol stream
@@ -48,38 +49,46 @@ if strcmpi(eq.structure, '4 filters')
         yy_hat(n) = z*Wy(:, filt);
 
         % Calculate error
-        ex(n) = 2 - abs(yx_hat(n))^2;
-        ey(n) = 2 - abs(yy_hat(n))^2;
+        if n < Ntrain % Training based on training sequence
+            ex(n) = yx_hat(n) - Ytrain(1, n);
+            ey(n) = yy_hat(n) - Ytrain(2, n);
+        else % based on deteced symbols
+            ex(n) = yx_hat(n) - qammod(qamdemod(yx_hat(n), M, 0, 'Gray'), M, 0, 'Gray');
+            ey(n) = yy_hat(n) - qammod(qamdemod(yy_hat(n), M, 0, 'Gray'), M, 0, 'Gray');
+        end
 
         % Update filters coefficients
-        Wx(:, filt) = Wx(:, filt) + mu*ex(n)*yx_hat(n)*z';
-        Wy(:, filt) = Wy(:, filt) + mu*ey(n)*yy_hat(n)*z';
+        Wx(:, filt) = Wx(:, filt) - 2*mu*ex(n)*z';
+        Wy(:, filt) = Wy(:, filt) - 2*mu*ey(n)*z';
 
         % Increment filter index
         filt = mod(filt, Nfilters) + 1;
 
-        % ensures that the center of the window of samples remains 
+        % Controls how we run over the index k (whether to increment by 1 or 2)
+        % This ensures that the center of the window of samples remains 
         % close to the nth symbol
+        % this is periodic: e.g., ros = 5/4 -> ..., 1, 1, 2, 1,...
         if abs((k+1)/ros - n-1) > 0.5
             k = k + 2;
         else
             k = k + 1;
         end
     end
+    
     W = {Wx, Wy};
     
 elseif strcmpi(eq.structure, '2 filters')
-    %% Implmentation using 2 filters
-    % Number of operations is halved
     % Initialize filters coefficients
     Wx = zeros(Ntaps, Nfilters); % used for x polarization
-    Wy = zeros(Ntaps, Nfilters); % used for y polarization    
+    Wy = zeros(Ntaps, Nfilters); % used for y polarization
     Wmix = zeros(2, Nfilters);  % crossover filters
-    
+
     % Initialize filters as if there were no ISI and there was no mixing between the two pols
     Wx(ceil(Ntaps/2), :) = 1; 
     Wy(ceil(Ntaps/2), :) = 1;
-        
+
+
+    Nsymb = length(Ytrain);
     ex = zeros(1, Nsymb);
     ey = zeros(1, Nsymb);
     yx_hat = zeros(1, Nsymb); % output in x pol stream
@@ -97,26 +106,37 @@ elseif strcmpi(eq.structure, '2 filters')
         yx = zx*Wx(:, filt);
         yy = zy*Wy(:, filt);
 
-        % Filter output
         yx_hat(n) = yx + yy*Wmix(1, filt);
         yy_hat(n) = yx*Wmix(2, filt) + yy;
 
         % Calculate error
-        ex(n) = 2 - abs(yx_hat(n))^2;
-        ey(n) = 2 - abs(yy_hat(n))^2;
+        if n < Ntrain % Training based on training sequence
+            ex(n) = yx_hat(n) - Ytrain(1, n);
+            ey(n) = yy_hat(n) - Ytrain(2, n);        
+        else % based on deteced symbols
+            ex(n) = yx_hat(n) - qammod(qamdemod(yx_hat(n), M, 0, 'Gray'), M, 0, 'Gray');
+            ey(n) = yy_hat(n) - qammod(qamdemod(yy_hat(n), M, 0, 'Gray'), M, 0, 'Gray');
+        end
 
         % Update filters coefficients
-        Wx(:, filt) = Wx(:, filt) + mu*ex(n)*yx_hat(n)*zx';
-        Wy(:, filt) = Wy(:, filt) + mu*ey(n)*yy_hat(n)*zy';
+    %     ind = ceil(Ntaps/2);
+    %     tmpx = Wx(ind, filt);
+    %     tmpy = Wy(ind, filt);
+        Wx(:, filt) = Wx(:, filt) - 2*mu*ex(n)*zx';
+        Wy(:, filt) = Wy(:, filt) - 2*mu*ey(n)*zy';
+        Wmix(1, filt) = Wmix(1, filt) - 2*mu*ex(n)*conj(yy);    
+        Wmix(2, filt) = Wmix(2, filt) - 2*mu*ey(n)*conj(yx);    
 
-        Wmix(1, filt) = Wmix(1, filt) + mu*ex(n)*yx_hat(n)*conj(yy);    
-        Wmix(2, filt) = Wmix(2, filt) + mu*ey(n)*yy_hat(n)*conj(yx);    
-
+    %     Wmix(1, filt) = mean((Wy(ind, filt)*Wmix(1, filt) - 2*mu*ex(n)*zy(ind)')./tmpy);
+    %     Wmix(2, filt) = mean((Wx(ind, filt)*Wmix(2, filt) - 2*mu*ey(n)*zx(ind)')./tmpx);
+    %             
         % Increment filter index
         filt = mod(filt, Nfilters) + 1;
 
-        % ensures that the center of the window of samples remains 
+        % Controls how we run over the index k (whether to increment by 1 or 2)
+        % This ensures that the center of the window of samples remains 
         % close to the nth symbol
+        % this is periodic: e.g., ros = 5/4 -> ..., 1, 1, 2, 1,...
         if abs((k+1)/ros - n-1) > 0.5
             k = k + 2;
         else
@@ -126,9 +146,9 @@ elseif strcmpi(eq.structure, '2 filters')
     
     W = {Wx, Wy, Wmix};
 else
-    error('fse_cma/structure not defined')
+    error('lms_td_fse/structure not defined')
 end
-    
+
 % Build outputs
 Y = [yx_hat; yy_hat];
 MSE = [abs(ex).^2; abs(ey).^2];

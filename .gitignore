@@ -19,4 +19,5 @@ apd/trash/
 mpam/trash/
 !gui/data/*.png
 *.o*
-coherent/old/
+coherent/DSP/old/
+coherent/trash/

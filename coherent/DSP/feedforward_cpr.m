@@ -1,4 +1,4 @@
-function [xhat, xD, thetahat, Delta] = CPR(y,Cpr,PN,snr_dB)
+function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
 % CPR.m   Milad Sharif  02-22-13
 % Simulates carrier recovery for QPSK in two polarizations.
 % See: E. Ip and J. M. Kahn, "Feedforward Carrier Recovery for Coherent Optical Communications",
@@ -7,42 +7,39 @@ function [xhat, xD, thetahat, Delta] = CPR(y,Cpr,PN,snr_dB)
 % Optical aFiber Systems", Optics Express, vol. 16, no. 2, pp. 753-791,
 % January 21, 2008.
 
+% Inputs:
+% y : input signal in two polarizations
+% Cpr : sctruct containing carrier phase recovery parameters
+% Cpr.{phaseEstimation, varPN, SNRdB (optional), Ntaps, FilterType}
 
     y1 = y(1,:).';
     y2 = y(2,:).';
     
-    sigmapsq = PN.sigma_p^2;
-    crtype   = Cpr.type;
-    Lmax     = Cpr.Filter.Lmax;
-    fract    = Cpr.Filter.f;
-    filttype = Cpr.Filter.Type;
+    M = sim.M; % QAM order (must be 4 if Cpr.type ~= 'DD')
+    Ntrain = Cpr.Ntrain;
+    Ytrain = Cpr.Ytrain;
+    sigmapsq = Cpr.varPN;
+    crtype   = Cpr.phaseEstimation;    
+    L     = Cpr.Ntaps; % FIR: actual length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed, IIR: length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed in approximating the IIR filter
+    filttype = Cpr.FilterType;
 
     ndtype = '2';                   % type of carrier recovery if nda.
                                     % '1' = as in reference quoted above.
                                     % '2' = reverse ordering of fourth power and digital filtering.
 
-    snrtrack = 'n';                 % 'y': during an SNR sweep, the carrier recovery is optimized for each SNR
-                                    % 'n': during an SNR sweep, the carrier recovery is optimized for one specified design value at all SNR
-    snr_des_notrack_dB = 8;         % SNR per symbol at which the carrier recovery is optimized when snrtrack = 'n'
-
-    M = 4;                          % M-PSK
-    Ptx = 1;                        % transmitted power in one polarization
-
     % perform some computations related to carrier recovery
-    a = sqrt(Ptx/2);                % symbol spacing = 2a
-    x = a*[1+1i*1];                 % transmitted symbols in one quadrant
-    probx = [1];                    % prob. that each symbol is sent
-    absx = abs(x);
-    eta_c = sum((absx.^2).*probx) * sum((absx.^(-2)).*probx);   % constellation penalty
+    probx = 1; % symbols probability (only ~= 1 when shapping is used)
+    x = qammod(0:M-1, M); % QAM symbols
+    eta_c = mean(abs(x.^2).*probx) * mean((abs(x).^(-2)).*probx);   % constellation penalty
 
-    if snrtrack == 'y'
-        snr_des_dB = snr_dB;
-    elseif snrtrack == 'n'
+    if isfield(Cpr, 'SNRdB') % SNR was specified
+        snr_des_dB = Cpr.SNRdB;
+    else
+        snr_des_notrack_dB = 8         % SNR per symbol at which the carrier recovery is optimized when snrtrack = 'n'
         snr_des_dB = snr_des_notrack_dB;
     end
 
     snr_des = 10^(0.1*snr_des_dB);
-
     
     if strcmp(crtype,'DD')
         sigmandsq = 0.5*eta_c/snr_des;                                          % variance of n'_k
@@ -50,28 +47,21 @@ function [xhat, xD, thetahat, Delta] = CPR(y,Cpr,PN,snr_dB)
         sigmandsq = (1/(2*M^2))*sum(((gamma(M+1)./(gamma([1:M]+1).*gamma(M-[1:M]+1))).^2).*gamma([1:M]+1)./(snr_des.^[1:M]));
     end
 
-    r = sigmapsq/sigmandsq;
-    alpha = (1+0.5*r)-sqrt((1+0.5*r)^2-1);                                      % optimum IIR coefficient
-
     if strcmp(filttype,'FIR')
-        Lfract = ceil(-2*log(1-fract)/(log(1/alpha)));  % required length of FIR filter to include a fraction fract of the total energy
-        L = min(Lmax,Lfract);                           % actual length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed
         Delta = floor(0.5*(L-1));                           % delay of Whd (for DD or NDA 1) or of Wsd (for NDA 2)
         if strcmp(crtype,'DD')
             d = floor(0.5*(L-1));                       % length of Wsd for DD
         end
     elseif strcmp(filttype,'IIR')
-        Lfract = ceil(-2*log(1-fract)/(log(1/alpha)));  % required length of FIR filter to include a fraction fract of the total energy
-        L = Lfract;                           % length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed in approximating the IIR filter
         Delta = 0;                           % delay of Whd (for DD or NDA 1) or of Wsd (for NDA 2)
         if strcmp(crtype,'DD')
-            d = floor(0.5*((min(Lfract,Lmax)-1)));                       % length of Wsd for DD
+            d = floor(0.5*(L-1));                       % length of Wsd for DD
         end
     end
 
 
     N = size(y,2);
-    thetahat = zeros(N,1);                                                  % hard-decision phase estimate
+    thetahat = zeros(N,2);                                                  % hard-decision phase estimate
     x1hat = zeros(N,1);                                                     % symbols after carrier de-rotation
     x2hat = zeros(N,1);
     x1D = zeros(N,1);                                                       % detected symbols
@@ -89,17 +79,19 @@ function [xhat, xD, thetahat, Delta] = CPR(y,Cpr,PN,snr_dB)
             % Make soft decision on symbol y(k)
             yk = y(:,k);
             sk = yk.*exp(-1i*theta_tilde(:,k));
-            xhatk_sd   = detect(sk);
+            if Ntrain < k % training sequence
+                xhatk_sd = Ytrain(:, k);
+            else % switch to decision directed
+                xhatk_sd = detect(sk);
+            end
             psik_tilde = angle(yk)-angle(xhatk_sd);
             p  = floor((psi(:,k-1)-psik_tilde+pi)/(2*pi));
             psi(:,k) = psik_tilde + p*(2*pi);
             theta_tilde(:,k+1) = psi(:,k:-1:k-d+1) * Wsd;
-            thetahat(k-Delta) = Whd' * mean(psi(:,k:-1:k-L+1)).';
+            thetahat(k-Delta, :) = psi(:,k:-1:k-L+1) * conj(Whd);
             % Detect symbol
-            x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta));
-            x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta));
-            x1D(k-Delta) = detect(x1hat(k-Delta));
-            x2D(k-Delta) = detect(x2hat(k-Delta));
+            x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta, 1));
+            x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta, 2));
         end;
 
     elseif strcmp(crtype,'NDA')
@@ -118,8 +110,6 @@ function [xhat, xD, thetahat, Delta] = CPR(y,Cpr,PN,snr_dB)
                 % Detect symbol
                 x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta));
                 x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta));
-                x1D(k-Delta) = detect(x1hat(k-Delta));
-                x2D(k-Delta) = detect(x2hat(k-Delta));
 
             end;
         elseif ndtype == '2';
@@ -138,16 +128,13 @@ function [xhat, xD, thetahat, Delta] = CPR(y,Cpr,PN,snr_dB)
                 % Detect symbol
                 x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta));
                 x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta));
-                x1D(k-Delta) = detect(x1hat(k-Delta));
-                x2D(k-Delta) = detect(x2hat(k-Delta)); 
             end;
         end
     end
-  
-    xD = [x1D.';x2D.'];
-    xhat = [x1hat.';x2hat.'];    
-end
 
-function x = detect(y)
-    x = sign(real(y))+1i*sign(imag(y));
+    xhat = [x1hat.';x2hat.'];    
+    
+    function x = detect(y)
+        x = qammod(qamdemod(y, M, 0, 'Gray'), M, 0, 'Gray');
+    end
 end

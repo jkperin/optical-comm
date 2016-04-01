@@ -91,15 +91,17 @@ In the frequency domain
 \cos\theta & -\sin\theta \\
 \sin\theta & \cos\theta
 \end{bmatrix}\begin{bmatrix}
-e^{j\omega\tau/2} & 0 \\
-0 & e^{-j\omega\tau/2}
+e^{j\omega\tau_{DGD}/2} & 0 \\
+0 & e^{-j\omega\tau_{DGD}/2}
 \end{bmatrix}\begin{bmatrix}
 \cos\theta & \sin\theta \\
 -\sin\theta & \cos\theta
 \end{bmatrix}
 \end{equation}
 
-The first matrix from the right rotates the input polarization state to the principal states of polarization (PSPs). The second matrix adds a differential group dealy (DGD) $\tau$ between the two PSPs. Finally, the last matrix from the right rotates the PSPs to the output state of polarization.
+The first matrix from the right rotates the input polarization state to the principal states of polarization (PSPs). The second matrix adds a differential group dealy (DGD) $\tau_{DGD}$ between the two PSPs. Finally, the last matrix from the right rotates the PSPs to the output state of polarization.
+
+$\tau_{DGD}$ has a Maxwellian distribution whose mean $\bar{\tau}_{DGD}$ grows with the square of the fiber length. In SMF, typically, $\bar{\tau}_{DGD} = 0.1 \mathrm{ps/\sqrt{km}}$.
 
 This formulation can model both CD and PMD of any order. In simulation, we do CD and PMD separately, since for modeling PMD the fiber has to be broken into small sections.
 
@@ -109,6 +111,11 @@ Hence the fiber propagation is modeled in the frequency domain as
 \end{equation}
 where each of the $N$ sections of the fiber has frequency response matrix $\bm{H_i}(\omega)$ with a random phase $\theta_i \in [-\pi, \pi]$.
 \section{Receiver}
+\subsection{Homodyne downconversion}
+
+\subsubsection{Noiseless}
+
+
 
 \subsection{Fractionally spaced linear equalizer}
 Assuming an oversampling ratio $r_{os} = p/q$, $p, q \in \mathrm{Z^*_+}$, which need not be integer. We can compensate for intersymbol interference (ISI) and demultiplex the two polarizations as long as frequency and phase noise are small.
@@ -141,23 +148,64 @@ e[n] &= \hat{y}[n] - y[n] \\
 where $y[n]$ is the expected symbol in the case of a training sequence, or simply the decision made from $\hat{y}[n]$ in the case of decision-directed training. $e[n]$ is the error and the last equation is the update equation.
 
 
-
-
 \subsection{Polarization Recovery and PMD Compensation}
 \subsection{CD Compensation}
 
-`
 
-\subsection{Carrier and Frequency Recovery}
+\subsection{Frequency Recovery}
+\cite{Hoffmann2008} 
+
+Input signal is in the form
+
+\begin{equation}
+x[k] = x_ke^{j2\pi\Delta fk + \phi[k]}
+\end{equation}
+where $\Delta f$ is the frequency offset to be estimated.
+
+\begin{equation}
+\Delta f[k] = \Delta f[k](1-\mu) + \mu\frac{\mathrm{arg}\{(x[k]x^*[k-1]^4)\}}{8\pi T_s}
+\end{equation}
+where $\mu$ is adaptation constant and $T_s$ is the symbol time. The $\mathrm{arg}\{\cdot\}$ function may require unwrapping to prevent cycle slips. Biased unwrapping, which takes into account estimated frequency was shown to have better performance \cite{Hoffmann2008}.
+
+\subsection{Phase Tracking}
+\cite{Phase1995}
+
+Give the signal $y[k]$ after CMA equalization. The phase tracking algorithm applies a phase shift $z(k) = y[k]e^{-j\Phi[k]}$, where
+\begin{equation}
+\Phi[k+1] = \Phi[k]-\mu\mathrm{Im}\{z[k]e^*[k]\}
+\end{equation}
+where $e^*[k] = z[k] - \hat{x}[k]$, where $\hat{x}[k]$ is a decision made based on $z[k]$.
+
+\subsection{Phase Locked Loop}
+
+
+
 \subsection{Equalization}
 
 
+\section{BER calculation}
+The incident power in each photodiode is given by
+\begin{equation}
+P_{pd} = \bigg|\sqrt{\frac{P_{LO}}{4p}} + \sqrt{\frac{P_{rx}}{4p}}\bigg|^2 \approx \frac{P_{LO}}{4p}
+\end{equation}
+where $P_{LO}$ is the local oscillator power, $P_{rx}$ is the signal received power, and $p$ is the number of polarizations.
 
-\begin{thebibliography}{9}
-\bibitem{agilent-RIN-measurement} Product Note 86100-7; ``Digital Communication Analyzer (DCA), Measure Relative Intensity Noise (RIN),'' Agilent Technologies. 
+Assuming that there's no crosstalk between the two polarizations the received current is given by
+\begin{equation}
+I_i(t) = \frac{R}{p}\sqrt{P_{LO}}(\sqrt{P_{rx}}y_{s,i}(t) +  E_{sp}(t)) + I_{sh,i}
+\end{equation}
+for the in-phase or quadrature component. $E_{sp}(t)$ is the amplified spontaneous emission (ASE) noise, and $I_{sh,i}$ is the noise component due to shot noise.
 
-\end{thebibliography}
+Therefore, the signal power is given by
+\begin{equation}
+P_{sig} = \frac{P_{LO}P_{rx}}{p^2}
+\end{equation}
+
+$I_{sh,i}$ is proportional to $2P_{pd}$ since the shot noise doesn't cancel out. 
 
 
+
+\bibliographystyle{plain}
+\bibliography{bib}
 
 \end{document}

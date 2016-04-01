@@ -301,65 +301,65 @@ switch eq.type
         eq.f = w/(2*pi);
         eq.Kne = 2*trapz(eq.f, abs(eq.H));
 
-        case 'Fixed TD-SR-LE'            
-            Hmatched = conj(Gtx.*Hch);
-            % Note: Fiber frequency response is real, thus its group delay
-            % is zero.
-                        
-            %% MMSE Time-domain symbol-rate equalizer
-            n = -floor(eq.Ntaps/2)*sim.Mct:sim.Mct*floor(eq.Ntaps/2);
+    case 'Fixed TD-SR-LE'            
+        Hmatched = conj(Gtx.*Hch);
+        % Note: Fiber frequency response is real, thus its group delay
+        % is zero.
 
-            hmatched2 = real(ifft(ifftshift(Hmatched)));
-            hmatched = hmatched2(1:sim.Mct*floor(eq.Ntaps/2));
-            hmatched = [hmatched2(end-sim.Mct*floor(eq.Ntaps/2):end); hmatched];
+        %% MMSE Time-domain symbol-rate equalizer
+        n = -floor(eq.Ntaps/2)*sim.Mct:sim.Mct*floor(eq.Ntaps/2);
 
-            x = conv(hmatched, hmatched(end:-1:1), 'same');
-            xd = x(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
+        hmatched2 = real(ifft(ifftshift(Hmatched)));
+        hmatched = hmatched2(1:sim.Mct*floor(eq.Ntaps/2));
+        hmatched = [hmatched2(end-sim.Mct*floor(eq.Ntaps/2):end); hmatched];
 
-            xd = xd/abs(sum(xd)); % normalize to unit gain at DC
-            
-            X = toeplitz([xd; zeros(eq.Ntaps-1, 1)], [xd(1) zeros(1, eq.Ntaps-1)]);
-            
-            % Get correct rows from Toeplitz matrix
-            X = X(ceil(size(X, 1)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)), :);
-            
-            % ZF condition
-            e = zeros(eq.Ntaps, 1); 
-            e((eq.Ntaps+1)/2) = 1;
-            
-            % NSR = noise signal ratio
-            if isfield(eq, 'NSR')
-                W = X*(((X' + eq.NSR*eye(eq.Ntaps))*X)\e);
-            else
-                W = X*((X'*X)\e);
-            end                
-            % Note: if NSR = 0, or if NSR is not specified, then
-            % zero-forcing equalizer is designed 
-            
-            % Filter using
-            if isempty(yt) % only design
-                yd = []; 
-            else
-                % Matched filter
-                yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
-                % Sample at symbol rate
-                yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
-                % Filter
-                yd = filter(W, 1, yk);
-                yd = circshift(yd, [-(eq.Ntaps-1)/2 0]); % remove delay due to equalizer
-            end  
-            
-            eq.hmatched = hmatched;
+        x = conv(hmatched, hmatched(end:-1:1), 'same');
+        xd = x(mod(abs(n), sim.Mct) == 0); % symbol-rate sample received pulse
 
-            % Aux
-            eq.num = W;
-            eq.den = 1;
-            eq.Hff = @(f) freqz(eq.num, eq.den, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.num, eq.den, 1)); % removed group delay
-            eq.Hrx = Hmatched;
-                        
-            [eq.H, w] = freqz(eq.num, eq.den);
-            eq.f = w/(2*pi);
-            eq.Kne = 2*trapz(eq.f, abs(eq.H));        
+        xd = xd/abs(sum(xd)); % normalize to unit gain at DC
+
+        X = toeplitz([xd; zeros(eq.Ntaps-1, 1)], [xd(1) zeros(1, eq.Ntaps-1)]);
+
+        % Get correct rows from Toeplitz matrix
+        X = X(ceil(size(X, 1)/2)+(-floor(eq.Ntaps/2):floor(eq.Ntaps/2)), :);
+
+        % ZF condition
+        e = zeros(eq.Ntaps, 1); 
+        e((eq.Ntaps+1)/2) = 1;
+
+        % NSR = noise signal ratio
+        if isfield(eq, 'NSR')
+            W = X*(((X' + eq.NSR*eye(eq.Ntaps))*X)\e);
+        else
+            W = X*((X'*X)\e);
+        end                
+        % Note: if NSR = 0, or if NSR is not specified, then
+        % zero-forcing equalizer is designed 
+
+        % Filter using
+        if isempty(yt) % only design
+            yd = []; 
+        else
+            % Matched filter
+            yt = real(ifft(fft(yt).*ifftshift(Hmatched)));
+            % Sample at symbol rate
+            yk = yt(floor(sim.Mct/2)+1:sim.Mct:end);
+            % Filter
+            yd = filter(W, 1, yk);
+            yd = circshift(yd, [-(eq.Ntaps-1)/2 0]); % remove delay due to equalizer
+        end  
+
+        eq.hmatched = hmatched;
+
+        % Aux
+        eq.num = W;
+        eq.den = 1;
+        eq.Hff = @(f) freqz(eq.num, eq.den, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.num, eq.den, 1)); % removed group delay
+        eq.Hrx = Hmatched;
+
+        [eq.H, w] = freqz(eq.num, eq.den);
+        eq.f = w/(2*pi);
+        eq.Kne = 2*trapz(eq.f, abs(eq.H));        
     otherwise
         error('Equalization option not implemented yet!')
 end
