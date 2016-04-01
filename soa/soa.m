@@ -18,7 +18,7 @@ classdef soa
     
     methods
         function obj = soa(GaindB, Fn, lamb, maxGaindB)
-            %% Class constructors
+            %% Class constructor
             % maxGaindB is optional
             obj.Gain = 10^(GaindB/10);
             obj.Fn = Fn;

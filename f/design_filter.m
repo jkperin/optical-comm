@@ -16,14 +16,15 @@
 
 % output
 % struct filt with
-% a : denominator coefficients
-% b : numerator coefficients
+% num : denominator coefficients
+% den : numerator coefficients
 % grpdelay : group delay
 % H : anonymous function of frequency response with group delay eliminated
 % noisebw : anonymous function of equivalent two-sided noise bandwidth over
 % larger number of samples 2^15 (large number) given a sampling frequency fs 
 
 function filt = design_filter(type, order, fcnorm)
+type = lower(type); % converts to lowercase
 switch type       
     case 'butter'
         % Butterworth filter
@@ -31,7 +32,7 @@ switch type
         
     case 'cheby1'
         % Chebyshev 1 filter
-        ripple = 0.1;
+        ripple = 1;
         
         [num, den] = cheby1(order, ripple, fcnorm);
         
