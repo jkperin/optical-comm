@@ -48,8 +48,8 @@ if strcmpi(Rx.CPR.type, 'DPLL')
     % Loop filter
     % Second-order DPLL closed loop response has order 5 in denominator and
     % in numerator
-    Ntaps_den = 5;
-    Ntaps_num = 5;
+    Ntaps_den = 3;
+    Ntaps_num = 3;
     [cpr.Nsum, cpr.Nmult] = countFIR(Npol, cpr.Nsum, cpr.Nmult, Ntaps_num+Ntaps_den-1);
     
 elseif strcmpi(Rx.CPR.type, 'feedforward')

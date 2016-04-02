@@ -18,13 +18,15 @@ Ytrain = DPLL.Ytrain;
 
 % Generate continuous-time loop filter and convert it to discrete-time
 % using bilinear transformation
-s = tf('s');    
-Fs = 2*csi*wn + wn^2/s;
-G = Fs/s;
-H = G/(1 + G); % loop filter: relates 
-[nums, dens] = tfdata(H);
-nums = cell2mat(nums);
-dens = cell2mat(dens);
+% s = tf('s');    
+% Fs = 2*csi*wn + wn^2/s;
+% G = Fs/s;
+% H = G/(1 + G); % loop filter: relates 
+% [nums, dens] = tfdata(H);
+% nums = cell2mat(nums);
+% dens = cell2mat(dens); 
+nums = [2*csi*wn wn^2];
+dens = [1 0 0]; % descending powers of s
 [numz, denz] = bilinear(nums, dens, sim.Rs); % ascending powers of z^–1
 Nnum = length(numz);
 Nden = length(denz);
@@ -50,7 +52,7 @@ for k = max(Nnum, Nden):N % runs over symbols
             Xhatk = detect(X(:, k)); 
         end
         
-        phiS_tilde = angle(Y(:, k)) - angle(Xhatk);
+        phiS_tilde = angle(X(:, k)) - angle(Xhatk);
         p  = floor((phiS(:,k-1)-phiS_tilde+pi)/(2*pi)); % unwrap
         phiS(:, k) = phiS_tilde + p*(2*pi);
     else

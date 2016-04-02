@@ -5,12 +5,16 @@ classdef fiber < handle
         att % attenuation function i.e., alpha = att(lambda) (dB/km)
         D % dispersion function i.e., Dispersion = D(lambda)
         PMD = false; % whether PMD is included in simulations
-        meanDGDps = 0.1; % mean DGD in ps/sqrt(km)
+        meanDGDps = 0.1; % mean DGD  (ps/sqrt(km))
         PMD_section_length = 1e3  % Section length for simulating PMD (m)
         PDL = 0 % polarization dependent loss (dB). Here, it indicates how much the y pol will be attenuated with respect to x pol
     end
     
-    properties(GetAccess=private, Dependent)
+    properties(Dependent)
+        tauDGD % total differential group delay (s)
+    end
+        
+    properties(GetAccess=protected)
         JonesMatrix % Jones Matrix 
     end
     
@@ -19,7 +23,7 @@ classdef fiber < handle
         lamb0 = 1310e-9;   % zero-dispersion wavelength
     end
     
-    properties(Constant, GetAccess=private)
+    properties(Constant, GetAccess=protected)
         c = 299792458;  % speed of light
     end    
 
@@ -52,10 +56,18 @@ classdef fiber < handle
             end           
         end
              
+        %% Get methods
+        function tauDGD = get.tauDGD(self)
+            tauDGD = double(self.PMD)*self.meanDGDps*1e-12*sqrt(self.L/1e3); % corresponds to total 
+        end
+        
         %% Main Methods
-        function N = Ntaps(self, Rs, lambda)
-            %% Estimated number of taps in DSP required to compensate for CD in coherent detection link
-            N = 2*self.L*abs(self.D(lambda))*Rs^2*lambda^2/self.c;
+        function [Ncd, Npmd] = Ntaps(self, Rs, ros, lambda)
+            %% Estimated number of taps in DSP required to compensate for CD and PMD in coherent detection link
+            % Based on Ip, E., & Kahn, J. M. (2007). Digital equalization of chromatic dispersion and polarization mode dispersion. 
+            % Journal of Lightwave Technology, 25(8), 2033–2043.
+            Ncd = 2*pi*abs(self.beta2(lambda))*self.L*Rs^2*ros; % eq (35)
+            Npmd = self.tauDGD*ros*Rs; % eq (36)
         end
         
         function b2 = beta2(this, lamb)
@@ -70,7 +82,7 @@ classdef fiber < handle
             link_att = 10^(-this.att(lamb)*this.L/1e4);
             link_attdB = this.L/1e3*this.att(lamb);
         end
-
+        
         function Eout = linear_propagation(this, Ein, f, lambda)
             %% Linear propagation including only dispersion and first-order PMD if pmd flag is set and input signal has 2 dimensions
             % Perform linear propagation including chromatic dispersion,
@@ -101,7 +113,7 @@ classdef fiber < handle
             
             % PMD
             if this.PMD
-                if isempty(this.JonesMatrix)
+                if isempty(this.JonesMatrix) % only calculates Jones Matrix if it doesn't already exist
                     this.generateJonesMatrix(2*pi*f); % 2 x 2 x length(f)
                 end
 
@@ -126,7 +138,7 @@ classdef fiber < handle
                 Eout(2, :) = a*Eout(2, :);
             end
             
-            % Received power 
+            % Attenuation
             Eout = Eout*sqrt(this.link_attenuation(lambda));
         end
         
@@ -210,11 +222,12 @@ classdef fiber < handle
                 return
             end
             
-            tau = zeros(1,length(omega)-1);
+            tau = zeros(1,length(omega));
             dw = abs(omega(1)-omega(2));
             for m = 1:length(omega)-1;
                 tau(m) = 2/dw*sqrt(det(self.JonesMatrix(:,:,m+1)-self.JonesMatrix(:,:,m)));
             end
+            tau(end) = tau(end-1);
          end
         
     end  
@@ -223,38 +236,29 @@ classdef fiber < handle
         function M = generateJonesMatrix(self, omega)
             %% Function to generate Jones Matrix, modified from Milad Sharif's code
             Nsect = ceil(self.L/self.PMD_section_length);
-            
-            tauDGD = self.meanDGDps*1e-12*self.L/1e3; % corresponds to total 
-            
-            dtau = tauDGD/sqrt(Nsect);
+                       
+            dtau = self.tauDGD/sqrt(Nsect);
 
-            U = randomRotationMatrix();
-
-            M = repmat(U,[1,1,length(omega)]);
+            M = zeros(2,2,length(omega));
 
             for k = 1:Nsect
                 U = randomRotationMatrix();
 
                 for m = 1:length(omega)
                     Dw = [exp(1j*dtau*omega(m)/2), 0; 0, exp(-1j*dtau*omega(m)/2)]; % Birefringence matrix
-                    M(:,:,m) = M(:,:,m)*U'*Dw*U;
+                    M(:,:,m) = U*Dw*U';
                 end
             end
-
-            function U = randomRotationMatrix()
-                phi = rand(1, 3)*2*pi;
-                U1 = [exp(-1j*phi(1)/2), 0; 0 exp(1j*phi(1)/2)];
-                U2 = [cos(phi(2)/2) -1j*sin(phi(2)/2); -1j*sin(phi(2)/2) cos(phi(2)/2)];
-                U3 = [cos(phi(3)/2) -sin(phi(3)/2); sin(phi(3)/2) cos(phi(3)/2)];
-
-                U = U1*U2*U3;
-            end
             
-            this.JonesMatrix = M;
+            function U = randomRotationMatrix()
+                phi = rand(1, 1)*2*pi;
+%                 U1 = [exp(-1j*phi(1)/2), 0; 0 exp(1j*phi(1)/2)];
+%                 U2 = [cos(phi(2)/2) -1j*sin(phi(2)/2); -1j*sin(phi(2)/2) cos(phi(2)/2)];
+%                 U3 = [cos(phi(3)/2) -sin(phi(3)/2); sin(phi(3)/2) cos(phi(3)/2)];
+% 
+%                 U = U1*U2*U3;
+               U = [cos(phi), -sin(phi); sin(phi), cos(phi)];
+            end            
         end
-    end
-        
-
-    
+    end    
 end
-        

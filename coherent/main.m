@@ -7,7 +7,7 @@ addpath ../soa/
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
-sim.ros = 2;          % Oversampling ratio of DSP
+sim.ros = 5/4;          % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 64; % number of symbols to be discarded from the begining and end of the sequence 
@@ -21,9 +21,9 @@ sim.Modulator = 'EOM';                                             % Modulator t
 sim.Rs = sim.Rb/(sim.Npol*log2(sim.M))                                     % Symbol Rate
 
 % Simulation
-sim.RIN = ~true; 
-sim.PMD = ~true;
-sim.phase_noise = ~true;
+sim.RIN = true; 
+sim.PMD = true;
+sim.phase_noise = true;
 sim.pre_amplification = false;
 sim.quantiz = ~true;
 
@@ -95,7 +95,7 @@ Tx.Mod = Mod;                                                              % opt
 % deafault is att(lamb) = 0 dB/km
 % D(lamb) : function handle of dispersion (D) at wavelength (lamb) in ps/(kmnm),
 % default is D(lamb) = SSMF with lamb0 @ 1310 ps/(kmnm)
-Fiber = fiber(0);
+Fiber = fiber(10e3);
 Fiber.PMD = sim.PMD;                                                       % whether to similate PMD
 Fiber.meanDGDps = 0.1;                                                     % Mean DGD (ps)
 Fiber.PMD_section_length = Fiber.L/2;                                            % Controls number of sections to simulate PMD (m)
@@ -113,7 +113,7 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 9.8;                                                           % Total local oscillator power (dBm)
-Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
+Rx.LO.freqOffset = 8e9;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------

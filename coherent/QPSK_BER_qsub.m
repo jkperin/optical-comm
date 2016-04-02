@@ -19,8 +19,8 @@ addpath ../apd/
 addpath ../soa/
 
 ros = eval(ros);
-filename = sprintf('results/QPSK_BER_L=%skm_%s_BW=%sGHz_%s_%staps_nu=%sMHz_fOff=%sGHz_ros=%.2f_ENOB=%s',...
-        fiberLength, Modulator, ModBW, CPRAlgorithm, CPRtaps, linewidth, fOffset, ros, ENOB);
+filename = sprintf('results/QPSK_BER_L=%skm_%s_BW=%sGHz_%s_%staps_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
+        fiberLength, Modulator, ModBW, CPRAlgorithm, CPRtaps, linewidth, fOffset, round(100*ros), ENOB);
 
 % convert inputs to double (on cluster inputs are passed as strings)
 if ~all(isnumeric([fiberLength ModBW CPRtaps linewidth fOffset ENOB]))
@@ -33,7 +33,7 @@ if ~all(isnumeric([fiberLength ModBW CPRtaps linewidth fOffset ENOB]))
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^18;                                                          % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^20;                                                          % Number of symbols in montecarlo simulation
 sim.ros = ros;                                                             % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;                                                       % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4;                                                    % Target BER
@@ -69,7 +69,7 @@ sim.f = f;
 %% Plots
 % Numbers indicate figure number to plot. A 0 means no plot
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 1; 
+Plots('BER')                  = 0; 
 Plots('Equalizer')            = 0;
 Plots('ChannelFrequencyResponse') = 0;
 Plots('CarrierPhaseNoise')    = 0;
@@ -186,7 +186,7 @@ Rx.ADC.filt = design_filter('cheby1', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            %
 %% Equalization transmitter filter, CD, PMD, etc
 Rx.AdEq.type  = 'CMA';                                                     % Adaptive equalization type: 'LMS' or 'CMA'. LMS only works when there's no phase noise or frequency offset
 Rx.AdEq.structure = '2 filters';                                           % Structure: '2 filters' or '4 filters'. If '4 filters' corresponds to tranditional implementation, '2 filters' is simplified for short reach
-Rx.AdEq.Ntrain = 0.5e4;                                                    % Number of symbols used for training (only used if LMS)
+Rx.AdEq.Ntrain = 1e4;                                                    % Number of symbols used for training (only used if LMS)
 Rx.AdEq.mu = 1e-2;                                                         % Adaptation rate 
 Rx.AdEq.Ntaps = 3;                                                         % Number of taps for each filter
 Rx.AdEq.ros = sim.ros;                                                     % Oversampling ratio
@@ -219,7 +219,7 @@ Rx.FreqRec.mu = [0.0005 0];                                                 % Ad
 Rx.FreqRec.muShift = 2e4;                                  % Controls when gears are shifted. From 1:muShift(1) use mu(1), from muShift(1)+1:muShift(2) use mu(2), etc
 Rx.FreqRec.Ntrain = 2e4;
 
-Tx.PlaunchdBm = -35:-25;
+Tx.PlaunchdBm = -33:-20;
 
 [BER, SNRdB] = ber_coherent(Tx, Fiber, Rx, sim)
 
@@ -227,7 +227,7 @@ if sim.save
     % delete large variables
     clear t f Mod omega
     sim = rmfield(sim, 'f');
-    simm = rmfield(sim, 't');
+    sim = rmfield(sim, 't');
     Tx.Mod = rmfield(Tx.Mod, 'Hel');
     
     save(filename)
