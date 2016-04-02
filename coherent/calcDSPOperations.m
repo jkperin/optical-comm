@@ -1,16 +1,5 @@
 function [Nsum, Nmult] = calcDSPOperations(Rx, sim)
-
-Natan = 4 + 1; % number of real operations to calculate atan (The simplified single lookup table algorithm with nearest-neighbor linear interpolation)
-Ncos = 4; % number of real operations to calculatae cos
-Nsin = 4; % number of real operations to calculatae sin
-
-complexMult = 6; % 1 complex multiplication = 6 real operations
-complexAdd = 2; % 1 complex addition = 2 real operations
-
 Npol = 2; % number of polarizations
-
-ros = sim.ros;
-[~, q] = rat(ros);
 
 %% Equalization
 eq.Nsum = 0;
@@ -20,14 +9,16 @@ if strcmpi(Rx.AdEq.structure, '2 filters')
     Nfilters = 2;
     [eq.Nsum, eq.Nmult] = countFIR(Nfilters, eq.Nsum, eq.Nmult, Rx.AdEq.Ntaps);
     [eq.Nsum, eq.Nmult] = countComplexMult(2, eq.Nsum, eq.Nmult);
-    [eq.Nsum, eq.Nmult] = countComplexAdd(2, eq.Nsum, eq.Nmult);
-    
+    [eq.Nsum, eq.Nmult] = countComplexAdd(2, eq.Nsum, eq.Nmult);   
 elseif strcmpi(Rx.AdEq.structure, '4 filters')
     Nfilters = 4;
     [eq.Nsum, eq.Nmult] = countFIR(Nfilters, eq.Nsum, eq.Nmult, Rx.AdEq.Ntaps);
-    [eq.Nsum, eq.Nmult] = countComplexAdd(2, eq.Nsum, eq.Nmult);
-      
+    [eq.Nsum, eq.Nmult] = countComplexAdd(2, eq.Nsum, eq.Nmult);      
 end
+% Note: implementation with non-integer oversampling ratio requires
+% multiple filters (e.g., ros = 3/2 requires one filter for odd symbols and 
+% another for even symbols). But only one of these filters is used per
+% symbol so number of operations doesn't depend on oversampling ratio.
 
 %% Carrier phase recovery
 cpr.Nsum = 0;
@@ -96,6 +87,7 @@ end
 Nsum = [eq.Nsum cpr.Nsum+pt.Nsum];
 Nmult = [eq.Nmult cpr.Nmult+pt.Nmult];
 labels = {'Equalization', 'Phase Recovery'};
+figure
 pie(Nsum+Nmult, labels)
 title('Number of real fixed-point operations')
 

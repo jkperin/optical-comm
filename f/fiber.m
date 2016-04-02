@@ -250,6 +250,8 @@ classdef fiber < handle
                 end
             end
             
+            self.JonesMatrix = M;
+            
             function U = randomRotationMatrix()
                 phi = rand(1, 1)*2*pi;
 %                 U1 = [exp(-1j*phi(1)/2), 0; 0 exp(1j*phi(1)/2)];

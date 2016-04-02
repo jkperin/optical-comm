@@ -165,12 +165,12 @@ Rx.AdEq.ros = sim.ros;                                                     % Ove
 
 %% Carrrier phase recovery
 % Only used if sim.ModFormat = 'QAM'
-Rx.CPR.type = 'DPLL';                                                      % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
+Rx.CPR.type = 'feedforward';                                                      % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
 Rx.CPR.phaseEstimation = 'DD';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
 Rx.CPR.Ntrain = 0.5e4;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
 Rx.CPR.FilterType = 'FIR';                                                 % Filter type: 'FIR' or 'IIR'
-Rx.CPR.Ntaps = 7;                                                          % Maximum number of taps of filter 
+Rx.CPR.Ntaps = 5;                                                          % Maximum number of taps of filter 
 % Carrier phase recovery parameters for 'DPLL'
 Rx.CPR.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
 Rx.CPR.wn = 2*pi*0.6e9;                                                    % relaxation frequency of second-order loop filter: optimized using optimize_PLL.m
@@ -193,7 +193,7 @@ Rx.FreqRec.Ntrain = 2e4;
 
 Tx.PlaunchdBm = -35:-25;
 
-% [Nsum, Nmult] = calcDSPOperations(Rx, sim)
+[Nsum, Nmult] = calcDSPOperations(Rx, sim)
 [berQAM, SNR_est] = ber_coherent(Tx, Fiber, Rx, sim)
 % sim.ModFormat = 'DPSK';
 % [berDPSK, SNR_est] = ber_coherent(Tx, Fiber, Rx, sim)
