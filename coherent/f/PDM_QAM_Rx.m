@@ -1,4 +1,4 @@
-function [Y, SNR_est, ACG] = PDM_QAM_Rx(Erec, M, Rx, sim)
+function [Y, SNRdB_est, ACG] = PDM_QAM_Rx(Erec, M, Rx, sim)
 
 E1rec = Erec(1,:);      % received signal in x pol.
 E2rec = Erec(2,:);      % received signal in y pol.
@@ -91,12 +91,15 @@ Y2qdet = Y2qdet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y2qdet));
 % Form output
 Y = [Y1idet + 1j*Y1qdet; Y2idet + 1j*Y2qdet];
 
-Pin = mean(abs(E11Ia).^2 + abs(E21Ia).^2);
-Df = Rx.ADC.filt.noisebw(sim.fs)/2; % receiver equivalent noise bandwidth (one-sided)
-varShot = 4*Rx.PD.varShot(Pin, Df); % x 4 because of 4 photodiodes are used per polarization
+Pin = mean(abs(E11Ia).^2 + abs(E21Ia).^2); % power per photodiode
+varShot = 2*Rx.PD.varShot(Pin, sim.Rs/2); % shot noise variance per real dimension
+varThermal = 2*Rx.N0*sim.Rs/2; % thermal noise variance per real dimension
+Psig = mean(abs(Y(1, :)).^2); % average signal power per real dimension
+% Note: sim.Rs/2 is the noise bandwidth if receiver filter were matched
+% filter and no noise-enhancement penalty due to equalization
 
 % Thermal noise is assumed to be per real dimension
-SNR_est = 10*log10(0.5*mean(abs(Y(1, :)).^2)/(varShot + 2*Rx.N0*Df) - 1);
+SNRdB_est = 10*log10(Psig/(varShot + varThermal)-1); % unbiased SNR estimation
 
 % AGC
 % Normalize signals so that constellations be in original form

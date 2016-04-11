@@ -13,13 +13,13 @@ hold on
 %     axis([0 50 -10 1])
 % end
 for L = [0.05]
-    ratio = .95;
+    ratio = 0.98;
     n_m    = n_r*ratio; 
     d_12   = (n_m -n_r)/c;
     w      = (-600:.1:600)*1e9;
     a_m    = .01*100*sqrt(abs(w)/2/pi*1e-9);
     Phi    = (1-exp(-a_m*L + 1j*d_12*w*L))./(a_m-1j*d_12*w);
-    plot(w/2/pi*1e-9,10*log10(abs(Phi)/max(abs(Phi))),'r-');
+    plot(w/2/pi*1e-9,20*log10(abs(Phi)/max(abs(Phi))),'r-');
     %axis([0 50 -10 1])
 end
 plot([0,50],[-3 -3],'k--')

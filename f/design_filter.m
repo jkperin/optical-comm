@@ -32,7 +32,7 @@ switch type
         
     case 'cheby1'
         % Chebyshev 1 filter
-        ripple = 1;
+        ripple = 0.5;
         
         [num, den] = cheby1(order, ripple, fcnorm);
         

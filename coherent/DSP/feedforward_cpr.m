@@ -22,6 +22,7 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
     crtype   = Cpr.phaseEstimation;    
     L     = Cpr.Ntaps; % FIR: actual length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed, IIR: length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed in approximating the IIR filter
     filttype = Cpr.FilterType;
+    structure = Cpr.structure;
 
     ndtype = '2';                   % type of carrier recovery if nda.
                                     % '1' = as in reference quoted above.
@@ -75,25 +76,48 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
         psi = zeros(2,N);                                                   % soft-decision phase estimate
         theta_tilde = zeros(2,N);                                           % input to soft-decision phase estimator
         for k=L:N
-
-            % Make soft decision on symbol y(k)
-            yk = y(:,k);
-            sk = yk.*exp(-1i*theta_tilde(:,k));
-            if Ntrain < k % training sequence
-                xhatk_sd = Ytrain(:, k);
-            else % switch to decision directed
-                xhatk_sd = detect(sk);
+            if strcmpi(structure, '2 filters')
+                % Make soft decision on symbol y(k)
+                yk = y(:,k);
+                sk = yk.*exp(-1i*theta_tilde(:,k));
+                if k < Ntrain % training sequence
+                    xhatk_sd = Ytrain(:, k);
+                else % switch to decision directed
+                    xhatk_sd = detect(sk);
+                end
+                psik_tilde = angle(yk)-angle(xhatk_sd);
+                p  = floor((psi(:,k-1)-psik_tilde+pi)/(2*pi));
+                psi(:,k) = psik_tilde + p*(2*pi);
+                theta_tilde(:,k+1) = psi(:,k:-1:k-d+1) * Wsd;
+                thetahat(k-Delta, :) = psi(:,k:-1:k-L+1) * Whd;
+                % Detect symbol
+                x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta, 1));
+                x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta, 2));
+            elseif strcmpi(structure, '1 filter')
+                % Soft-decision phase estimate
+                yk = y(:,k);
+                sk = yk.*exp(-1i*thetahat(k-1-Delta, :).');
+                if k < Ntrain % training sequence
+                    xhatk_sd = Ytrain(:, k);
+                else % switch to decision directed
+                    xhatk_sd = detect(sk);
+                end
+               
+                % Unwrap
+                psik_tilde = angle(yk)-angle(xhatk_sd);
+                p  = floor((psi(:,k-1)-psik_tilde+pi)/(2*pi));
+                psi(:,k) = psik_tilde + p*(2*pi);
+                
+                % Filter
+                thetahat(k-Delta, :) = psi(:,k:-1:k-L+1) * Whd;
+                
+                % Detect symbol
+                x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta, 1));
+                x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta, 2));                
+            else
+                error('feedforward_cpr/invalid structure')
             end
-            psik_tilde = angle(yk)-angle(xhatk_sd);
-            p  = floor((psi(:,k-1)-psik_tilde+pi)/(2*pi));
-            psi(:,k) = psik_tilde + p*(2*pi);
-            theta_tilde(:,k+1) = psi(:,k:-1:k-d+1) * Wsd;
-            thetahat(k-Delta, :) = psi(:,k:-1:k-L+1) * conj(Whd);
-            % Detect symbol
-            x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta, 1));
-            x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta, 2));
-        end;
-
+        end
     elseif strcmp(crtype,'NDA')
         if ndtype == '1';
             Whd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
@@ -133,6 +157,17 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
     end
 
     xhat = [x1hat.';x2hat.'];    
+    
+    if sim.Plots.isKey('Feedforward phase error') && sim.Plots('Feedforward phase error')
+        figure(205), clf, hold on, box on
+        plot(thetahat(:, 1))
+        plot(thetahat(:, 2))
+        a = axis;
+        plot(Ntrain*[1 1], a(3:4), '--k')
+        legend('Pol X', 'Pol Y', 'End of training')
+        title('Feedforward phase error')
+        hold off
+    end
     
     function x = detect(y)
         x = qammod(qamdemod(y, M, 0, 'Gray'), M, 0, 'Gray');

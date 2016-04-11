@@ -2,7 +2,7 @@ function Eout = SiPh_optical_mod(Ein, Vin, Mod)
 %% Silicon-Photonics dual polarization dual quadrature optical modulator 
 % Inputs:
 % - Ein : input electric field
-% - Vin : driving signal
+% - Vin : driving signal from -1 to 1
 % - Mod : contains modulators parameters
 %   - Mod.Hel : electric frequency response
 % Output : Eout is the modulated electric field
@@ -21,7 +21,8 @@ Vyi = real(ifft(fft(Vyi).*Hmod));
 Vyq = real(ifft(fft(Vyq).*Hmod));
 
 % Modulate signal fields (each has unit average power)
-Vout   = 2^(-1/4)*[Vxi + 1i*Vxq;...        % x polarization
-                    Vyi + 1i*Vyq];         % y polarization
+Enorm = 1/sqrt(sqrt(2)); % normalize so that E(|Vout|^2) = 1
+Vout   =   Enorm*[Vxi + 1i*Vxq;...        % x polarization
+                  Vyi + 1i*Vyq];         % y polarization
 
 Eout =  1/sqrt(2)*[Ein.*Vout(1, :); Ein.*Vout(2, :)];  % polarization multiplexed signal    

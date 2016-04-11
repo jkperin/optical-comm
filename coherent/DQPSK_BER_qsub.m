@@ -1,7 +1,7 @@
-function [BER, SNRdB] = QPSK_BER_qsub(fiberLength, Modulator, ModBW, CPRAlgorithm, CPRtaps, linewidth, fOffset, ros, ENOB)
+function [BER, SNRdB] = DQPSK_BER_qsub(fiberLength, Modulator, ModBW, linewidth, fOffset, ros, ENOB)
 %% Estimate BER of a QPSK system for parameters
 % - fiberLength: fiber length in km
-% - Modulator: either 'MZM' or 'SiPhotonics'
+% - Modulator: either 'EOM' or 'SiPhotonics'
 % - ModBW: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
 % - CPRAlgorithm: carrier phase recovery (CPR) algorithm. Either 'DPLL' or
 % 'feedforward'
@@ -20,14 +20,13 @@ addpath ../soa/
 addpath ../mpam/
 
 ros = eval(ros);
-filename = sprintf('results/QPSK_BER_L=%skm_%s_BW=%sGHz_%s_%staps_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
-        fiberLength, Modulator, ModBW, CPRAlgorithm, CPRtaps, linewidth, fOffset, round(100*ros), ENOB);
+filename = sprintf('results/DQPSK_BER_L=%skm_%s_BW=%sGHz_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
+        fiberLength, Modulator, ModBW, linewidth, fOffset, round(100*ros), ENOB);
 
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([fiberLength ModBW CPRtaps linewidth fOffset ENOB]))
+if ~all(isnumeric([fiberLength ModBW linewidth fOffset ENOB]))
     fiberLength = 1e3*str2double(fiberLength);
     ModBW = 1e9*str2double(ModBW);
-    CPRtaps = round(str2double(CPRtaps));
     linewidth = 1e3*str2double(linewidth);
     fOffset = 1e9*str2double(fOffset);
     ENOB = round(str2double(ENOB));
@@ -41,7 +40,7 @@ sim.BERtarget = 1.8e-4;                                                    % Tar
 sim.Ndiscard = 1e3;                                                        % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb;                                                 % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9;                                                          % Bit rate
-sim.ModFormat = 'QAM';                                                     % either 'QAM' or 'DPSK'
+sim.ModFormat = 'DPSK';                                                     % either 'QAM' or 'DPSK'
 sim.M    = 4;                                                              % QAM order
 sim.pulse = 'NRZ';                                                         % Transmitter pulse shape ('NRZ')
 sim.Npol = 2;                                                              % number of polarizations (currently ignored in generating the signal)
@@ -194,39 +193,9 @@ Rx.AdEq.mu = 1e-3;                                                         % Ada
 Rx.AdEq.Ntaps = 3;                                                         % Number of taps for each filter
 Rx.AdEq.ros = sim.ros;                                                     % Oversampling ratio
 
-%% Carrrier phase recovery
-% Only used if sim.ModFormat = 'QAM'
-Rx.CPR.type = CPRAlgorithm;                                                % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
-Rx.CPR.phaseEstimation = 'DD';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
-Rx.CPR.Ntrain = 2e4;                                                     % Number of symbols used for training. This training starts when equalization training is done
-% Carrier phase recovery parameters for 'feedforward'
-Rx.CPR.FilterType = 'FIR';                                                 % Filter type: 'FIR' or 'IIR'
-Rx.CPR.structure = '2 filters';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
-Rx.CPR.Ntaps = CPRtaps;                                                          % Maximum number of taps of filter 
-% Carrier phase recovery parameters for 'DPLL'
-Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
-Rx.CPR.Delay = 0;                                                          % Delay in DPLL loop measured in number of symbols 
-Rx.CPR.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Rx.CPR.wn = 2*pi*0.8e9;                                                    % relaxation frequency of second-order loop filter: optimized using optimize_PLL.m
-% Phase tracking stage
-% This only compensates for constant phase offsets, which may be required
-% since feedforward or DPLL may converge to a rotated constellation when
-% the frequency offset is large
-% Phase tracking is adpated using LMS
-Rx.PT.mu = 0.001;
-Rx.PT.Ntrain = 1e4;
+Tx.PlaunchdBm = -32:0.5:-23;
 
-%% Frequency recovery
-% Only used if sim.ModFormat = 'DPSK', since for 'QAM' feedforward or DPLL
-% can compensate frequency offset as well
-% Frequency recovery algorithm uses 4th power method to estimate frequency
-% offset. Hence, it only works for DQPSK
-Rx.FreqRec.mu = [0.0005 0];                                                 % Adaptation rate. A vector means that gear shifting is used
-Rx.FreqRec.muShift = 2e4;                                  % Controls when gears are shifted. From 1:muShift(1) use mu(1), from muShift(1)+1:muShift(2) use mu(2), etc
-Rx.FreqRec.Ntrain = 2e4;
-
-Tx.PlaunchdBm = -33:0.5:-23;
-
+sim.Nsetup = Rx.AdEq.Ntrain + sim.Ndiscard;
 [BER, SNRdB] = ber_coherent(Tx, Fiber, Rx, sim)
 
 if sim.save   

@@ -1,4 +1,4 @@
-function [Y, Df] = qpsk_freq_rec(X, FreqRec)
+function [Y, Df] = qpsk_freq_rec(X, FreqRec, sim)
 %% Frequency recovery algorithm for QPSK
 % Based on: 
 % 1. Sebastian Hoffmann, Suhas Bhandare, Timo Pfau, Olaf Adamczyk, Christian
@@ -37,5 +37,13 @@ t = 0:length(X)-1;
 Y = [X(1, :).*exp(-1j*2*pi*Df.*t);...
     X(2, :).*exp(-1j*2*pi*Df.*t)];
 
-figure(1000), plot(56*Df)
-drawnow
+if isfield(sim, 'Plots') && sim.Plots('Frequency offset estimation')
+    figure(201), clf, hold on, box on
+    plot(sim.Rs*Df)
+    a = axis;
+    for k = 1:length(muShift)
+        plot(muShift(k)*[1 1], a(3:4), ':k')
+    end
+    hold off
+    legend('Frequency offset estimation', 'Gear shifting points')
+end

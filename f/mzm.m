@@ -1,11 +1,10 @@
-function Eout = eom(Ein, Vin, Mod)
-%% Electro-optical modulator
+function Eout = mzm(Ein, Vin, Mod)
+%% Dual-polarization I/Q Mach-Zender modulator 
 % Inputs:
 % - Ein : input electric field
-% - Vin : driving signal
+% - Vin : driving signal normalized by Vpi 
 % - tx : contains modulators parameters
 %   - Mod.Hel : electric frequency response
-%   - Mod.Vpi : Vpi
 % Output : Eout is the modulated electric field
 
 % Breaks data into in-phase, quadrature in two pols
@@ -22,7 +21,8 @@ Vyi = real(ifft(fft(Vyi).*Hmod));
 Vyq = real(ifft(fft(Vyq).*Hmod));
 
 % Modulate signal fields (each has unit average power)
-Vout   = [sin(pi*Vxi/2/Mod.Vpi) + 1i*sin(pi*Vxq/2/Mod.Vpi);...        % x polarization
-           sin(pi*Vyi/2/Mod.Vpi) + 1i*sin(pi*Vyq/2/Mod.Vpi)];         % y polarization
+Enorm = 1/sqrt(sqrt(2)); % normalize so that E(|Vout|^2) = 1
+Vout   = Enorm*[sin(pi*Vxi/2) + 1i*sin(pi*Vxq/2);...        % x polarization
+                sin(pi*Vyi/2) + 1i*sin(pi*Vyq/2)];         % y polarization
 
 Eout =  [Ein/sqrt(2).*Vout(1, :); Ein/sqrt(2).*Vout(2, :)];  % polarization multiplexed signal    

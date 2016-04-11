@@ -45,7 +45,7 @@ P(t) = P_s(t) + w_{RIN}(t)
 where $P_s(t)$ is the signal-only optical power (after modulator frequency response and extinction ratio), and $w_{RIN}(t)\sim\mathcal{N}(0, \sigma^2_{RIN}(t))$.
 
 \subsection{Phase Noise}
-Phase noise is modeled as a Wiener process (Gaussian distributed with independent increments).
+Phase noise is modeled as a Wiener process (Gaussian-distributed independent increments).
 
 \begin{equation}
 \phi(t+\tau) - \phi(t) \sim\mathcal{N}(0, 2\pi\Delta\nu\tau),
@@ -56,6 +56,38 @@ The coherence time is defined as a delay difference yielding an rms value for th
 
 \subsection{Modulator Bandwidth Limitations}
 
+\subsubsection{Mach-Zenhder modulator}
+\cite{Barros2009, Ho2005}
+
+Limited by loss and velocity mismatch
+
+\begin{equation}
+H_{mod}(f) = \frac{1-e^{-\alpha(f)L+j2\pi fd_{12}L}}{\alpha(f)L-j2\pi fd_{12}L}
+\end{equation}
+where $\alpha(f)$ is the frequency-dependent loss, $d_{12}$ is the velocity mismatch between the optical and electrical waveguides, and $L$ is the interaction length.
+
+\begin{equation}
+d_{12} = \frac{n_m-n_r}{c}
+\end{equation}
+where $n_r \approx 2.15$ is the refractive index of the coplanar waveguide for TM input light. If $n_m$ is only $95\%$ of $n_r$ a significant reduction in bandwidth may occur due to velocity mismatch \cite{Ho2005}.
+
+\subsubsection{Silicon photonics modulator}
+Currently modeled as a second-order system with unit damping. This is based on the assumption that parasitics is the limiting factor in the bandwidth of these devices.
+
+Second-order system with unit damping:
+\begin{equation}
+H_{mod}(f) =  \frac{1}{1 + 2jf/f_c - (f/f_c)^2}
+\end{equation}
+
+The modulator bandwidth is related to $f_c$ by
+\begin{equation}
+f_{3dB} = \sqrt{\sqrt{2}-1}f_c = 0.64359f_c
+\end{equation}
+
+Group delay:
+\begin{equation}
+\Delta\tau_g = \frac{2}{2\pi f_c}
+\end{equation}
 
 \section{Fiber Propagation}
 \subsection{Chromatic Dispersion}
@@ -101,7 +133,7 @@ e^{j\omega\tau_{DGD}/2} & 0 \\
 
 The first matrix from the right rotates the input polarization state to the principal states of polarization (PSPs). The second matrix adds a differential group dealy (DGD) $\tau_{DGD}$ between the two PSPs. Finally, the last matrix from the right rotates the PSPs to the output state of polarization.
 
-$\tau_{DGD}$ has a Maxwellian distribution whose mean $\bar{\tau}_{DGD}$ grows with the square of the fiber length. In SMF, typically, $\bar{\tau}_{DGD} = 0.1 \mathrm{ps/\sqrt{km}}$.
+$\tau_{DGD}$ has a Maxwellian distribution whose mean $\bar{\tau}_{DGD}$ grows with the square of the fiber length. In SMF, typically, $\bar{\tau}_{DGD} = 0.1 \mathrm{ps/\sqrt{km}}$ \cite{Ip2008}. This value assumes the strongly coupled regime, which should be accurate for fibers larger than tens of meters.
 
 This formulation can model both CD and PMD of any order. In simulation, we do CD and PMD separately, since for modeling PMD the fiber has to be broken into small sections.
 
@@ -116,9 +148,15 @@ where each of the $N$ sections of the fiber has frequency response matrix $\bm{H
 \subsubsection{Noiseless}
 
 
+\section{Digital signal processing based receiver}
 
 \subsection{Fractionally spaced linear equalizer}
-Assuming an oversampling ratio $r_{os} = p/q$, $p, q \in \mathrm{Z^*_+}$, which need not be integer. We can compensate for intersymbol interference (ISI) and demultiplex the two polarizations as long as frequency and phase noise are small.
+
+Long-haul systems typically have a static equalization stage to compensate for CD and a dynamic equalization stage, which is adapted more often since PMD changes over time.
+
+For this application bandwidth limitations due to modulator and other devices, chromatic dispersion, polarization-mode dispersion are assumed to be small enough so they can all be compensated by a single equalization stage. 
+
+Assuming an oversampling ratio $r_{os} = p/q$, $p, q \in \mathrm{Z^*_+}$, which need not be integer, we can compensate for intersymbol interference (ISI) and demultiplex the two polarizations.
 
 Samples at the equalizer input $\bm{X}[k]$, where $x_1[k], x_2[k]$ are the complex samples from the two polarizations. $k$ is at a rate $T_s/r_{os}$.
 
@@ -130,27 +168,21 @@ The equalizer output can be written as
 
 where $i = 1, \ldots, q$. We need a total of $q$ filters because in the case of non-interger oversampling ratio the samples do not align. For instance, If $r_{os} = 3/2$, we need two sets of filters, one for the odd samples and another for the even samples.
 
-Since the number of operations in linear filter scales with $\mathcal{O}(N_{taps}^2)$, the total number of operations for this configuration scales with $\mathcal{O}(4qN_{taps}^2)$.
+This can be simplified if PMD is small so that 
+
+\begin{align}
+\hat{x}_{1}[k] = w^{(i)}_{1}[k]\ast x_1[k] + w_{21}^{(i)}w^{(i)}_{2}[k]\ast x_2[k] \\
+\hat{x}_{2}[k] = w^{(i)}_{2}[k]\ast x_2[k] + w_{12}^{(i)}w^{(i)}_{1}[k]\ast x_1[k]
+\end{align}
+where $i = 1, \ldots, q$. Note that in this case we only have two filters $w^{(i)}_{1}$ and $w^{(i)}_{2}$ per symbol. The terms $w_{21}^{(i)}$ and $w_{12}^{(i)}$ are cross terms, which are also determined adaptively. Hence the number of operations is approximately halved.
+
+The number of required is sufficiently small that time-domain equalization is less complex than frequency-domain equalization.
 
 \subsection{Constant Modulus Algorithm}
 
 Constant Modulus Algorithm (CMA) is a blind equalization algorithm that relies on the fact that PSK or 4-QAM constellations have a constant modulus. 
 
 For being a blind algorithm, CMA cannot separate the symbols. If there's a fixed phase error CMA will converge to that phase offset. If there's a mismatch between the transmitter and local oscillator, the CMA output will rotate at a rate that is the difference between the two frequencies. For this reason, the constellation diagram after CMA is typically a circle. 
-
-CMA with phase tracking decision directed algorithm can detected the symbols. First, the blind CMA is run in order to compensate for ISI, and separate the two polarizations. After this stage and downsampling to the symbol rate, there's a phase tracking adaptive algorithm that rotates the symbols to the appropriate positions. For each polarization stream we would have:
-
-\begin{align}
-\hat{y}[n] &= y_{cma}[n]e^{j\phi[n]} \\
-e[n] &= \hat{y}[n] - y[n] \\
-\phi[n]  &= \phi[n-1] - \mu\mathrm{Im}(\hat{y}[n]e^*[n])
-\end{align}
-where $y[n]$ is the expected symbol in the case of a training sequence, or simply the decision made from $\hat{y}[n]$ in the case of decision-directed training. $e[n]$ is the error and the last equation is the update equation.
-
-
-\subsection{Polarization Recovery and PMD Compensation}
-\subsection{CD Compensation}
-
 
 \subsection{Frequency Recovery}
 \cite{Hoffmann2008} 
@@ -167,21 +199,60 @@ where $\Delta f$ is the frequency offset to be estimated.
 \end{equation}
 where $\mu$ is adaptation constant and $T_s$ is the symbol time. The $\mathrm{arg}\{\cdot\}$ function may require unwrapping to prevent cycle slips. Biased unwrapping, which takes into account estimated frequency was shown to have better performance \cite{Hoffmann2008}.
 
+\subsection{Phase Locked Loop}
+
+At instant $k$ the symbol $Y_k$ has phase components $\phi_s(k) + \phi_p(k) + \phi_n(k)$, where $\phi_s(k)$ is the signal component and  $\phi_p(k), \phi_n(k)$ are the noise components due to phase noise and additive Gaussian noise, respectively. $\phi_p(k)$ is a Weiner process whose random steps have variance $2\pi(2\nu)T_s$, where $\nu$ is the laser linewidth of both transmitter laser and local oscillator. $T_s$ is the symbol period. $\phi_n(k)$ has a von Mises also known as circular normal distribution or Tikhonov distribution.
+
+\begin{equation} \label{eq:Tikhonov-pdf}
+	\phi_n(k) \sim p(x; \mu, \kappa) = \frac{1}{2\pi I_0(\kappa)}\exp(\kappa\cos(x-\mu))
+\end{equation}
+where $\mu, 1/\kappa$ are analogous to $\mu$ $\sigma^2$ in the normal distribution. $I_0(\kappa)$ si the modified Bessel function of order 0.
+
+Assuming that the phase estimation process perfectly removes the signal component from the phase of $Y_k$, the input to the PLL filter is $\phi_p(k) + \phi_n(k)$.
+
+Note: the distribution of the ratio of two zero-mean Gaussian random variable is a Cauchy random variable.
+
+Given the open-loop frequency response of the digital-PLL (DPLL) loop $G(z) = \phi_{LO}(z)/\phi_s(z)$, we can express the phase error as
+\begin{equation}
+	\phi_e(z) = \frac{1}{G(z)+1}\phi_s(z) + \frac{G(z)}{G(z) + 1}\phi_n(z)
+\end{equation}
+
+
+\subsubsection{Continuous time}
+
+The second-order PLL has a loop filter given by $F(s) = 2\xi\omega_n + \omega_n^2/s$, where $\xi$ is the damping factor, which is typically $\xi = \sqrt{2}/2$, and $\omega_n$ is the relaxation frequency, which must be optimized in order to reduce the phase error variance.
+
+The open-loop response of the PLL is given by
+\begin{equation}
+G(s) = \frac{F(s)}{s}e^{-s\Delta_T}
+\end{equation}
+where $\Delta_T$ is the loop delay, which includes group delay of the filters as well as propagation delays. $G(s)$ is the transfer function between the local oscillator phase and the phase noise, which also includes AWGN component. 
+
+When there's a frequency offset in addition to a phase error, the input to the PLL is a ramp. Hence, from the final value theorem we can determine the steady-state phase error
+\begin{equation}
+\phi_e(t\to\infty) = \lim_{s\to 0} \frac{sR(s)}{1 + G(s)} = s\frac{1}{s^2}\cdot\frac{s^2}{s^2 + 2\xi\omega_ns + \omega_n^2} = 0
+\end{equation}
+Therefore, in continuous-time, a PLL has zero error to a frequency offset.
+
+\subsubsection{Discrete time}
+
+We can obtain the open-loop transfer function by discretizing the continuous-time transfer function $G(s)$, either using a bilinear transformation or impulse invariance.
+
+From bilinear transformation
+\begin{equation}
+G(z) = \frac{z^2(\xi\omega_nT_s + T_s^2\omega_n^2/4) + }{z^2 - 2z + 1}
+\end{equation}
+
+
+
 \subsection{Phase Tracking}
 \cite{Phase1995}
 
-Give the signal $y[k]$ after CMA equalization. The phase tracking algorithm applies a phase shift $z(k) = y[k]e^{-j\Phi[k]}$, where
+Given the signal $y[k]$ after CMA equalization. The phase tracking algorithm applies a phase shift $z(k) = y[k]e^{-j\Phi[k]}$, where
 \begin{equation}
 \Phi[k+1] = \Phi[k]-\mu\mathrm{Im}\{z[k]e^*[k]\}
 \end{equation}
 where $e^*[k] = z[k] - \hat{x}[k]$, where $\hat{x}[k]$ is a decision made based on $z[k]$.
-
-\subsection{Phase Locked Loop}
-
-
-
-\subsection{Equalization}
-
 
 \section{BER calculation}
 The incident power in each photodiode is given by
@@ -191,18 +262,22 @@ P_{pd} = \bigg|\sqrt{\frac{P_{LO}}{4p}} + \sqrt{\frac{P_{rx}}{4p}}\bigg|^2 \appr
 where $P_{LO}$ is the local oscillator power, $P_{rx}$ is the signal received power, and $p$ is the number of polarizations.
 
 Assuming that there's no crosstalk between the two polarizations the received current is given by
+\begin{align}
+I_i(t) = \frac{R}{p}\sqrt{P_{LO}}(\sqrt{P_{rx}}y_{s,i}(t) +  E_{sp}(t)) + I_{sh,i} \\
+I_q(t) = \frac{R}{p}\sqrt{P_{LO}}(\sqrt{P_{rx}}y_{s,q}(t) +  E_{sp}(t)) + I_{sh,q}
+\end{align}
+for the in-phase and quadrature components in each polarization. $E_{sp}(t)$ is the amplified spontaneous emission (ASE) noise, and $I_{sh,i}$ is the noise component due to shot noise.
+
+The transmitted electric field for each polarization is given by
 \begin{equation}
-I_i(t) = \frac{R}{p}\sqrt{P_{LO}}(\sqrt{P_{rx}}y_{s,i}(t) +  E_{sp}(t)) + I_{sh,i}
+E_{tx} = \sqrt{P_{rx}/p}(y_{s,i}(t) + y_{s,q}(t))
 \end{equation}
-for the in-phase or quadrature component. $E_{sp}(t)$ is the amplified spontaneous emission (ASE) noise, and $I_{sh,i}$ is the noise component due to shot noise.
+This implies that since $E(|E_{tx}|^2) = P_{rx}/p$, then $E(|y_{s,i}(t) + y_{s,q}(t)|^2) = 2E(|y_{s,i}(t)|^2 = 2E(|y_{s,q}(t)|^2 = 1$ i.e., $E(|y_{s,q}(t)|^2 = E(|y_{s,i}(t)|^2 = 1/2$.
 
-Therefore, the signal power is given by
+Therefore, the signal power per real dimension is
 \begin{equation}
-P_{sig} = \frac{P_{LO}P_{rx}}{p^2}
+P_{sig} = \frac{P_{LO}P_{rx}}{2p^2}
 \end{equation}
-
-$I_{sh,i}$ is proportional to $2P_{pd}$ since the shot noise doesn't cancel out. 
-
 
 
 \bibliographystyle{plain}

@@ -95,7 +95,7 @@ classdef fiber < handle
             % - Eout, Pout = output electric field and optical power
             % respectively.
             
-            if this.L == 0
+            if this.L*this.D(lambda) == 0
                 Eout = Ein;
                 return
             end

@@ -6,6 +6,18 @@ Product~Note 86100-7.
   noise (rin).
 \newblock {\em Agilent Technologies}.
 
+\bibitem{Barros2009}
+Daniel J~Fernandes Barros, Joseph~M Kahn, Abstract Orthogonal, and
+  A~Peak-to-average~Power Ratio.
+\newblock {Optical Modulator Optimization for Orthogonal Frequency-Division
+  Multiplexing}.
+\newblock {\em Journal of Lightwave Technology}, 27(13):2370--2378, 2009.
+
+\bibitem{Ho2005}
+K.~P. Ho.
+\newblock {\em {Phase-Modulated Optical Communication Systems}}.
+\newblock 2005.
+
 \bibitem{Hoffmann2008}
 Sebastian Hoffmann, Suhas Bhandare, Timo Pfau, Olaf Adamczyk, Christian
   W{\"{o}}rdehoff, Ralf Peveling, Mario Porrmann, and Reinhold No{\'{e}}.

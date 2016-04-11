@@ -13,8 +13,8 @@ BERtarget = 1.8e-4;
 ros = 1.25;
 nu = 200;
 ENOB = [4 Inf];
-fOff = 8;
-CPR = {'DPLL', 'feedforward', 'feedforward'};
+fOff = 0;
+CPR = {'DPLL', 'feedforward'};
 CPRtaps = [0, 5, 15];
 Modulator = 'SiPhotonics';
 ModBW = 30;
@@ -22,6 +22,7 @@ linewidth = 200;
 
 LineStyle = {'-', '--'};
 Marker = {'o', 's', 'v'};
+Color = {[51, 105, 232]/255, [255,127,0]/255};
 Lspan = 0:10;
 figure(1), hold on, box on
 count = 1;
@@ -29,14 +30,14 @@ for enobi = 1:length(ENOB)
     for cpri = 1:length(CPR)
         Prec = zeros(size(Lspan));
         for k = 1:length(Lspan)
-            filename = sprintf('QPSK_BER_L=%dkm_%s_BW=%dGHz_%s_%dtaps_nu=%dMHz_fOff=%dGHz_ros=%d_ENOB=%d',...
+            filename = sprintf('QPSK_BER_L=%dkm_%s_BW=%dGHz_%s_%dtaps_nu=%dkHz_fOff=%dGHz_ros=%d_ENOB=%d',...
                 Lspan(k), Modulator, ModBW, CPR{cpri}, CPRtaps(cpri), linewidth, fOff, round(100*ros), ENOB(enobi));
             
             try 
                 S = load(filename);
 
                 lber = log10(S.BER);
-                valid = ~(isinf(lber) | isnan(lber));
+                valid = ~(isinf(lber) | isnan(lber)) & lber > -4.5;
                 try
                     Prec(k) = interp1(lber(valid), S.Tx.PlaunchdBm(valid), log10(BERtarget));
                 catch e
@@ -44,18 +45,25 @@ for enobi = 1:length(ENOB)
                     Prec(k) = NaN;
                     lber(valid)
                 end 
+                
+                lber_theory = log10(berawgn(S.SNRdB - 10*log10(log2(S.sim.M)), lower(S.sim.ModFormat), S.sim.M));
+                Prec_theory(k) = interp1(lber_theory, S.Tx.PlaunchdBm, log10(BERtarget));
+                
+                figure(2), box on, hold on
+                plot(S.Tx.PlaunchdBm, lber, '-o')
+                plot(S.Tx.PlaunchdBm, lber_theory, 'k')
+                axis([S.Tx.PlaunchdBm([1 end]) -8 0])
             catch e
                 warning(e.message)
                 Prec(k) = NaN;
+                Prec_theory(k) = NaN;
                 filename
             end
-            
-            figure(2), box on, hold on
-            plot(S.Tx.PlaunchdBm, lber, '-o')
         end
         
         figure(1)
-        hline(count) = plot(Lspan, Prec, 'LineStyle', LineStyle{enobi}, 'Marker', Marker{cpri});
+        hline(count) = plot(Lspan, Prec, 'Color', Color{cpri}, 'LineStyle', LineStyle{enobi}, 'Marker', Marker{cpri}, 'LineWidth', 2);
+        plot(Lspan, Prec_theory, 'k', 'LineWidth', 2)
         count = count + 1;
         drawnow
     end
@@ -63,3 +71,5 @@ end
 
 xlabel('Fiber length (km)')
 ylabel('Receiver sensitivity (dBm)')
+axis([0 10 -33 -27])
+legend('DPLL', 'FIR Feedforward w/ 5 taps')

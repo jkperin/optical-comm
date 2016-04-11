@@ -1,6 +1,6 @@
 function noiseBW = calc_noiseBW(Wx, Wy)
 %% Calculates one-sided noise bandwidth from discrete-time filters with coefficients Wx and Wy
-% NoiseBW is the average noise bandwidth of all the filters in Wx and Wy
+% NoiseBW is the average one-sided noise bandwidth of all the filters in Wx and Wy
 
 Nfilters = size(Wx, 2);
 noiseBWx = zeros(1, Nfilters);

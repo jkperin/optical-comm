@@ -1,7 +1,7 @@
 clear, clc, close all
 addpath f/
 
-Dnu = 0.2e6;
+Dnu = 2*0.2e6;
 Ts = 1/56e9;
 csi = 1/sqrt(2);
 M = 4;
@@ -46,5 +46,5 @@ ylabel('Phase error variance')
 
 figure
 G = Fs/s;
-G = G/(1 + G);
+G = 1/(1 + G);
 step(G)

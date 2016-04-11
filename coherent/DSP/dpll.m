@@ -1,4 +1,4 @@
-function X = dpll(Y, DPLL, sim)
+function [X, Xhat] = dpll(Y, DPLL, sim)
 %% Digital phase locked loop
 % Loop filter is assumed to be a second-order filter defined by parameters
 % csi (damping) and wn (relaxation frequency). The loop filter frequency
@@ -12,7 +12,12 @@ function X = dpll(Y, DPLL, sim)
 M = sim.M;
 Ts = 1/sim.Rs;
 csi = DPLL.csi;
-wn = 2/Ts*atan(DPLL.wn*Ts/2); % Compensates for frequency warping in bilinear transformation.
+if strcmpi(DPLL.CT2DT, 'bilinear')
+    wn = 2/Ts*atan(DPLL.wn*Ts/2); % Compensates for frequency warping in bilinear transformation.
+else
+    wn = DPLL.wn;
+end
+Delay = DPLL.Delay; % Number of symbols in loop delay
 Ntrain = DPLL.Ntrain;
 Ytrain = DPLL.Ytrain;
 
@@ -21,20 +26,31 @@ Ytrain = DPLL.Ytrain;
 % s = tf('s');    
 % Fs = 2*csi*wn + wn^2/s;
 % G = Fs/s;
-% H = G/(1 + G); % loop filter: relates 
+% H = G/(1 + G); % loop filter
 % [nums, dens] = tfdata(H);
 % nums = cell2mat(nums);
 % dens = cell2mat(dens); 
-nums = [2*csi*wn wn^2];
+% Open-loop analog filter coefficients
+nums = [0 2*csi*wn wn^2];
 dens = [1 0 0]; % descending powers of s
-[numz, denz] = bilinear(nums, dens, sim.Rs); % ascending powers of z^–1
+% Closed-loop digital filter coefficients using bilinear transformation
+if strcmpi(DPLL.CT2DT, 'bilinear')
+    [numz, denz] = bilinear(nums, dens+nums, sim.Rs); % ascending powers of z^–1
+elseif strcmpi(DPLL.CT2DT, 'impinvar')
+    [numz, denz] = impinvar(nums, dens+nums, sim.Rs); % ascending powers of z^–1
+else
+    error('dpll/invalid method for continuous time to discrete time conversion')
+end
 Nnum = length(numz);
 Nden = length(denz);
+window_num = 0:-1:-Nnum+1;
+window_den = 0:-1:-Nden+2;
 
 N = length(Y);
 X = zeros(2, N);
 phiLO = zeros(2, N+1);
-phiS = zeros(2, N);
+phiN = zeros(2, N+1);
+Xhat = zeros(2, N);
 for k = max(Nnum, Nden):N % runs over symbols
     % Correct phase
     X(:, k) = Y(:, k).*exp(-1j*phiLO(:, k));
@@ -47,27 +63,50 @@ for k = max(Nnum, Nden):N % runs over symbols
 %         phiS(:, k) = phiS_tilde + p*(2*pi);        
     elseif strcmpi(DPLL.phaseEstimation, 'DD')
         if Ntrain < k % training sequence
-            Xhatk = Ytrain(:, k);
+            Xhat(:, k) = Ytrain(:, k);
         else % switch to decision directed
-            Xhatk = detect(X(:, k)); 
+            Xhat(:, k) = detect(X(:, k)); 
         end
         
-        phiS_tilde = angle(X(:, k)) - angle(Xhatk);
-        p  = floor((phiS(:,k-1)-phiS_tilde+pi)/(2*pi)); % unwrap
-        phiS(:, k) = phiS_tilde + p*(2*pi);
+        % Remove signal component from phase
+        phiN_tilde = angle(Y(:, k)) - angle(Xhat(:, k));
+        p  = floor((phiN(:,k-1)-phiN_tilde+pi)/(2*pi)); % unwrap
+        phiN(:, k+1) = phiN_tilde + p*(2*pi);
+        % phiN is the unwrapped sum of phase noise and AWGN noise
+        % phase component
     else
         error('dpll/invalid option for phase estimation')
     end
     
     % Loop filter updates LO phase
-    phiLO(:, k+1) = phiS(:, k:-1:k-Nnum+1)*numz.' - phiLO(:, k:-1:k-Nden+2)*denz(2:end).';
+    phiLO(:, k+1) = phiN(:, k+1 + window_num)*numz.'...
+        - phiLO(:, k + window_den)*denz(2:end).';
 end
+% 
+phiN = unwrap(phiN, [], 2);
+phiLO = unwrap(phiLO, [], 2);
 
-% figure, hold on
-% plot(unwrap(angle(Y(1, :)) - angle(Ytrain(1, :))))
-% plot(phiS(1, :), 'r')
-% plot(phiLO(1, :), 'k')
-% figure(h)
+% Plots
+if isfield(sim, 'Plots') && sim.Plots.isKey('DPLL phase error') && sim.Plots('DPLL phase error')
+    figure(200), clf
+    subplot(211), box on, hold on
+    plot(phiN(1, :), 'b')
+    plot(phiLO(1, :), '--r')
+    a = axis;
+    plot([Ntrain Ntrain], a(3:4), '--k')
+    legend('\phi_N = phase without signal component', '\phi_{LO} = local oscillator phase',...
+        'End of training', 'Location', 'Best')
+    hold off
+    
+    subplot(212), box on, hold on
+    plot(phiN(1, :)-phiLO(1, :), 'b')
+    a = axis;
+    plot([Ntrain Ntrain], a(3:4), '--k')
+    legend('\phi_N-\phi_{LO}', 'End of training', 'Location', 'Best')
+    title(['var(\phi_s)/var(\phi_s-\phi_{LO}) = ' num2str(var(phiN(1, :))/var(phiN(1, :)-phiLO(1, :)))])
+    hold off
+    drawnow
+end
 
 function x = detect(y)
     x = qammod(qamdemod(y, M, 0, 'Gray'), M, 0, 'Gray');
