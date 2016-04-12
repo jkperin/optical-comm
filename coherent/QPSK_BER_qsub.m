@@ -34,7 +34,7 @@ if ~all(isnumeric([fiberLength ModBW CPRtaps linewidth fOffset ENOB]))
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^18;                                                          % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16;                                                          % Number of symbols in montecarlo simulation
 sim.ros = ros;                                                             % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;                                                       % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4;                                                    % Target BER
@@ -47,7 +47,7 @@ sim.pulse = 'NRZ';                                                         % Tra
 sim.Npol = 2;                                                              % number of polarizations (currently ignored in generating the signal)
 sim.Modulator = Modulator;                                                 % Modulator type: {'EOM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
 sim.Rs = sim.Rb/(sim.Npol*log2(sim.M));                                    % Symbol Rate
-sim.save = true;
+sim.save = ~true;
 
 % Simulation control
 sim.RIN = true; 
@@ -69,7 +69,7 @@ sim.f = f;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 0; 
+Plots('BER')                  = 1; 
 Plots('Equalizer')            = 0;
 Plots('ChannelFrequencyResponse') = 0;
 Plots('CarrierPhaseNoise')    = 0;
@@ -225,7 +225,9 @@ Rx.FreqRec.mu = [0.0005 0];                                                 % Ad
 Rx.FreqRec.muShift = 2e4;                                  % Controls when gears are shifted. From 1:muShift(1) use mu(1), from muShift(1)+1:muShift(2) use mu(2), etc
 Rx.FreqRec.Ntrain = 2e4;
 
-Tx.PlaunchdBm = -33:0.5:-23;
+Tx.PlaunchdBm = -35:0.5:-29;
+
+% [Nsum, Nmult] = calcDSPOperations(Rx, sim)
 
 [BER, SNRdB] = ber_coherent(Tx, Fiber, Rx, sim)
 

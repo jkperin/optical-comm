@@ -99,10 +99,10 @@ for k = 1:length(Tx.PlaunchdBm)
             Y = Ycpr;
             validInd(1:Rx.CPR.Ntrain) = []; % discard symbols used in training carrier phase recovery algorithm
             
-%             % Phase tracking
-%             [Y, phiPT] = phase_estimation(Y, Rx.PT, symbolsTX(:, validInd), sim);
-%             Y(:, 1:Rx.PT.Ntrain) = [];
-%             validInd(1:Rx.PT.Ntrain) = []; % discard symbols used in training phase tracking algorithm
+            % Phase tracking
+            [Y, phiPT] = phase_estimation(Y, Rx.PT, symbolsTX(:, validInd), sim);
+            Y(:, 1:Rx.PT.Ntrain) = [];
+            validInd(1:Rx.PT.Ntrain) = []; % discard symbols used in training phase tracking algorithm
             
         elseif strcmpi(Rx.CPR.type, 'DPLL')
             Ycpr = dpll(Yeq, Rx.CPR, sim);

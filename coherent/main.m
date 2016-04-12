@@ -16,7 +16,7 @@ sim.BERtarget = 1.8e-4;
 sim.Ndiscard = 1e3; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
-sim.ModFormat = 'DPSK';                                                     % either 'QAM' or 'DPSK'
+sim.ModFormat = 'QAM';                                                     % either 'QAM' or 'DPSK'
 sim.M    = 4;                                                              % QAM order
 sim.pulse = 'NRZ';                                                         % Transmitter pulse shape ('NRZ')
 sim.Npol = 2;                                                              % number of polarizations
@@ -90,7 +90,7 @@ if strcmpi(sim.Modulator, 'MZM')
     Mod.Hel(isnan(Mod.Hel)) = 1;                                           % Mod.Hel(f=0) is NaN  
 elseif strcmpi(sim.Modulator, 'SiPhotonics') 
     %% Si Photonics (limited by parasitics, 2nd-order response)
-    Mod.BW = 50e9;
+    Mod.BW = 40e9;
     Mod.fc = Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
     Mod.grpdelay = 2/(2*pi*Mod.fc);  % group delay of second-order filter in seconds
     Mod.Hel = exp(1j*2*pi*f*Mod.grpdelay)./(1 + 2*1j*f/Mod.fc - (f/Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
@@ -159,7 +159,7 @@ Rx.ADC.ENOB = 4;                                                           % eff
 Rx.ADC.rclip = 0;                                                          % clipping ratio: clipped intervals: [xmin, xmin + xamp*rclip) and (xmax - xamp*rclip, xmax]
 Rx.ADC.ros = sim.ros;                                                      % oversampling ratio with respect to symbol rate 
 Rx.ADC.fs = Rx.ADC.ros*sim.Rs;                                             % ADC sampling rate
-Rx.ADC.filt = design_filter('butter', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
+Rx.ADC.filt = design_filter('cheby1', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
 % ADC filter should include all filtering at the receiver: TIA,
 % antialiasing, etc.
 
@@ -174,13 +174,13 @@ Rx.AdEq.ros = sim.ros;                                                     % Ove
 
 %% Carrrier phase recovery
 % Only used if sim.ModFormat = 'QAM'
-Rx.CPR.type = 'Feedforward';                                               % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
+Rx.CPR.type = 'None';                                               % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
 Rx.CPR.phaseEstimation = 'DD';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
 Rx.CPR.Ntrain = 1e4;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
 Rx.CPR.FilterType = 'FIR';                                                 % Filter type: {'FIR', 'IIR'}
-Rx.CPR.structure = '1 filter';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
-Rx.CPR.Ntaps = 7;                                                          % Maximum number of taps of filter 
+Rx.CPR.structure = '2 filters';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
+Rx.CPR.Ntaps = 15;                                                          % Maximum number of taps of filter 
 % Carrier phase recovery parameters for 'DPLL'
 Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
 Rx.CPR.Delay = 0;                                                          % (not implemented yet) Delay in DPLL loop measured in number of symbols 
@@ -203,7 +203,7 @@ Rx.FreqRec.mu = [0.0005 0];                                                 % Ad
 Rx.FreqRec.muShift = 1e4;                                  % Controls when gears are shifted. From 1:muShift(1) use mu(1), from muShift(1)+1:muShift(2) use mu(2), etc
 Rx.FreqRec.Ntrain = 1e4;
 
-Tx.PlaunchdBm = -32:-27;
+Tx.PlaunchdBm = -33:-27;
 sim.Nsetup = Rx.AdEq.Ntrain + sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 % [Nsum, Nmult] = calcDSPOperations(Rx, sim)
 [berQAM, SNRdBQAM_est]  = ber_coherent(Tx, Fiber, Rx, sim)

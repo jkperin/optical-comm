@@ -14,10 +14,10 @@ ros = 1.25;
 nu = 200;
 ENOB = [4 Inf];
 fOff = 0;
-CPR = {'DPLL', 'feedforward'};
-CPRtaps = [0, 5, 15];
+CPR = {'DPLL'};
+CPRtaps = [0 15];
 Modulator = 'SiPhotonics';
-ModBW = 30;
+ModBW = 40;
 linewidth = 200;
 
 LineStyle = {'-', '--'};
@@ -36,21 +36,22 @@ for enobi = 1:length(ENOB)
             try 
                 S = load(filename);
 
-                lber = log10(S.BER);
-                valid = ~(isinf(lber) | isnan(lber)) & lber > -4.5;
+                lber = log10(S.BER.count);
+                valid = ~(isinf(lber) | isnan(lber)) & lber > -4.5 & lber < -3;
                 try
-                    Prec(k) = interp1(lber(valid), S.Tx.PlaunchdBm(valid), log10(BERtarget));
+                    Prec(k) = spline(lber(valid), S.Tx.PlaunchdBm(valid), log10(BERtarget));
                 catch e
                     warning(e.message)
                     Prec(k) = NaN;
                     lber(valid)
                 end 
                 
-                lber_theory = log10(berawgn(S.SNRdB - 10*log10(log2(S.sim.M)), lower(S.sim.ModFormat), S.sim.M));
-                Prec_theory(k) = interp1(lber_theory, S.Tx.PlaunchdBm, log10(BERtarget));
+                lber_theory = log10(S.BER.theory);
+                Prec_theory(k) = spline(lber_theory, S.Tx.PlaunchdBm, log10(BERtarget));
                 
                 figure(2), box on, hold on
-                plot(S.Tx.PlaunchdBm, lber, '-o')
+                h = plot(S.Tx.PlaunchdBm, lber, '-o');
+                plot(Prec(k), log10(BERtarget), '*', 'Color', get(h, 'Color'), 'MarkerSize', 6)
                 plot(S.Tx.PlaunchdBm, lber_theory, 'k')
                 axis([S.Tx.PlaunchdBm([1 end]) -8 0])
             catch e
@@ -60,6 +61,8 @@ for enobi = 1:length(ENOB)
                 filename
             end
         end
+        Prec_qpsk_theory =  Prec_theory;
+        Prec_qpsk_count{enobi} = Prec;
         
         figure(1)
         hline(count) = plot(Lspan, Prec, 'Color', Color{cpri}, 'LineStyle', LineStyle{enobi}, 'Marker', Marker{cpri}, 'LineWidth', 2);
@@ -72,4 +75,4 @@ end
 xlabel('Fiber length (km)')
 ylabel('Receiver sensitivity (dBm)')
 axis([0 10 -33 -27])
-legend('DPLL', 'FIR Feedforward w/ 5 taps')
+legend(hline, 'DPLL', 'FIR Feedforward w/ 15 taps')
