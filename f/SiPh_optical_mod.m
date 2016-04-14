@@ -21,8 +21,7 @@ Vyi = real(ifft(fft(Vyi).*Hmod));
 Vyq = real(ifft(fft(Vyq).*Hmod));
 
 % Modulate signal fields (each has unit average power)
-Enorm = 1/sqrt(sqrt(2)); % normalize so that E(|Vout|^2) = 1
-Vout   =   Enorm*[Vxi + 1i*Vxq;...        % x polarization
-                  Vyi + 1i*Vyq];         % y polarization
+Vout   =   [Vxi + 1i*Vxq;...        % x polarization
+            Vyi + 1i*Vyq];         % y polarization
 
 Eout =  1/sqrt(2)*[Ein.*Vout(1, :); Ein.*Vout(2, :)];  % polarization multiplexed signal    

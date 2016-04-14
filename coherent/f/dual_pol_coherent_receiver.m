@@ -1,4 +1,4 @@
-function [Y, SNRdB_est, ACG] = PDM_QAM_Rx(Erec, M, Rx, sim)
+function Y = dual_pol_coherent_receiver(Erec, M, Rx, sim)
 
 E1rec = Erec(1,:);      % received signal in x pol.
 E2rec = Erec(2,:);      % received signal in y pol.
@@ -88,23 +88,17 @@ Y1qdet = Y1qdet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y1qdet));
 Y2idet = Y2idet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y2idet));
 Y2qdet = Y2qdet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y2qdet));
 
+% Automatic gain control (AGC)
+% This is a course AGC to put input signal in the dynamic range of ADC.
+% Equalization filter should provide finer gain control so that QAM symbols
+% are at the expected points
+Enorm = mean(abs(pammod(0:log2(M)-1, log2(M))).^2);
+Y1idet = sqrt(Enorm/mean(abs(Y1idet).^2))*Y1idet;
+Y1qdet = sqrt(Enorm/mean(abs(Y1qdet).^2))*Y1qdet;
+Y2idet = sqrt(Enorm/mean(abs(Y2idet).^2))*Y2idet;
+Y2qdet = sqrt(Enorm/mean(abs(Y2qdet).^2))*Y2qdet;
+
 % Form output
 Y = [Y1idet + 1j*Y1qdet; Y2idet + 1j*Y2qdet];
 
-Pin = mean(abs(E11Ia).^2 + abs(E21Ia).^2); % power per photodiode
-varShot = 2*Rx.PD.varShot(Pin, sim.Rs/2); % shot noise variance per real dimension
-varThermal = 2*Rx.N0*sim.Rs/2; % thermal noise variance per real dimension
-Psig = mean(abs(Y(1, :)).^2); % average signal power per real dimension
-% Note: sim.Rs/2 is the noise bandwidth if receiver filter were matched
-% filter and no noise-enhancement penalty due to equalization
-
-% Thermal noise is assumed to be per real dimension
-SNRdB_est = 10*log10(Psig/(varShot + varThermal)-1); % unbiased SNR estimation
-
-% AGC
-% Normalize signals so that constellations be in original form
-Enorm = mean(abs(qammod(0:M-1, M)).^2);
-ACG = sqrt(Enorm./[mean(abs(Y(1, :)).^2), mean(abs(Y(2, :)).^2)]);
-
-Y(1, :) = ACG(1)*Y(1, :);
-Y(2, :) = ACG(1)*Y(2, :);
+% scatterplot(Y(1, :))

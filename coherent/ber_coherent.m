@@ -16,7 +16,8 @@ else
 end
 
 % BER in AWGN channel
-berAWGN = @(SNRdB) berawgn(SNRdB - 10*log10(log2(M)), lower(sim.ModFormat), M);
+berAWGN = @(SNRdB) berawgn(SNRdB - 3 - 10*log10(log2(M)), lower(sim.ModFormat), M);
+% Note: -3 is due to the fact SNR = 2Es/N0
 
 % Calculate noise bandwidth of an ideal receiver consisting of a matched 
 % filter and symbol-rate linear equalization. This is only used to
@@ -29,7 +30,7 @@ sim.f = sim.f.';
 [~, eq] = equalize(eq, [], Hch, mpam, Rx, sim); 
 % this generates zero-forcing linear equalizer, which should be a good
 % approximation of MMSE linear equalizer.
-noiseBW = trapz(sim.f, abs(eq.Hrx.*eq.Hff(sim.f/sim.Rs)).^2)/2;
+noiseBW = sim.Rs/2; %trapz(sim.f, abs(eq.Hrx.*eq.Hff(sim.f/sim.Rs)).^2)/2;
 sim.f = sim.f.';
 
 % Transmitted power swipe
@@ -55,7 +56,7 @@ for k = 1:length(Tx.PlaunchdBm)
     Erec = Fiber.linear_propagation(Ein, sim.f, Tx.Laser.lambda);
     
     %% ========= Receiver =============
-    [Y, ~] = PDM_QAM_Rx(Erec, sim.M, Rx, sim);
+    Y = dual_pol_coherent_receiver(Erec, sim.M, Rx, sim);
     
     % Digital to analog conversion: antialiasing filter, sampling, and
     % quantization
@@ -82,10 +83,10 @@ for k = 1:length(Tx.PlaunchdBm)
     Prx = dBm2Watt(Tx.Laser.PdBm)/Fiber.link_attenuation(Tx.Laser.lambda); % received power
     Plo = dBm2Watt(Rx.LO.PdBm);                                            % local oscillator power
     Ppd = abs(sqrt(Plo/(4*sim.Npol)) + sqrt(Prx/(4*sim.Npol))).^2;         % incident power in each photodiode
-    Psig = 1/sqrt(2)*Plo*Prx/(sim.Npol*sim.Npol);                          % Signal power per real dimension
+    Psig = Plo*Prx/(2*sim.Npol*sim.Npol);                          % Signal power per real dimension
     varShot = 2*Rx.PD.varShot(Ppd, noiseBW);                               % Shot noise variance per real dimension
     varThermal = Rx.N0*noiseBW;                                            % Thermal noise variance per real dimension
-    SNRdB_theory(k) = 10*log10(Psig/(varShot + varThermal));
+    SNRdB_theory(k) = 10*log10(2*Psig/(varShot + varThermal));
 
     %% Carrier phase recovery algorithm
     if strcmpi(sim.ModFormat, 'QAM') % not done if DQPSK

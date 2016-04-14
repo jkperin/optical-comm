@@ -10,7 +10,7 @@ addpath ../mpam/
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
-sim.ros = 2;          % Oversampling ratio of DSP
+sim.ros = 5/4;          % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 1e3; % number of symbols to be discarded from the begining and end of the sequence 
@@ -24,9 +24,9 @@ sim.Modulator = 'SiPhotonics';                                                  
 sim.Rs = sim.Rb/(sim.Npol*log2(sim.M))                                     % Symbol Rate
 
 % Simulation
-sim.RIN = ~true; 
-sim.PMD = ~true;
-sim.phase_noise = ~true;
+sim.RIN = true; 
+sim.PMD = true;
+sim.phase_noise = true;
 sim.preAmp = false;
 sim.quantiz = ~true;
 
@@ -46,7 +46,7 @@ Plots = containers.Map();                                                   % Li
 Plots('BER')                  = 1; 
 Plots('Equalizer')            = 0;
 Plots('Eye diagram') = 0;
-Plots('DPLL phase error') = 0;
+Plots('DPLL phase erro  r') = 0;
 Plots('Feedforward phase error') = 0;
 Plots('Frequency offset estimation') = 0;
 Plots('Channel frequency response') = 0;
@@ -174,7 +174,7 @@ Rx.AdEq.ros = sim.ros;                                                     % Ove
 
 %% Carrrier phase recovery
 % Only used if sim.ModFormat = 'QAM'
-Rx.CPR.type = 'None';                                               % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
+Rx.CPR.type = 'Feedforward';                                               % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
 Rx.CPR.phaseEstimation = 'DD';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
 Rx.CPR.Ntrain = 1e4;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
@@ -203,7 +203,8 @@ Rx.FreqRec.mu = [0.0005 0];                                                 % Ad
 Rx.FreqRec.muShift = 1e4;                                  % Controls when gears are shifted. From 1:muShift(1) use mu(1), from muShift(1)+1:muShift(2) use mu(2), etc
 Rx.FreqRec.Ntrain = 1e4;
 
-Tx.PlaunchdBm = -33:-27;
+% Tx.PlaunchdBm = -38:-30;
+Tx.PlaunchdBm = -35:-28;
 sim.Nsetup = Rx.AdEq.Ntrain + sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 % [Nsum, Nmult] = calcDSPOperations(Rx, sim)
 [berQAM, SNRdBQAM_est]  = ber_coherent(Tx, Fiber, Rx, sim)

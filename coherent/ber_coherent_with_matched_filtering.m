@@ -17,8 +17,16 @@ else
     error('ber_coherent/invalid modulation format');
 end
 
+% Define fixed time-domain symbol-rate linear equalizer 
+% mpam is only used to get pulse shape
+eq.type = 'fixed td-sr-le';
+eq.Ntaps = 11;
+mpam = PAM(sqrt(sim.M), sim.Rs, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
+Hch = (Tx.filt.H(sim.f/sim.fs).*Tx.Mod.Hel).';
+
 % BER in AWGN channel
-berAWGN = @(SNRdB) berawgn(SNRdB - 10*log10(log2(M)), lower(sim.ModFormat), M);
+berAWGN = @(SNRdB) berawgn(SNRdB - 3 - 10*log10(log2(M)), lower(sim.ModFormat), M);
+% Note: -3 is due to the fact SNR = 2Es/N0
 
 % Transmitted power swipe
 ber.count = zeros(size(Tx.PlaunchdBm));
@@ -37,41 +45,46 @@ for k = 1:length(Tx.PlaunchdBm)
     end
     
     % Makes sure that transmitted power is a desired level
+    sum(mean(abs(Ein).^2, 2))/dBm2Watt(Tx.PlaunchdBm(k))
     Ein = Ein*sqrt(dBm2Watt(Tx.PlaunchdBm(k))/sum(mean(abs(Ein).^2, 2)));
 
     %% ========= Propagation ========== 
     Erec = Fiber.linear_propagation(Ein, sim.f, Tx.Laser.lambda);
 
     %% ========= Receiver =============
-    [Y, ~] = PDM_QAM_Rx(Erec, sim.M, Rx, sim);
+    Y = dual_pol_coherent_receiver(Erec, sim.M, Rx, sim);
         
     %% Matched filtering and equalization
-    eq.type = 'fixed td-sr-le';
-    eq.Ntaps = 11;
-    mpam = PAM(2, sim.Rs, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
-    Hch = (Tx.filt.H(sim.f/sim.fs).*Tx.Mod.Hel).';
     sim.f = sim.f.';
     [Ydxi, eq] = equalize(eq, real(Y(1, :).'), Hch, mpam, Rx, sim);
     [Ydxq, eq] = equalize(eq, imag(Y(1, :).'), Hch, mpam, Rx, sim);
     [Ydyi, eq] = equalize(eq, real(Y(2, :).'), Hch, mpam, Rx, sim);
     [Ydyq, eq] = equalize(eq, imag(Y(2, :).'), Hch, mpam, Rx, sim);    
-    
-    Yd = [Ydxi + 1j*Ydxq, Ydyi + 1j*Ydyq];
-    
     sim.f = sim.f.';
-    Yd = Yd.';
-   
+    
     % Estimate SNR including noise enhacement penalty
     Prx = dBm2Watt(Tx.Laser.PdBm)/Fiber.link_attenuation(Tx.Laser.lambda);
     Plo = dBm2Watt(Rx.LO.PdBm);
-    noiseBW = trapz(sim.f, abs(eq.Hrx.'.*eq.Hff(sim.f/sim.Rs)).^2)/2
+    noiseBW = trapz(sim.f, abs(eq.Hrx.'.*eq.Hff(sim.f/sim.Rs)).^2)/2;
+    noiseBW = sim.Rs/2;
 
     Ppd = abs(sqrt(Plo/(4*sim.Npol)) + sqrt(Prx/(4*sim.Npol))).^2; % incident power in each photodiode
-    Psig = 1/sqrt(2)*Plo*Prx/(sim.Npol*sim.Npol); % Signal power per real dimension
+    Psig = Plo*Prx/(2*sim.Npol*sim.Npol); % Signal power per real dimension
     varShot = 2*Rx.PD.varShot(Ppd, noiseBW); % Shot noise variance per real dimension
     varThermal = Rx.N0*noiseBW; % Thermal noise variance per real dimension
-    SNRdB_theory(k) = 10*log10(Psig/(varShot + varThermal));
-       
+    SNRdB_theory(k) = 10*log10(2*Psig/(varShot + varThermal));
+    
+    % Finer gain control: to make sure that QAM constellation is of the
+    % right size
+    Enorm = mean(abs(pammod(0:log2(sim.M)-1, log2(sim.M))).^2);
+    Ydxi = sqrt(Enorm/mean(abs(Ydxi).^2))*Ydxi;
+    Ydxq = sqrt(Enorm/mean(abs(Ydxq).^2))*Ydxq;
+    Ydyi = sqrt(Enorm/mean(abs(Ydyi).^2))*Ydyi;
+    Ydyq = sqrt(Enorm/mean(abs(Ydyq).^2))*Ydyq;
+    
+    Yd = [Ydxi + 1j*Ydxq, Ydyi + 1j*Ydyq];
+    Yd = Yd.';
+        
     % Demodulate
     dataRX = [demodulate(Yd(1, :)); demodulate(Yd(2, :))];
     dataRX(:, [1:sim.Ndiscard end-sim.Ndiscard+1:end]) = []; % discard first and last sim.Ndiscard symbols
@@ -84,6 +97,17 @@ for k = 1:length(Tx.PlaunchdBm)
     [~, berY(k)] = biterr(dataTX(2, validInd), dataRX(2, :))
     ber.count(k) = 0.5*(berX(k) + berY(k));
     ber.theory(k) = berAWGN(SNRdB_theory(k))
+    Ps = qfunc(sqrt(0.5*Psig/varThermal));
+    Pe = (1 - (1-Ps).^2)/log2(sim.M)
+    
+   % Constellation plots
+   if sim.Plots.isKey('Constellations') && sim.Plots('Constellations')
+       figure(203), clf
+       plot_constellation(Yd(1, sim.Ndiscard+1:end-sim.Ndiscard), dataTX(1, sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
+       axis square
+       drawnow
+   end
+
 end
 
 plots
