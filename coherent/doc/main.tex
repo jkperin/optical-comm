@@ -144,9 +144,90 @@ Hence the fiber propagation is modeled in the frequency domain as
 where each of the $N$ sections of the fiber has frequency response matrix $\bm{H_i}(\omega)$ with a random phase $\theta_i \in [-\pi, \pi]$.
 \section{Receiver}
 \subsection{Homodyne downconversion}
+The received signal electric field $E_s(t)$ and the local oscillator electrical field $E_{LO}(t)$ have the following passband representation
+\begin{align}
+E_s(t) &= \mathrm{Re}\Big\{\sqrt{2}|A_s(t)|\exp\Big(j(\omega_st + \phi_s(t) + \phi_{pn}(t))\Big)\Big\} \\
+E_{LO}(t) &= \mathrm{Re}\Big\{\sqrt{2}|A_{LO}(t)|\exp\Big(j(\omega_{LO}t + \phi_{LO}(t))\Big)\Big\}
+\end{align}
+where $|A_s(t)|$ and $|A_{LO}(t)|$ is the slow envelope of the signal and local oscillator electric field, respectively. The absolute value is just to indicate that this only accounts for the amplitude of the transmitted symbols. $\omega_s$ and $\omega_{LO}$ the carrier frequency of the signal and local oscillator electric field. $\phi_s(t)$ is the phase information. $\phi_{pn}(t)$ and $\phi_{LO}(t)$ are the phase noise components.
 
-\subsubsection{Noiseless}
+Hence, it follows that the baseband representation is 
+\begin{align}
+E_s(t) &= |A_s(t)|\exp\Big(j(\phi_s(t) + \phi_{pn}(t))\Big) \\
+E_{LO}(t) &= |A_{LO}(t)|\exp\Big(j(\omega_{off}t + \phi_{LO}(t))\Big)
+\end{align}
+where $\omega_{off} =\omega_{LO}-\omega_s$
 
+Considering that the 3-dB coupler has the following transfer matrix
+\begin{equation}
+\begin{bmatrix}
+E_{out, 1} \\
+E_{out, 2}
+\end{bmatrix} = \frac{1}{\sqrt{2}}\begin{bmatrix}
+1 & j \\
+j & 1 \\
+\end{bmatrix}\begin{bmatrix}
+E_{in, 1} \\
+E_{in, 2}
+\end{bmatrix}
+\end{equation}
+the $90^o$ hybrid has the following transfer matrix
+\begin{equation}
+\begin{bmatrix}
+E_1\\
+E_2\\
+E_3\\
+E_4
+\end{bmatrix} = \frac{1}{2}\begin{bmatrix}
+1 & 1 \\
+j & -j \\
+j & -1\\
+-1 & j
+\end{bmatrix}\begin{bmatrix}
+E{s} \\
+E_{LO}
+\end{bmatrix}
+\end{equation}
+where $E_1, E_2, E_3, E_4$ are the input electric fields to the photodiodes.
+
+After balanced detection we have
+\begin{align}
+I_i(t) = |A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_n(t)) \\
+I_q(t) = |A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_n(t))
+\end{align}
+
+Therefore, the signal power per real dimension for a quaternary signal is
+\begin{align} \nonumber
+P_{sig} &= \langle|I_i(t)|^2\rangle = \langle|I_q(t)|^2\rangle \\
+&= \frac{P_{rec}P_{LO}}{2}
+\end{align}
+since $P_{rec} = \langle|A_s(t)|^2\rangle$, and $P_{LO} = \langle|A_{LO}(t)|^2\rangle$
+
+If \textbf{two polarizations} are used
+\begin{align} 
+P_{sig} &= \frac{P_{rec}P_{LO}}{8}
+\end{align}
+
+One-sided PSD per real dimension of thermal and shot noise:
+\begin{align}
+S_{th} = N_0
+S_{sh} = 2(2qRP_{PD})
+\end{align}
+where $N_0$ is the PSD of the trans-impedance amplifier and $P_{PD}$ is the incident power in each photodiode:
+\begin{equation}
+P_{PD} = |E_1|^2 = |E_2|^2 = |E_3|^2 = |E_4|^2 \approx \frac{P_{LO}}{8}
+\end{equation}
+for two polarizations.
+
+Hence, the SNR of an ideal system with no intersymbol interfence and employing matched filtering is 
+\begin{equation}
+\mathrm{SNR} = \frac{2P_{sig}}{(S_{sh} + S_{th})R_s/2}
+\end{equation}
+$R_s$ is the symbol rate and $R_s/2$ is the one-sided noise bandwidth. The factor of 2 in the signal power appears because we have both in phase and quadrature signal components.
+
+\begin{equation}
+\mathrm{SNR} = \frac{2E_s}{N_0}, \qquad \frac{E_s}{N_0} = \log_2M\frac{E_b}{N_0}
+\end{equation}
 
 \section{Digital signal processing based receiver}
 
@@ -240,10 +321,31 @@ We can obtain the open-loop transfer function by discretizing the continuous-tim
 
 From bilinear transformation
 \begin{equation}
-G(z) = \frac{z^2(\xi\omega_nT_s + T_s^2\omega_n^2/4) + }{z^2 - 2z + 1}
+G(z) = \frac{z^2(\xi\omega_nT_s + T_s^2\omega_n^2/4) + 2zT_s^2\omega_n^2/4 + T_s^2\omega_n^2/4 - \xi\omega_nT_s}{z^2 - 2z + 1} = \frac{P(z)}{(z-1)^2}
 \end{equation}
 
+Applying the final value theorem to a ramp input
+\begin{align} \nonumber
+\phi_e(n\to\infty) &= \lim_{z\to 1} \frac{(z-1)\frac{(z)}{(z-1)^2}}{1 + G(z)} = \lim_{z\to 1} \frac{z}{(z-1)(1 + G(z))} \\
+&= \lim_{z\to 1} \frac{z(z-1)}{(z-1)^2 + P(z)} = 0
+\end{align}
+Hence, the DPLL implementation also achieves zero error for a ramp input i.e., frequency offset. However, since the delay in the phase estimation of an actual implementation of a DPLL is at least 1, the output constellation will be rotated by at least $f_{off}/R_s$ radians.
 
+\subsection{Implementations issues}
+Hardware implementation of DPLL at high rates rely heavily on parallelism and pipelining in order to reduce the complexity of the processing units. 
+
+\begin{equation}
+p = \frac{\Delta_{PE}}{T_s}
+\end{equation}
+where $p$ is the number of parallel stages and $\Delta_{PE}$ is the total time it takes to perform phase estimation.
+
+\subsection{IIR filter implementation}
+The closed-loop transfer function of the PLL loop filter is given by
+\begin{align} \nonumber
+H(z) &= \frac{\phi_{LO}(z)}{\phi_n(z)} = \frac{G(z)}{1 + G(z)} \\ \nonumber
+&= \frac{z^2(\xi\omega_nT_s + T_s^2\omega_n^2/4) + 2zT_s^2\omega_n^2/4 + T_s^2\omega_n^2/4 - \xi\omega_nT_s}{z^2(\xi\omega_nT_s + T_s^2\omega_n^2/4 + 1) + 2z(T_s^2\omega_n^2/4-1) + T_s^2\omega_n^2/4 - \xi\omega_nT_s + 1} \\
+& = \frac{b_0 + b_1z^{-1} + b_2z^{-2}}{1 + a_1z^{-1} + a_2z^{-2}}
+\end{align}
 
 \subsection{Phase Tracking}
 \cite{Phase1995}
@@ -253,32 +355,6 @@ Given the signal $y[k]$ after CMA equalization. The phase tracking algorithm app
 \Phi[k+1] = \Phi[k]-\mu\mathrm{Im}\{z[k]e^*[k]\}
 \end{equation}
 where $e^*[k] = z[k] - \hat{x}[k]$, where $\hat{x}[k]$ is a decision made based on $z[k]$.
-
-\section{BER calculation}
-The incident power in each photodiode is given by
-\begin{equation}
-P_{pd} = \bigg|\sqrt{\frac{P_{LO}}{4p}} + \sqrt{\frac{P_{rx}}{4p}}\bigg|^2 \approx \frac{P_{LO}}{4p}
-\end{equation}
-where $P_{LO}$ is the local oscillator power, $P_{rx}$ is the signal received power, and $p$ is the number of polarizations.
-
-Assuming that there's no crosstalk between the two polarizations the received current is given by
-\begin{align}
-I_i(t) = \frac{R}{p}\sqrt{P_{LO}}(\sqrt{P_{rx}}y_{s,i}(t) +  E_{sp}(t)) + I_{sh,i} \\
-I_q(t) = \frac{R}{p}\sqrt{P_{LO}}(\sqrt{P_{rx}}y_{s,q}(t) +  E_{sp}(t)) + I_{sh,q}
-\end{align}
-for the in-phase and quadrature components in each polarization. $E_{sp}(t)$ is the amplified spontaneous emission (ASE) noise, and $I_{sh,i}$ is the noise component due to shot noise.
-
-The transmitted electric field for each polarization is given by
-\begin{equation}
-E_{tx} = \sqrt{P_{rx}/p}(y_{s,i}(t) + y_{s,q}(t))
-\end{equation}
-This implies that since $E(|E_{tx}|^2) = P_{rx}/p$, then $E(|y_{s,i}(t) + y_{s,q}(t)|^2) = 2E(|y_{s,i}(t)|^2 = 2E(|y_{s,q}(t)|^2 = 1$ i.e., $E(|y_{s,q}(t)|^2 = E(|y_{s,i}(t)|^2 = 1/2$.
-
-Therefore, the signal power per real dimension is
-\begin{equation}
-P_{sig} = \frac{P_{LO}P_{rx}}{2p^2}
-\end{equation}
-
 
 \bibliographystyle{plain}
 \bibliography{bib}

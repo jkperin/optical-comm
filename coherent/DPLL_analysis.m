@@ -2,8 +2,9 @@
 clear, clc, close all
 
 sim.Rs = 56e9;
+Ts = 1/sim.Rs;
 
-CT2DT = 'impinvar';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
+CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
 Delay = 0;                                                          % (not implemented yet) Delay in DPLL loop measured in number of symbols 
 csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
 wn = 2*pi*0.8e9;        
@@ -41,18 +42,18 @@ step(Gz/(Gz+1))
 title('Phase error response to step in AWGN noise')
 legend('ct', 'dt')
 
-% 
-% figure, hold on
-% impulse(1/(Gs+1))
-% impulse(1/(Gz+1))
-% title('Phase error response to impulse in phase noise')
-% legend('ct', 'dt')
-% 
-% figure, hold on
-% impulse(Gs/(Gs+1))
-% impulse(Gz/(Gz+1))
-% title('Phase error response to impulse in AWGN noise')
-% legend('ct', 'dt')
+
+figure, hold on
+impulse(1/(Gs+1))
+impulse(1/(Gz+1))
+title('Phase error response to impulse in phase noise')
+legend('ct', 'dt')
+
+figure, hold on
+impulse(Gs/(Gs+1))
+impulse(Gz/(Gz+1))
+title('Phase error response to impulse in AWGN noise')
+legend('ct', 'dt')
 
 % 
 s = tf('s');
@@ -63,11 +64,4 @@ impulse(z/((z-1)^2*(Gz+1)))
 title('Phase error response to ramp in phase noise')
 % legend('ct', 'dt')
 
-
-% 1 - H(z) = -1/(G(z)+1), where H(z) is closed loop transfer function 
-n = -denz;
-d = numz + denz;
-
-figure, step(n, d)
-figure, freqz(n, d)
-
+%

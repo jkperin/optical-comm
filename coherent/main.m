@@ -31,7 +31,7 @@ sim.preAmp = false;
 sim.quantiz = ~true;
 
 %% Time and frequency
-sim.fs = sim.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
+sim.fs = sim.Rs*sim.Mct;  % sampling frequency for 'continuous-time' simulation
 
 dt = 1/sim.fs;
 t = 0:dt:(sim.N-1)*dt;
@@ -46,7 +46,7 @@ Plots = containers.Map();                                                   % Li
 Plots('BER')                  = 1; 
 Plots('Equalizer')            = 0;
 Plots('Eye diagram') = 0;
-Plots('DPLL phase erro  r') = 0;
+Plots('DPLL phase error') = 0;
 Plots('Feedforward phase error') = 0;
 Plots('Frequency offset estimation') = 0;
 Plots('Channel frequency response') = 0;
@@ -122,7 +122,7 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 9.8;                                                           % Total local oscillator power (dBm)
-Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
+Rx.LO.freqOffset = 1e9;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -175,37 +175,37 @@ Rx.AdEq.ros = sim.ros;                                                     % Ove
 %% Carrrier phase recovery
 % Only used if sim.ModFormat = 'QAM'
 Rx.CPR.type = 'Feedforward';                                               % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
-Rx.CPR.phaseEstimation = 'DD';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
+Rx.CPR.phaseEstimation = 'NDA';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
+Rx.CPR.Delay = 0;                                                       % Delay in number of symbols due to pipelining and parallelization
 Rx.CPR.Ntrain = 1e4;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
 Rx.CPR.FilterType = 'FIR';                                                 % Filter type: {'FIR', 'IIR'}
-Rx.CPR.structure = '2 filters';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
-Rx.CPR.Ntaps = 15;                                                          % Maximum number of taps of filter 
+Rx.CPR.structure = '1 filter';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
+Rx.CPR.Ntaps = 7;                                                          % Maximum number of taps of filter 
+Rx.CPR.NDAorder = 'reverse';                                               % Order of phase estimation (PE) and filtering in NDA FF:{'direct': PE followed by filtering, 'reverse': filtering followed by PE}
 % Carrier phase recovery parameters for 'DPLL'
 Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
-Rx.CPR.Delay = 0;                                                          % (not implemented yet) Delay in DPLL loop measured in number of symbols 
 Rx.CPR.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
 Rx.CPR.wn = 2*pi*0.8e9;                                                    % relaxation frequency of second-order loop filter: optimized using optimize_PLL.m
 % Phase tracking stage
 % This only compensates for constant phase offsets, which may be required
 % since feedforward or DPLL may converge to a rotated constellation when
-% the frequency offset is large
+% the frequency offset and loop delays are large
 % Phase tracking is adpated using LMS
 Rx.PT.mu = 0.005;
 Rx.PT.Ntrain = 0.1e4;
 
 %% Frequency recovery
-% Only used if sim.ModFormat = 'DPSK', since for 'QAM' feedforward or DPLL
-% can compensate frequency offset as well
+% Used in DQPSK receiver and QPSK with feedforward carrier recovery
 % Frequency recovery algorithm uses 4th power method to estimate frequency
-% offset. Hence, it only works for DQPSK
+% offset. Hence, it only works for quaternary modulation formats
 Rx.FreqRec.mu = [0.0005 0];                                                 % Adaptation rate. A vector means that gear shifting is used
 Rx.FreqRec.muShift = 1e4;                                  % Controls when gears are shifted. From 1:muShift(1) use mu(1), from muShift(1)+1:muShift(2) use mu(2), etc
 Rx.FreqRec.Ntrain = 1e4;
 
 % Tx.PlaunchdBm = -38:-30;
 Tx.PlaunchdBm = -35:-28;
-sim.Nsetup = Rx.AdEq.Ntrain + sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
+sim.Nsetup = Rx.AdEq.Ntrain + (Rx.LO.freqOffset~=0)*Rx.FreqRec.Ntrain + sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 % [Nsum, Nmult] = calcDSPOperations(Rx, sim)
 [berQAM, SNRdBQAM_est]  = ber_coherent(Tx, Fiber, Rx, sim)
 % [berQAM, SNRdBQAM_est] = ber_coherent_with_matched_filtering(Tx, Fiber, Rx, sim)

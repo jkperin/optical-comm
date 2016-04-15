@@ -51,18 +51,18 @@ X = zeros(2, N);
 phiLO = zeros(2, N+1);
 phiN = zeros(2, N+1);
 Xhat = zeros(2, N);
-for k = max(Nnum, Nden):N % runs over symbols
+for k = max([Nnum, Nden, Delay]+1):N % runs over symbols
     % Correct phase
-    X(:, k) = Y(:, k).*exp(-1j*phiLO(:, k));
+    X(:, k) = Y(:, k).*exp(-1j*phiLO(:, k-Delay));
     
     % Phase estimation
     if strcmpi(DPLL.phaseEstimation, '4th power')
-        error('dpll/4th power not implemented yet')
-%         phiS_tilde = angle(Y(:, k).^4);        
-%         p  = floor((phiS(:,k-1)-phiS_tilde+pi)/(2*pi)); % unwrap
-%         phiS(:, k) = phiS_tilde + p*(2*pi);        
+        phiN_tilde = 1/M*angle(-Y(:, k).^4);        
+        % Unwrap
+        p  = floor((phiN(:,k-1)-phiN_tilde+pi)/(2*pi)); % unwrap
+        phiN(:, k) = phiN_tilde + p*(2*pi);        
     elseif strcmpi(DPLL.phaseEstimation, 'DD')
-        if Ntrain < k % training sequence
+        if k < Ntrain % training sequence
             Xhat(:, k) = Ytrain(:, k);
         else % switch to decision directed
             Xhat(:, k) = detect(X(:, k)); 

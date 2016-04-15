@@ -23,10 +23,7 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
     L     = Cpr.Ntaps; % FIR: actual length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed, IIR: length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed in approximating the IIR filter
     filttype = Cpr.FilterType;
     structure = Cpr.structure;
-
-    ndtype = '2';                   % type of carrier recovery if nda.
-                                    % '1' = as in reference quoted above.
-                                    % '2' = reverse ordering of fourth power and digital filtering.
+    Delay = Cpr.Delay;
 
     % perform some computations related to carrier recovery
     probx = 1; % symbols probability (only ~= 1 when shapping is used)
@@ -59,15 +56,11 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
             d = floor(0.5*(L-1));                       % length of Wsd for DD
         end
     end
-
-
+    
     N = size(y,2);
     thetahat = zeros(N,2);                                                  % hard-decision phase estimate
     x1hat = zeros(N,1);                                                     % symbols after carrier de-rotation
-    x2hat = zeros(N,1);
-    x1D = zeros(N,1);                                                       % detected symbols
-    x2D = zeros(N,1);
-    
+    x2hat = zeros(N,1);   
     % Computer Wiener filters and perform carrier recovery
     if strcmp(crtype,'DD')
         Wsd = wiener_fir(d,0,sigmandsq,sigmapsq);
@@ -75,28 +68,33 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
        
         psi = zeros(2,N);                                                   % soft-decision phase estimate
         theta_tilde = zeros(2,N);                                           % input to soft-decision phase estimator
-        for k=L:N
+        for k=L+Delay+1:N
             if strcmpi(structure, '2 filters')
                 % Make soft decision on symbol y(k)
-                yk = y(:,k);
-                sk = yk.*exp(-1i*theta_tilde(:,k));
+                sk = y(:,k).*exp(-1i*theta_tilde(:,k-Delay));
                 if k < Ntrain % training sequence
                     xhatk_sd = Ytrain(:, k);
                 else % switch to decision directed
                     xhatk_sd = detect(sk);
                 end
-                psik_tilde = angle(yk)-angle(xhatk_sd);
+                
+                % Unwrap
+                psik_tilde = angle(y(:,k))-angle(xhatk_sd);
                 p  = floor((psi(:,k-1)-psik_tilde+pi)/(2*pi));
                 psi(:,k) = psik_tilde + p*(2*pi);
+                
+                % Soft decision filter
                 theta_tilde(:,k+1) = psi(:,k:-1:k-d+1) * Wsd;
                 thetahat(k-Delta, :) = psi(:,k:-1:k-L+1) * Whd;
+                % Note: Delay for 2 filters structure is larger than for 1
+                % filter struscture due to the soft phase estimation filter
+                
                 % Detect symbol
                 x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta, 1));
                 x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta, 2));
             elseif strcmpi(structure, '1 filter')
                 % Soft-decision phase estimate
-                yk = y(:,k);
-                sk = yk.*exp(-1i*thetahat(k-1-Delta, :).');
+                sk = y(:,k).*exp(-1i*thetahat(k-Delta-Delay-1, :).');
                 if k < Ntrain % training sequence
                     xhatk_sd = Ytrain(:, k);
                 else % switch to decision directed
@@ -104,7 +102,7 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
                 end
                
                 % Unwrap
-                psik_tilde = angle(yk)-angle(xhatk_sd);
+                psik_tilde = angle(y(:,k))-angle(xhatk_sd);
                 p  = floor((psi(:,k-1)-psik_tilde+pi)/(2*pi));
                 psi(:,k) = psik_tilde + p*(2*pi);
                 
@@ -119,40 +117,43 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
             end
         end
     elseif strcmp(crtype,'NDA')
-        if ndtype == '1';
-            Whd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
+        switch(lower(Cpr.NDAorder))
+            case 'direct' % phase estimation -> Wiener filtering
+                Whd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
 
-            psi = zeros(2,N);                                               % soft-decision phase estimate
-            for k=L:N
-                % Make soft decision on symbol y(k)
-                yk = y(:,k);
-                psik_tilde = (1/M)*angle(-yk.^M);
-                p = floor(0.5+(mean(psi(:,k-3:k-1),2)-psik_tilde)/(2*pi/M));
-                psi(:,k) = psik_tilde + p*(2*pi/M);
-                thetahat(k-Delta) = Whd' * mean(psi(:,k:-1:k-L+1)).';
-              
-                % Detect symbol
-                x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta));
-                x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta));
+                psi = zeros(2,N);                                               % soft-decision phase estimate
+                for k=L:N
+                    % Make soft decision on symbol y(k)
+                    % 4th-power phase estimation
+                    psik_tilde = (1/M)*angle(-y(:,k).^M);
 
-            end;
-        elseif ndtype == '2';
-            Wsd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
-            % Raise received signal to M-th power and filter
-            yM = y.^M;
-            z = zeros(1,N);
-            for k=L:N
-                z(k-Delta) = Wsd' * mean(yM(:,k:-1:k-L+1)).';
+                    % Unwrap
+                    p = floor(0.5+(mean(psi(:,k-3:k-1),2)-psik_tilde)/(2*pi/M));
+                    psi(:,k) = psik_tilde + p*(2*pi/M);
+                    thetahat(k-Delta) = Whd' * mean(psi(:,k:-1:k-L+1)).';
 
-                % Compute angle
-                thetatilde = (1/M)*angle(-z(k-Delta));
-                p = floor(0.5+(thetahat(k-Delta-1)-thetatilde)/(2*pi/M));
-                thetahat(k-Delta) = thetatilde + p*(2*pi/M);
-               
-                % Detect symbol
-                x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta));
-                x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta));
-            end;
+                    % Detect symbol
+                    x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta));
+                    x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta));
+
+                end
+            case 'reverse' % Wiener filtering -> phase estimation
+                Wsd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
+                % Raise received signal to M-th power and filter
+                yM = y.^M;
+                z = zeros(1,N);
+                for k=L:N
+                    z(k-Delta) = Wsd' * mean(yM(:,k:-1:k-L+1)).';
+
+                    % Compute angle
+                    thetatilde = (1/M)*angle(-z(k-Delta));
+                    p = floor(0.5+(thetahat(k-Delta-1)-thetatilde)/(2*pi/M));
+                    thetahat(k-Delta) = thetatilde + p*(2*pi/M);
+
+                    % Detect symbol
+                    x1hat(k-Delta) = y1(k-Delta)*exp(-1i*thetahat(k-Delta));
+                    x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta));
+                end
         end
     end
 

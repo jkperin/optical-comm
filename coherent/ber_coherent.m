@@ -89,67 +89,68 @@ for k = 1:length(Tx.PlaunchdBm)
     SNRdB_theory(k) = 10*log10(2*Psig/(varShot + varThermal));
 
     %% Carrier phase recovery algorithm
+    CPRsetup = 0;
     if strcmpi(sim.ModFormat, 'QAM') % not done if DQPSK
         Rx.CPR.Ytrain = symbolsTX(:, validInd);
         if strcmpi(Rx.CPR.type, 'feedforward')
             Rx.CPR.SNRdB = SNRdB_theory(k);
             Rx.CPR.varPN = Tx.Laser.varPN(sim.Rs) + Rx.LO.varPN(sim.Rs);
-            Ycpr = feedforward_cpr(Yeq, Rx.CPR, sim);      
             
+            % Frequency estimation
+            Ycpr = Yeq;
+            if Rx.LO.freqOffset ~= 0
+                [Ycpr, Foff_est] = qpsk_freq_rec(Ycpr, Rx.FreqRec, sim);
+                Ycpr(:, 1:Rx.FreqRec.Ntrain) = []; % discard symbols used in training phase tracking algorithm     
+                validInd(1:Rx.FreqRec.Ntrain) = [];         
+                CPRsetup = CPRsetup + Rx.FreqRec.Ntrain;
+            end
+            
+            % Feedforward carrier recovery
+            Ycpr = feedforward_cpr(Ycpr, Rx.CPR, sim);      
             Ycpr(:, 1:Rx.CPR.Ntrain) = [];
             Y = Ycpr;
             validInd(1:Rx.CPR.Ntrain) = []; % discard symbols used in training carrier phase recovery algorithm
+            CPRsetup = CPRsetup + Rx.CPR.Ntrain;
             
-            % Phase tracking
+            % Phase tracking (constant phase offset compensation)
             [Y, phiPT] = phase_estimation(Y, Rx.PT, symbolsTX(:, validInd), sim);
             Y(:, 1:Rx.PT.Ntrain) = [];
-            validInd(1:Rx.PT.Ntrain) = []; % discard symbols used in training phase tracking algorithm
-            
+            validInd(1:Rx.PT.Ntrain) = []; % discard symbols used in training phase tracking algorithm            
         elseif strcmpi(Rx.CPR.type, 'DPLL')
+            % DPLL
             Ycpr = dpll(Yeq, Rx.CPR, sim);
-            
             Ycpr(:, 1:Rx.CPR.Ntrain) = [];
             Y = Ycpr;
             validInd(1:Rx.CPR.Ntrain) = []; % discard symbols used in training carrier phase recovery algorithm
+            CPRsetup = CPRsetup + Rx.CPR.Ntrain;
             
-            % Phase tracking
+            % Phase tracking (constant phase offset compensation)
             [Y, phiPT] = phase_estimation(Y, Rx.PT, symbolsTX(:, validInd), sim);
             Y(:, 1:Rx.PT.Ntrain) = [];
-            validInd(1:Rx.PT.Ntrain) = []; % discard symbols used in training phase tracking algorithm
-           
+            validInd(1:Rx.PT.Ntrain) = []; % discard symbols used in training phase tracking algorithm          
         elseif strcmpi(Rx.CPR.type, 'None')
             Rx.CPR.Ntrain = 0;
             Ycpr = Yeq;
             Y = Yeq;
         else
             error('ber_coherent/invalid carrier phase recovery type')
-        end
-
-       % Constellation plots
-       if sim.Plots.isKey('Constellations') && sim.Plots('Constellations')
-           figure(203), clf
-           subplot(121)
-           plot_constellation(Yeq(1, sim.Ndiscard+1:end-sim.Ndiscard), dataTX(1, Rx.AdEq.Ntrain+sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
-           axis square
-           title('Pol X: After equalization')
-           subplot(122)
-           plot_constellation(Ycpr(1, sim.Ndiscard+1:end-sim.Ndiscard), dataTX(1, Rx.AdEq.Ntrain+Rx.CPR.Ntrain+sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
-           axis square
-           title('Pol X: After CPR')   
-           drawnow
-       end
-        
+        end        
     elseif strcmpi(sim.ModFormat, 'DPSK')
-%         [Y, Foff_est] = qpsk_freq_rec(Y, Rx.FreqRec, sim);
-%         Y(:, 1:Rx.FreqRec.Ntrain) = []; % discard symbols used in training phase tracking algorithm     
-%         validInd(1:Rx.FreqRec.Ntrain) = []; 
-          Y = Yeq;
+        Y = Yeq;
+        if Rx.LO.freqOffset ~= 0
+            [Y, Foff_est] = qpsk_freq_rec(Y, Rx.FreqRec, sim);
+            Y(:, 1:Rx.FreqRec.Ntrain) = []; % discard symbols used in training phase tracking algorithm     
+            validInd(1:Rx.FreqRec.Ntrain) = []; 
+            CPRsetup = CPRsetup + Rx.FreqRec.Ntrain;
+        end
     end
     
+    % Detection
     if strcmpi(sim.ModFormat, 'QAM')
-        % Determines initial phase rotation for differential encoding
         dataRX = [demodulate(Y(1, :)); demodulate(Y(2, :))];
-    elseif strcmpi(sim.ModFormat, 'DPSK')      
+    elseif strcmpi(sim.ModFormat, 'DPSK')
+        % Finds point where DPSK transmission started so that differential
+        % decoder starts correctly
         Nstart = find(validInd == sim.Nsetup+1);
         dataRX = [demodulate(Y(1, Nstart:end)); demodulate(Y(2, Nstart:end))];
         validInd(validInd < sim.Nsetup+1) = []; 
@@ -165,7 +166,22 @@ for k = 1:length(Tx.PlaunchdBm)
     [~, berY(k)] = biterr(dataTX(2, validInd), dataRX(2, :))
     ber.count(k) = 0.5*(berX(k) + berY(k));
     ber.theory(k) = berAWGN(SNRdB_theory(k))
-    1;
+
+   % Constellation plots
+   if strcmpi(sim.ModFormat, 'QAM') && sim.Plots.isKey('Constellations') && sim.Plots('Constellations')
+       figure(203), clf
+       subplot(121)
+       plot_constellation(Yeq(1, sim.Ndiscard+1:end-sim.Ndiscard),...
+           dataTX(1, Rx.AdEq.Ntrain+sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
+       axis square
+       title('Pol X: After equalization')
+       subplot(122)
+       plot_constellation(Ycpr(1, sim.Ndiscard+1:end-sim.Ndiscard),...
+           dataTX(1, Rx.AdEq.Ntrain+CPRsetup+sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
+       axis square
+       title('Pol X: After CPR')   
+       drawnow
+   end 
 end
 
 plots
