@@ -67,7 +67,7 @@ classdef laser
             Pout = Pout + sqrt(self.varRIN(Pout, fs/2)).*randn(size(Pout));
         end
         
-        function Eout = addPhaseNosie(self, Eout, fs)
+        function [Eout, phase_noise] = addPhaseNosie(self, Eout, fs)
             %% Add phase noise
             % Inputs:
             % - Ein: Electric field

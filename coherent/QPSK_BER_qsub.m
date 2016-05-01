@@ -34,7 +34,7 @@ if ~all(isnumeric([fiberLength ModBW CPRtaps linewidth fOffset ENOB]))
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^16;                                                          % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^15;                                                          % Number of symbols in montecarlo simulation
 sim.ros = ros;                                                             % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;                                                       % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4;                                                    % Target BER
@@ -47,7 +47,7 @@ sim.pulse = 'NRZ';                                                         % Tra
 sim.Npol = 2;                                                              % number of polarizations (currently ignored in generating the signal)
 sim.Modulator = Modulator;                                                 % Modulator type: {'EOM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
 sim.Rs = sim.Rb/(sim.Npol*log2(sim.M));                                    % Symbol Rate
-sim.save = ~true;
+sim.save = true;
 
 % Simulation control
 sim.RIN = true; 
@@ -189,7 +189,7 @@ Rx.ADC.filt = design_filter('cheby1', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            %
 %% Equalization transmitter filter, CD, PMD, etc
 Rx.AdEq.type  = 'CMA';                                                     % Adaptive equalization type: 'LMS' or 'CMA'. LMS only works when there's no phase noise or frequency offset
 Rx.AdEq.structure = '2 filters';                                           % Structure: '2 filters' or '4 filters'. If '4 filters' corresponds to tranditional implementation, '2 filters' is simplified for short reach
-Rx.AdEq.Ntrain = 2e4;                                                    % Number of symbols used for training (only used if LMS)
+Rx.AdEq.Ntrain = 1e4;                                                    % Number of symbols used for training (only used if LMS)
 Rx.AdEq.mu = 1e-3;                                                         % Adaptation rate 
 Rx.AdEq.Ntaps = 3;                                                         % Number of taps for each filter
 Rx.AdEq.ros = sim.ros;                                                     % Oversampling ratio
@@ -197,15 +197,16 @@ Rx.AdEq.ros = sim.ros;                                                     % Ove
 %% Carrrier phase recovery
 % Only used if sim.ModFormat = 'QAM'
 Rx.CPR.type = CPRAlgorithm;                                                % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
-Rx.CPR.phaseEstimation = 'DD';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
-Rx.CPR.Ntrain = 2e4;                                                     % Number of symbols used for training. This training starts when equalization training is done
+Rx.CPR.phaseEstimation = 'NDA';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
+Rx.CPR.Delay = 0;                                                       % Delay in number of symbols due to pipelining and parallelization
+Rx.CPR.Ntrain = 1e4;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
 Rx.CPR.FilterType = 'FIR';                                                 % Filter type: 'FIR' or 'IIR'
 Rx.CPR.structure = '2 filters';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
 Rx.CPR.Ntaps = CPRtaps;                                                          % Maximum number of taps of filter 
+Rx.CPR.NDAorder = 'reverse';                                               % Order of phase estimation (PE) and filtering in NDA FF:{'direct': PE followed by filtering, 'reverse': filtering followed by PE}
 % Carrier phase recovery parameters for 'DPLL'
 Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
-Rx.CPR.Delay = 0;                                                          % Delay in DPLL loop measured in number of symbols 
 Rx.CPR.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
 Rx.CPR.wn = 2*pi*0.8e9;                                                    % relaxation frequency of second-order loop filter: optimized using optimize_PLL.m
 % Phase tracking stage
@@ -214,7 +215,7 @@ Rx.CPR.wn = 2*pi*0.8e9;                                                    % rel
 % the frequency offset is large
 % Phase tracking is adpated using LMS
 Rx.PT.mu = 0.001;
-Rx.PT.Ntrain = 1e4;
+Rx.PT.Ntrain = 0.5e4;
 
 %% Frequency recovery
 % Only used if sim.ModFormat = 'DPSK', since for 'QAM' feedforward or DPLL

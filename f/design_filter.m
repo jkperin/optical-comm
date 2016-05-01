@@ -20,10 +20,16 @@
 % den : numerator coefficients
 % grpdelay : group delay
 % H : anonymous function of frequency response with group delay eliminated
+% h : vector containing impulse response with unit gain at DC
 % noisebw : anonymous function of equivalent two-sided noise bandwidth over
 % larger number of samples 2^15 (large number) given a sampling frequency fs 
 
 function filt = design_filter(type, order, fcnorm)
+
+% Variables used when calculating impulse response
+maxMemoryLength = 2^10; % maximum memory length
+threshold = 1-1e-6;      % energy threshold above which impulse respone is neglected
+
 type = lower(type); % converts to lowercase
 switch type       
     case 'butter'
@@ -124,7 +130,6 @@ switch type
 %         plot(w/(2*pi), abs(h).^2);
 %         1;
 
-                        
     case 'lorentzian'
         den = [2/(2*pi*2*fcnorm) 1];
         num = 1;
@@ -170,6 +175,18 @@ else
     filt.noisebw = @(fs) noisebw(num, den, 2^15, fs); % equivalent two-sided noise bandwidth over larger number of samples (2^15) given a sampling frequency fs 
 end
 
+if den == 1 % FIR
+    filt.h = num;
+else
+    x = zeros(1, maxMemoryLength+1);
+    x(1) = 1;
+    y = filter(filt.num, filt.den, x);
+    E = cumsum(abs(y).^2)/sum(abs(y).^2);
+    y(E > threshold) = [];
+    y = y/abs(sum(y)); % normalize to have unit gain at DC
+    filt.h = y;
+end
+    
 
 % figure, 
 % subplot(211)

@@ -311,7 +311,7 @@ where $\Delta_T$ is the loop delay, which includes group delay of the filters as
 
 When there's a frequency offset in addition to a phase error, the input to the PLL is a ramp. Hence, from the final value theorem we can determine the steady-state phase error
 \begin{equation}
-\phi_e(t\to\infty) = \lim_{s\to 0} \frac{sR(s)}{1 + G(s)} = s\frac{1}{s^2}\cdot\frac{s^2}{s^2 + 2\xi\omega_ns + \omega_n^2} = 0
+\phi_e(t\to\infty) = \lim_{s\to 0} \frac{sR(s)}{1 + G(s)} = \lim_{s\to 0}s\frac{1}{s^2}\cdot\frac{s^2}{s^2 + 2\xi\omega_ns + \omega_n^2} = 0
 \end{equation}
 Therefore, in continuous-time, a PLL has zero error to a frequency offset.
 
@@ -347,6 +347,24 @@ H(z) &= \frac{\phi_{LO}(z)}{\phi_n(z)} = \frac{G(z)}{1 + G(z)} \\ \nonumber
 & = \frac{b_0 + b_1z^{-1} + b_2z^{-2}}{1 + a_1z^{-1} + a_2z^{-2}}
 \end{align}
 
+\section{Loop filter}
+
+Second-order loop filter
+\begin{equation}
+F(s) = \frac{2\xi\omega_ns + \omega_n^2}{s}
+\end{equation}
+
+Including the integrator from the VCO
+\begin{equation}
+G(s) = \frac{2\xi\omega_ns + \omega_n^2}{s^2}
+\end{equation}
+
+Hence, the impulse response $sG(s)$ in time-domain is given by
+\begin{equation}
+g(t) = 2\xi\omega_nu(t) + \omega_n^2tu(t)
+\end{equation}
+
+
 \subsection{Phase Tracking}
 \cite{Phase1995}
 
@@ -355,6 +373,16 @@ Given the signal $y[k]$ after CMA equalization. The phase tracking algorithm app
 \Phi[k+1] = \Phi[k]-\mu\mathrm{Im}\{z[k]e^*[k]\}
 \end{equation}
 where $e^*[k] = z[k] - \hat{x}[k]$, where $\hat{x}[k]$ is a decision made based on $z[k]$.
+
+\section{Analog implementation}
+After balanced detection we have
+\begin{align}
+I_i(t) = |A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_n(t)) \\
+I_q(t) = |A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_n(t))
+\end{align}
+
+
+
 
 \bibliographystyle{plain}
 \bibliography{bib}
