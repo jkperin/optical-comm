@@ -1,9 +1,9 @@
 %% Simulation of analog coherent detection system
-clear
+clear, clc, close all
 
 addpath f/
 addpath analog/
-addpath dsp/
+addpath DSP/
 addpath ../f/
 addpath ../apd/
 addpath ../soa/
@@ -28,7 +28,7 @@ sim.RIN = ~true;
 sim.PMD = ~true;
 sim.phase_noise = true;
 sim.preAmp = false;
-sim.quantiz = ~true;
+sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Time and frequency
 sim.fs = sim.Rs*sim.Mct;  % sampling frequency for 'continuous-time' simulation
@@ -154,7 +154,13 @@ Rx.N0 = (30e-12)^2;                                                        % One
 % Receiver filter
 Analog.filt = design_filter('butter', 5, 0.7*sim.Rs/(sim.fs/2));
 
-componentFilter = design_filter('bessel', 1, 0.7*sim.Rs/(sim.fs/2));
+% Receiver type: {'EPLL Costas': electric PLL based on Costas loop, which
+% requires multiplications, 'EPLL logic': EPLL based on XOR operations,
+% 'OPLL Costas': optical PLL based on Costas loop (to be implemented), 
+% 'OPLL logic': optical PLL based on XOR operations (to be implemented)}
+Analog.receiver = 'EPLL logic';                                            
+
+componentFilter = design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
 componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
 % Huber, A. et al (2002). Noise model of InP-InGaAs SHBTs for RF circuit design. 
 % IEEE Transactions on Microwave Theory and Techniques, 50(7), 1675–1682.
@@ -167,6 +173,15 @@ Analog.Adder.N0 = componentN0;
 % Mixer
 Analog.Mixer.filt = componentFilter;
 Analog.Mixer.N0 = componentN0;
+
+% ABS
+Analog.ABS.filt = componentFilter;
+Analog.ABS.N0 = componentN0;
+
+% Logic
+Analog.Logic.Vcc = 1;
+Analog.Logic.N0 = componentN0;
+Analog.Logic.filt = componentFilter;
 
 % Comparator
 Analog.Comparator.Vref = 0;
@@ -194,4 +209,11 @@ Tx.PlaunchdBm = -35:-30;
 sim.Nsetup = sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 
 %% Runs simulation
-[berQAM, SNRdBQAM_est] = ber_coherent_analog_epll(Tx, Fiber, Rx, sim)
+switch lower(Analog.receiver)
+    case 'epll logic';
+        [berQAM, SNRdBQAM_est] = ber_coherent_analog_epll_logic(Tx, Fiber, Rx, sim);
+    case 'epll costas'
+        [berQAM, SNRdBQAM_est] = ber_coherent_analog_epll_costas(Tx, Fiber, Rx, sim);
+    otherwise
+        error('Undefined Analog.receiver description')
+end

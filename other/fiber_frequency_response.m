@@ -5,13 +5,13 @@ addpath ../f/
 
 m2tikz = matlab2tikz();
 
-L = [1, 5, 10, 20]*1e3;
+L = [1, 5, 10, 80]*1e3;
 
 fiber = fiber(L(1));
 
-tx.lamb = 1330e-9;
-tx.alpha = 2;
-f = linspace(0, 50e9, 50);
+tx.lamb = 1550e-9;
+tx.alpha = 0;
+f = linspace(0, 50e9, 1000);
 Colors = {'green', 'blue', 'orange', 'red'};
 
 figure, hold on, grid on, box on

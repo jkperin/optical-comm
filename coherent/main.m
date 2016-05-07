@@ -1,6 +1,6 @@
 %% Simulation of DSP-based coherent detection system
+clear, clc, close all
 
-clear, clc
 addpath DSP/
 addpath f/
 addpath ../f/
@@ -29,6 +29,7 @@ sim.PMD = true;
 sim.phase_noise = true;
 sim.preAmp = false;
 sim.quantiz = true;
+sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Time and frequency
 sim.fs = sim.Rs*sim.Mct;  % sampling frequency for 'continuous-time' simulation
@@ -122,7 +123,7 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 9.8;                                                           % Total local oscillator power (dBm)
-Rx.LO.freqOffset = 1e9;                                                    % Frequency shift with respect to transmitter laser in Hz
+Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -175,7 +176,7 @@ Rx.AdEq.ros = sim.ros;                                                     % Ove
 %% Carrrier phase recovery
 % Only used if sim.ModFormat = 'QAM'
 Rx.CPR.type = 'Feedforward';                                               % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
-Rx.CPR.phaseEstimation = 'DD';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
+Rx.CPR.phaseEstimation = 'NDA';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
 Rx.CPR.Delay = 0;                                                       % Delay in number of symbols due to pipelining and parallelization
 Rx.CPR.Ntrain = 1e4;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
@@ -207,8 +208,8 @@ Rx.FreqRec.Ntrain = 1e4;
 Tx.PlaunchdBm = -33:-26;
 sim.Nsetup = Rx.AdEq.Ntrain + (Rx.LO.freqOffset~=0)*Rx.FreqRec.Ntrain + sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 % [Nsum, Nmult] = calcDSPOperations(Rx, sim)
-[berQAM, SNRdBQAM_est]  = ber_coherent(Tx, Fiber, Rx, sim)
-% [berQAM, SNRdBQAM_est] = ber_coherent_with_matched_filtering(Tx, Fiber, Rx, sim)
+[berQAM, SNRdBQAM_est]  = ber_coherent_dsp(Tx, Fiber, Rx, sim)
+% [berQAM, SNRdBQAM_est] = ber_coherent_dsp_matched_filtering(Tx, Fiber, Rx, sim)
 % sim.ModFormat = 'DPSK';
 % [berDPSK, SNRdBDPSK_est] = ber_coherent_with_matched_filtering(Tx, Fiber, Rx, sim)
 % [berDPSK, SNRdBDPSK_est] = ber_coherent(Tx, Fiber, Rx, sim)

@@ -5,8 +5,8 @@ classdef AnalogOperation < handle
         filt % filter structure created by design_filter.m function
         fs % sampling frequency of simulation
         N0 % one-sided thermal noise PSD 
-        groupDelay % group delay of operation in seconds
     end
+    
     properties(GetAccess=protected, Hidden)
         memoryLength = 0 % memory length of state filters
         % memory of filter in input 1, 2, and output
@@ -39,7 +39,7 @@ classdef AnalogOperation < handle
         end
         
         %% Get methods
-        function groupDelay = get.groupDelay(self)
+        function groupDelay = groupDelay(self)
             %% Calculates group delay in s
             if self.ideal
                 groupDelay = 0;
@@ -48,7 +48,6 @@ classdef AnalogOperation < handle
                 % Note: factor of 2 appears because inputs and output are
                 % filtered
             end
-
         end    
         
         function memoryLength = get.memoryLength(self)

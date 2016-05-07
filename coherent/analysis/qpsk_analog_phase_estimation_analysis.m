@@ -2,7 +2,7 @@
 
 clear, clc, close all
 
-addpath ../f/
+addpath ../../f/
 
 Nsymb = 2^10;
 Mct = 15;
@@ -10,9 +10,9 @@ N = Nsymb*Mct;
 Rs = 56e9;
 fs = Rs*Mct;
 
-Laser = laser(1310e-9, 0, -150, 1000e3);
+Laser = laser(1310e-9, 0, -150, 2000e3);
 
-phase_noise = ~true;
+phase_noise = true;
 awgn_noise = true;
 frequency_offset = true;
 
@@ -37,7 +37,7 @@ else
     xn = x;
 end
 
-varN = 0.6;
+varN = 0.1;
 if awgn_noise
     xn = xn + sqrt(varN/2)*randn(size(xn)) + 1j*sqrt(varN/2)*randn(size(xn));
 end
@@ -62,15 +62,20 @@ xr = zeros(size(x));
 y = zeros(size(x));
 yf = zeros(size(x));
 for t = Mct+numLen+1:length(x)
-    xr(t) = exp(1j*yf(t-1))*xn(t);
+    xr(t) = exp(1j*(yf(t-4)))*xn(t);
     
     xi(t) = real(xr(t));
     xq(t) = imag(xr(t));
     
     xid(t) = 2*(xi(t) > 0) - 1;
     xqd(t) = 2*(xq(t) > 0) - 1;
+    comp = 2*(abs(xi(t)) < abs(xq(t))) - 1;
+%     comp = 2*(real(x(t)*exp(1j*pi/4)) < imag(x(t)*exp(1j*pi/4))) - 1;
+    
+    y(t) = xid(t)*xqd(t)*comp;
 
-    y(t) = xqd(t)*xi(t) - xid(t)*xq(t);
+%     y(t) = xqd(t)*xi(t) - xid(t)*xq(t);
+
 %     y(t) = xi.*xq;
 
     yf(t) = sum(numz.*y(t:-1:t-numLen+1)) - sum(yf(t-1:-1:t-denLen+1).*denz(2:end));
@@ -88,19 +93,19 @@ title('input')
 scatterplot(xr)
 title('output')
 
-H = tf(numz, denz, 1/fs);
-woff = 2*pi*foff;
-t = 0:1/fs:2^10/fs;
-phin = pi/5;
-
-u = sin(woff*t + phin);
-yy = lsim(H, u, t);
-
-ytheory = (wn/woff)^2*(-sin(woff*t+phin) + sin(phin)+woff*t*cos(phin))...
-    -2*csi*wn/woff*(cos(woff*t+phin)-cos(phin));
-
-figure
-plot(t, u, t, yy, t, ytheory, '--')
+% H = tf(numz, denz, 1/fs);
+% woff = 2*pi*foff;
+% t = 0:1/fs:2^10/fs;
+% phin = pi/5;
+% 
+% u = sin(woff*t + phin);
+% yy = lsim(H, u, t);
+% 
+% ytheory = (wn/woff)^2*(-sin(woff*t+phin) + sin(phin)+woff*t*cos(phin))...
+%     -2*csi*wn/woff*(cos(woff*t+phin)-cos(phin));
+% 
+% figure
+% plot(t, u, t, yy, t, ytheory, '--')
 
 % wvec = woff;
 % for k = 2:20;

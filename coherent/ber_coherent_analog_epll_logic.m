@@ -1,5 +1,5 @@
-function [ber, SNRdBtheory] = ber_coherent_analog_epll(Tx, Fiber, Rx, sim)
-%% Calculate BER of coherent system
+function [ber, SNRdBtheory] = ber_coherent_analog_epll_logic(Tx, Fiber, Rx, sim)
+%% Calculate BER of coherent system. Phase estimation is done via electric PLL based on XOR operations
 dataTX = randi([0 sim.M-1], [2, sim.Nsymb]); % symbol stream for each polarization
 
 [Vin, symbolsTX] = QAM_SC_Tx(dataTX, Tx, sim); % generates QAM signal
@@ -57,18 +57,28 @@ Comp2 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, A
 Comp3 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
 Comp4 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
 
-MixerIdQx = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-MixerQdIx = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-MixerIdQy = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-MixerQdIy = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
+% Full wave rectifiers (absolute operation)
+abs1 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
+abs2 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
+abs3 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
+abs4 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
 
-AdderX = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-AdderY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-AdderXY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
+% Comparators
+CompX = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
+CompY = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
+
+% XOR
+xorX1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
+xorX2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
+xorY1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
+xorY2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
+
+% OR
+or1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
 
 % Calculate group delay
 totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Four quadrant multiplier
-    + Comp1.groupDelay + MixerIdQx.groupDelay + AdderX.groupDelay + AdderXY.groupDelay... % phase estimation    
+    + Comp1.groupDelay + xorX1.groupDelay + xorX2.groupDelay + or1.groupDelay... % phase estimation    
     + Analog.Delay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
 
@@ -156,9 +166,14 @@ for k = 1:length(Tx.PlaunchdBm)
             Xd(3, t) = Comp3.compare(X(3, t), Analog.Comparator.Vref);
             Xd(4, t) = Comp4.compare(X(4, t), Analog.Comparator.Vref);
                 
-            Sx = AdderX.add(MixerIdQx.mix(Xd(1, t), X(2, t)), -MixerQdIx.mix(Xd(2, t), X(1, t)));
-            Sy = AdderY.add(MixerIdQy.mix(Xd(3, t), X(4, t)), -MixerQdIy.mix(Xd(4, t), X(3, t)));
-            S(t) = AdderXY.add(Sx, Sy);
+            Xdabs(1) = abs1.abs(X(1, t));
+            Xdabs(2) = abs2.abs(X(2, t));
+            Xdabs(3) = abs3.abs(X(3, t));
+            Xdabs(4) = abs4.abs(X(4, t));
+            
+            Sx = xorX2.xor(xorX1.xor(Xd(1, t), Xd(2, t)), CompX.compare(Xdabs(1), Xdabs(2)));
+            Sy = xorY2.xor(xorY1.xor(Xd(3, t), Xd(4, t)), CompY.compare(Xdabs(3), Xdabs(4)));
+            S(t) = or1.or(Sx, Sy);
 
             % Loop filter
             Sf(t) = sum(numz.*S(t:-1:t-numLen+1))...
@@ -171,11 +186,8 @@ for k = 1:length(Tx.PlaunchdBm)
         Sx1.reset(); Sx2.reset();
         Sy1.reset(); Sy2.reset();
         Comp1.reset(); Comp2.reset(); Comp3.reset(); Comp4.reset();
-        MixerIdQx.reset(); MixerQdIx.reset();
-        MixerIdQy.reset(); MixerQdIy.reset();
-        AdderX.reset();
-        AdderY.reset();
-        AdderXY.reset();
+        xorX1.reset(); xorX2.reset(); xorY1.reset(); xorY2.reset();
+        or1.reset();
         
     elseif strcmpi(sim.ModFormat, 'DPSK')
         1;
@@ -186,7 +198,7 @@ for k = 1:length(Tx.PlaunchdBm)
   
     % Sampling
     delay = round((Mx1.groupDelay + Sx1.groupDelay)*sim.fs); % Group delay of four quadrant multiplier
-    Xs = circshift(Xs, -delay, 2); % remove group delay
+    Xs = [Xs(:, delay+1:end) Xs(:, 1:delay)]; % remove group delay
     Y = Xs(:, sim.Mct/2:sim.Mct:end);  
     % Note: decisions could be obtained directly from Xd. Xs is used here 
     % instead so we can see the constellation 

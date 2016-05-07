@@ -1,5 +1,7 @@
-function [BER, SNRdB] = QPSK_Analog_BER_qsub(fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
-%% Estimate BER of a QPSK system for parameters
+function [BER, SNRdB] = QPSK_Analog_BER_qsub(ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
+%% Estimate BER of a QPSK system based on analog receiver
+% - ReceiverType: {'EPLL logic': EPLL based on XOR operations, 'EPLL
+% costas': EPLL based on Costas loop, which requries multiplication operations}
 % - fiberLength: fiber length in km
 % - Modulator: either 'MZM' or 'SiPhotonics'
 % - ModBW: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
@@ -10,15 +12,15 @@ function [BER, SNRdB] = QPSK_Analog_BER_qsub(fiberLength, Modulator, ModBW, line
 
 addpath f/
 addpath analog/
-addpath dsp/
+addpath DSP/
 addpath ../f/
 addpath ../apd/
 addpath ../soa/
 addpath ../mpam/
 
 %
-filename = sprintf('results/QPSK_Analog_BER_L=%skm_%s_BW=%sGHz_linewidth=%sHz_ideal=%s_delay=%s',...
-        fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
+filename = sprintf('results/Analog_QPSK_BER_%s_L=%skm_%s_BW=%sGHz_linewidth=%sHz_ideal=%s_delay=%s',...
+        ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
 
 % convert inputs to double (on cluster inputs are passed as strings)
 if ~all(isnumeric([fiberLength ModBW linewidth ideal Delay]))
@@ -179,7 +181,7 @@ if ideal
     componentFilter = [];
     componentN0 = 0;
 else
-    componentFilter = design_filter('bessel', 1, 0.7*sim.Rs/(sim.fs/2));
+    componentFilter = design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
     componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
     % Huber, A. et al (2002). Noise model of InP-InGaAs SHBTs for RF circuit design. 
     % IEEE Transactions on Microwave Theory and Techniques, 50(7), 1675–1682.
@@ -193,6 +195,15 @@ Analog.Adder.N0 = componentN0;
 % Mixer
 Analog.Mixer.filt = componentFilter;
 Analog.Mixer.N0 = componentN0;
+
+% ABS
+Analog.ABS.filt = componentFilter;
+Analog.ABS.N0 = componentN0;
+
+% Logic
+Analog.Logic.Vcc = 1;
+Analog.Logic.N0 = componentN0;
+Analog.Logic.filt = componentFilter;
 
 % Comparator
 Analog.Comparator.Vref = 0;
@@ -219,8 +230,15 @@ Tx.PlaunchdBm = -35:-30;
 sim.Nsetup = sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 
 %% Runs simulation
-[BER, SNRdB] = ber_coherent_analog_epll(Tx, Fiber, Rx, sim)
-
+switch lower(ReceiverType)
+    case 'epll logic'
+        [BER, SNRdB] = ber_coherent_analog_epll_logic(Tx, Fiber, Rx, sim);
+    case 'epll costas'
+        [BER, SNRdB] = ber_coherent_analog_epll_costas(Tx, Fiber, Rx, sim);
+    otherwise
+        error('Undefined receiver type')
+end
+        
 if sim.save   
     % delete large variables
     clear t f Mod omega Fiber c

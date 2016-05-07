@@ -1,5 +1,5 @@
 function [BER, SNRdB] = QPSK_BER_qsub(fiberLength, Modulator, ModBW, CPRAlgorithm, CPRtaps, linewidth, fOffset, ros, ENOB)
-%% Estimate BER of a QPSK system for parameters
+%% Simulation of DSP-based coherent detection system using QPSK
 % - fiberLength: fiber length in km
 % - Modulator: either 'MZM' or 'SiPhotonics'
 % - ModBW: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
@@ -20,7 +20,7 @@ addpath ../soa/
 addpath ../mpam/
 
 ros = eval(ros);
-filename = sprintf('results/QPSK_BER_L=%skm_%s_BW=%sGHz_%s_%staps_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
+filename = sprintf('results/DSP_QPSK_BER_L=%skm_%s_BW=%sGHz_%s_%staps_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
         fiberLength, Modulator, ModBW, CPRAlgorithm, CPRtaps, linewidth, fOffset, round(100*ros), ENOB);
 
 % convert inputs to double (on cluster inputs are passed as strings)
@@ -34,7 +34,7 @@ if ~all(isnumeric([fiberLength ModBW CPRtaps linewidth fOffset ENOB]))
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^15;                                                          % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16;                                                          % Number of symbols in montecarlo simulation
 sim.ros = ros;                                                             % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;                                                       % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4;                                                    % Target BER
@@ -55,6 +55,7 @@ sim.PMD = true;
 sim.phase_noise = (linewidth ~= 0);
 sim.preAmp = false;  % currently ignored
 sim.quantiz = ~isinf(ENOB);
+sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Time and frequency
 sim.fs = sim.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -230,7 +231,7 @@ Tx.PlaunchdBm = -35:0.5:-29;
 
 % [Nsum, Nmult] = calcDSPOperations(Rx, sim)
 
-[BER, SNRdB] = ber_coherent(Tx, Fiber, Rx, sim)
+[BER, SNRdB] = ber_coherent_dsp(Tx, Fiber, Rx, sim)
 
 if sim.save   
     % delete large variables

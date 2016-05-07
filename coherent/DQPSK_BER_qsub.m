@@ -1,11 +1,8 @@
 function [BER, SNRdB] = DQPSK_BER_qsub(fiberLength, Modulator, ModBW, linewidth, fOffset, ros, ENOB)
-%% Estimate BER of a QPSK system for parameters
+%% Simulation of DSP-based coherent detection system using DQPSK
 % - fiberLength: fiber length in km
 % - Modulator: either 'EOM' or 'SiPhotonics'
 % - ModBW: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
-% - CPRAlgorithm: carrier phase recovery (CPR) algorithm. Either 'DPLL' or
-% 'feedforward'
-% - CPRtaps: Number of taps in CPR algorithm. Only used if CPRAlgorithm == 'feedforward'
 % - linewidth: transmitter and LO laser linewidth in kHz
 % - fOffset: frequency offset of the LO laser with respect to transmitter
 % laser in GHz. 
@@ -20,7 +17,7 @@ addpath ../soa/
 addpath ../mpam/
 
 ros = eval(ros);
-filename = sprintf('results/DQPSK_BER_L=%skm_%s_BW=%sGHz_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
+filename = sprintf('results/DSP_DQPSK_BER_L=%skm_%s_BW=%sGHz_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
         fiberLength, Modulator, ModBW, linewidth, fOffset, round(100*ros), ENOB);
 
 % convert inputs to double (on cluster inputs are passed as strings)
@@ -33,7 +30,7 @@ if ~all(isnumeric([fiberLength ModBW linewidth fOffset ENOB]))
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^18;                                                          % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16;                                                          % Number of symbols in montecarlo simulation
 sim.ros = ros;                                                             % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;                                                       % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4;                                                    % Target BER
@@ -54,6 +51,7 @@ sim.PMD = true;
 sim.phase_noise = (linewidth ~= 0);
 sim.preAmp = false;  % currently ignored
 sim.quantiz = ~isinf(ENOB);
+sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Time and frequency
 sim.fs = sim.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -68,7 +66,7 @@ sim.f = f;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 0; 
+Plots('BER')                  = 1; 
 Plots('Equalizer')            = 0;
 Plots('ChannelFrequencyResponse') = 0;
 Plots('CarrierPhaseNoise')    = 0;
@@ -196,7 +194,7 @@ Rx.AdEq.ros = sim.ros;                                                     % Ove
 Tx.PlaunchdBm = -32:0.5:-23;
 
 sim.Nsetup = Rx.AdEq.Ntrain + sim.Ndiscard;
-[BER, SNRdB] = ber_coherent(Tx, Fiber, Rx, sim)
+[BER, SNRdB] = ber_coherent_dsp(Tx, Fiber, Rx, sim)
 
 if sim.save   
     % delete large variables

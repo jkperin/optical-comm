@@ -1,4 +1,4 @@
-function [ber, SNRdB_theory] = ber_coherent(Tx, Fiber, Rx, sim)
+function [ber, SNRdB_theory] = ber_coherent_dsp(Tx, Fiber, Rx, sim)
 %% Calculate BER of coherent system
 dataTX = randi([0 sim.M-1], [2, sim.Nsymb]); % symbol stream for each polarization
 
@@ -182,6 +182,11 @@ for k = 1:length(Tx.PlaunchdBm)
        title('Pol X: After CPR')   
        drawnow
    end 
+   
+   % Stop simulation when counted BER reaches 0
+   if isfield(sim, 'stopWhenBERreaches0') && sim.stopWhenBERreaches0 && ber.count(k) == 0
+       break
+   end   
 end
 
 plots

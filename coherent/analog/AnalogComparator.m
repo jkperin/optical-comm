@@ -15,7 +15,7 @@ classdef AnalogComparator < AnalogOperation % inherits properties and methods fr
         end
         
         function y = compare(self, x1, x2)
-            %% Compare function: compare x1 and x2. If x1 >= x2, then outputs 1, else it outputs -1. Inputs and outputs are filtered by filt.
+            %% Compare function: compare x1 and x2. If x1 >= x2, then outputs Vout, else it outputs -Vout. Inputs and outputs are filtered by filt.
             if self.ideal
                 y = self.ideal_compare(x1, x2);
                 return
@@ -34,11 +34,11 @@ classdef AnalogComparator < AnalogOperation % inherits properties and methods fr
             
             % Filter output
             self.stateOut = self.shiftState(self.stateOut, y);
-            y = sum(self.stateOut.*h);
+            y = self.Vout*sum(self.stateOut.*h);
         end
         
         function y = ideal_compare(self, x1, x2)
-            %% Ideal adder operation: no noise and no filtering
+            %% Ideal compare operation: no noise and no filtering
             y = x1 >= x2;
             y = (2*y-1)*self.Vout;
         end        
