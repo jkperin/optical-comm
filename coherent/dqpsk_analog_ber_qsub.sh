@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Name the job in Grid Engine
-#$ -N Analog_QPSK_BER
+#$ -N Analog_DQPSK_BER
 
 #tell grid engine to use current directory
 #$ -cwd
@@ -18,4 +18,4 @@
 # 
 module load matlab
 
-matlab -nodesktop -singleCompThread -r "QPSK_Analog_BER_qsub $CPR $ReceiverType $fiberLength $Modulator $ModBW $linewidth $ideal $Delay"
+matlab -nodesktop -singleCompThread -r "DQPSK_Analog_BER_qsub $fiberLength $Modulator $ModBW $linewidth"

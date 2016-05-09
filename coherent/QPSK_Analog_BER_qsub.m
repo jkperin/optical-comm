@@ -1,7 +1,9 @@
-function [BER, SNRdB] = QPSK_Analog_BER_qsub(ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
+function BER = QPSK_Analog_BER_qsub(CPR, ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
 %% Estimate BER of a QPSK system based on analog receiver
-% - ReceiverType: {'EPLL logic': EPLL based on XOR operations, 'EPLL
-% costas': EPLL based on Costas loop, which requries multiplication operations}
+% - CPR: carrier phase recovery type: {'EPLL': electric PLL, 'OPLL':
+% optical PLL}
+% - ReceiverType: {'logic': based on XOR operations, 'costas': based on 
+% Costas loop, which requries multipliers}
 % - fiberLength: fiber length in km
 % - Modulator: either 'MZM' or 'SiPhotonics'
 % - ModBW: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
@@ -12,15 +14,14 @@ function [BER, SNRdB] = QPSK_Analog_BER_qsub(ReceiverType, fiberLength, Modulato
 
 addpath f/
 addpath analog/
-addpath DSP/
 addpath ../f/
 addpath ../apd/
 addpath ../soa/
 addpath ../mpam/
 
 %
-filename = sprintf('results/Analog_QPSK_BER_%s_L=%skm_%s_BW=%sGHz_linewidth=%sHz_ideal=%s_delay=%s',...
-        ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
+filename = sprintf('results/Analog_QPSK_BER_%s_%s_L=%skm_%s_BW=%sGHz_linewidth=%skHz_ideal=%s_delay=%s',...
+        upper(CPR), ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
 
 % convert inputs to double (on cluster inputs are passed as strings)
 if ~all(isnumeric([fiberLength ModBW linewidth ideal Delay]))
@@ -32,10 +33,10 @@ if ~all(isnumeric([fiberLength ModBW linewidth ideal Delay]))
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
 sim.Mct = 12;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
+sim.Ndiscard = 256; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
 sim.ModFormat = 'QAM';                                                     % either 'QAM' or 'DPSK'
@@ -66,10 +67,10 @@ sim.f = f;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 1; 
+Plots('BER')                  = 0; 
 Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
-Plots('Constellations') = 1;
+Plots('Constellations') = 0;
 Plots('Diff group delay')       = 0;
 Plots('Phase error') = 0;
 Plots('EPLL phase error') = 0;
@@ -156,9 +157,9 @@ Rx.Hybrid.fI = 0.5;                                                         % po
 Rx.Hybrid.fQ = 0.5;                                                         % power splitting ratio for quadrature coupler (W/W), default = 0.5
 Rx.Hybrid.tauIps = 0;                                                       % delay in in-phase branch (ps), default = 0
 Rx.Hybrid.tauQps = 0;                                                       % delay in quadrature branch (ps), default = 0
-Rx.Hybrid.phiI01deg = 90;                                                   % d.c. phase shift in I branch of pol. 1 (degrees), default = 90
+Rx.Hybrid.phiI01deg = 0;                                                   % d.c. phase shift in I branch of pol. 1 (degrees), default = 0
 Rx.Hybrid.phiQ01deg = 0;                                                    % d.c. phase shift in Q branch of pol. 1 (degrees), default = 0
-Rx.Hybrid.phiI02deg = 90;                                                   % d.c. phase shift in I branch of pol. 2 (degrees), default = 90
+Rx.Hybrid.phiI02deg = 0;                                                   % d.c. phase shift in I branch of pol. 2 (degrees), default = 0
 Rx.Hybrid.phiQ02deg = 0;                                                    % d.c. phase shift in Q branch of pol. 2 (degrees), default = 0
 
 %% ============================= Photodiodes ==============================
@@ -177,11 +178,17 @@ Rx.N0 = (30e-12)^2;                                                        % One
 % Receiver filter
 Analog.filt = design_filter('butter', 5, 0.7*sim.Rs/(sim.fs/2));
 
+% Carrier Phase recovery type: either 'EPLL' or 'OPLL'
+Analog.CarrierPhaseRecovery = CPR;
+% CPRmethod: {'Costas': electric PLL based on Costas loop, which
+% requires multiplications, 'logic': EPLL based on XOR operations}
+Analog.CPRmethod = ReceiverType;    
+
 if ideal
     componentFilter = [];
     componentN0 = 0;
 else
-    componentFilter = design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
+    componentFilter = design_filter('bessel', 1, 0.7*sim.Rs/(sim.fs/2));
     componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
     % Huber, A. et al (2002). Noise model of InP-InGaAs SHBTs for RF circuit design. 
     % IEEE Transactions on Microwave Theory and Techniques, 50(7), 1675–1682.
@@ -218,25 +225,17 @@ Analog.Delay = Delay + 1;                                                       
 
 Rx.Analog = Analog;
 
-% Phase tracking stage
-% This only compensates for constant phase offsets, which may be required
-% since feedforward or DPLL may converge to a rotated constellation when
-% the frequency offset and loop delays are large
-% Phase tracking is adpated using LMS
-Rx.PT.mu = 0.005;
-Rx.PT.Ntrain = 512;
-
-Tx.PlaunchdBm = -35:-30;
+Tx.PlaunchdBm = -35:0.5:-20;
 sim.Nsetup = sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 
 %% Runs simulation
-switch lower(ReceiverType)
-    case 'epll logic'
-        [BER, SNRdB] = ber_coherent_analog_epll_logic(Tx, Fiber, Rx, sim);
-    case 'epll costas'
-        [BER, SNRdB] = ber_coherent_analog_epll_costas(Tx, Fiber, Rx, sim);
+switch upper(Analog.CarrierPhaseRecovery)
+    case 'EPLL'
+        BER = ber_coherent_analog_epll(Tx, Fiber, Rx, sim);
+    case 'OPLL'
+        error('OPLL not implemented yet')
     otherwise
-        error('Undefined receiver type')
+        error('Invalid carrier phase recovery method')
 end
         
 if sim.save   

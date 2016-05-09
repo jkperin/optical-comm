@@ -15,27 +15,11 @@ else
     error('ber_coherent/invalid modulation format');
 end
 
-% BER in AWGN channel
-berAWGN = @(SNRdB) berawgn(SNRdB - 3 - 10*log10(log2(M)), lower(sim.ModFormat), M);
-% Note: -3 is due to the fact SNR = 2Es/N0
-
-% Calculate noise bandwidth of an ideal receiver consisting of a matched 
-% filter and symbol-rate linear equalization. This is only used to
-% estiamate theoretical BER
-eq.type = 'fixed td-sr-le';
-eq.Ntaps = 31;
-mpam = PAM(2, sim.Rs, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
-Hch = (Tx.filt.H(sim.f/sim.fs).*Tx.Mod.Hel).';
-sim.f = sim.f.';
-[~, eq] = equalize(eq, [], Hch, mpam, Rx, sim); 
-% this generates zero-forcing linear equalizer, which should be a good
-% approximation of MMSE linear equalizer.
-noiseBW = sim.Rs/2; %trapz(sim.f, abs(eq.Hrx.*eq.Hff(sim.f/sim.Rs)).^2)/2;
-sim.f = sim.f.';
+% BER of ideal system
+[ber.theory, ~, SNRdBtheory] = ber_coherent_awgn(Tx, Fiber, Rx, sim);
 
 % Transmitted power swipe
 ber.count = zeros(size(Tx.PlaunchdBm));
-ber.theory = zeros(size(Tx.PlaunchdBm));
 for k = 1:length(Tx.PlaunchdBm)
     validInd = 1:sim.Nsymb;
     
@@ -77,23 +61,14 @@ for k = 1:length(Tx.PlaunchdBm)
             error('ber_coherent/Unknown Rx.AdEq.type option')
     end
     validInd(1:Rx.AdEq.Ntrain) = []; % discard symbols used in training equalizer
-    Yeq(:, 1:Rx.AdEq.Ntrain) = [];
-    
-    % Estimate SNR including noise enhacement penalty of an ideal symbol-rate linear equalizer   
-    Prx = dBm2Watt(Tx.Laser.PdBm)/Fiber.link_attenuation(Tx.Laser.lambda); % received power
-    Plo = dBm2Watt(Rx.LO.PdBm);                                            % local oscillator power
-    Ppd = abs(sqrt(Plo/(4*sim.Npol)) + sqrt(Prx/(4*sim.Npol))).^2;         % incident power in each photodiode
-    Psig = Plo*Prx/(2*sim.Npol*sim.Npol);                          % Signal power per real dimension
-    varShot = 2*Rx.PD.varShot(Ppd, noiseBW);                               % Shot noise variance per real dimension
-    varThermal = Rx.N0*noiseBW;                                            % Thermal noise variance per real dimension
-    SNRdB_theory(k) = 10*log10(2*Psig/(varShot + varThermal));
+    Yeq(:, 1:Rx.AdEq.Ntrain) = [];    
 
     %% Carrier phase recovery algorithm
     CPRsetup = 0;
     if strcmpi(sim.ModFormat, 'QAM') % not done if DQPSK
         Rx.CPR.Ytrain = symbolsTX(:, validInd);
         if strcmpi(Rx.CPR.type, 'feedforward')
-            Rx.CPR.SNRdB = SNRdB_theory(k);
+            Rx.CPR.SNRdB = SNRdBtheory(k);
             Rx.CPR.varPN = Tx.Laser.varPN(sim.Rs) + Rx.LO.varPN(sim.Rs);
             
             % Frequency estimation
@@ -145,6 +120,10 @@ for k = 1:length(Tx.PlaunchdBm)
         end
     end
     
+    % Automatic gain control
+    Y(1, :) = sqrt(2/mean(abs(Y(1, :)).^2))*Y(1, :);
+    Y(2, :) = sqrt(2/mean(abs(Y(2, :)).^2))*Y(2, :); 
+    
     % Detection
     if strcmpi(sim.ModFormat, 'QAM')
         dataRX = [demodulate(Y(1, :)); demodulate(Y(2, :))];
@@ -165,7 +144,6 @@ for k = 1:length(Tx.PlaunchdBm)
     [~, berX(k)] = biterr(dataTX(1, validInd), dataRX(1, :))
     [~, berY(k)] = biterr(dataTX(2, validInd), dataRX(2, :))
     ber.count(k) = 0.5*(berX(k) + berY(k));
-    ber.theory(k) = berAWGN(SNRdB_theory(k))
 
    % Constellation plots
    if strcmpi(sim.ModFormat, 'QAM') && sim.Plots.isKey('Constellations') && sim.Plots('Constellations')
@@ -197,7 +175,7 @@ if isfield(sim, 'Plots') && sim.Plots('BER') && length(ber.count) > 1
     Prx = Tx.PlaunchdBm - link_attdB;
     plot(Prx, log10(ber.theory), '-')
     plot(Prx, log10(ber.count), '-o')
-    legend('Theory including noise enhancement', 'Counted')
+    legend('Theory', 'Counted')
     xlabel('Received Power (dBm)')
     ylabel('log_{10}(BER)')
     axis([Prx(1) Prx(end) -8 0])

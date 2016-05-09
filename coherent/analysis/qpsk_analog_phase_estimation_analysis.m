@@ -10,11 +10,11 @@ N = Nsymb*Mct;
 Rs = 56e9;
 fs = Rs*Mct;
 
-Laser = laser(1310e-9, 0, -150, 2000e3);
+Laser = laser(1310e-9, 0, -150, 20000e3);
 
 phase_noise = true;
 awgn_noise = true;
-frequency_offset = true;
+frequency_offset = ~true;
 
 constellation = pi/4*[1 3 5 7];
 data = randi([1 4], [Nsymb 1]);
@@ -67,16 +67,31 @@ for t = Mct+numLen+1:length(x)
     xi(t) = real(xr(t));
     xq(t) = imag(xr(t));
     
-    xid(t) = 2*(xi(t) > 0) - 1;
-    xqd(t) = 2*(xq(t) > 0) - 1;
-    comp = 2*(abs(xi(t)) < abs(xq(t))) - 1;
+%     xid(t) = 2*(xi(t) > 0) - 1;
+%     xqd(t) = 2*(xq(t) > 0) - 1;
+%     comp = 2*(abs(xi(t)) < abs(xq(t))) - 1;
+% %     comp = 2*(real(x(t)*exp(1j*pi/4)) < imag(x(t)*exp(1j*pi/4))) - 1;
+%     
+%     y(t) = xid(t)*xqd(t)*comp;
+% 
+% %     y(t) = xqd(t)*xi(t) - xid(t)*xq(t);
+% 
+% %     y(t) = xi.*xq;
+
+
+    xid(t) = xi(t) >= 0;
+    xqd(t) = xq(t) >= 0;
+    comp = (abs(xi(t)) < abs(xq(t)));
 %     comp = 2*(real(x(t)*exp(1j*pi/4)) < imag(x(t)*exp(1j*pi/4))) - 1;
     
-    y(t) = xid(t)*xqd(t)*comp;
+    tmp = not(xor(xid(t), xqd(t)));
+    y(t) = not(xor(tmp, comp));
+    y(t) = 2*y(t) - 1;
 
 %     y(t) = xqd(t)*xi(t) - xid(t)*xq(t);
 
 %     y(t) = xi.*xq;
+
 
     yf(t) = sum(numz.*y(t:-1:t-numLen+1)) - sum(yf(t-1:-1:t-denLen+1).*denz(2:end));
 end

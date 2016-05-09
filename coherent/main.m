@@ -9,7 +9,7 @@ addpath ../soa/
 addpath ../mpam/
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
 sim.ros = 5/4;          % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
@@ -28,7 +28,7 @@ sim.RIN = true;
 sim.PMD = true;
 sim.phase_noise = true;
 sim.preAmp = false;
-sim.quantiz = true;
+sim.quantiz = ~true;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Time and frequency
@@ -138,9 +138,9 @@ Rx.Hybrid.fI = 0.5;                                                         % po
 Rx.Hybrid.fQ = 0.5;                                                         % power splitting ratio for quadrature coupler (W/W), default = 0.5
 Rx.Hybrid.tauIps = 0;                                                       % delay in in-phase branch (ps), default = 0
 Rx.Hybrid.tauQps = 0;                                                       % delay in quadrature branch (ps), default = 0
-Rx.Hybrid.phiI01deg = 90;                                                   % d.c. phase shift in I branch of pol. 1 (degrees), default = 90
+Rx.Hybrid.phiI01deg = 0;                                                   % d.c. phase shift in I branch of pol. 1 (degrees), default = 0
 Rx.Hybrid.phiQ01deg = 0;                                                    % d.c. phase shift in Q branch of pol. 1 (degrees), default = 0
-Rx.Hybrid.phiI02deg = 90;                                                   % d.c. phase shift in I branch of pol. 2 (degrees), default = 90
+Rx.Hybrid.phiI02deg = 0;                                                   % d.c. phase shift in I branch of pol. 2 (degrees), default = 0
 Rx.Hybrid.phiQ02deg = 0;                                                    % d.c. phase shift in Q branch of pol. 2 (degrees), default = 0
 
 %% ============================= Photodiodes ==============================
@@ -170,7 +170,7 @@ Rx.AdEq.type  = 'CMA';                                                     % Ada
 Rx.AdEq.structure = '2 filters';                                           % Structure: '2 filters' or '4 filters'. If '4 filters' corresponds to tranditional implementation, '2 filters' is simplified for short reach
 Rx.AdEq.Ntrain = 1e4;                                                    % Number of symbols used for training (only used if LMS)
 Rx.AdEq.mu = 1e-3;                                                         % Adaptation rate 
-Rx.AdEq.Ntaps = 3;                                                         % Number of taps for each filter
+Rx.AdEq.Ntaps = 11;                                                         % Number of taps for each filter
 Rx.AdEq.ros = sim.ros;                                                     % Oversampling ratio
 
 %% Carrrier phase recovery
@@ -204,8 +204,7 @@ Rx.FreqRec.mu = [0.0005 0];                                                 % Ad
 Rx.FreqRec.muShift = 1e4;                                  % Controls when gears are shifted. From 1:muShift(1) use mu(1), from muShift(1)+1:muShift(2) use mu(2), etc
 Rx.FreqRec.Ntrain = 1e4;
 
-% Tx.PlaunchdBm = -38:-30;
-Tx.PlaunchdBm = -33:-26;
+Tx.PlaunchdBm = -35:-28;
 sim.Nsetup = Rx.AdEq.Ntrain + (Rx.LO.freqOffset~=0)*Rx.FreqRec.Ntrain + sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 % [Nsum, Nmult] = calcDSPOperations(Rx, sim)
 [berQAM, SNRdBQAM_est]  = ber_coherent_dsp(Tx, Fiber, Rx, sim)

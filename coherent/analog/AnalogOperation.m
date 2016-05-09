@@ -38,7 +38,6 @@ classdef AnalogOperation < handle
             obj.stateOut = zeros(1, obj.memoryLength);
         end
         
-        %% Get methods
         function groupDelay = groupDelay(self)
             %% Calculates group delay in s
             if self.ideal

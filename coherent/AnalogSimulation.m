@@ -1,19 +1,18 @@
 %% Simulation of analog coherent detection system
-clear, clc, close all
+clear, clc
 
 addpath f/
 addpath analog/
-addpath DSP/
 addpath ../f/
 addpath ../apd/
 addpath ../soa/
 addpath ../mpam/
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^11; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
 sim.Mct = 12;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
+sim.Ndiscard = 256; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
 sim.ModFormat = 'QAM';                                                     % either 'QAM' or 'DPSK'
@@ -24,8 +23,8 @@ sim.Modulator = 'SiPhotonics';                                                  
 sim.Rs = sim.Rb/(sim.Npol*log2(sim.M))                                     % Symbol Rate
 
 % Simulation
-sim.RIN = ~true; 
-sim.PMD = ~true;
+sim.RIN = true; 
+sim.PMD = false;
 sim.phase_noise = true;
 sim.preAmp = false;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
@@ -133,9 +132,9 @@ Rx.Hybrid.fI = 0.5;                                                         % po
 Rx.Hybrid.fQ = 0.5;                                                         % power splitting ratio for quadrature coupler (W/W), default = 0.5
 Rx.Hybrid.tauIps = 0;                                                       % delay in in-phase branch (ps), default = 0
 Rx.Hybrid.tauQps = 0;                                                       % delay in quadrature branch (ps), default = 0
-Rx.Hybrid.phiI01deg = 90;                                                   % d.c. phase shift in I branch of pol. 1 (degrees), default = 90
+Rx.Hybrid.phiI01deg = 0;                                                   % d.c. phase shift in I branch of pol. 1 (degrees), default = 0
 Rx.Hybrid.phiQ01deg = 0;                                                    % d.c. phase shift in Q branch of pol. 1 (degrees), default = 0
-Rx.Hybrid.phiI02deg = 90;                                                   % d.c. phase shift in I branch of pol. 2 (degrees), default = 90
+Rx.Hybrid.phiI02deg = 0;                                                   % d.c. phase shift in I branch of pol. 2 (degrees), default = 0
 Rx.Hybrid.phiQ02deg = 0;                                                    % d.c. phase shift in Q branch of pol. 2 (degrees), default = 0
 
 %% ============================= Photodiodes ==============================
@@ -154,13 +153,13 @@ Rx.N0 = (30e-12)^2;                                                        % One
 % Receiver filter
 Analog.filt = design_filter('butter', 5, 0.7*sim.Rs/(sim.fs/2));
 
-% Receiver type: {'EPLL Costas': electric PLL based on Costas loop, which
-% requires multiplications, 'EPLL logic': EPLL based on XOR operations,
-% 'OPLL Costas': optical PLL based on Costas loop (to be implemented), 
-% 'OPLL logic': optical PLL based on XOR operations (to be implemented)}
-Analog.receiver = 'EPLL logic';                                            
+% Carrier Phase recovery type: either 'EPLL' or 'OPLL'
+Analog.CarrierPhaseRecovery = 'EPLL';
+% CPRmethod: {'Costas': electric PLL based on Costas loop, which
+% requires multiplications, 'logic': EPLL based on XOR operations}
+Analog.CPRmethod = 'logic';                                            
 
-componentFilter = design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
+componentFilter = []; %design_filter('bessel', 1, 0.7*sim.Rs/(sim.fs/2));
 componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
 % Huber, A. et al (2002). Noise model of InP-InGaAs SHBTs for RF circuit design. 
 % IEEE Transactions on Microwave Theory and Techniques, 50(7), 1675–1682.
@@ -196,24 +195,21 @@ Analog.Delay = 20;                                                         % Del
 
 Rx.Analog = Analog;
 
-% Phase tracking stage
-% This only compensates for constant phase offsets, which may be required
-% since feedforward or DPLL may converge to a rotated constellation when
-% the frequency offset and loop delays are large
-% Phase tracking is adpated using LMS
-Rx.PT.mu = 0.005;
-Rx.PT.Ntrain = 512;
-
-Tx.PlaunchdBm = -35:-30;
-% Tx.PlaunchdBm = -30;
+Tx.PlaunchdBm = -35:0.5:-20;
+% Tx.PlaunchdBm = -20;
 sim.Nsetup = sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 
 %% Runs simulation
-switch lower(Analog.receiver)
-    case 'epll logic';
-        [berQAM, SNRdBQAM_est] = ber_coherent_analog_epll_logic(Tx, Fiber, Rx, sim);
-    case 'epll costas'
-        [berQAM, SNRdBQAM_est] = ber_coherent_analog_epll_costas(Tx, Fiber, Rx, sim);
-    otherwise
-        error('Undefined Analog.receiver description')
+if strcmpi(sim.ModFormat, 'DPSK')
+    sim.Nsetup = sim.Ndiscard;
+    berDPSK = ber_coherent_analog_dpsk(Tx, Fiber, Rx, sim);
+else % QPSK
+    switch upper(Analog.CarrierPhaseRecovery)
+        case 'EPLL'
+            berQAM = ber_coherent_analog_epll(Tx, Fiber, Rx, sim);
+        case 'OPLL'
+            error('OPLL not implemented yet')
+        otherwise
+            error('Invalid carrier phase recovery method')
+    end
 end

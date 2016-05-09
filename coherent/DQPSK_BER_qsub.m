@@ -1,8 +1,9 @@
-function [BER, SNRdB] = DQPSK_BER_qsub(fiberLength, Modulator, ModBW, linewidth, fOffset, ros, ENOB)
+function BER = DQPSK_BER_qsub(fiberLength, Modulator, ModBW, EqNtaps, linewidth, fOffset, ros, ENOB)
 %% Simulation of DSP-based coherent detection system using DQPSK
 % - fiberLength: fiber length in km
 % - Modulator: either 'EOM' or 'SiPhotonics'
 % - ModBW: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
+% - EqNtaps: number of taps of adaptive equalizer
 % - linewidth: transmitter and LO laser linewidth in kHz
 % - fOffset: frequency offset of the LO laser with respect to transmitter
 % laser in GHz. 
@@ -17,20 +18,21 @@ addpath ../soa/
 addpath ../mpam/
 
 ros = eval(ros);
-filename = sprintf('results/DSP_DQPSK_BER_L=%skm_%s_BW=%sGHz_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
-        fiberLength, Modulator, ModBW, linewidth, fOffset, round(100*ros), ENOB);
+filename = sprintf('results/DSP_DQPSK_BER_L=%skm_%s_BW=%sGHz_Ntaps=%staps_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
+        fiberLength, Modulator, ModBW, EqNtaps, linewidth, fOffset, round(100*ros), ENOB)
 
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([fiberLength ModBW linewidth fOffset ENOB]))
+if ~all(isnumeric([fiberLength ModBW EqNtaps linewidth fOffset ENOB]))
     fiberLength = 1e3*str2double(fiberLength);
     ModBW = 1e9*str2double(ModBW);
+    EqNtaps = round(str2double(EqNtaps));
     linewidth = 1e3*str2double(linewidth);
     fOffset = 1e9*str2double(fOffset);
     ENOB = round(str2double(ENOB));
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^16;                                                          % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^17;                                                          % Number of symbols in montecarlo simulation
 sim.ros = ros;                                                             % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;                                                       % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4;                                                    % Target BER
@@ -156,9 +158,9 @@ Rx.Hybrid.fI = 0.5;                                                         % po
 Rx.Hybrid.fQ = 0.5;                                                         % power splitting ratio for quadrature coupler (W/W), default = 0.5
 Rx.Hybrid.tauIps = 0;                                                       % delay in in-phase branch (ps), default = 0
 Rx.Hybrid.tauQps = 0;                                                       % delay in quadrature branch (ps), default = 0
-Rx.Hybrid.phiI01deg = 90;                                                   % d.c. phase shift in I branch of pol. 1 (degrees), default = 90
+Rx.Hybrid.phiI01deg = 0;                                                   % d.c. phase shift in I branch of pol. 1 (degrees), default = 0
 Rx.Hybrid.phiQ01deg = 0;                                                    % d.c. phase shift in Q branch of pol. 1 (degrees), default = 0
-Rx.Hybrid.phiI02deg = 90;                                                   % d.c. phase shift in I branch of pol. 2 (degrees), default = 90
+Rx.Hybrid.phiI02deg = 0;                                                   % d.c. phase shift in I branch of pol. 2 (degrees), default = 0
 Rx.Hybrid.phiQ02deg = 0;                                                    % d.c. phase shift in Q branch of pol. 2 (degrees), default = 0
 
 %% ============================= Photodiodes ==============================
@@ -178,7 +180,7 @@ Rx.ADC.ENOB = ENOB;                                                           % 
 Rx.ADC.rclip = 0;                                                          % clipping ratio: clipped intervals: [xmin, xmin + xamp*rclip) and (xmax - xamp*rclip, xmax]
 Rx.ADC.ros = sim.ros;                                                      % oversampling ratio with respect to symbol rate 
 Rx.ADC.fs = Rx.ADC.ros*sim.Rs;                                             % ADC sampling rate
-Rx.ADC.filt = design_filter('cheby1', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
+Rx.ADC.filt = design_filter('butter', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
 % ADC filter should include all filtering at the receiver: TIA,
 % antialiasing, etc.
 
@@ -188,13 +190,13 @@ Rx.AdEq.type  = 'CMA';                                                     % Ada
 Rx.AdEq.structure = '2 filters';                                           % Structure: '2 filters' or '4 filters'. If '4 filters' corresponds to tranditional implementation, '2 filters' is simplified for short reach
 Rx.AdEq.Ntrain = 2e4;                                                    % Number of symbols used for training (only used if LMS)
 Rx.AdEq.mu = 1e-3;                                                         % Adaptation rate 
-Rx.AdEq.Ntaps = 3;                                                         % Number of taps for each filter
+Rx.AdEq.Ntaps = EqNtaps;                                                         % Number of taps for each filter
 Rx.AdEq.ros = sim.ros;                                                     % Oversampling ratio
 
 Tx.PlaunchdBm = -32:0.5:-23;
 
 sim.Nsetup = Rx.AdEq.Ntrain + sim.Ndiscard;
-[BER, SNRdB] = ber_coherent_dsp(Tx, Fiber, Rx, sim)
+BER = ber_coherent_dsp(Tx, Fiber, Rx, sim)
 
 if sim.save   
     % delete large variables

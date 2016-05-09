@@ -9,7 +9,7 @@ classdef AnalogABS < AnalogOperation % inherits properties and methods from clas
         function y = abs(self, x1)
             %% ABS function: output is in between -Vout and Vout. Inputs and outputs are filtered by filt.
             if self.ideal
-                y = self.ideal_xor(x1);
+                y = self.ideal_abs(x1);
                 return
             end            
             h = self.filt.h; % FIR approximation of filter

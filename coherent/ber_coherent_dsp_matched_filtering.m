@@ -118,7 +118,7 @@ if isfield(sim, 'Plots') && sim.Plots('BER') && length(ber.count) > 1
     Prx = Tx.PlaunchdBm - link_attdB;
     plot(Prx, log10(ber.theory), '-')
     plot(Prx, log10(ber.count), '-o')
-    legend('Theory including noise enhancement', 'Counted')
+    legend('Theory', 'Counted')
     xlabel('Received Power (dBm)')
     ylabel('log_{10}(BER)')
     axis([Prx(1) Prx(end) -8 0])

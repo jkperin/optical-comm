@@ -87,12 +87,29 @@ end
      title('Frequency offset estimation')
  end
  
- % Phase tracker --------------- ------------------------------------------
+ % Phase tracker ----------------------------------------------------------
  if Plot('Phase tracker')
      figure(106)
      plot(phiPT.')
      ylabel('Correction phase')
      xlabel('Symbol')
  end
+ 
+ % Phase error plot -------------------------------------------------------
+if sim.Plots.isKey('EPLL phase error') && sim.Plots('EPLL phase error')
+    figure(204), clf
+    subplot(211), hold on, box on
+    plot(sim.t, LoopFilterInput)
+    xlabel('time (s)')
+    ylabel('Loop filter input')       
+    subplot(212), hold on, box on
+    plot(sim.t, LoopFilterOutput)
+    p = polyfit(sim.t, LoopFilterOutput, 1);
+    plot(sim.t, polyval(p, sim.t));
+    plot(sim.t, sign(p(1))*2*pi*sim.t*Rx.LO.freqOffset)
+    legend('VCO phase','Linear fit (for freq offset)',  'Frequency offset ramp')
+    xlabel('time (s)')
+    ylabel('Phase (rad)')
+end
     
     
