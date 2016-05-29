@@ -1,4 +1,4 @@
-function BER = QPSK_Analog_BER_qsub(CPR, ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
+function BER = QPSK_Analog_BER_qsub(CPR, ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delayps)
 %% Estimate BER of a QPSK system based on analog receiver
 % - CPR: carrier phase recovery type: {'EPLL': electric PLL, 'OPLL':
 % optical PLL}
@@ -20,20 +20,20 @@ addpath ../soa/
 addpath ../mpam/
 
 %
-filename = sprintf('results/Analog_QPSK_BER_%s_%s_L=%skm_%s_BW=%sGHz_linewidth=%skHz_ideal=%s_delay=%s',...
-        upper(CPR), ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delay)
+filename = sprintf('results/Analog_QPSK_BER_%s_%s_L=%skm_%s_BW=%sGHz_linewidth=%skHz_ideal=%s_delay=%sps',...
+        upper(CPR), ReceiverType, fiberLength, Modulator, ModBW, linewidth, ideal, Delayps)
 
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([fiberLength ModBW linewidth ideal Delay]))
+if ~all(isnumeric([fiberLength ModBW linewidth ideal Delayps]))
     fiberLength = 1e3*str2double(fiberLength);
     ModBW = 1e9*str2double(ModBW);
     linewidth = 1e3*str2double(linewidth);
     ideal = logical(str2double(ideal));
-    Delay = round(str2double(Delay));
+    Delayps = 1e-12*round(str2double(Delayps));
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
 sim.Mct = 12;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 256; % number of symbols to be discarded from the begining and end of the sequence 
@@ -221,7 +221,7 @@ Analog.Comparator.filt = componentFilter;
 % Loop filter
 Analog.Kdc = 1;                                                            % DC gain
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = Delay + 1;                                                         % Delay in number of samples i.e. 1/sim.fs seconds. Minimum is 1
+Analog.Delay = Delayps;                                                         % Delay in number of samples i.e. 1/sim.fs seconds. Minimum is 1
 
 Rx.Analog = Analog;
 

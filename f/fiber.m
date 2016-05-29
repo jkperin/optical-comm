@@ -240,11 +240,12 @@ classdef fiber < handle
             dtau = self.tauDGD/sqrt(Nsect);
 
             M = zeros(2,2,length(omega));
-
+            M(:, :, 1) = randomRotationMatrix(); % rotation to an arbritary polarizataion state
+            
             for k = 1:Nsect
                 U = randomRotationMatrix();
 
-                for m = 1:length(omega)
+                for m = 2:length(omega)
                     Dw = [exp(1j*dtau*omega(m)/2), 0; 0, exp(-1j*dtau*omega(m)/2)]; % Birefringence matrix
                     M(:,:,m) = U*Dw*U';
                 end

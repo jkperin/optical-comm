@@ -55,11 +55,16 @@ xnorY2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
 % adder
 S1 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
 
+% Converts delay to number of samples in order to avoid interpolation
+Delay = round(Analog.Delay*sim.fs) + 1; % delay is at least one sample
+
 % Calculate group delay
 totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Four quadrant multiplier
     + Comp1.groupDelay + xnorX1.groupDelay + xnorX2.groupDelay + S1.groupDelay... % phase estimation    
-    + Analog.Delay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
+    + Delay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
+
+LoopDelaySamples = round(totalGroupDelay*sim.fs); % loop delay in samples
 
 % Optimize EPLL parameters
 Analog.wn = optimizePLL(Analog.csi, Analog.Kdc, totalGroupDelay, totalLineWidth, sim);
@@ -85,10 +90,10 @@ Yxq = imag(Ys(1, :));
 Yyi = real(Ys(2, :));
 Yyq = imag(Ys(2, :));
 
-for t = max([Analog.Delay sim.Mct numLen denLen])+1:length(sim.t)
+for t = max([LoopDelaySamples sim.Mct numLen denLen])+1:length(sim.t)
     % VCO: generates VCO output
-    Vcos = cos(Sf(t-Analog.Delay));
-    Vsin = sin(Sf(t-Analog.Delay));
+    Vcos = cos(Sf(t-LoopDelaySamples));
+    Vsin = sin(Sf(t-LoopDelaySamples));
 
     % Four quadrant multiplier                  
     X(1, t) = Sx1.add(Mx1.mix(Yxi(t), Vcos), -Mx2.mix(Yxq(t), Vsin)); % pol X, I

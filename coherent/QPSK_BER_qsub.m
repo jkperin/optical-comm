@@ -36,7 +36,7 @@ if ~all(isnumeric([fiberLength ModBW EqNtaps CPRtaps linewidth fOffset ENOB]))
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^17;                                                          % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^18;                                                          % Number of symbols in montecarlo simulation
 sim.ros = ros;                                                             % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;                                                       % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4;                                                    % Target BER
@@ -205,9 +205,10 @@ Rx.CPR.phaseEstimation = 'NDA';                                             % Ph
 Rx.CPR.Delay = 0;                                                       % Delay in number of symbols due to pipelining and parallelization
 Rx.CPR.Ntrain = 1;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
+Rx.CPR.Filter = 'Wiener';                                                  % {'Wiener': Wiener filter, 'Averaging': samples are averaged rather than filtered by Wiener filter}
 Rx.CPR.FilterType = 'FIR';                                                 % Filter type: 'FIR' or 'IIR'
-Rx.CPR.structure = '2 filters';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
-Rx.CPR.Ntaps = CPRtaps;                                                          % Maximum number of taps of filter 
+Rx.CPR.structure = '2 filters';                                            % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
+Rx.CPR.Ntaps = CPRtaps;                                                    % Number of taps of filter 
 Rx.CPR.NDAorder = 'reverse';                                               % Order of phase estimation (PE) and filtering in NDA FF:{'direct': PE followed by filtering, 'reverse': filtering followed by PE}
 % Carrier phase recovery parameters for 'DPLL'
 Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}

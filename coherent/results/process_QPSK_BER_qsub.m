@@ -11,35 +11,37 @@ addpath ../../soa/
 
 BERtarget = 1.8e-4;
 ros = 1.25;
-nu = 200;
-ENOB = [4 Inf];
+nu = 0;
+EqNtaps = [3 7];
+ENOB = Inf;
 fOff = 0;
-CPR = {'DPLL'};
-CPRtaps = [0 15];
+CPR = {'Feedforward'};
+CPRtaps = 10;
 Modulator = 'SiPhotonics';
 ModBW = 40;
 linewidth = 200;
 
 LineStyle = {'-', '--'};
 Marker = {'o', 's', 'v'};
-Color = {[51, 105, 232]/255, [255,127,0]/255};
+Color = {[51, 105, 232]/255, [153,153,155]/255, [255,127,0]/255};
 Lspan = 0:10;
 figure(1), hold on, box on
 count = 1;
-for enobi = 1:length(ENOB)
+for ind1 = 1:length(EqNtaps)
     for cpri = 1:length(CPR)
         Prec = zeros(size(Lspan));
         for k = 1:length(Lspan)
-            filename = sprintf('QPSK_BER_L=%dkm_%s_BW=%dGHz_%s_%dtaps_nu=%dkHz_fOff=%dGHz_ros=%d_ENOB=%d',...
-                Lspan(k), Modulator, ModBW, CPR{cpri}, CPRtaps(cpri), linewidth, fOff, round(100*ros), ENOB(enobi));
+            filename = sprintf('DSP_QPSK_BER_L=%dkm_%s_BW=%dGHz_Ntaps=%dtaps_%s_%dtaps_nu=%dkHz_fOff=%dGHz_ros=%d_ENOB=%d',...
+                Lspan(k), Modulator, ModBW, EqNtaps(ind1), CPR{cpri}, CPRtaps(cpri), linewidth, fOff, round(100*ros), ENOB);
             
             try 
                 S = load(filename);
 
                 lber = log10(S.BER.count);
-                valid = ~(isinf(lber) | isnan(lber)) & lber > -4.5 & lber < -3;
+                valid = ~(isinf(lber) | isnan(lber)) & lber < -2.8 & lber > -5;
                 try
-                    Prec(k) = spline(lber(valid), S.Tx.PlaunchdBm(valid), log10(BERtarget));
+                    f = fit(lber(valid).', S.Tx.PlaunchdBm(valid).', 'linearinterp');
+                    Prec(k) = f(log10(BERtarget));
                 catch e
                     warning(e.message)
                     Prec(k) = NaN;
@@ -62,10 +64,10 @@ for enobi = 1:length(ENOB)
             end
         end
         Prec_qpsk_theory =  Prec_theory;
-        Prec_qpsk_count{enobi} = Prec;
+        Prec_qpsk_count{ind1} = Prec;
         
         figure(1)
-        hline(count) = plot(Lspan, Prec, 'Color', Color{cpri}, 'LineStyle', LineStyle{enobi}, 'Marker', Marker{cpri}, 'LineWidth', 2);
+        hline(count) = plot(Lspan, Prec, 'Color', Color{cpri}, 'LineStyle', LineStyle{ind1}, 'Marker', Marker{cpri}, 'LineWidth', 2, 'MarkerFaceColor', 'w');
         plot(Lspan, Prec_theory, 'k', 'LineWidth', 2)
         count = count + 1;
         drawnow
@@ -74,5 +76,5 @@ end
 
 xlabel('Fiber length (km)')
 ylabel('Receiver sensitivity (dBm)')
-axis([0 10 -33 -27])
-legend(hline, 'DPLL', 'FIR Feedforward w/ 15 taps')
+axis([0 10 -34 -24])
+% legend(hline, 'DPLL', 'FIR Feedforward w/ 15 taps')

@@ -63,9 +63,19 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
     x2hat = zeros(N,1);   
     % Computer Wiener filters and perform carrier recovery
     if strcmp(crtype,'DD')
-        Wsd = wiener_fir(d,0,sigmandsq,sigmapsq);
-        Whd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
-       
+        % Whether to do Weiner filtering or simply average of past and
+        % future samples
+        switch (lower(Cpr.Filter))
+            case 'wiener'
+                Wsd = wiener_fir(d,0,sigmandsq,sigmapsq);
+                Whd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
+            case 'averaging'
+                Wsd = ones(d, 1);
+                Whd = ones(L, 1);
+            otherwise
+                error('feedforward_cpr/invalid CPR.Filter')
+        end
+               
         psi = zeros(2,N);                                                   % soft-decision phase estimate
         theta_tilde = zeros(2,N);                                           % input to soft-decision phase estimator
         for k=L+Delay+1:N
@@ -117,10 +127,19 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
             end
         end
     elseif strcmp(crtype,'NDA')
+        % Whether to do Weiner filtering or simply average of past and
+        % future samples
+        switch (lower(Cpr.Filter))
+            case 'wiener'
+                Wsd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
+            case 'averaging'
+                Wsd = ones(L, 1);
+            otherwise
+                error('feedforward_cpr/invalid CPR.Filter')
+        end
+        
         switch(lower(Cpr.NDAorder))
-            case 'direct' % phase estimation -> Wiener filtering
-                Whd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
-
+            case 'direct' % phase estimation -> filtering
                 psi = zeros(2,N);                                               % soft-decision phase estimate
                 for k=L:N
                     % Make soft decision on symbol y(k)
@@ -137,8 +156,7 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
                     x2hat(k-Delta) = y2(k-Delta)*exp(-1i*thetahat(k-Delta));
 
                 end
-            case 'reverse' % Wiener filtering -> phase estimation
-                Wsd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
+            case 'reverse' % filtering -> phase estimation
                 % Raise received signal to M-th power and filter
                 yM = y.^M;
                 z = zeros(1,N);

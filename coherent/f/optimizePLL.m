@@ -1,5 +1,5 @@
 %% Digital PLL analysis
-function wnOpt = optimizePLL(csi, Kdc, Delay, linewidth, sim)
+function [wnOpt, wn, phiError] = optimizePLL(csi, Kdc, Delay, linewidth, sim)
 %% Optimizes PLL relaxation frequency given csi (damping), Kdc (DC gain), Delay, linewidth for a target BER
 
 Ts = 1/sim.Rs;
@@ -11,7 +11,7 @@ etac = mean(abs(qammod(0:M-1, M)).^2)/mean(1./abs(qammod(0:M-1, M)).^2);
 
 varPN = 2*pi*linewidth*Ts;
 
-wn = 1e9*(0:0.05:5);
+wn = 1e9*(0:0.01:1);
 w = linspace(-0.5/Ts, 0.5/Ts, 1e3);
 GammaPN = zeros(size(wn));
 GammaAWGN = zeros(size(wn));
@@ -38,10 +38,10 @@ end
 [minPhiError, ind] = min(phiError);
 wnOpt = wn(ind);
 
-if sim.Plots.isKey('Phase error') && sim.Plots('Phase error')
+if sim.Plots.isKey('Phase error variance') && sim.Plots('Phase error variance')
     figure(300), hold on
-    plot(wn/1e9, phiError)
-    plot(wnOpt/1e9, minPhiError, 'o')
-    xlabel('\omega_n (GHz)')
-    ylabel('Phase error variance')
+    h = plot(wn/1e9, phiError);
+    plot(wnOpt/1e9, minPhiError, 'o', 'Color', get(h, 'Color'))
+    xlabel('\omega_n (Grad/s)')
+    ylabel('Phase error variance (rad^2)')
 end

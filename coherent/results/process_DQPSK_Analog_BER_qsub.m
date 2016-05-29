@@ -8,26 +8,22 @@ addpath ../../apd/
 addpath ../../soa/
 
 BERtarget = 1.8e-4;
-ros = 1.25;
 nu = 200;
-EqNtaps = [3 7];
-ENOB = Inf;
-fOff = 0;
 Modulator = 'SiPhotonics';
 ModBW = 40;
 linewidth = 200;
 
 LineStyle = {'-', '--'};
 Marker = {'o', 's', 'v'};
-Color = {[153,153,155]/255, [51, 105, 232]/255, [255,127,0]/255};
+Color = {[51, 105, 232]/255, [255,127,0]/255};
 Lspan = 0:10;
 figure(1), hold on, box on
 count = 1;
-for ind1 = 1:length(EqNtaps)
+for ind1 = 1
     Prec = zeros(size(Lspan));
     for k = 1:length(Lspan)
-        filename = sprintf('DSP_DQPSK_BER_L=%dkm_%s_BW=%dGHz_Ntaps=%dtaps_nu=%dkHz_fOff=%dGHz_ros=%d_ENOB=%d',...
-            Lspan(k), Modulator, ModBW, EqNtaps(ind1), linewidth, fOff, round(100*ros), ENOB);
+        filename = sprintf('Analog_DQPSK_BER_L=%dkm_%s_BW=%dGHz_linewidth=%dkHz',...
+            Lspan(k), Modulator, ModBW, linewidth);
 
         try 
             S = load(filename);
@@ -35,11 +31,8 @@ for ind1 = 1:length(EqNtaps)
             lber = log10(S.BER.count);
             valid = ~(isinf(lber) | isnan(lber)) & lber > -4;
             try
-                [~, idx] = unique(lber(valid));
-                f = fit(lber(valid(idx)).', S.Tx.PlaunchdBm(valid(idx)).', 'linearinterp');
-%                 p = polyfit(lber(valid(idx)).', S.Tx.PlaunchdBm(valid(idx)).', 3)
+                f = fit(lber(valid).', S.Tx.PlaunchdBm(valid).', 'linearinterp');
                 Prec(k) = f(log10(BERtarget));
-%                 Prec(k) = polyval(p, log10(BERtarget));
             catch e
                 warning(e.message)
                 Prec(k) = NaN;
@@ -73,4 +66,4 @@ end
 
 xlabel('Fiber length (km)')
 ylabel('Receiver sensitivity (dBm)')
-% axis([0 10 -33 -27])
+axis([0 10 -34 -24])

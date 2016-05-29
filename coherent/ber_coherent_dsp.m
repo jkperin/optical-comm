@@ -1,4 +1,4 @@
-function [ber, SNRdB_theory] = ber_coherent_dsp(Tx, Fiber, Rx, sim)
+function ber = ber_coherent_dsp(Tx, Fiber, Rx, sim)
 %% Calculate BER of coherent system
 dataTX = randi([0 sim.M-1], [2, sim.Nsymb]); % symbol stream for each polarization
 

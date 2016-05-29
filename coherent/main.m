@@ -9,7 +9,7 @@ addpath ../soa/
 addpath ../mpam/
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
 sim.ros = 5/4;          % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
@@ -28,7 +28,7 @@ sim.RIN = true;
 sim.PMD = true;
 sim.phase_noise = true;
 sim.preAmp = false;
-sim.quantiz = ~true;
+sim.quantiz = true;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Time and frequency
@@ -51,7 +51,7 @@ Plots('DPLL phase error') = 0;
 Plots('Feedforward phase error') = 0;
 Plots('Frequency offset estimation') = 0;
 Plots('Channel frequency response') = 0;
-Plots('Constellations') = 1;
+Plots('Constellations') = 0;
 Plots('Diff group delay')       = 0;
 Plots('Phase tracker')         = 0;
 Plots('Frequency estimation')  = 0; 
@@ -69,7 +69,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1250e-9, 0, -150, 0.2e6, 0);
+Tx.Laser = laser(1390e-9, 0, -150, 0.2e6, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -105,7 +105,7 @@ Tx.Mod = Mod;                                                              % opt
 % deafault is att(lamb) = 0 dB/km
 % D(lamb) : function handle of dispersion (D) at wavelength (lamb) in ps/(kmnm),
 % default is D(lamb) = SSMF with lamb0 @ 1310 ps/(kmnm)
-Fiber = fiber(0e3);
+Fiber = fiber(5e3);
 Fiber.PMD = sim.PMD;                                                       % whether to similate PMD
 Fiber.meanDGDps = 0.1;                                                     % Mean DGD (ps)
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
@@ -170,7 +170,7 @@ Rx.AdEq.type  = 'CMA';                                                     % Ada
 Rx.AdEq.structure = '2 filters';                                           % Structure: '2 filters' or '4 filters'. If '4 filters' corresponds to tranditional implementation, '2 filters' is simplified for short reach
 Rx.AdEq.Ntrain = 1e4;                                                    % Number of symbols used for training (only used if LMS)
 Rx.AdEq.mu = 1e-3;                                                         % Adaptation rate 
-Rx.AdEq.Ntaps = 11;                                                         % Number of taps for each filter
+Rx.AdEq.Ntaps = 7;                                                         % Number of taps for each filter
 Rx.AdEq.ros = sim.ros;                                                     % Oversampling ratio
 
 %% Carrrier phase recovery
@@ -178,11 +178,12 @@ Rx.AdEq.ros = sim.ros;                                                     % Ove
 Rx.CPR.type = 'Feedforward';                                               % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
 Rx.CPR.phaseEstimation = 'NDA';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
 Rx.CPR.Delay = 0;                                                       % Delay in number of symbols due to pipelining and parallelization
-Rx.CPR.Ntrain = 1e4;                                                     % Number of symbols used for training. This training starts when equalization training is done
+Rx.CPR.Ntrain = 1;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
+Rx.CPR.Filter = 'Averaging';                                                  % {'Wiener': Wiener filter, 'Averaging': samples are averaged rather than filtered by Wiener filter}
 Rx.CPR.FilterType = 'FIR';                                                 % Filter type: {'FIR', 'IIR'}
 Rx.CPR.structure = '2 filters';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
-Rx.CPR.Ntaps = 7;                                                          % Maximum number of taps of filter 
+Rx.CPR.Ntaps = 10;                                                          % Maximum number of taps of filter 
 Rx.CPR.NDAorder = 'reverse';                                               % Order of phase estimation (PE) and filtering in NDA FF:{'direct': PE followed by filtering, 'reverse': filtering followed by PE}
 % Carrier phase recovery parameters for 'DPLL'
 Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
@@ -207,7 +208,7 @@ Rx.FreqRec.Ntrain = 1e4;
 Tx.PlaunchdBm = -35:-28;
 sim.Nsetup = Rx.AdEq.Ntrain + (Rx.LO.freqOffset~=0)*Rx.FreqRec.Ntrain + sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 % [Nsum, Nmult] = calcDSPOperations(Rx, sim)
-[berQAM, SNRdBQAM_est]  = ber_coherent_dsp(Tx, Fiber, Rx, sim)
+berQAM = ber_coherent_dsp(Tx, Fiber, Rx, sim)
 % [berQAM, SNRdBQAM_est] = ber_coherent_dsp_matched_filtering(Tx, Fiber, Rx, sim)
 % sim.ModFormat = 'DPSK';
 % [berDPSK, SNRdBDPSK_est] = ber_coherent_with_matched_filtering(Tx, Fiber, Rx, sim)
