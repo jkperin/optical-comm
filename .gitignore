@@ -21,3 +21,6 @@ mpam/trash/
 *.o*
 coherent/DSP/old/
 coherent/trash/
+coherent/
+ofdm/
+gui/
