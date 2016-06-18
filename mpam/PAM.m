@@ -48,6 +48,17 @@ classdef PAM
             end
         end
         
+        function PAMTable(self)
+            %% Generate table summarizing class values
+            disp('PAM class parameters summary:')
+            rows = {'PAM order'; 'Symbol rate', 'Level spacing'};
+            Variables = {'M'; 'Rs'; 'level_spacing'};
+            Values = {self.M; self.Rb/(log2(sim.M)*1e9); self.level_spacing};
+            Units = {''; 'Gbaud'; ''};
+
+            PINtable = table(Variables, Values, Units, 'RowNames', rows)
+        end
+        
         %% Get methods
         function Rs = get.Rs(this)
             %% Symbol-rate assuming rectangular pulse

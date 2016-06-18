@@ -15,6 +15,17 @@ if isfield(eq, 'Ntaps') && mod(eq.Ntaps, 2) == 0
     eq.Ntaps = eq.Ntaps + 1;
 end
 
+% Makes sure everything is with right dimensions
+if size(sim.f, 1) == 1
+    sim.f = sim.f.';
+    Hch = Hch.';
+end
+
+ytsize = size(yt);
+if ytsize(1) == 1
+    yt = yt.';
+end
+
 % If channel response isn't define don't do equalization
 if isempty(Hch)
     eq.type = 'None';
@@ -290,9 +301,9 @@ switch lower(eq.type)
         end
 
         eq.W = W;
-        eq.num = W(end:-1:1, 1); % for plotting uses only one of the filters
-        eq.den = 1;
-        eq.Hff = @(f) freqz(eq.num, eq.den, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.num, eq.den, 1)); % removed group delay
+        eq.num = W(end:-1:1, :); % for plotting uses only one of the filters
+        eq.den = ones(1, size(W, 2));
+        eq.Hff = @(f) freqz(eq.num(:, 1), eq.den(:, 1), 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.num(:, 1), eq.den(:, 1), 1)); % removed group delay
    
     case 'fixed td-sr-le'   
         if ~isfield(eq, 'ros')
@@ -397,4 +408,9 @@ switch lower(eq.type)
         eq.Kne = 2*trapz(eq.f, abs(eq.H));     
     otherwise
         error('Equalization type *%s* not implemented yet!', eq.type)
+end
+
+% returns yd with right dimensions
+if all(ytsize ~= size(yd))
+    yd = yd.';
 end

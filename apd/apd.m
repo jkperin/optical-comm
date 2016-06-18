@@ -8,6 +8,7 @@ classdef apd
         R    % responsivity
         Id   % dark current
     end
+    
     properties (Dependent)
         Fa % excess noise factor
         Geff % effective gain = Gain*Responsivity
@@ -72,6 +73,18 @@ classdef apd
             else 
                 this.Id = 0;
             end
+        end
+        
+        function APDtable = summary(self)
+            %% Generate table summarizing class values
+            disp('APD class parameters summary:')
+            rows = {'Gain'; 'Impact ionization factor'; 'Low-gain bandwidth';...
+                'Gain-bandwidth product'; 'Responsivity'; 'Dark current'};
+            Variables = {'Gain'; 'ka'; 'BW0'; 'GainBW'; 'R'; 'Id'};
+            Values = [self.Gain; self.ka; self.BW0/1e9; self.GainBW/1e9; self.R; self.Id*1e9];
+            Units = {''; ''; 'GHz'; 'GHz'; 'A/W'; 'nA'};
+
+            APDtable = table(Variables, Values, Units, 'RowNames', rows)
         end
                            
         %% Get Methods

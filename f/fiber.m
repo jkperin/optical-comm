@@ -65,7 +65,7 @@ classdef fiber < handle
         function [Ncd, Npmd] = Ntaps(self, Rs, ros, lambda)
             %% Estimated number of taps in DSP required to compensate for CD and PMD in coherent detection link
             % Based on Ip, E., & Kahn, J. M. (2007). Digital equalization of chromatic dispersion and polarization mode dispersion. 
-            % Journal of Lightwave Technology, 25(8), 2033–2043.
+            % Journal of Lightwave Technology, 25(8), 2033?2043.
             Ncd = 2*pi*abs(self.beta2(lambda))*self.L*Rs^2*ros; % eq (35)
             Npmd = self.tauDGD*ros*Rs; % eq (36)
         end
@@ -183,7 +183,7 @@ classdef fiber < handle
             %% Fiber large-signal frequency response assuming transient chirp dominant
             % Peral, E., Yariv, A., & Fellow, L. (2000). Large-Signal Theory of the Effect
             % of Dispersive Propagation on the Intensity Modulation Response of Semiconductor Lasers. 
-            % Journal of Lightwave Technology, 18(1), 84–89.
+            % Journal of Lightwave Technology, 18(1), 84?89.
             % This transfer function is for optical power not electic field
             % i.e., Hfiber(f) = Pout(f)/Pin(f).
             % Inputs:
@@ -228,7 +228,22 @@ classdef fiber < handle
                 tau(m) = 2/dw*sqrt(det(self.JonesMatrix(:,:,m+1)-self.JonesMatrix(:,:,m)));
             end
             tau(end) = tau(end-1);
-         end
+        end
+         
+        function Fibertable = summary(self, lamb)
+            %% Generate table summarizing class values
+            disp('Fiber class parameters summary:')
+            lambnm = lamb*1e9;
+            rows = {'Length'; sprintf('Attenuation at %.2f nm', lambnm);...
+                sprintf('Total dispersion at %.2f nm', lambnm); 'PMD included?';...
+                'Mean DGD'};
+            Variables = {'L'; 'att'; 'DL'; 'PMD'; 'meanDGDps'};
+            Values = [self.L/1e3; self.att(lamb); self.D(lamb)*self.L*1e3;...
+                self.PMD; self.meanDGDps];
+            Units = {'km'; 'dB/km'; 'ps/nm'; ''; 'ps'};
+
+            Fibertable = table(Variables, Values, Units, 'RowNames', rows)
+        end
         
     end  
 
@@ -240,11 +255,12 @@ classdef fiber < handle
             dtau = self.tauDGD/sqrt(Nsect);
 
             M = zeros(2,2,length(omega));
-
+            M(:, :, 1) = randomRotationMatrix(); % rotation to an arbritary polarizataion state
+            
             for k = 1:Nsect
                 U = randomRotationMatrix();
 
-                for m = 1:length(omega)
+                for m = 2:length(omega)
                     Dw = [exp(1j*dtau*omega(m)/2), 0; 0, exp(-1j*dtau*omega(m)/2)]; % Birefringence matrix
                     M(:,:,m) = U*Dw*U';
                 end
