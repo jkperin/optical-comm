@@ -1,4 +1,4 @@
-%% Analysis of carrier phase recovery for QPSK using Costas loop or XOR-based loop
+%% Analysis of carrier phase recovery for QPSK using feedforward technique
 
 clear, clc, close all
 
@@ -10,14 +10,14 @@ N = Nsymb*Mct;
 Rs = 56e9;
 fs = Rs*Mct;
 ts = 0:1/fs:(N-1)*1/fs;
+f = -fs/2:fs/N:fs/2-fs/N;
 
 Laser = laser(1310e-9, 0, -150, 20000e3);
 
 phase_noise = true;
-awgn_noise = true;
-frequency_offset = true;
+awgn_noise = ~true;
+frequency_offset = ~true;
 
-% constellation = pi/4*[1 3 5 7];
 data = randi([1 4], [1 Nsymb]);
 
 % xi = cos(constellation(data));
@@ -35,70 +35,77 @@ x = xi + 1j*xq;
 if phase_noise
     [xn, phin] = Laser.addPhaseNosie(x, fs);
 else
+    phin = 0;
     xn = x;
 end
+xn = x.*exp(1j*phin);
 
 varN = 0.1;
 if awgn_noise
     xn = xn + sqrt(varN/2)*randn(size(xn)) + 1j*sqrt(varN/2)*randn(size(xn));
 end
 
-foff = 10e9;
+foff = 1e9;
 if frequency_offset   
     xn = freqshift(xn, 0:1/fs:(length(xn)-1)/fs, foff);
 end
 
-% Loop filter
-csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-wn = 2*pi*1e9;                                                    % relaxation frequency of second-order loop filter: optimized using optimize_PLL.m
-Kdc = 10;
-nums = Kdc*[2*csi*wn wn^2];
-dens = [1 0 0]; % descending powers of s
-
-[numz, denz] = impinvar(nums, dens, fs);
-numLen = length(numz);
-denLen = length(denz);
-
 xr = zeros(size(x));
 y = zeros(size(x));
 yf = zeros(size(x));
-for t = Mct+numLen+1:length(x)
-    xr(t) = exp(1j*(yf(t-6)))*xn(t);
-    
-    xi(t) = real(xr(t));
-    xq(t) = imag(xr(t));
-    
-    %% 4th power
-    y(t) = 1/4*imag(xr(t)^4);
-    
-    %% Costas
-%     xid(t) = sign(xi(t));
-%     xqd(t) = sign(xq(t));   
-%     y(t) = xqd(t)*xi(t) - xid(t)*xq(t);
 
-    %% Logic
-%     xid(t) = xi(t) >= 0;
-%     xqd(t) = xq(t) >= 0;
-%     comp = (abs(xi(t)) < abs(xq(t)));
+nand = @(a,b) -(2*(a > 0 && b > 0) - 1);
+
+xn4d = sign(imag(xn.^4));
+q = zeros(size(x))+1;
+qbar = zeros(size(x))+1;
+for t = Mct+1:length(x)     
+    q(t) = nand(nand(xn4d(t),qbar(t-4)), qbar(t-2));
+    qbar(t) = nand(nand(xn4d(t), q(t-4)), q(t-2));
+end
+    
+ 
+    
+    
+    
+   
+%     xi(t) = real(xn(t));
+%     xq(t) = imag(xn(t));
+%     
+%     xid(t) = sign(xi(t));
+%     xqd(t) = sign(xq(t));
+%     comp = 2*(abs(xi(t)) < abs(xq(t))) - 1;
+% %     comp = 2*(real(x(t)*exp(1j*pi/4)) < imag(x(t)*exp(1j*pi/4))) - 1;
+%     
+%     y(t) = xid(t)*xqd(t)*comp;
+% 
+% %     y(t) = xqd(t)*xi(t) - xid(t)*xq(t);
+% 
+% %     y(t) = xi.*xq;
+
+
+%     comp = 2*(real(x(t)*exp(1j*pi/4)) < imag(x(t)*exp(1j*pi/4))) - 1;
 %     
 %     tmp = not(xor(xid(t), xqd(t)));
-%     y(t) = sign(not(xor(tmp, comp)));
-    
-    yf(t) = sum(numz.*y(t:-1:t-numLen+1)) - sum(yf(t-1:-1:t-denLen+1).*denz(2:end));
-end
+%     y(t) = not(xor(tmp, comp));
+%     y(t) = 2*y(t) - 1;
+   
+%     y(t) = xqd(t)*xi(t) - xid(t)*xq(t);    
+
 
 figure
-subplot(211)
-plot(y)
-subplot(212), hold on
-plot(yf)
-plot(-2*pi*foff*ts*double(frequency_offset), '--k')
-legend('Filter output', 'Frequency offset')
+hold on
+plot(xn4d, '-r')
+% plot(q)
+% plot(sqrt(2)*sin(phin), '--k')
+% subplot(212)
+% plot(yf)
 
-scatterplot(xn)
-title('input')
-scatterplot(xr)
-title('output')
+
+% scatterplot(xn)
+% title('input')
+% scatterplot(xr)
+% title('output')
 
 % H = tf(numz, denz, 1/fs);
 % woff = 2*pi*foff;

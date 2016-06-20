@@ -50,7 +50,7 @@ classdef AnalogOperation < handle
         end    
         
         function memoryLength = get.memoryLength(self)
-            if isempty(self.filt)
+            if self.ideal
                 memoryLength = 0;
             else
                 memoryLength = length(self.filt.h);

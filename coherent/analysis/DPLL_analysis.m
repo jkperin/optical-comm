@@ -33,13 +33,13 @@ Gz = tf(numz, denz, 1/sim.Rs);
 figure, hold on
 step(1/(Gs+1))
 step(1/(Gz+1))
-title('Phase error response to step in phase noise')
+title('Phase error response to step in AWGN noise')
 legend('ct', 'dt')
 
 figure, hold on
 step(Gs/(Gs+1))
 step(Gz/(Gz+1))
-title('Phase error response to step in AWGN noise')
+title('Phase error response to step in phase noise')
 legend('ct', 'dt')
 
 

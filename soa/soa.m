@@ -3,7 +3,7 @@ classdef soa
     properties
         Gain % Gain in linear units (same gain is assumed for both polarizations)
         Fn   % noise figure (dB)
-        lamb % wavelength of operation (m)
+        lamb % operational wavelength. Noise variance will be calculated assuming this wavelength
         maxGaindB % maximum gain (dB)
     end
     properties (Dependent)
@@ -31,6 +31,17 @@ classdef soa
             end
         end
         
+        function SOAtable = summary(self)
+            %% Generate table summarizing class values
+            disp('-- SOA class parameters summary:')
+            rows = {'Gain'; 'Noise Figure'; 'Operational wavelength'};
+            Variables = {'GaindB'; 'Fn'; 'lamb'};
+            Values = [self.GaindB; self.Fn; self.lamb*1e9];
+            Units = {'dB'; 'dB'; 'nm'};
+
+            SOAtable = table(Variables, Values, Units, 'RowNames', rows)
+        end
+        
         %% Get methods
         function N0 = get.N0(obj)
             %% ASE noise one-sided power spectrum density per polarization
@@ -53,16 +64,22 @@ classdef soa
     
     %% Main Methods
     methods
-        function sig2 = var_awgn(this, Plevel, Deltaf, Deltafopt, Npol)
+         function sig2 = var_awgn(this, Plevel, Deltaf, Deltafopt, Npol)
+             %% Alias of varAWGN for compatibility
+             warning('soa/var_awgn: Use varAWGN instead')
+             sig2 = varAWGN(this, Plevel, Deltaf, Deltafopt, Npol);
+         end
+        
+        function sig2 = varAWGN(this, Plevel, Deltaf, Deltafopt, Npol)
             %% Noise variance using AWGN approximation
-            % - Plevel = power before amplifier
+            % - Plevel = power levels prior to the amplifier
             % - Deltaf = Noise bandwidth of electric filter
             % - Deltafopt = Noise bandwidth of optical filter (!! bandpass filter)
-            % - Npol = Number of noise polarizations. Default Npol = 1
+            % - Npol = Number of noise polarizations. Default Npol = 2
             % !! Note: Responsivity is assumed to be 1. For different
             % responsivity make sig2 = R^2*sig2
-            if exist('Npol', 'var') % default Noise polarizations = 1
-                Npol = 1;
+            if exist('Npol', 'var') % default Noise polarizations = 2
+                Npol = 2;
             end
             % Signal-Spontaneous beat noise + Spont-Spont beat noise
             % Agrawal 6.5.7 and 6.5.8 -- 3rd edition
@@ -77,20 +94,19 @@ classdef soa
             % - Ein = received electric field (must be a N x 1 or 2 matrix
             % depending on number of polarizations)
             % - fs = sampling frequency     
-            N = length(Ein);
             
             % N0 is the psd per polarization
-            w_x = sqrt(1/2*obj.N0*fs/2)*(randn(N, 1) + 1j*randn(N, 1));
-            w_y = sqrt(1/2*obj.N0*fs/2)*(randn(N, 1) + 1j*randn(N, 1));
+            w_x = sqrt(1/2*obj.N0*fs/2)*(randn(size(Ein)) + 1j*randn(size(Ein)));
+            w_y = sqrt(1/2*obj.N0*fs/2)*(randn(size(Ein)) + 1j*randn(size(Ein)));
             % Note: soa.N0 is one-sided baseband equivalent of ASE PSD.
             % Thus we multiply by sim.fs/2
             
             if any(size(Ein) == 1) % 1-Pol
-                output = [Ein(:, 1)*sqrt(obj.Gain) + w_x, w_y]; 
+                output = [Ein*sqrt(obj.Gain) + w_x; w_y]; 
             else % 2-Pols
-                output = [Ein(:, 1)*sqrt(obj.Gain) + w_x, Ein(:, 2)*sqrt(obj.Gain) + w_y]; 
+                output = sqrt(obj.Gain)*Ein + [wx; wy];
             end
-        end   
+        end
     end
 end
             

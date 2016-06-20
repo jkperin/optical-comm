@@ -75,7 +75,11 @@ end
 if Plot('Eye diagram') 
     eyediagram(abs(Ein(1, sim.Ndiscard:min(sim.Ndiscard+2e3, end))).^2 + ...
     abs(Ein(2, sim.Ndiscard:min(sim.Ndiscard+2e3, end))).^2, 2*sim.Mct)
-    title('Eye diagram')
+    title('Eye diagram: transmitted electric field')
+    
+    eyediagram(abs(Erec(1, sim.Ndiscard:min(sim.Ndiscard+2e3, end))).^2 + ...
+    abs(Erec(2, sim.Ndiscard:min(sim.Ndiscard+2e3, end))).^2, 2*sim.Mct)
+    title('Eye diagram: received electric field')
 end
 
 % Frequency estimation algorithm ------------------------------------------

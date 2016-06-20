@@ -131,11 +131,17 @@ for k = 1:length(class)
     hline2(k) = plot(-1, -1, 'o', 'Color', get(h, 'CData'), 'MarkerFaceColor', get(h, 'CData'));
 end
 
+classSTR = cellstr(num2str(class));
+for k = 1:length(classSTR)
+    classSTR{k} = [classSTR{k} ' \mum'];
+end
+
 figure(1)
 xlabel('Sampling Frequency (GHz)', 'FontSize', 12)
 ylabel('ENOB (bits)', 'FontSize', 12)
 set(gca, 'FontSize', 12)
-legend(hline1, cellstr(num2str(class)))
+leg = legend(hline1, classSTR);
+set(leg, 'FontSize', 12)
 axis([0 90 3 6])
 
 figure(2)
@@ -143,8 +149,8 @@ xlabel('Sampling Frequency (GHz)', 'FontSize', 12)
 ylabel('Power (W)', 'FontSize', 12)
 axis([0 90 0 2])
 set(gca, 'FontSize', 12)
-legend(hline2, cellstr(num2str(class)))
-
+leg = legend(hline2, classSTR);
+set(leg, 'FontSize', 12)
 
 
 

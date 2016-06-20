@@ -1,5 +1,5 @@
-function [Xs, S, Sf, Analog] = analog_epll_costas(Ys, totalLineWidth, Analog, sim)
-%% Analog electric phase locked loop via Costas loop
+function [Xs, S, Sf, Analog] = analog_epll_4thpower(Ys, totalLineWidth, Analog, sim)
+%% Analog electric phase locked loop via 4th power operation
 % Inputs:
 % - Ys: received signal after filtering to remove noise
 % - totalLineWidth: sum of linewidths of transmitter and LO lasers
@@ -15,7 +15,7 @@ function [Xs, S, Sf, Analog] = analog_epll_costas(Ys, totalLineWidth, Analog, si
 % - Analog: loop filter parameters
 
 % Create components
-% Mixers and adders for four quadrant multiplier for X and Y
+% Mixers and adders for downconversion stage
 Mx1 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
 Mx2 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
 Mx3 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
@@ -31,10 +31,10 @@ Sy1 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
 Sy2 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
 
 % Comparators
-Comp1 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-Comp2 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-Comp3 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-Comp4 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
+Cube1 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
+Cube2 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
+Cube3 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
+Cube4 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
 
 MixerIdQx = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
 MixerQdIx = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
@@ -49,8 +49,8 @@ AdderXY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
 Delay = round(Analog.Delay*sim.fs) + 1; % delay is at least one sample
 
 % Calculate group delay
-totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Four quadrant multiplier
-    + Comp1.groupDelay + MixerIdQx.groupDelay + AdderX.groupDelay + AdderXY.groupDelay... % phase estimation    
+totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Remove group delay of downconversion
+    + Cube1.groupDelay + MixerIdQx.groupDelay + AdderX.groupDelay + AdderXY.groupDelay... % phase estimation    
     + Delay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
 
@@ -92,13 +92,9 @@ for t = max([LoopDelaySamples sim.Mct numLen denLen])+1:length(sim.t)
     X(4, t) = Sy2.add(My3.mix(Yyi(t), Vsin), My4.mix(Yyq(t), Vcos)); % pol Y, Q
 
     % Phase estimation
-    Xd(1, t) = Comp1.compare(X(1, t), Analog.Comparator.Vref);
-    Xd(2, t) = Comp2.compare(X(2, t), Analog.Comparator.Vref);
-    Xd(3, t) = Comp3.compare(X(3, t), Analog.Comparator.Vref);
-    Xd(4, t) = Comp4.compare(X(4, t), Analog.Comparator.Vref);
-
-    Sx = AdderX.add(MixerIdQx.mix(Xd(1, t), X(2, t)), -MixerQdIx.mix(Xd(2, t), X(1, t)));
-    Sy = AdderY.add(MixerIdQy.mix(Xd(3, t), X(4, t)), -MixerQdIy.mix(Xd(4, t), X(3, t)));
+    % = Im{(xi + 1jxq)^4} = 4*(xi^3xq - xq^3xi)
+    Sx = 1/4*AdderX.add(MixerIdQx.mix(Cube1.cube(X(1, t)), X(2, t)), -MixerQdIx.mix(Cube2.cube(X(2, t)), X(1, t)));
+    Sy = 1/4*AdderY.add(MixerIdQy.mix(Cube3.cube(X(3, t)), X(4, t)), -MixerQdIy.mix(Cube4.cube(X(4, t)), X(3, t)));
     S(t) = AdderXY.add(Sx, Sy);
 
     % Loop filter
@@ -110,7 +106,7 @@ end
 Xs = [X(1, :) + 1j*X(2, :); X(3, :) + 1j*X(4, :)];
 
 % Sampling
-delay = round((Mx1.groupDelay + Sx1.groupDelay)*sim.fs); % Group delay of four quadrant multiplier
+delay = round((Mx1.groupDelay + Sx1.groupDelay)*sim.fs); % Group delay of downconversion stage
 Xs = [Xs(:, delay+1:end) Xs(:, 1:delay)]; % remove group delay
 
 

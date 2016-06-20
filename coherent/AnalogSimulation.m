@@ -3,6 +3,7 @@ clear, clc
 
 addpath f/
 addpath analog/
+addpath DSP/
 addpath ../f/
 addpath ../apd/
 addpath ../soa/
@@ -12,7 +13,7 @@ addpath ../mpam/
 sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
 sim.Mct = 12;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 256; % number of symbols to be discarded from the begining and end of the sequence 
+sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
 sim.ModFormat = 'QAM';                                                     % either 'QAM' or 'DPSK'
@@ -20,7 +21,7 @@ sim.M    = 4;                                                              % QAM
 sim.pulse = 'NRZ';                                                         % Transmitter pulse shape ('NRZ')
 sim.Npol = 2;                                                              % number of polarizations
 sim.Modulator = 'SiPhotonics';                                                     % Modulator type: {'MZM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
-sim.Rs = sim.Rb/(sim.Npol*log2(sim.M))                                     % Symbol Rate
+sim.Rs = sim.Rb/(sim.Npol*log2(sim.M));                                     % Symbol Rate
 
 % Simulation
 sim.RIN = true; 
@@ -63,7 +64,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1250e-9, 0, -150, 0.2e6, 0);
+Tx.Laser = laser(1250e-9, 0, -150, 2000e3, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -117,7 +118,7 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 9.8;                                                           % Total local oscillator power (dBm)
-Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
+Rx.LO.freqOffset = 0.1e9;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -154,10 +155,10 @@ Rx.N0 = (30e-12)^2;                                                        % One
 Analog.filt = design_filter('butter', 5, 0.7*sim.Rs/(sim.fs/2));
 
 % Carrier Phase recovery type: either 'EPLL' or 'OPLL'
-Analog.CarrierPhaseRecovery = 'EPLL';
+Analog.CarrierPhaseRecovery = 'Feedforward';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations}
-Analog.CPRmethod = 'logic';                                            
+Analog.CPRmethod = '4th-power';                                            
 
 componentFilter = []; %design_filter('bessel', 1, 0.7*sim.Rs/(sim.fs/2));
 componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
@@ -168,6 +169,9 @@ componentN0 = 4e-21*componentRn/pi;
 % Adder
 Analog.Adder.filt = componentFilter;
 Analog.Adder.N0 = componentN0;
+
+% 
+Analog.FeedforwardLPF.filt = design_filter('bessel', 5, 10e9/(sim.fs/2));
 
 % Mixer
 Analog.Mixer.filt = componentFilter;
@@ -191,25 +195,25 @@ Analog.Comparator.filt = componentFilter;
 % Loop filter
 Analog.Kdc = 1;                                                            % DC gain
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 20;                                                         % Delay in number of samples i.e. 1/sim.fs seconds. Minimum is 1
+Analog.Delay = 20e-12;                                                     % Loop delay in s
 
 Rx.Analog = Analog;
 
-Tx.PlaunchdBm = -35:0.5:-20;
-% Tx.PlaunchdBm = -20;
+Tx.PlaunchdBm = -35:-25;
+Tx.PlaunchdBm = -20;
 sim.Nsetup = sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
+
+%% Generate summary
+generate_summary(sim, Tx, Fiber, Rx);
 
 %% Runs simulation
 if strcmpi(sim.ModFormat, 'DPSK')
     sim.Nsetup = sim.Ndiscard;
     berDPSK = ber_coherent_analog_dpsk(Tx, Fiber, Rx, sim);
 else % QPSK
-    switch upper(Analog.CarrierPhaseRecovery)
-        case 'EPLL'
-            berQAM = ber_coherent_analog_epll(Tx, Fiber, Rx, sim);
-        case 'OPLL'
-            error('OPLL not implemented yet')
-        otherwise
-            error('Invalid carrier phase recovery method')
+    if strcmpi(Analog.CarrierPhaseRecovery, 'OPLL')
+        error('OPLL not implemented yet')
+    else
+        berQAM = ber_coherent_analog(Tx, Fiber, Rx, sim);
     end
 end

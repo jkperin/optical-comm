@@ -36,7 +36,7 @@ if ~all(isnumeric([fiberLength ModBW EqNtaps CPRtaps linewidth fOffset ENOB]))
 end
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^18;                                                          % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16;                                                          % Number of symbols in montecarlo simulation
 sim.ros = ros;                                                             % Oversampling ratio of DSP
 sim.Mct = 8*sim.ros;                                                       % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4;                                                    % Target BER
@@ -72,7 +72,7 @@ sim.f = f;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 0; 
+Plots('BER')                  = 1; 
 Plots('Constellations')       = 0;
 Plots('Equalizer')            = 0;
 Plots('ChannelFrequencyResponse') = 0;
@@ -232,6 +232,9 @@ Rx.FreqRec.muShift = 2e4;                                  % Controls when gears
 Rx.FreqRec.Ntrain = 2e4;
 
 Tx.PlaunchdBm = -35:0.5:-20;
+
+%% Generate summary
+generate_summary(sim, Tx, Fiber, Rx);
 
 BER = ber_coherent_dsp(Tx, Fiber, Rx, sim)
 

@@ -9,6 +9,13 @@ classdef pin < apd % inherits methods and properties from apd
     end
     methods
         function self = pin(R, Id, BW)
+            %% Constructor
+            % Inputs:
+            % - R (optional, default = 1 A/W) = responsivity
+            % - Id (optional defualt = 0 nA) = dark current (A)       
+            % - BW (optional, default = Inf) = bandwidth of 1st-order
+            % frequency response
+     
             if ~exist('R', 'var')
                 R = 1;
             end
@@ -24,5 +31,16 @@ classdef pin < apd % inherits methods and properties from apd
             % apd(GaindB, ka, BW, R, Id)
             self@apd(0, 0, BW, R, Id);
         end       
+    
+        function PINtable = summary(self)
+            %% Generate table summarizing class values
+            disp('-- PIN class parameters summary:')
+            rows = {'Responsivity'; 'Dark current'; 'Bandwidth'};
+            Variables = {'R'; 'Id'; 'BW'};
+            Values = [self.R; self.Id*1e9; self.BW/1e9];
+            Units = {'A/W'; 'nA'; 'GHz'};
+
+            PINtable = table(Variables, Values, Units, 'RowNames', rows)
+        end
     end
 end

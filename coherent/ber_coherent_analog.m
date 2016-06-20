@@ -1,5 +1,6 @@
-function ber = ber_coherent_analog_epll(Tx, Fiber, Rx, sim)
-%% Calculate BER of coherent system. Phase estimation is done via electric PLL based on XOR operations
+function ber = ber_coherent_analog(Tx, Fiber, Rx, sim)
+%% Calculate BER of coherent system with analog-based receiver. \
+%% Carrier phase recovery is done either with feedforward or EPLL with phase estimation is done via electric PLL based on XOR operations
 dataTX = randi([0 sim.M-1], [2, sim.Nsymb]); % symbol stream for each polarization
 
 [Vin, symbolsTX] = QAM_SC_Tx(dataTX, Tx, sim); % generates QAM signal
@@ -52,14 +53,23 @@ for k = 1:length(Tx.PlaunchdBm)
           
     %% Pol demux !!! Must be implemented 
     
-    %% Carrier phase recovery via electric PLL (EPLL)
-    switch lower(Analog.CPRmethod)
-        case 'costas' % EPLL via Costas loop
-           [Xs, LoopFilterInput, LoopFilterOutput, Analog] = analog_epll_costas(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim);
-        case 'logic' % EPLL via logic (XOR) operations
-           [Xs, LoopFilterInput, LoopFilterOutput, Analog] = analog_epll_logic(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim);
+    switch lower(Analog.CarrierPhaseRecovery)
+        case 'epll' %% Carrier phase recovery via electric PLL (EPLL)
+            switch lower(Analog.CPRmethod)
+                case 'costas' % EPLL via Costas loop
+                   [Xs, LoopFilterInput, LoopFilterOutput, Analog] = analog_epll_costas(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim);
+                case 'logic' % EPLL via logic (XOR) operations
+                   [Xs, LoopFilterInput, LoopFilterOutput, Analog] = analog_epll_logic(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim);
+                case '4th-power'
+                    [Xs, LoopFilterInput, LoopFilterOutput, Analog] = analog_epll_4thpower(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim);
+                otherwise
+                    error('ber_coherent_analog_epll/invalid electric PLL type %s\nAnalog.receiver must be either Costas or Logic\n', Analog.receiver)
+            end
+        case 'feedforward'
+            [Xs, Analog] = analog_feedforward(Ys, Analog, sim);
         otherwise
-            error('ber_coherent_analog_epll/invalid electric PLL type %s\nAnalog.receiver must be either Costas or Logic\n', Analog.receiver)
+            error('ber_coherent_analog_epll/invalid carrier phase recovery method %s\nAnalog.CarrierPhaseRecovery must be either EPLL, OPLL, or Feedforward\n',...
+                Analog.CarrierPhaseRecovery)
     end
     
     % Sampling
@@ -72,19 +82,14 @@ for k = 1:length(Tx.PlaunchdBm)
     Y(2, :) = sqrt(2/mean(abs(Y(2, :)).^2))*Y(2, :);
     
     % Correct for constant phase rotation
-    phaseShifts = [0 pi/2 pi 3*pi/2 pi/4+[0 pi/2 pi 3*pi/2]];
-    Npoints = sim.Ndiscard:sim.Ndiscard+1e3;
-    errors = zeros(2, length(phaseShifts));
-    for ind = 1:length(phaseShifts)
-        errors(1, ind) = biterr(demodulate(Y(1, Npoints)*exp(1j*phaseShifts(ind))), dataTX(1, Npoints));
-        errors(2, ind) = biterr(demodulate(Y(2, Npoints)*exp(1j*phaseShifts(ind))), dataTX(2, Npoints));
-    end
-     
-    [~, ind1] = min(errors(1, :));
-    [~, ind2] = min(errors(2, :));
+    eq.Ntrain = Inf;
+    eq.mu = 1e-2;
+    [~, phi] = phase_estimation(Y, eq, symbolsTX, sim);  
+    phaseShift(1) = mean(phi(1, end-1000:end));
+    phaseShift(2) = mean(phi(2, end-1000:end));
     
-    Y(1, :) = exp(1j*phaseShifts(ind1))*Y(1, :);
-    Y(2, :) = exp(1j*phaseShifts(ind2))*Y(2, :);
+    Y(1, :) = exp(-1j*phaseShift(1))*Y(1, :);
+    Y(2, :) = exp(-1j*phaseShift(2))*Y(2, :);
     
     % Detection
     dataRX = [demodulate(Y(1, :)); demodulate(Y(2, :))];

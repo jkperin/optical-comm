@@ -8,6 +8,7 @@ classdef apd
         R    % responsivity
         Id   % dark current
     end
+    
     properties (Dependent)
         Fa % excess noise factor
         Geff % effective gain = Gain*Responsivity
@@ -21,13 +22,13 @@ classdef apd
         c = 299792458;      % speed of light
     end
     
-    properties (Constant, GetAccess=protected)
+    properties (Constant, GetAccess=private, Hidden)
         cdf_accuracy = 1-1e-4; % Required accuracy of the cdf (i.e., pmf will have the minimum number of points that satistifes that sum pmf > cdf_accuracy.)
         Niterations = 1e6; % maximum number of iterations in a while loop
         Ptail = 1e-6; % probability of clipped tail
     end
     
-    properties (Dependent, GetAccess=protected)
+    properties (Dependent, GetAccess=private, Hidden)
         a % auxiliary variable G = 1/(1-ab)
         b % auxiliary variable b = 1/(1-ka)
     end
@@ -42,7 +43,7 @@ classdef apd
             %   if BW is 2x1 vector, then 1st element is the low-gain bandwidth 
             %   and the second is the gain-bandwidth product    
             % - R (optional, default = 1 A/W) = responsivity
-            % - Id (optional defualt = 10 nA) = dark current (A)
+            % - Id (optional defualt = 0 nA) = dark current (A)
             
             % Required parameters: GaindB and ka
             this.Gain = 10^(GaindB/10);
@@ -72,6 +73,18 @@ classdef apd
             else 
                 this.Id = 0;
             end
+        end
+        
+        function APDtable = summary(self)
+            %% Generate table summarizing class values
+            disp('-- APD class parameters summary:')
+            rows = {'Gain'; 'Impact ionization factor'; 'Low-gain bandwidth';...
+                'Gain-bandwidth product'; 'Responsivity'; 'Dark current'};
+            Variables = {'Gain'; 'ka'; 'BW0'; 'GainBW'; 'R'; 'Id'};
+            Values = [self.Gain; self.ka; self.BW0/1e9; self.GainBW/1e9; self.R; self.Id*1e9];
+            Units = {''; ''; 'GHz'; 'GHz'; 'A/W'; 'nA'};
+
+            APDtable = table(Variables, Values, Units, 'RowNames', rows)
         end
                            
         %% Get Methods
@@ -203,27 +216,28 @@ classdef apd
                     output = this.R*this.Gain*Pin + sqrt(this.varShot(Pin, fs/2)).*randn(size(Pin));
                     
                 case 'doubly-stochastic' % DEPRECTED
-                    % uses saddlepoint approximation to obtain pmf in order to generate 
-                    % output distributed according to that pmf
-                    Plevels = unique(Pin);
-
-                    output = zeros(size(Pin));
-                    for k = 1:length(Plevels)
-                        [px, x] = this.output_pdf_saddlepoint(Plevels(k), fs, 0); % doesn't include thermal noise here
-
-                        cdf = cumtrapz(x, px);
-
-                        pos = (Pin == Plevels(k));
-
-                        % Sample according to pmf px
-                        u = rand(sum(pos), 1); % uniformly-distributed
-                        dist = abs(bsxfun(@minus, u, cdf));
-                        [~, ix] = min(dist, [], 2);
-                        output(pos) = x(ix); % distributed accordingly to px
-                    end
+                    error('apd/detect: noise_stats = doubly-stochastic is deprected.');
+%                     % uses saddlepoint approximation to obtain pmf in order to generate 
+%                     % output distributed according to that pmf
+%                     Plevels = unique(Pin);
+% 
+%                     output = zeros(size(Pin));
+%                     for k = 1:length(Plevels)
+%                         [px, x] = this.output_pdf_saddlepoint(Plevels(k), fs, 0); % doesn't include thermal noise here
+% 
+%                         cdf = cumtrapz(x, px);
+% 
+%                         pos = (Pin == Plevels(k));
+% 
+%                         % Sample according to pmf px
+%                         u = rand(sum(pos), 1); % uniformly-distributed
+%                         dist = abs(bsxfun(@minus, u, cdf));
+%                         [~, ix] = min(dist, [], 2);
+%                         output(pos) = x(ix); % distributed accordingly to px
+%                     end
                 case 'no noise'
                     % Only amplifies and filters the signal (no noise).
-                    % This is used in estimating the BER
+                    % This is used in estimating the BER and debugging
                     output = this.R*this.Gain*Pin;
                     
                 otherwise 

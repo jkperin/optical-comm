@@ -72,7 +72,7 @@ d_{12} = \frac{n_m-n_r}{c}
 where $n_r \approx 2.15$ is the refractive index of the coplanar waveguide for TM input light. If $n_m$ is only $95\%$ of $n_r$ a significant reduction in bandwidth may occur due to velocity mismatch \cite{Ho2005}.
 
 \subsubsection{Silicon photonics modulator}
-Currently modeled as a second-order system with unit damping. This is based on the assumption that parasitics is the limiting factor in the bandwidth of these devices.
+Currently modeled as a second-order system with unit damping. This is based on the assumption that parasitics capacitances and inductances are the limiting factor in the bandwidth of these devices.
 
 Second-order system with unit damping:
 \begin{equation}
@@ -117,9 +117,9 @@ h_{11}(t) & h_{12}(t) \\
 h_{21}(t) & h_{22}(t) \\
 \end{bmatrix}
 \end{equation}
-In the frequency domain
+In the frequency domain for first-order PMD
 \begin{equation}
-\bm{H}(\omega) = \begin{bmatrix}
+\bm{H}(\omega) = \bm{R}(-\theta)\bm{D}(\omega)\bm{R}(\theta)=\begin{bmatrix}
 \cos\theta & -\sin\theta \\
 \sin\theta & \cos\theta
 \end{bmatrix}\begin{bmatrix}
@@ -265,6 +265,7 @@ Constant Modulus Algorithm (CMA) is a blind equalization algorithm that relies o
 
 For being a blind algorithm, CMA cannot separate the symbols. If there's a fixed phase error CMA will converge to that phase offset. If there's a mismatch between the transmitter and local oscillator, the CMA output will rotate at a rate that is the difference between the two frequencies. For this reason, the constellation diagram after CMA is typically a circle. 
 
+
 \subsection{Frequency Recovery}
 \cite{Hoffmann2008} 
 
@@ -381,7 +382,57 @@ I_i(t) = |A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_n(t)) \\
 I_q(t) = |A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_n(t))
 \end{align}
 
+\section{Power consumption}
+% \begin{table}[t]
+%	\caption{Power consumption \cite{Pillai2014}}
+%	\label{tab:power_consumption}
+%	\centering
+%	\begin{tabular}{l|l|l}
+%		\hline
+%		Component & Power consumption \\
+%		\hline
+%		DAC  & $E_{DAC} = 4F_Dn_dF_s/R_b$     \\
+%		Photodiode & $E_{PD}=8RV_{bias}P_{rx}/R_b$ \\
+%		TIA and ACG & $E_{TIA} = \frac{1.88}{R_b\log_2M}$ \\
+%		ADC & $E_{ADC} = 4F_An_{adc}F_s/R_b$ \\
+%		DSP:CD & $N_{CD} = 0.032R_sL_{km}D_{SMF}/1000$ \\
+%		DSP:TR & 
+%		\hline
+%	\end{tabular}
+%\end{table}
 
+\begin{table}[t]
+	\caption{List of parameters used in Table~\ref{tab:power_consumption}}
+	\label{tab:param}
+	\centering
+	\begin{tabular}{l|l}
+		\hline
+		Parameter & Description \\
+		\hline
+		$M$ & constellation size \\
+		$R_b$ & bit rate \\
+		$R_s$ & symbol rate \\
+		$P_{rx}$ & received power; approximately equal to the LO power \\
+		$F_D$  & DAC figure of merit     \\
+		$n_d$ & DAC resolution \\
+		$R$ & photodiode responsivity \\
+		$V_{bias}$ & photodiode bias voltage \\
+		$F_A$ & ADC figure of merit \\
+		$n_{adc}$ & nominal ADC resolution \\
+		$F_s$ & ADC sampling rate ideally $F_s = r_{os}R_s$ \\
+		$L_{km}$ & Fiber length in km \\
+		$D_{SMF}$ & Fiber dispersion in \\
+		
+		
+		Photodiode & $E_{PD}=8RV_{bias}P_{rx}/R_b$ \\
+		OOFDM signal bandwidth (BW) & $BW \leq 10$ GHz \\
+		Accumulated dispersion ($DL$)  								& $DL \leq 1700$ ps/nm    \\
+		Linewidth enhancement factor ($\alpha$)&  $2 \leq \alpha \leq 5$   \\
+		Adiabatic chirp coefficient ($\kappa$)  & 	$10 \leq \kappa \leq 15$ GHz/mW     \\
+		Average optical power ($P_0$)														 &  $1 \leq P_0 \leq 5$ mW \\
+		\hline
+	\end{tabular}
+\end{table}
 
 
 \bibliographystyle{plain}

@@ -1,12 +1,13 @@
 %% Simulation of DSP-based coherent detection system
 clear, clc, close all
 
-addpath DSP/
-addpath f/
+addpath ../
+addpath ../DSP/
 addpath ../f/
-addpath ../apd/
-addpath ../soa/
-addpath ../mpam/
+addpath ../../f/
+addpath ../../apd/
+addpath ../../soa/
+addpath ../../mpam/
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
@@ -24,11 +25,11 @@ sim.Modulator = 'SiPhotonics';                                                  
 sim.Rs = sim.Rb/(sim.Npol*log2(sim.M));                                     % Symbol Rate
 
 % Simulation
-sim.RIN = true; 
-sim.PMD = true;
-sim.phase_noise = true;
+sim.RIN = ~true; 
+sim.PMD = ~true;
+sim.phase_noise = ~true;
 sim.preAmp = false;
-sim.quantiz = true;
+sim.quantiz = ~true;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Time and frequency
@@ -110,16 +111,6 @@ Fiber.PMD = sim.PMD;                                                       % whe
 Fiber.meanDGDps = 0.1;                                                     % Mean DGD (ps)
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
 
-%% ======================== Optical Amplifier =============================
-% Constructor: soa(GaindB, NF, lamb, maxGain (optional))
-% GaindB : Gain in dB
-% NF : Noise figure in dB
-% lamb : wavelength in m
-% maxGain = maximum amplifier gain in dB, default is Inf
-Amp = soa(20, 7, Tx.Laser.lambda);
-% Note: class soa can be used for any amplifier, since it essentially 
-% characterizes the amplifier in terms of gain and noise figure only
-
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 9.8;                                                           % Total local oscillator power (dBm)
@@ -155,61 +146,14 @@ Rx.PD = pin(1, 10e-9);
 Rx.N0 = (30e-12)^2;                                                        % One-sided thermal noise PSD per real dimension
 % Note: ADC filter includes all the frequecy responses from the receiver
 
-%% ================================= ADC ==================================
-Rx.ADC.ENOB = 4;                                                           % effective number of bits
-Rx.ADC.rclip = 0;                                                          % clipping ratio: clipped intervals: [xmin, xmin + xamp*rclip) and (xmax - xamp*rclip, xmax]
-Rx.ADC.ros = sim.ros;                                                      % oversampling ratio with respect to symbol rate 
-Rx.ADC.fs = Rx.ADC.ros*sim.Rs;                                             % ADC sampling rate
-Rx.ADC.filt = design_filter('cheby1', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
-% ADC filter should include all filtering at the receiver: TIA,
-% antialiasing, etc.
-
-%% ================================= DSP ==================================
-%% Adaptive equalizer
-Rx.AdEq.type  = 'CMA';                                                     % Adaptive equalization type: 'LMS' or 'CMA'. LMS only works when there's no phase noise or frequency offset
-Rx.AdEq.structure = '2 filters';                                           % Structure: '2 filters' or '4 filters'. If '4 filters' corresponds to tranditional implementation, '2 filters' is simplified for short reach
-Rx.AdEq.Ntrain = 1e4;                                                    % Number of symbols used for training (only used if LMS)
-Rx.AdEq.mu = 1e-3;                                                         % Adaptation rate 
-Rx.AdEq.Ntaps = 7;                                                         % Number of taps for each filter
-Rx.AdEq.ros = sim.ros;                                                     % Oversampling ratio
-
-%% Carrrier phase recovery
-% Only used if sim.ModFormat = 'QAM'
-Rx.CPR.type = 'Feedforward';                                               % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
-Rx.CPR.phaseEstimation = 'NDA';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
-Rx.CPR.Delay = 0;                                                       % Delay in number of symbols due to pipelining and parallelization
-Rx.CPR.Ntrain = 1;                                                     % Number of symbols used for training. This training starts when equalization training is done
-% Carrier phase recovery parameters for 'feedforward'
-Rx.CPR.Filter = 'Wiener';                                                  % {'Wiener': Wiener filter, 'Averaging': samples are averaged rather than filtered by Wiener filter}
-Rx.CPR.FilterType = 'FIR';                                                 % Filter type: {'FIR', 'IIR'}
-Rx.CPR.structure = '2 filters';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
-Rx.CPR.Ntaps = 10;                                                          % Maximum number of taps of filter 
-Rx.CPR.NDAorder = 'reverse';                                               % Order of phase estimation (PE) and filtering in NDA FF:{'direct': PE followed by filtering, 'reverse': filtering followed by PE}
-% Carrier phase recovery parameters for 'DPLL'
-Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
-Rx.CPR.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Rx.CPR.wn = 2*pi*0.8e9;                                                    % relaxation frequency of second-order loop filter: optimized using optimize_PLL.m
-% Phase tracking stage
-% This only compensates for constant phase offsets, which may be required
-% since feedforward or DPLL may converge to a rotated constellation when
-% the frequency offset and loop delays are large
-% Phase tracking is adpated using LMS
-Rx.PT.mu = 0.005;
-Rx.PT.Ntrain = 0.1e4;
-
-%% Frequency recovery
-% Used in DQPSK receiver and QPSK with feedforward carrier recovery
-% Frequency recovery algorithm uses 4th power method to estimate frequency
-% offset. Hence, it only works for quaternary modulation formats
-Rx.FreqRec.mu = [0.0005 0];                                                 % Adaptation rate. A vector means that gear shifting is used
-Rx.FreqRec.muShift = 1e4;                                  % Controls when gears are shifted. From 1:muShift(1) use mu(1), from muShift(1)+1:muShift(2) use mu(2), etc
-Rx.FreqRec.Ntrain = 1e4;
-
 %% Generate summary
 generate_summary(sim, Tx, Fiber, Rx);
 
 Tx.PlaunchdBm = -35:-28;
-sim.Nsetup = Rx.AdEq.Ntrain + (Rx.LO.freqOffset~=0)*Rx.FreqRec.Ntrain + sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
 
-ber = ber_coherent_dsp(Tx, Fiber, Rx, sim)
-% ber = ber_coherent_dsp_matched_filtering(Tx, Fiber, Rx, sim)
+berQAM = ber_coherent_dsp_matched_filtering(Tx, Fiber, Rx, sim)
+
+sim.ModFormat = 'DPSK'
+sim.Nsetup = sim.Ndiscard;
+
+berDQPSK = ber_coherent_dsp_matched_filtering(Tx, Fiber, Rx, sim)

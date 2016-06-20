@@ -1,4 +1,4 @@
-function [ber, SNRdB_theory] = ber_coherent_with_matched_filtering(Tx, Fiber, Rx, sim)
+function ber = ber_coherent_dsp_matched_filtering(Tx, Fiber, Rx, sim)
 %% Simulate transmission of coherent system. The receiver consists of 
 %% matched filter matched to the channel impulse response, symbol-rate sampling
 %% and linear equalization
@@ -25,12 +25,10 @@ mpam = PAM(sqrt(sim.M), sim.Rs, 'equally-spaced', @(n) double(n >= 0 & n < sim.M
 Hch = (Tx.filt.H(sim.f/sim.fs).*Tx.Mod.Hel).';
 
 % BER in AWGN channel
-berAWGN = @(SNRdB) berawgn(SNRdB - 3 - 10*log10(log2(M)), lower(sim.ModFormat), M);
-% Note: -3 is due to the fact SNR = 2Es/N0
+ber.theory = ber_coherent_awgn(Tx, Fiber, Rx, sim);
 
 % Transmitted power swipe
 ber.count = zeros(size(Tx.PlaunchdBm));
-ber.theory = zeros(size(Tx.PlaunchdBm));
 for k = 1:length(Tx.PlaunchdBm)
     validInd = 1:sim.Nsymb;
     
@@ -44,8 +42,7 @@ for k = 1:length(Tx.PlaunchdBm)
         Ein = SiPh_optical_mod(Ein, Vin, Tx.Mod);
     end
     
-    % Makes sure that transmitted power is a desired level
-    sum(mean(abs(Ein).^2, 2))/dBm2Watt(Tx.PlaunchdBm(k))
+    % Ensure that transmitted power is a desired level
     Ein = Ein*sqrt(dBm2Watt(Tx.PlaunchdBm(k))/sum(mean(abs(Ein).^2, 2)));
 
     %% ========= Propagation ========== 
@@ -61,19 +58,7 @@ for k = 1:length(Tx.PlaunchdBm)
     [Ydyi, eq] = equalize(eq, real(Y(2, :).'), Hch, mpam, Rx, sim);
     [Ydyq, eq] = equalize(eq, imag(Y(2, :).'), Hch, mpam, Rx, sim);    
     sim.f = sim.f.';
-    
-    % Estimate SNR including noise enhacement penalty
-    Prx = dBm2Watt(Tx.Laser.PdBm)/Fiber.link_attenuation(Tx.Laser.lambda);
-    Plo = dBm2Watt(Rx.LO.PdBm);
-    noiseBW = trapz(sim.f, abs(eq.Hrx.'.*eq.Hff(sim.f/sim.Rs)).^2)/2;
-    noiseBW = sim.Rs/2;
-
-    Ppd = abs(sqrt(Plo/(4*sim.Npol)) + sqrt(Prx/(4*sim.Npol))).^2; % incident power in each photodiode
-    Psig = Plo*Prx/(2*sim.Npol*sim.Npol); % Signal power per real dimension
-    varShot = 2*Rx.PD.varShot(Ppd, noiseBW); % Shot noise variance per real dimension
-    varThermal = Rx.N0*noiseBW; % Thermal noise variance per real dimension
-    SNRdB_theory(k) = 10*log10(2*Psig/(varShot + varThermal));
-    
+        
     % Finer gain control: to make sure that QAM constellation is of the
     % right size
     Enorm = mean(abs(pammod(0:log2(sim.M)-1, log2(sim.M))).^2);
@@ -96,10 +81,7 @@ for k = 1:length(Tx.PlaunchdBm)
     [~, berX(k)] = biterr(dataTX(1, validInd), dataRX(1, :))
     [~, berY(k)] = biterr(dataTX(2, validInd), dataRX(2, :))
     ber.count(k) = 0.5*(berX(k) + berY(k));
-    ber.theory(k) = berAWGN(SNRdB_theory(k))
-    Ps = qfunc(sqrt(0.5*Psig/varThermal));
-    Pe = (1 - (1-Ps).^2)/log2(sim.M)
-    
+
    % Constellation plots
    if sim.Plots.isKey('Constellations') && sim.Plots('Constellations')
        figure(203), clf
@@ -107,7 +89,6 @@ for k = 1:length(Tx.PlaunchdBm)
        axis square
        drawnow
    end
-
 end
 
 plots

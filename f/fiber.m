@@ -18,12 +18,12 @@ classdef fiber < handle
         JonesMatrix % Jones Matrix 
     end
     
-    properties(Constant)
-        S0 = 0.092*1e3;     % dispersion slope (in s/m^3)
+    properties(Constant) % These parameters are only used for the default value of D(lamb)
+        S0 = 0.092*1e3;    % dispersion slope (in s/m^3)
         lamb0 = 1310e-9;   % zero-dispersion wavelength
     end
     
-    properties(Constant, GetAccess=protected)
+    properties(Constant, Hidden)
         c = 299792458;  % speed of light
     end    
 
@@ -55,6 +55,21 @@ classdef fiber < handle
                 obj.D = @(lamb) fiber.S0/4*(lamb - fiber.lamb0^4./(lamb.^3)); % Dispersion curve
             end           
         end
+        
+        function Fibertable = summary(self, lamb)
+            %% Generate table summarizing class values
+            disp('-- Fiber class parameters summary:')
+            lambnm = lamb*1e9;
+            rows = {'Length'; sprintf('Attenuation at %.2f nm', lambnm);...
+                sprintf('Total dispersion at %.2f nm', lambnm); 'PMD included?';...
+                'Total DGD'; 'Polarization dependent loss'};
+            Variables = {'L'; 'att'; 'DL'; 'PMD'; 'tauDGD'; 'PDL'};
+            Values = [self.L/1e3; self.att(lamb); self.D(lamb)*self.L*1e3;...
+                self.PMD; self.tauDGD*1e12; self.PDL];
+            Units = {'km'; 'dB/km'; 'ps/nm'; ''; 'ps'; 'dB'};
+
+            Fibertable = table(Variables, Values, Units, 'RowNames', rows)
+        end
              
         %% Get methods
         function tauDGD = get.tauDGD(self)
@@ -84,7 +99,7 @@ classdef fiber < handle
         end
         
         function Eout = linear_propagation(this, Ein, f, lambda)
-            %% Linear propagation including only dispersion and first-order PMD if pmd flag is set and input signal has 2 dimensions
+            %% Linear propagation including chromatic dispersion and first-order PMD, if PMD flag is set
             % Perform linear propagation including chromatic dispersion,
             % and attenuation
             % Inputs: 
@@ -95,26 +110,30 @@ classdef fiber < handle
             % - Eout, Pout = output electric field and optical power
             % respectively.
             
+            % back-to-back case
             if this.L*this.D(lambda) == 0
                 Eout = Ein;
                 return
             end
             
-            two_pols = false;
-            if all(size(Ein) >= 2) % two pols
-                two_pols = true;
-                if size(Ein, 1) > size(Ein, 2)
-                    Ein = Ein.';
-                end
-                Einf = fftshift(fft(Ein, [], 2), 2);
-            else
-                Einf = fftshift(fft(Ein));
-            end
+            % Make sure that vectors are in the form [1 x N] for 1 pol or [2 x N] for two pols
+            Ein = this.enforceDimConvention(Ein);
+            f = this.enforceDimConvention(f);
+         
+            two_pols = (size(Ein, 1) == 2);
+
+            % Frequency domain
+            Einf = fftshift(fft(Ein, [], 2), 2);
             
             % PMD
             if this.PMD
                 if isempty(this.JonesMatrix) % only calculates Jones Matrix if it doesn't already exist
                     this.generateJonesMatrix(2*pi*f); % 2 x 2 x length(f)
+                end
+                
+                if not(two_pols)
+                    Einf = [Einf; zeros(size(Einf))];
+                    two_pols = true;
                 end
 
                 for k = 1:length(f)
@@ -233,6 +252,13 @@ classdef fiber < handle
     end  
 
     methods(Access=private)
+        function V = enforceDimConvention(~, V)
+            %% Make sure that vector are in the form [1 x N] for 1 pol or [2 x N] for two pols
+            if size(V, 1) > size(V, 2)
+                V = V.';
+            end
+        end
+        
         function M = generateJonesMatrix(self, omega)
             %% Function to generate Jones Matrix, modified from Milad Sharif's code
             Nsect = ceil(self.L/self.PMD_section_length);
