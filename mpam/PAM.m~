@@ -137,6 +137,18 @@ classdef PAM
                 
         end
         
+        function H = Hpshape(self, f, Mct)
+            %% Frequency response of pulse shape
+            % Inputs:
+            % - f: normalized frequency over which Hpshape will be
+            % evaluated
+            % - Mct: oversampling ratio of f. If Mct = 1, f is in the
+            % frequency scale of the transmitter DSP
+            f = f*Mct/self.pulse_shape.sps; % scales frequency vector
+            h = self.pulse_shape.h/abs(sum(self.pulse_shape.h));
+            H = freqz(h, 1, 2*pi*f).*exp(-1j*2*pi*f*grpdelay(h, 1, 1));
+        end        
+        
         function [xt, xd] = signal(self, dataTX)
             %% Generate PAM signal
             % Input:
@@ -150,17 +162,18 @@ classdef PAM
             % Generate data, upsample, filter, and remove group delay
             xd = self.mod(dataTX); % 1 x length(dataTX)
             ximp = upsample(xd, self.pulse_shape.sps);
-            % xt = filter(self.pulse_shape.h, 1, ximp); 
-            xt = filter(ones(1, self.pulse_shape.sps), 1, ximp); 
+            xt = filter(self.pulse_shape.h, 1, ximp); % zero-
             
-%             % Remove group delay so that xt(1) corresponds to pulse center
-%             delay = grpdelay(self.pulse_shape.h, 1, 1);
-%             if not(isInteger(delay))
-%                 warning('mpam/signal: group delay of pulse shaping filter is not interger %2.f. Using %d to remove group delay', delay, round(delay))
-%                 delay = round(delay);
-%             end
-%             xt = [xt(delay+1:end) xt(1:delay)]; 
-%             1;
+            % Remove group delay so that xt(1) corresponds to pulse center
+            delay = round(grpdelay(self.pulse_shape.h, 1, 1));
+            if floor(delay) ~= ceil(delay) % i.e., non-integer
+                warning('mpam/signal: group delay of pulse shaping filter is interger. Resampling was performed so that xt(1) corresponds to pulse center')
+                t = 0:length(xt);
+                xt = interp1(t+delay, xt, t);
+            else % integer
+                xt = [xt(delay+1:end) xt(1:delay)];
+            end 
+            1;
         end
         
         function xd = mod(self, dataTX)

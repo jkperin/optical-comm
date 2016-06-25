@@ -234,7 +234,6 @@ if sim.shouldPlot('Received signal eye diagram')
 end
 
 if sim.shouldPlot('Signal after equalization')
-    mpam = mpam.norm_levels();
     figure(105), clf, box on, hold on
     h1 = plot(yd, 'o');
     a = axis;

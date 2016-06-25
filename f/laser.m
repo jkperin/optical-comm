@@ -11,6 +11,7 @@ classdef laser
     
     properties(Dependent)
         PW % power in Watts
+        wavelength % better name than lambda
     end      
     
     methods
@@ -32,9 +33,36 @@ classdef laser
             end         
         end
         
+        function LaserTable = summary(self)
+            %% Generate table summarizing class values
+            disp('-- Laser class parameters summary:')
+            rows = {'Wavelength'; sprintf('Frequency offset from %.2f nm', self.lambda*1e9);...
+                'Power'; 'Relative intensity noise'; 'Linewidth'};
+            Variables = {'lambda'; 'freqOffset'; 'PdBm'; 'RIN'; 'linewidth'};
+            Values = [self.lambda*1e9; self.freqOffset/1e9; self.PdBm; self.RIN; self.linewidth/1e3];
+            Units = {'nm'; 'GHz'; 'dBm'; 'dB/Hz'; 'kHz'};
+
+            LaserTable = table(Variables, Values, Units, 'RowNames', rows)
+        end
+        
         %% Get Methods
         function PW = get.PW(self)
             PW = dBm2Watt(self.PdBm);
+        end
+        
+        function wavelength = get.wavelength(self)
+            wavelength = self.lambda;
+        end
+        
+        %% Set methods
+        function self = set.wavelength(self, lamb)
+            self.wavelength = lamb;
+            self.lambda = lamb;
+        end
+        
+        function self = set.PW(self, PW)
+            self.PW = PW;
+            self.PdBm = Watt2dBm(PW);
         end
         
         %% Main Methos
@@ -67,7 +95,7 @@ classdef laser
             Pout = Pout + sqrt(self.varRIN(Pout, fs/2)).*randn(size(Pout));
         end
         
-        function Eout = addPhaseNosie(self, Eout, fs)
+        function [Eout, phase_noise] = addPhaseNosie(self, Eout, fs)
             %% Add phase noise
             % Inputs:
             % - Ein: Electric field

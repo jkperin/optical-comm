@@ -40,7 +40,7 @@ Ptx = dBm2Watt(Tx.PtxdBm); % Transmitted power
 ber.awgn = zeros(size(Ptx));
 ber.count = zeros(size(Ptx));
 for k = 1:length(Ptx)
-    Tx.Ptx = Ptx(k);
+    Tx.Laser.PdBm = Tx.PtxdBm(k);
          
     % Montecarlo simulation
     [ber.count(k), ber.awgn(k)] = ber_preamp_sys_montecarlo(mpam, Tx, Fibers, Amp, Rx, sim);
@@ -58,8 +58,5 @@ if isfield(sim, 'Plots') && sim.Plots.isKey('BER') && sim.Plots('BER') && length
     legend('Counted', 'AWGN approximation')
     set(gca, 'FontSize', 12)
     axis([Tx.PtxdBm(1) Tx.PtxdBm(end) -8 0])
-    xlabel('Received power (dBm)', 'FontSize', 12)
-    ylabel('BER', 'FontSize', 12)
-    set(gca, 'FontSize', 12)
 end
     

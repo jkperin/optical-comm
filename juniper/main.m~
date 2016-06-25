@@ -5,7 +5,7 @@
 % only by gain and noise figure, optical bandpass filter, antialiasing 
 % filter, sampling, and linear equalization
 
-clear, clc
+clear, clc, close all
 
 addpath f/ % Juniper project specific functions
 addpath ../mpam % PAM
@@ -38,13 +38,13 @@ sim.Plots = containers.Map();
 sim.Plots('BER') = 1;
 sim.Plots('Eye diagram of DAC output') = 0;
 sim.Plots('Optical eye diagram') = 0;
-sim.Plots('Received signal eye diagram') = 0;
-sim.Plots('Signal after equalization') = 0;
-sim.Plots('Equalizer') = 0;
-sim.Plots('Adaptation MSE') = 0;
-sim.Plots('Ouptut signal') = 0;
+sim.Plots('Received signal eye diagram') = 1;
+sim.Plots('Signal after equalization') = 1;
+sim.Plots('Equalizer') = 1;
+sim.Plots('Adaptation MSE') = 1;
+sim.Plots('Ouptut signal') = 1;
 sim.Plots('Heuristic noise pdf') = 0;
-sim.Plots('Frequency response') = 0;
+sim.Plots('Frequency response') = 1;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
 %% Pulse shape
@@ -85,7 +85,7 @@ sim.f = f;
 
 %% Transmitter
 Tx.PtxdBm = -30:-15; % transmitter power range
-% Tx.PtxdBm = -15; % transmitter power range
+Tx.PtxdBm = -15; % transmitter power range
 
 Tx.rexdB = -22;  % extinction ratio in dB. Defined as Pmin/Pmax
 Tx.alpha = 0; % chirp parameter for laser or modulator
@@ -156,7 +156,7 @@ Rx.ADC.rclip = 0;
 Rx.eq.ros = sim.ros.rxDSP;
 Rx.eq.type = 'Adaptive TD-LE';
 % Rx.eq.type = 'Fixed TD-SR-LE';
-Rx.eq.Ntaps = 7;
+Rx.eq.Ntaps = 31;
 Rx.eq.mu = 1e-2;
 Rx.eq.Ntrain = 0.5e4; % Number of symbols used in training (if Inf all symbols are used)
 Rx.eq.Ndiscard = [1e4 512]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc

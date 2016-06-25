@@ -20,7 +20,7 @@ if not(exist('Hrx', 'var')) % check if ADC filter is defined
     Hrx = ifftshift(ADC.filt.H(sim.f/sim.fs).*... % rx filter frequency response
         exp(1j*2*pi*sim.f/sim.fs*(sim.Mct-1)/2)); % time shift so that first sample correspond to the center of symbol
 else % if Hrx exists use Hrx instead. This is typically a matched filter
-    Hrx = ifftshift(Hrx.*exp(1j*2*pi*sim.f/sim.fs*((sim.Mct-1)/2))); % time shift so that first sample correspond to the center of symbol
+    Hrx = ifftshift(Hrx.*exp(1j*2*pi*sim.f/sim.fs*((sim.Mct-1)/2)-1)); % time shift so that first sample correspond to the center of symbol
 end
 
 xa = real(ifft(fft(x).*Hrx)); % filter                                   

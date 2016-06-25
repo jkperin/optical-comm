@@ -1,7 +1,10 @@
-% 1. frequency response
-% 2. Modulator nonlinearity (not implemented)
-% 3. Adds intensity noise (if sim.RIN = true)
-% 4. Adds chirp if tx.alpha is defined
+% Models an intensity modulator with the following effects
+%     1. frequency response
+%     2. Modulator nonlinearity (not implemented)
+%     3. Adds intensity noise (if sim.RIN = true)
+%     4. Adds chirp if tx.alpha is defined
+% This could be used to model an electro-absorption external modulator or a
+% directly modulated laser
 
 function [Et, Pt] = optical_modulator(xt, tx, sim)
     %% Apply frequency response of the modulator

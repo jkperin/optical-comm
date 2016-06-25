@@ -156,56 +156,39 @@ classdef fiber < handle
             Hele = exp(this.L*Dw);
         end
                
-        function Hf = H(this, f, tx)
-            %% Fiber small-signal frequency response assuming transient chirp dominant
+        function Hf = Himdd(self, f, wavelength, alpha, type)
+            %% Fiber frequency response for an IM-DD system with transient chirp dominant
             % This transfer function is for optical power not electic field
             % i.e., Hfiber(f) = Pout(f)/Pin(f).
             % Inputs:
-            % - f = frequency vector (Hz)
-            % - tx = transmitter struct. Required fields: lamb (wavelenth
+            % - f: frequency vector (Hz)
+            % - wavelength: wavelength (m)
+            % - alpha (optional, default alpha = 0): chirp parameter with
+            % sign convention such that for DML alpha > 0
+            % - type (optional, default type = 'small signal')
             % in m), and alpha (optional, default zero) (chirp paramter). 
-                        
-            beta2 = this.beta2(tx.lamb);
-
-            % CD frequency response
-            theta = -1/2*beta2*(2*pi*f).^2*this.L; % theta = -1/2*beta2*w.^2*L
-
-            if isfield(tx, 'alpha') % if chirp parameter is defined
-                alpha = tx.alpha;
-            else
+ 
+            if not(exist('alpha', 'var')) % if chirp parameter is not defined
                 alpha = 0;
             end
             
-            Hf = cos(theta) - alpha*sin(theta);  % fiber small-signal frequency response
-        end
-        
-        function Hf = Hlarge_signal(self, f, tx)
-            %% Fiber large-signal frequency response assuming transient chirp dominant
-            % Peral, E., Yariv, A., & Fellow, L. (2000). Large-Signal Theory of the Effect
-            % of Dispersive Propagation on the Intensity Modulation Response of Semiconductor Lasers. 
-            % Journal of Lightwave Technology, 18(1), 84?89.
-            % This transfer function is for optical power not electic field
-            % i.e., Hfiber(f) = Pout(f)/Pin(f).
-            % Inputs:
-            % - f = frequency vector (Hz)
-            % - tx = transmitter struct. Required fields: lamb (wavelenth
-            % in m), and alpha (optional, default zero) (chirp paramter).
-            beta2 = self.beta2(tx.lamb);
-
-            % CD frequency response
+            beta2 = self.beta2(wavelength);
             theta = -1/2*beta2*(2*pi*f).^2*self.L; % theta = -1/2*beta2*w.^2*L
-
-            if isfield(tx, 'alpha') % if chirp parameter is defined
-                alpha = tx.alpha;
+            
+            if exist('type', 'var') && strcmpi(type, 'large signal')
+                %% Large signal
+                mIM = 0.7; % assumes worst case i.e., signal fully modulated
+                Dphi = pi/2; % i.e., transient chirp dominant
+                mFM = alpha/2*mIM;
+                u = 2*mFM*sin(theta);
+                Hf = cos(theta).*(besselj(0, u) - besselj(2, u)*exp(1j*Dphi)) - 2*exp(1j*Dphi)/(1j*mIM)*besselj(1, u);  % fiber large-signal frequency response                 
+            elseif not(exist('type', 'var')) || strcmpi(type, 'small signal')
+                %% Small signal
+                Hf = cos(theta) - alpha*sin(theta);  % fiber small-signal frequency response
             else
-                alpha = 0;
+                error('fiber/Hf: undefined type of fiber frequency response')
             end
             
-            mIM = 1; % assumes worst case i.e., signal fully modulated
-            Dphi = pi/2; % i.e., transient chirp dominant
-            mFM = alpha/2*mIM;
-            u = 2*mFM*sin(theta);
-            Hf = cos(theta).*(besselj(0, u) - besselj(2, u)*exp(1j*Dphi)) - 2*exp(1j*Dphi)/(1j*mIM)*besselj(1, u);  % fiber large-signal frequency response                       
         end
         
         function tau = calcDGD(self, omega)
