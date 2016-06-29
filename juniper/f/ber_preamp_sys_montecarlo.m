@@ -12,93 +12,77 @@ function [ber_count, ber_awgn] = ber_preamp_sys_montecarlo(mpam, Tx, Fibers, Amp
 % Normalized frequency
 f = sim.f/sim.fs;
 
-% ZOH and DAC frequency response
-Nhold = sim.Mct/Tx.DAC.ros;
-hZOH = 1/Nhold*ones(1, Nhold);
-Hdac = Tx.DAC.filt.H(f).*freqz(hZOH, 1, f)...
-    .*exp(1j*2*pi*f*(Nhold-1)/2);
-
-% Modulator frequency response
-if isfield(Tx, 'Mod')
-    Hmod = Tx.Mod.H; % group delay was already removed
-else
-    Hmod = 1;
-end
-
-% Photodiode frequency response
-Hpd = Rx.PD.H(sim.f);
-
-% Channel frequency response
-Hch = Hdac.*Hmod.*Hpd;
-
 % Ajust levels to desired transmitted power and extinction ratio
 mpam = mpam.adjust_levels(Tx.Ptx, Tx.rexdB);
 mpam = mpam.norm_levels();
 
-% Modulated PAM signal
-dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence
-xd = mpam.signal(dataTX); % Generates signal at the DAC sampling rate
+%% Modulated PAM signal
+dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence   
+xd = mpam.signal(dataTX);
 
-% Predistortion to compensate for MZM non-linear response
+%% Driver
+% Adjust signal amplitude and DC bias to properly drive intensity modulator
 assert(Tx.Mod.Vbias >= Tx.Mod.Vswing/2, 'ber_preamp_sys_montecarlo: Vbias must be greater or equal than Vswing/2')
+
 xd = xd - mean(xd); % Remove DC bias, since modulator is IM-MZM
-xd = Tx.Mod.Vswing/2*xd/max(abs(xd)) + Tx.Mod.Vbias; % Normalized to have excursion from approx +-Vswing 
+xmax = max(xd); % this takes into account penalty due to enhanced PAPR after pulse shapping 
+xd = Tx.Mod.Vswing/2*xd/xmax + Tx.Mod.Vbias; % Normalized to have excursion from approx +-Vswing 
 % Note: Vswing and Vswing and Vbias are normalized by Vpi/2. This scaling
 % and offset is done before the DAC in order to have right pre-distortion
 % function, and not to have the right voltage values that will drive the
 % modulator
 
-xd = 2/pi*asin(sqrt(xd)); % apply predistortion
+assert(all(xd >= 0) & all(xd <= 1), 'ber_preamp_sys_montecarlo: Generated modulator driving signal is out of the specified range. Voltage swing (Tx.Mod.Vswing) may be too large or the bias voltage (Tx.Mod.Vbias) may be incorrect.');
 
-% DAC
-% Driving signal xd must be normalized by Vpi
+%% Predistortion to compensate for MZM non-linear response
+if isfield(sim, 'predistortion') && strcmpi(sim.predistortion, 'after pulse shapping')    
+    xd = 2/pi*asin(sqrt(xd)); % apply predistortion
+end    
+
+%% DAC
+% Set DAC time offset in order to remove group delay due to pulse shaping. 
+% This way the first sample of xt will be the center of the first pulse. 
+% This is only important for plotting.
+Tx.DAC.offset = sim.Mct/mpam.pulse_shape.sps*(length(mpam.pulse_shape.h)-1)/2;
+
 xt = dac(xd, Tx.DAC, sim);
-% DAC response preserves amplitude of xd, hence no 
-
-% Pulse shaping
-% Note: the order of pulse shaping and DAC is interchanged just to make
-% pulse shapping operation easier. Essentially, this way we're doing pulse
-% shaping filtering after upsampling and ZOH. All those operations are
-% linear, so the two systems are equivalent.
-if strcmpi(Tx.pulse_shape.type, 'rect') % if rectangular just calculates transfer function
-    Hpshape = freqz(ones(1, sim.Mct)/sim.Mct, 1, f)...
-    .*exp(1j*2*pi*f*(sim.Mct-1)/2);
-else
-    Hpshape = freqz(Tx.pulse_shape.h/abs(sum(Tx.pulse_shape.h)), 1, sim.f, Tx.DAC.fs)...
-        .*exp(1j*2*pi*sim.f/Tx.DAC.fs*(length(Tx.pulse_shape.h)-1)/2); % remove group delay
-    
-    xt = real(ifft(fft(xt).*ifftshift(Hpshape)));
-end
+% Note: Driving signal xd must be normalized by Vpi
 
 % Discard first and last symbols
 xt(1:sim.Mct*sim.Ndiscard) = 0; % zero sim.Ndiscard first symbols
 xt(end-sim.Mct*sim.Ndiscard+1:end) = 0; % zero sim.Ndiscard last symbbols
 
-% Generate optical signal
+%% Generate optical signal
 Tx.Laser.PdBm = Watt2dBm(Tx.Ptx);
 Ecw = Tx.Laser.cw(sim);
 Etx = mzm(Ecw, xt, Tx.Mod);
 
+% Chirp
+% Adds transient chirp just to measure its effect. MZM in push pull should
+% have no chirp
+if isfield(Tx, 'alpha') && Tx.alpha ~= 0
+    disp('chirp added!')
+    Etx = Etx.*exp(1j*Tx.alpha/2*log(abs(Etx).^2));
+end
+
 % Adjust power to make sure desired power is transmitted
 Etx = Etx*sqrt(Tx.Ptx/mean(abs(Etx).^2));
 
-% Fiber propagation
+%% Fiber propagation
 Erx = Etx;
 link_gain = Amp.Gain*Rx.PD.R;
 for k = 1:length(Fibers)
-    fiberk = Fibers(k);
-   
-    Hch = Hch.*fiberk.Himdd(sim.f, Tx.Laser.wavelength, Tx.alpha, 'large signal'); % frequency response of the channel (used in designing the equalizer)
+    fiberk = Fibers(k); 
     
     Erx = fiberk.linear_propagation(Erx, sim.f, Tx.Laser.wavelength); % propagation through kth fiber in Fibers
     
     link_gain = link_gain*fiberk.link_attenuation(Tx.Laser.wavelength);
 end
 
-% Amplifier
+%% Pre-amplifier
 Erx = Amp.amp(Erx, sim.fs);
 
-% Optical bandpass filter
+%% Optical bandpass filter
 Hopt = ifftshift(Rx.optfilt.H(f));
 Erx = [ifft(fft(Erx(1, :)).*Hopt);...
     ifft(fft(Erx(2, :)).*Hopt)];
@@ -109,13 +93,13 @@ Erx = [ifft(fft(Erx(1, :)).*Hopt);...
 % noise)
 yt = Rx.PD.detect(Erx, sim.fs, 'gaussian', Rx.N0);
 
-% Automatic gain control
+%% Automatic gain control
 mpam = mpam.norm_levels();
 yt = yt - mean(yt);
-yt = yt*sqrt(var(mpam.a)/(sqrt(2)*mean(abs(yt(sim.Mct/2:sim.Mct:end).^2))));
+yt = yt*sqrt(var(mpam.a)/(sqrt(2)*mean(abs(yt(1:sim.Mct:end).^2))));
 yt = yt + mean(mpam.a);
 
-% ADC
+%% ADC
 % ADC performs filtering, quantization, and downsampling
 % For an ideal ADC, ADC.ENOB = Inf
 switch lower(Rx.filtering)
@@ -129,21 +113,20 @@ switch lower(Rx.filtering)
         error('ber_preamp_sys_montecarlo: Rx.filtering must be either antialiasing or matched')
 end     
 
-Hch = Hch.*Hrx;
-
-% Equalization
+%% Equalization
 Rx.eq.trainSeq = dataTX;
-[yd, Rx.eq] = equalize(Rx.eq, yk, Hch, mpam, sim);
+[yd, Rx.eq] = equalize(Rx.eq, yk, [], mpam, sim);
 
 % Symbols to be discard in BER calculation
 ndiscard = [1:Rx.eq.Ndiscard(1)+sim.Ndiscard (sim.Nsymb-Rx.eq.Ndiscard(2)-sim.Ndiscard):sim.Nsymb];
+ydfull = yd;
 yd(ndiscard) = []; 
 dataTX(ndiscard) = [];
 
-% Demodulate
+%% Demodulate
 dataRX = mpam.demod(yd.');
 
-% Counted BER
+%% Counted BER
 [~, ber_count] = biterr(dataRX, dataTX);
 
 %% AWGN approximation
@@ -220,7 +203,7 @@ end
 if sim.shouldPlot('Received signal eye diagram')
     mpam = mpam.norm_levels();
     Ntraces = 500;
-    Nstart = sim.Ndiscard*sim.Mct + 1 - ceil((sim.Mct-1)/2);
+    Nstart = sim.Ndiscard*sim.Mct + 1;
     Nend = min(Nstart + Ntraces*2*sim.Mct, length(ytf));
     figure(104), clf, box on, hold on
     eyediagram(ytf(Nstart:Nend), 2*sim.Mct)
@@ -228,7 +211,7 @@ if sim.shouldPlot('Received signal eye diagram')
     a = axis;
     h1 = plot(a(1:2), mpam.a*[1 1], '-k');
     h2 = plot(a(1:2), mpam.b*[1 1], '--k');
-    h3 = plot(ceil((sim.Mct-1)/2)*[1 1], a(3:4), 'k');
+    h3 = plot((sim.Mct+1)*[1 1], a(3:4), 'k');
     legend([h1(1) h2(1) h3], {'Levels', 'Decision thresholds', 'Sampling point'})
     drawnow
 end
@@ -236,7 +219,7 @@ end
 if sim.shouldPlot('Signal after equalization')
     mpam = mpam.norm_levels();
     figure(105), clf, box on, hold on
-    h1 = plot(yd, 'o');
+    h1 = plot(ydfull, 'o');
     a = axis;
     h2= plot(a(1:2), mpam.a*[1 1], '-k');
     h3 = plot(a(1:2), mpam.b*[1 1], '--k');
@@ -245,21 +228,7 @@ if sim.shouldPlot('Signal after equalization')
     legend([h1 h2(1) h3(1) h4], {'Equalized samples', 'PAM levels',...
         'Decision thresholds', 'BER measurement window'})
     title('Signal after equalization')
-    drawnow
-end
-
-if sim.shouldPlot('Frequency response')
-    fplot = sim.f(sim.f > 0)/1e9;
-    vind = sim.f > 0;
-    figure(107), clf, box on, hold on
-    plot(fplot, abs(Hpshape(vind)).^2)
-    plot(fplot, abs(Hdac(vind)).^2)
-    plot(fplot, abs(Hmod(vind)).^2)
-    plot(fplot, abs(Hrx(vind)).^2)
-    xlabel('Frequency (GHz)')
-    ylabel('|H(f)|^2')
-    legend('Pulse shape', 'DAC', 'Modulator', 'Receiver filtering')
-%     axis([0 2*mpam.Rs 0 1.2])
+    axis([1 sim.Nsymb -0.2 1.2])
     drawnow
 end
 

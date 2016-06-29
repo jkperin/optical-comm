@@ -8,33 +8,43 @@ function [ber, mpam] = preamplified_sys_ber(mpam, Tx, Fibers, Amp, Rx, sim)
 % - Amp: pre-amplifier using SOA class
 % - Rx: struct with receiver parameters
 % - sim: struct with simulation parameters
-
-%% Polarizer is always disregarded so number of noise polarizations is 2
-% %% Level Spacing Optimization
-% if strcmp(mpam.level_spacing, 'optimized')
-%     % is sim.stats is set to Gaussian, then use Gaussian approximation,
-%     % otherwise uses accurate statistics
-%     if isfield(sim, 'stats') && strcmp(sim.stats, 'gaussian')        
-%         % Optimize levels using Gaussian approximation
-%         mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, Tx.rexdB, noise_std, sim.verbose);     
-%     else
-%         % Optimize levels using accurate noise statisitics
-%         [a, b] = level_spacing_optm(mpam, tx, soa, rx, sim);
-%         mpam = mpam.set_levels(a, b);
-%     end
-% end   
-
-% Calculate total (residual) dispersion
+ 
+%% Calculate total (residual) dispersion
 Dtotal = 0;
+Hfiber = ones(size(sim.f));
 for k = 1:length(Fibers)
     fiberk = Fibers(k);
+    
+    Hfiber = Hfiber.*fiberk.Himdd(sim.f, Tx.Laser.wavelength, Tx.alpha, 'large signal'); % frequency response of the channel (used in designing the equalizer)
     
     Dtotal = Dtotal + fiberk.D(Tx.Laser.lambda)*fiberk.L;
 end
 
 fprintf('Total dispersion at %.2f nm: %.3f ps/nm\n', Tx.Laser.lambda*1e9, 1e3*Dtotal)
 
-%% BER
+%% Calculate components frequency response
+f = sim.f/sim.fs;
+
+% pulse shape
+Hpshape = freqz(mpam.pulse_shape.h/abs(sum(mpam.pulse_shape.h)), 1, sim.f, mpam.pulse_shape.sps*mpam.Rs);
+
+% ZOH and DAC frequency response
+Nhold = sim.Mct/Tx.DAC.ros;
+hZOH = 1/Nhold*ones(1, Nhold);
+Hdac = Tx.DAC.filt.H(f).*freqz(hZOH, 1, f)...
+    .*exp(1j*2*pi*f*(Nhold-1)/2);
+
+% Modulator frequency response
+if isfield(Tx, 'Mod')
+    Hmod = Tx.Mod.H; % group delay was already removed
+else
+    Hmod = ones(size(f));
+end
+
+% Antialiasing filter
+Hrx = Rx.ADC.filt.H(f);
+
+%% Calculate BER
 Ptx = dBm2Watt(Tx.PtxdBm); % Transmitted power
 
 ber.awgn = zeros(size(Ptx));
@@ -51,7 +61,7 @@ for k = 1:length(Ptx)
 end
 
 %% Plots
-if isfield(sim, 'Plots') && sim.Plots.isKey('BER') && sim.Plots('BER') && length(ber.count) > 1
+if sim.shouldPlot('BER') && length(ber.count) > 1
     figure(1), hold on, box on
     hline = plot(Tx.PtxdBm, log10(ber.count), '-o', 'LineWidth', 2);
     plot(Tx.PtxdBm, log10(ber.awgn), '-', 'Color', get(hline, 'Color'), 'LineWidth', 2)
@@ -61,5 +71,25 @@ if isfield(sim, 'Plots') && sim.Plots.isKey('BER') && sim.Plots('BER') && length
     xlabel('Received power (dBm)', 'FontSize', 12)
     ylabel('BER', 'FontSize', 12)
     set(gca, 'FontSize', 12)
+    drawnow
+end
+
+if sim.shouldPlot('Channel frequency response')
+    fplot = sim.f/1e9;
+    figure(107), clf, box on, hold on
+    plot(fplot, abs(Hpshape).^2)
+    plot(fplot, abs(Hdac).^2)
+    plot(fplot, abs(Hmod).^2)
+    plot(fplot, abs(Hfiber).^2)
+%     plot(fplot, abs(Hpd).^2)
+    plot(fplot, abs(Hrx).^2)
+    xlabel('Frequency (GHz)', 'FontSize', 12)
+    ylabel('|H(f)|^2', 'FontSize', 12)
+    leg = legend('Pulse Shape', 'DAC', 'Modulator', 'Fiber', 'Receiver filtering');
+    set(leg, 'FontSize', 12)
+    set(gca, 'FontSize', 12)
+    a = axis;
+    axis([0 2*mpam.Rs/1e9 0 a(4)])
+    drawnow
 end
     

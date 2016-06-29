@@ -22,5 +22,6 @@ mpam/trash/
 coherent/DSP/old/
 coherent/trash/
 coherent/
-ofdm/
 gui/
+*.m~
+juniper/figs/

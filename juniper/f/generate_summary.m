@@ -2,7 +2,7 @@ function generate_summary(mpam, Tx, Fibers, EDFA, Rx, sim)
 %% Simulation parameters
 disp('Simulation parameters summary')
 
-rows = {'Bit rate'; 'Number of Variables'; 'Oversampling to emulate continuous time';...
+rows = {'Bit rate'; 'Number of symbols'; 'Oversampling to emulate continuous time';...
     'Oversampling ratio of transmitter DSP'; 'Oversampling ratio of receiver DSP'; 'Target BER'};
 Variables = {'Rb'; 'Nsymb'; 'Mct'; 'ros.txDSP'; 'ros.rxDSP'; 'BERtarget'};
 Values = [sim.Rb/1e9; sim.Nsymb; sim.Mct; sim.ros.txDSP; sim.ros.rxDSP; sim.BERtarget];
@@ -38,13 +38,13 @@ EDFA.summary();
 %% Receiver paramaters
 disp('Receiver parameters summary')
 
-rows = {'RX DSP oversampling ratio'; 'Thermal noise one-sided PSD'; 'Optical filter type'; 'Optical filter order';...
+rows = {'RX DSP oversampling ratio'; 'Thermal noise one-sided PSD'; 'Optical filter type';...
     'Optical filter bandwidth';...
     'Equalizer type'; 'Equalizer Ntaps'; 'Equalizer adptation rate'};
     
-Variables = {'ADC.ros'; 'N0'; 'optfilt.type';'optfilt.order'; 'optfilt.fcnorm'; 'eq.type'; 'eq.Ntaps'; 'eq.mu'};
-Values = {Rx.ADC.ros; Rx.N0; Rx.optfilt.type; Rx.optfilt.order; Rx.optfilt.fcnorm*sim.fs/1e9; Rx.eq.type; Rx.eq.Ntaps; Rx.eq.mu};
-Units = {''; 'W/Hz'; ''; ''; 'GHz'; ''; ''; ''};
+Variables = {'ADC.ros'; 'N0'; 'optfilt.type'; 'optfilt.fcnorm'; 'eq.type'; 'eq.Ntaps'; 'eq.mu'};
+Values = {Rx.ADC.ros; Rx.N0; Rx.optfilt.type; Rx.optfilt.fcnorm*sim.fs/1e9; Rx.eq.type; Rx.eq.Ntaps; Rx.eq.mu};
+Units = {''; 'W/Hz'; ''; 'GHz'; ''; ''; ''};
 
 rxTable = table(Variables, Values, Units, 'RowNames', rows)
 

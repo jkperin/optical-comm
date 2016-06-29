@@ -139,6 +139,8 @@ classdef PAM
         
         function [xt, xd] = signal(self, dataTX)
             %% Generate PAM signal
+            % Note: group delay due to pulse shaping filtering is not
+            % removed
             % Input:
             % - dataTX = transmitted symbols from 0 to M-1
             % Outputs:
@@ -150,17 +152,7 @@ classdef PAM
             % Generate data, upsample, filter, and remove group delay
             xd = self.mod(dataTX); % 1 x length(dataTX)
             ximp = upsample(xd, self.pulse_shape.sps);
-            % xt = filter(self.pulse_shape.h, 1, ximp); 
-            xt = filter(ones(1, self.pulse_shape.sps), 1, ximp); 
-            
-%             % Remove group delay so that xt(1) corresponds to pulse center
-%             delay = grpdelay(self.pulse_shape.h, 1, 1);
-%             if not(isInteger(delay))
-%                 warning('mpam/signal: group delay of pulse shaping filter is not interger %2.f. Using %d to remove group delay', delay, round(delay))
-%                 delay = round(delay);
-%             end
-%             xt = [xt(delay+1:end) xt(1:delay)]; 
-%             1;
+            xt = filter(self.pulse_shape.h, 1, ximp); 
         end
         
         function xd = mod(self, dataTX)
@@ -311,7 +303,7 @@ classdef PAM
             dataTX = randi([0 self.M-1], [1 1024]);
             xt = self.signal(dataTX);
             
-            eyediagram(xt, 2*Mct, Mct)
+            eyediagram(xt, 2*Mct)
             title('Eye diagram')
             figure, box on
             self.pulse_shape.h = self.norm_filter_coefficients(self.pulse_shape.h); % normalize to preserve levels amplitude

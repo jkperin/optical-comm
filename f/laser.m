@@ -106,9 +106,9 @@ classdef laser
             Eout = Eout.*exp(1j*phase_noise); % adds phase noise
         end
         
-        function Pout = addTransientChirp(self, Pout)
+        function Eout = addTransientChirp(self, Eout)
             %% Add chirp
-            Pout = Pout.*exp(1j*self.alpha/2*log(Pout));
+            Eout = Eout.*exp(1j*self.alpha/2*log(abs(Eout).^2));
         end
         
         function Eout = cw(self, sim)

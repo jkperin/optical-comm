@@ -14,7 +14,7 @@ function [yd, eq] = equalize(eq, yt, Hch, mpam, sim)
 %       - mu (if adaptive): adaptation rate
 %       - MSE (if adaptive): mean square error
 % - yt: input signal
-% - Hch: channel frequency response including pulse shape
+% - Hch (required if fixed equalizer): channel frequency response including pulse shape
 % - mpam: mpam class
 % - sim: simulation parameters struct
 % Outputs:
@@ -45,13 +45,6 @@ end
 ytsize = size(yt);
 if ytsize(1) == 1
     yt = yt.';
-end
-
-% If channel response isn't define don't do equalization
-if isempty(Hch)
-    eq.type = 'None';
-else % normalize channel response to have unit gain at DC
-    Hch = Hch/interp1(sim.f, Hch, 0);   % normalize to unit gain at DC 
 end
 
 % if yt is empty i.e., only design filter, then change equalization type
@@ -142,6 +135,7 @@ switch lower(eq.type)
         end
         Ntaps = eq.Ntaps;
         
+        Hch = Hch/interp1(sim.f, Hch, 0);   % normalize to unit gain at DC 
         Hmatched = conj(Hch); % matched filterd matched to the received pulse shape
 
         %% MMSE Time-domain symbol-rate equalizer
