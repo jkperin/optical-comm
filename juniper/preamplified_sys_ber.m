@@ -11,16 +11,17 @@ function [ber, mpam] = preamplified_sys_ber(mpam, Tx, Fibers, Amp, Rx, sim)
  
 %% Calculate total (residual) dispersion
 Dtotal = 0;
-Hfiber = ones(size(sim.f));
 for k = 1:length(Fibers)
     fiberk = Fibers(k);
-    
-    Hfiber = Hfiber.*fiberk.Himdd(sim.f, Tx.Laser.wavelength, Tx.alpha, 'large signal'); % frequency response of the channel (used in designing the equalizer)
     
     Dtotal = Dtotal + fiberk.D(Tx.Laser.lambda)*fiberk.L;
 end
 
 fprintf('Total dispersion at %.2f nm: %.3f ps/nm\n', Tx.Laser.lambda*1e9, 1e3*Dtotal)
+
+% Create fiber object with equivalent dispersion.
+equivFiber = fiber(1, @(lamb) 0, @(lamb) Dtotal);
+Hfiber = equivFiber.Himdd(sim.f, Tx.Laser.wavelength, Tx.alpha, 'large signal'); % frequency response of the channel (used in designing the equalizer)
 
 %% Calculate components frequency response
 f = sim.f/sim.fs;

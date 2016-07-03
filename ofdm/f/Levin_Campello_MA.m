@@ -35,7 +35,7 @@ end
 dE = @(bn, gn) dEvector(bn, gn, beta, Gamma);
 
 % Minimum number of bits per constellation
-bmin = 2;
+bmin = 0;
 
 %% 1. Choose any b
 % b = 2*ones(size(GNR));
@@ -95,16 +95,26 @@ end
 assert(k ~= MaxIt, 'B-tighten did not converge!')
 assert(sum(b) == B, 'LC did not converge')
 
-CS = 2.^b;
-Pn = (Gamma(b)./GNR).*(CS-1); % since b = log2(1 + PnGNRn/Gamman)
-Gamman = Gamma(b);
+CS = zeros(size(b));
+CS(b~=0) = 2.^b(b~=0);
+Pn = zeros(size(b));
+Pn(b~=0) = (Gamma(b(b~=0))./GNR(b~=0)).*(CS(b~=0)-1); % since b = log2(1 + PnGNRn/Gamman)
+Gamman = zeros(size(b));
+Gamman(b~=0) = Gamma(b(b~=0));
+end
 
 function dEn = dEvector(bn, gn, beta, Gamma) 
+%% Incremental energy: E(b) - E(b - beta)
+    E = @(bn, gn) 2*(Gamma(bn)./gn).*(2.^bn-1); %% Energy function for QAM constellation with gap approximation
 
-% Energy function for QAM constellation with gap approximation
-E = @(bn, gn) 2*(Gamma(bn)./gn).*(2.^bn-1); 
-
-dEn = zeros(size(bn));
-for k = 1:length(bn)
-    dEn(k) = E(bn(k), gn(k)) - E(bn(k)-beta, gn(k)); % Incremental energy
+    dEn = zeros(size(bn));
+    for k = 1:length(bn)
+        if bn(k) == 0
+            dEn(k) = Inf;
+        elseif bn(k) == 1
+            dEn(k) = E(bn(k), gn(k));
+        else
+            dEn(k) = E(bn(k), gn(k)) - E(bn(k)-beta, gn(k)); % Incremental energy
+        end
+    end
 end

@@ -65,6 +65,10 @@ classdef soa
     %% Main Methods
     methods
         function sig2 = var_awgn(this, Plevel, Deltaf, Deltafopt, Npol)
+            warning('soa/var_awgn: use varAWGN instead')
+            sig2 = this.varAWGN(Plevel, Deltaf, Deltafopt, Npol);
+        end
+        function sig2 = varAWGN(this, Plevel, Deltaf, Deltafopt, Npol)
             %% Noise variance using AWGN approximation
             % - Plevel = power before amplifier
             % - Deltaf = Noise bandwidth of electric filter
