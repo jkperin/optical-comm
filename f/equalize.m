@@ -129,8 +129,10 @@ switch lower(eq.type)
         eq.Hff = @(f) freqz(eq.h(:, 1), 1, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.h(:, 1), 1, 1)); % removed group delay
         eq.MSE = abs(e).^2;
    
-    case 'fixed td-sr-le'   
-        if eq.ros ~= 1
+    case 'fixed td-sr-le' 
+        if not(isfield(eq, 'ros'))
+            eq.ros = 1;
+        elseif eq.ros ~= 1
             warning('equalize/eq.ros = %.2f, but symbol-rate equalization is set', eq.ros)
         end
         Ntaps = eq.Ntaps;
@@ -183,7 +185,7 @@ switch lower(eq.type)
         % Aux
         eq.h = W;
         eq.Hff = @(f) freqz(eq.h, 1, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.h, 1, 1)); % removed group delay
-          
+        eq.Hrx = Hmatched; 
     otherwise
         error('equalize: Equalization type *%s* not implemented yet!', eq.type)
 end

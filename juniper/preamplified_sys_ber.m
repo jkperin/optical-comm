@@ -70,7 +70,7 @@ if sim.shouldPlot('BER') && length(ber.count) > 1
     set(gca, 'FontSize', 12)
     axis([Tx.PtxdBm(1) Tx.PtxdBm(end) -8 0])
     xlabel('Received power (dBm)', 'FontSize', 12)
-    ylabel('BER', 'FontSize', 12)
+    ylabel('log_{10}(BER)', 'FontSize', 12)
     set(gca, 'FontSize', 12)
     drawnow
 end

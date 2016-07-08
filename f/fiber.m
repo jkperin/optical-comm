@@ -225,7 +225,7 @@ classdef fiber < handle
                 self.PMD; self.meanDGDps];
             Units = {'km'; 'dB/km'; 'ps/nm'; ''; 'ps'};
 
-            Fibertable = table(Variables, Values, Units, 'RowNames', rows)
+            Fibertable = table(Variables, Values, Units, 'RowNames', rows);
         end
         
     end  

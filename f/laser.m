@@ -42,7 +42,7 @@ classdef laser
             Values = [self.lambda*1e9; self.freqOffset/1e9; self.PdBm; self.RIN; self.linewidth/1e3];
             Units = {'nm'; 'GHz'; 'dBm'; 'dB/Hz'; 'kHz'};
 
-            LaserTable = table(Variables, Values, Units, 'RowNames', rows)
+            LaserTable = table(Variables, Values, Units, 'RowNames', rows);
         end
         
         %% Get Methods

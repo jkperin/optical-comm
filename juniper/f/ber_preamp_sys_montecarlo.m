@@ -12,18 +12,31 @@ function [ber_count, ber_awgn] = ber_preamp_sys_montecarlo(mpam, Tx, Fibers, Amp
 % Normalized frequency
 f = sim.f/sim.fs;
 
-% Ajust levels to desired transmitted power and extinction ratio
-mpam = mpam.adjust_levels(Tx.Ptx, Tx.rexdB);
-mpam = mpam.norm_levels();
-
-%% Modulated PAM signal
 dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence   
-xd = mpam.signal(dataTX);
+
+%% Duobinary enconding
+if isfield(sim, 'duobinary') && sim.duobinary
+    mpamdb = mpam.set_levels(0:mpam.M-1, 0.5 + (0:mpam.M-2));    
+    
+    xd = mpamdb.signal(dataTX); % Modulated PAM signal
+    
+    xd = duobinary_encoding(xd);
+    
+    xd_enc = xd;
+else
+    % Ajust levels to desired transmitted power and extinction ratio
+    mpam = mpam.adjust_levels(Tx.Ptx, Tx.rexdB);
+    mpam = mpam.norm_levels(); % presevers extinction ratio
+    
+    xd = mpam.signal(dataTX); % Modulated PAM signal
+end  
+
+%% Predistortion to compensate for MZM non-linear response
+if isfield(sim, 'predistortion') && strcmpi(sim.predistortion, 'levels')    
+    xd = sqrt(abs(xd)).*sign(xd); % apply predistortion
+end  
 
 %% Driver
-% Adjust signal amplitude and DC bias to properly drive intensity modulator
-assert(Tx.Mod.Vbias >= Tx.Mod.Vswing/2, 'ber_preamp_sys_montecarlo: Vbias must be greater or equal than Vswing/2')
-
 xd = xd - mean(xd); % Remove DC bias, since modulator is IM-MZM
 xmax = max(xd); % this takes into account penalty due to enhanced PAPR after pulse shapping 
 xd = Tx.Mod.Vswing/2*xd/xmax + Tx.Mod.Vbias; % Normalized to have excursion from approx +-Vswing 
@@ -32,12 +45,10 @@ xd = Tx.Mod.Vswing/2*xd/xmax + Tx.Mod.Vbias; % Normalized to have excursion from
 % function, and not to have the right voltage values that will drive the
 % modulator
 
-assert(all(xd >= 0) & all(xd <= 1), 'ber_preamp_sys_montecarlo: Generated modulator driving signal is out of the specified range. Voltage swing (Tx.Mod.Vswing) may be too large or the bias voltage (Tx.Mod.Vbias) may be incorrect.');
-
 %% Predistortion to compensate for MZM non-linear response
-if isfield(sim, 'predistortion') && strcmpi(sim.predistortion, 'after pulse shapping')    
-    xd = 2/pi*asin(sqrt(xd)); % apply predistortion
-end    
+if isfield(sim, 'predistortion') && strcmpi(sim.predistortion, 'analog')    
+    xd = 2/pi*asin(sqrt(abs(xd))).*sign(xd); % apply predistortion
+end  
 
 %% DAC
 % Set DAC time offset in order to remove group delay due to pulse shaping. 
@@ -95,13 +106,20 @@ yt = Rx.PD.detect(Erx, sim.fs, 'gaussian', Rx.N0);
 
 %% Automatic gain control
 mpam = mpam.norm_levels();
-yt = yt - mean(yt);
-yt = yt*sqrt(var(mpam.a)/(sqrt(2)*mean(abs(yt(1:sim.Mct:end).^2))));
-yt = yt + mean(mpam.a);
+if isfield(sim, 'duobinary') && sim.duobinary
+    yt = yt - mean(yt);
+    yt = yt*sqrt(var(mpam.a)/(sqrt(2)*mean(abs(yt).^2)));
+    yt = yt + mean(mpam.a);   
+else 
+    yt = yt - mean(yt);
+    yt = yt*sqrt(var(mpam.a)/(sqrt(2)*mean(abs(yt).^2)));
+    yt = yt + mean(mpam.a); 
+end
 
 %% ADC
 % ADC performs filtering, quantization, and downsampling
 % For an ideal ADC, ADC.ENOB = Inf
+% Rx.ADC.offset = -1;
 switch lower(Rx.filtering)
     case 'antialiasing' % receiver filter is specified in ADC.filt
         Hrx = Rx.ADC.filt.H(f);
@@ -112,6 +130,11 @@ switch lower(Rx.filtering)
     otherwise
         error('ber_preamp_sys_montecarlo: Rx.filtering must be either antialiasing or matched')
 end     
+
+%% Finer gain control
+yk = yk - mean(yt);
+yk = yk*sqrt(var(mpam.a)/(sqrt(2)*mean(abs(yk).^2)));
+yk = yk + mean(mpam.a);
 
 %% Equalization
 Rx.eq.trainSeq = dataTX;
@@ -160,7 +183,7 @@ end
 % Noise std for intensity level Plevel
 Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
 noise_std = @(Plevel) sqrt(varTherm + Rx.PD.varShot(Plevel, noiseBW) + Rx.PD.R^2*varRIN(Plevel)...
-    + Rx.PD.R^2*Amp.var_awgn(Plevel/Amp.Gain, noiseBW, BWopt, Npol));
+    + Rx.PD.R^2*Amp.varAWGN(Plevel/Amp.Gain, noiseBW, BWopt, Npol));
 % Note: Plevel is divided by amplifier gain to obtain power at the amplifier input
 
 % AWGN approximation

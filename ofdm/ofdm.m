@@ -68,7 +68,7 @@ classdef ofdm < handle
                 self.powerAllocationType; self.fs/1e9; self.Rs/1e9};
             Units = {''; ''; ''; 'Gbit/s'; ''; ''; ''; 'GHz', 'Gbaud'};
 
-            ofdmTable = table(Variables, Values, Units, 'RowNames', rows)
+            ofdmTable = table(Variables, Values, Units, 'RowNames', rows);
         end
         
         

@@ -62,7 +62,7 @@ classdef PAM
             Values = {self.M; self.Rs; self.level_spacing; self.pulse_shape.type};
             Units = {''; 'Gbaud'; ''; ''};
 
-            PAMtable = table(Variables, Values, Units, 'RowNames', rows)
+            PAMtable = table(Variables, Values, Units, 'RowNames', rows);
         end
         
         %% Get methods
@@ -80,6 +80,15 @@ classdef PAM
         function self = set_levels(self, levels, thresholds)
             %% Set levels to desired values
             % Levels and decision thresholds are normalized that last level is unit
+            assert(length(levels) == self.M, 'mpam/set_levels: invalid number of levels');
+            assert(length(thresholds) == self.M-1, 'mpam/set_levels: invalid number of decision thresholds');
+            if size(levels, 1) < size(levels, 2) % ensure levels are M x 1 vector
+                levels = levels.'; 
+            end
+            if size(thresholds, 1) < size(thresholds, 2)  % ensure thresholds are M x 1 vector
+                thresholds = thresholds.';
+            end
+                
             self.a = levels;
             self.b = thresholds;
         end

@@ -1,4 +1,4 @@
-function [xa, xqzoh] = dac(x, DAC, sim)
+function [xa, xqzoh, xq] = dac(x, DAC, sim, verbose)
 %% Digital-to-analog conversion: quantize, sample and hold with ZOH, and analog filtering
 % Inputs:
 % - x : input signal already at the DAC sampling rate
@@ -19,9 +19,11 @@ function [xa, xqzoh] = dac(x, DAC, sim)
 %     - f : frequency vector
 %     - fs : sampling frequency to emulate continuous time
 %     - Mct : oversampling ratio to emulate continuous time
+% - verbose: whether to plot
 % Outputs:
 % - xa : output signal at rate sim.fs
 % - xqzoh : signal before analog filtering (after ZOH)
+% - xq: quantized outputs
 
 % Quantize
 if isfield(sim, 'quantiz') && sim.quantiz && ~isinf(DAC.resolution)
@@ -81,17 +83,25 @@ else
 end
                                 
 % Plot
-if sim.shouldPlot('Eye diagram of DAC output')  
+if exist('verbose', 'var') && verbose
     Ntraces = 100;
     Nstart = sim.Ndiscard*sim.Mct+1;
     Nend = min(Nstart + Ntraces*2*sim.Mct, length(xa));
     figure(301)
-    subplot(211), box on
+    subplot(221), box on
     eyediagram(xqzoh(Nstart:Nend), 2*sim.Mct)
     title('Eye diagram after ZOH')
-    subplot(212), box on
+    subplot(222), box on
     eyediagram(xa(Nstart:Nend), 2*sim.Mct)
 %     eyediagram(xa(Nstart:Nend), 2*sim.Mct, sim.Mct, ceil(sim.Mct/2))
-    title('Eye diagram of DAC output')
+    title('DAC output eye diagram')
+    subplot(223), box on
+    plot(sim.f/1e9, abs(fftshift(fft(xa-mean(xa)))).^2)
+    xlabel('Frequency (GHz')
+    ylabel('|X(f)|^2')
+    title('DAC output spectrum')
+    a = axis;
+    axis([-DAC.fs/1e9 DAC.fs/1e9 a(3:4)])
+    subplot(224)
     drawnow
 end

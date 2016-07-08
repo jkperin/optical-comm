@@ -19,7 +19,7 @@ sim.Modulator = 'MZM'; % 'MZM' only
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
 sim.PMD = false; % whether to simulate PMD
-sim.quantiz = true; % whether quantization is included
+sim.quantiz = ~true; % whether quantization is included
 sim.stopSimWhenBERReaches0 = true; % stop simulation when counted BER reaches 0
 
 % Control what should be plotted
@@ -51,8 +51,8 @@ f = -sim.fs/2:df:sim.fs/2-df;
 sim.f = f;
 
 %% Transmitter
-Tx.PtxdBm = -25:-12; % transmitter power range
-% Tx.PtxdBm = -24; % transmitter power range
+Tx.PtxdBm = -28:-15; % transmitter power range
+% Tx.PtxdBm = -20; % transmitter power range
 
 Tx.rexdB = -22;  % extinction ratio in dB. Defined as Pmin/Pmax
 Tx.alpha = 0; % chirp parameter for laser or modulator
@@ -61,7 +61,7 @@ Tx.alpha = 0; % chirp parameter for laser or modulator
 Tx.DAC.fs = ofdm.fs; % DAC sampling rate
 Tx.DAC.ros = 1; % oversampling ratio of transmitter DSP
 Tx.DAC.resolution = 5; % DAC effective resolution in bits
-Tx.DAC.filt = design_filter('butter', 3, 20e9/(sim.fs/2)); % DAC analog frequency response
+Tx.DAC.filt = design_filter('butter', 5, 30e9/(sim.fs/2)); % DAC analog frequency response
 TX.DAC.rclip = 0.05;
 
 %% Laser
@@ -75,7 +75,7 @@ Tx.Laser = laser(1550e-9, 0, -150, 0.2e6, 0);
 
 %% Modulator
 Tx.Mod.type = sim.Modulator;    
-Tx.Mod.BW = 30e9;
+Tx.Mod.BW = 25e9;
 Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
 Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
 Tx.Mod.Vbias = 0.5; % bias voltage normalized by Vpi
