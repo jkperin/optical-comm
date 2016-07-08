@@ -64,10 +64,7 @@ Analog.EPLL.dens = [1 0 0]; % descending powers of s
 fprintf('Loop filter fn: %.3f GHz\n', Analog.wn/(2*pi*1e9));
 
 % Loop filter
-numz = Analog.EPLL.numz;
-denz = Analog.EPLL.denz;
-numLen = length(numz);
-denLen = length(denz);
+LoopFilter = ClassFilter(Analog.EPLL.numz, Analog.EPLL.denz, sim.fs);
 
 %% Loop
 X = zeros(4, length(sim.t));
@@ -80,7 +77,7 @@ Yxq = imag(Ys(1, :));
 Yyi = real(Ys(2, :));
 Yyq = imag(Ys(2, :));
 
-for t = max([LoopDelaySamples sim.Mct numLen denLen])+1:length(sim.t)
+for t = LoopDelaySamples+1:length(sim.t)
     % VCO: generates VCO output
     Vcos = cos(Sf(t-LoopDelaySamples));
     Vsin = sin(Sf(t-LoopDelaySamples));
@@ -102,15 +99,16 @@ for t = max([LoopDelaySamples sim.Mct numLen denLen])+1:length(sim.t)
     S(t) = AdderXY.add(Sx, Sy);
 
     % Loop filter
-    Sf(t) = sum(numz.*S(t:-1:t-numLen+1))...
-        - sum(Sf(t-1:-1:t-denLen+1).*denz(2:end));  
+    Sf(t) = LoopFilter.filter(S(t));  
 end
 
 % Build output
 Xs = [X(1, :) + 1j*X(2, :); X(3, :) + 1j*X(4, :)];
 
-% Sampling
+% Remove delay
 delay = round((Mx1.groupDelay + Sx1.groupDelay)*sim.fs); % Group delay of four quadrant multiplier
 Xs = [Xs(:, delay+1:end) Xs(:, 1:delay)]; % remove group delay
 
+% Rotate constellation by pi/4
+Xs = Xs*exp(1j*pi/4);
 

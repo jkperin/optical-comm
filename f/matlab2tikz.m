@@ -8,7 +8,7 @@ classdef matlab2tikz < handle
         ylabel
         legendLocation
         legendPosition = [];
-        autoColorSelection = true;
+        autoColorSelection = false;
     end
     
     properties(GetAccess=private, Hidden)

@@ -68,7 +68,7 @@ classdef fiber < handle
                 self.PMD; self.tauDGD*1e12; self.PDL];
             Units = {'km'; 'dB/km'; 'ps/nm'; ''; 'ps'; 'dB'};
 
-            Fibertable = table(Variables, Values, Units, 'RowNames', rows)
+            Fibertable = table(Variables, Values, Units, 'RowNames', rows);
         end
              
         %% Get methods

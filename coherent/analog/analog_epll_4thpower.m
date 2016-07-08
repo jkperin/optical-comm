@@ -64,14 +64,10 @@ Analog.EPLL.dens = [1 0 0]; % descending powers of s
 fprintf('Loop filter fn: %.3f GHz\n', Analog.wn/(2*pi*1e9));
 
 % Loop filter
-numz = Analog.EPLL.numz;
-denz = Analog.EPLL.denz;
-numLen = length(numz);
-denLen = length(denz);
+LoopFilter = ClassFilter(Analog.EPLL.numz, Analog.EPLL.denz, sim.fs);
 
 %% Loop
 X = zeros(4, length(sim.t));
-Xd = zeros(4, length(sim.t));
 S = zeros(size(sim.t));
 Sf = zeros(size(sim.t));
 
@@ -80,7 +76,7 @@ Yxq = imag(Ys(1, :));
 Yyi = real(Ys(2, :));
 Yyq = imag(Ys(2, :));
 
-for t = max([LoopDelaySamples sim.Mct numLen denLen])+1:length(sim.t)
+for t = LoopDelaySamples+1:length(sim.t)
     % VCO: generates VCO output
     Vcos = cos(Sf(t-LoopDelaySamples));
     Vsin = sin(Sf(t-LoopDelaySamples));
@@ -98,8 +94,7 @@ for t = max([LoopDelaySamples sim.Mct numLen denLen])+1:length(sim.t)
     S(t) = AdderXY.add(Sx, Sy);
 
     % Loop filter
-    Sf(t) = sum(numz.*S(t:-1:t-numLen+1))...
-        - sum(Sf(t-1:-1:t-denLen+1).*denz(2:end));  
+    Sf(t) = LoopFilter.filter(S(t));  
 end
 
 % Build output

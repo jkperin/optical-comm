@@ -40,7 +40,7 @@ classdef pin < apd % inherits methods and properties from apd
             Values = [self.R; self.Id*1e9; self.BW/1e9];
             Units = {'A/W'; 'nA'; 'GHz'};
 
-            PINtable = table(Variables, Values, Units, 'RowNames', rows)
+            PINtable = table(Variables, Values, Units, 'RowNames', rows);
         end
     end
 end

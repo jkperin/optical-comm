@@ -1,19 +1,19 @@
-classdef AnalogFilter 
+classdef ClassFilter < handle
     properties 
         ideal=true % whether it is assumed to be ideal
-        num
-        den
-        fs
+        num % numerator = num(1) + num(2)z^-1 + num(3)z^-2+...
+        den % denominator = den(1) + den(2)z^-2 + den(3)z^-2+...
+        fs % sampling frequency
     end
     
     properties(GetAccess=protected)
-        implementationType
+        implementationType % FIR or IIR
         memForward % register for forward path
         memFeedback % register for feedback path
     end
     
     methods
-        function obj = AnalogFilter(num, den, fs)
+        function obj = ClassFilter(num, den, fs)
             %% Constructor     
             obj.num = num;
             obj.den = den;
@@ -34,14 +34,12 @@ classdef AnalogFilter
                 y = filter(self.filt.num, self.filt.den, x);
                 return
             end
-            num = self.filt.num; % numerator = num(1) + num(2)z^-1 + num(3)z^-2+...
-            den = self.filt.den(2:end); % denominator = den(1) + den(2)z^-2 + den(3)z^-2+...
-             
+
             self.memForward = self.shiftState(self.memForward, x);
             if strcmpi(self.implementationType, 'FIR')
-                y = sum(self.memForward.*num);
+                y = sum(self.memForward.*self.num);
             else
-                y = (sum(self.memForward.*num)- sum(self.memFeedback.*den))/self.filt.den(1);
+                y = (sum(self.memForward.*self.num)- sum(self.memFeedback.*self.den(2:end)))/self.den(1);
                 self.memFeedback = self.shiftState(self.memFeedback, y);
             end
         end
@@ -82,8 +80,8 @@ classdef AnalogFilter
             
             figure, hold on, box on
             plot(inputSignal)
-            plot(outputSignal)
-            plot(filter(self.filt.num, self.filt.den, inputSignal), '--');
+            plot(outputSignal, 'r')
+            plot(filter(self.num, self.den, inputSignal), '--k');
             legend('Input signal', 'Output signal', 'Output signal using matlab function filter')
         end  
     end

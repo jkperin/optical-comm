@@ -69,6 +69,7 @@ Plots('Diff group delay')       = 0;
 Plots('Phase error') = 0;
 Plots('EPLL phase error') = 0;
 sim.Plots = Plots;
+sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
 %% ===================== Transmitter Electric Filter ====================== 
 Tx.filt = design_filter('bessel', 5, 0.7*sim.Rs/(sim.fs/2));               % design_filter(type, order, normalized cutoff frequency)

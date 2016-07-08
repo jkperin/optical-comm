@@ -16,8 +16,8 @@ classdef tikzplot
         tab = 9;
         mlineStyles = {'none', '-', '--', ':'};
         tikzlineStyles = {'none', 'solid', 'dashed', 'dotted'};
-        mmarkerStyles = {'none', 'o', 's'};
-        tikzmarkerStyles = {'none', '*', 'square*'}; % filled by default
+        mmarkerStyles = {'none', 'o', 's', '+', 'x', '*'};
+        tikzmarkerStyles = {'none', '*', 'square*', '+', 'x', 'asterisk'}; % filled by default
     end
     
     methods

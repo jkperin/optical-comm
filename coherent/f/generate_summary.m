@@ -28,7 +28,7 @@ Units = {'Gb/s'; ''; ''; '';...
 simTable = table(Variables, Values, Units, 'RowNames', rows)
 
 %% Transmitter laser parameters
-tx.Laser.summary();
+tx.Laser.summary()
 
 %% Transmitter paramaters
 disp('-- Transmitter parameters summary:')
@@ -44,7 +44,7 @@ Units = {''; 'GHz'; ''; ''; 'GHz'};
 txTable = table(Variables, Values, Units, 'RowNames', rows)
 
 %% Fiber
-fiber.summary(tx.Laser.lambda);
+fiber.summary(tx.Laser.lambda)
 
 %% Receiver paramaters
 disp('-- Receiver parameters summary')
@@ -57,10 +57,10 @@ Units = {'W/Hz';};
 rxTable = table(Variables, Values, Units, 'RowNames', rows)
 
 %% Local Oscillator
-rx.LO.summary();
+rx.LO.summary()
 
 %% Photodiode
-rx.PD.summary();
+rx.PD.summary()
 
 %% ADC
 if isfield(rx, 'ADC')

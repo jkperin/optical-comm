@@ -84,7 +84,7 @@ classdef apd
             Values = [self.Gain; self.ka; self.BW0/1e9; self.GainBW/1e9; self.R; self.Id*1e9];
             Units = {''; ''; 'GHz'; 'GHz'; 'A/W'; 'nA'};
 
-            APDtable = table(Variables, Values, Units, 'RowNames', rows)
+            APDtable = table(Variables, Values, Units, 'RowNames', rows);
         end
                            
         %% Get Methods

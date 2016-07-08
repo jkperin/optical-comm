@@ -41,7 +41,7 @@ classdef laser
             Values = [self.lambda*1e9; self.freqOffset/1e9; self.PdBm; self.RIN; self.linewidth/1e3];
             Units = {'nm'; 'GHz'; 'dBm'; 'dB/Hz'; 'kHz'};
 
-            LaserTable = table(Variables, Values, Units, 'RowNames', rows)
+            LaserTable = table(Variables, Values, Units, 'RowNames', rows);
         end
         
         %% Get Methods
@@ -90,9 +90,9 @@ classdef laser
             Eout = Eout.*exp(1j*phase_noise); % adds phase noise
         end
         
-        function Pout = addTransientChirp(self, Pout)
-            %% Add chirp
-            Pout = Pout.*exp(1j*self.alpha/2*log(Pout));
+        function Eout = addTransientChirp(self, Ein)
+            %% Add transient chirp
+            Eout = Ein.*exp(1j*self.alpha/2*log(abs(Ein).^2));
         end
         
         function Eout = cw(self, sim)

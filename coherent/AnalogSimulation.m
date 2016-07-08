@@ -11,9 +11,9 @@ addpath ../mpam/
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
-sim.Mct = 12;    % Oversampling ratio to simulate continuous time 
+sim.Mct = 8;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
+sim.Ndiscard = 1024; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
 sim.ModFormat = 'QAM';                                                     % either 'QAM' or 'DPSK'
@@ -51,6 +51,7 @@ Plots('Diff group delay')       = 0;
 Plots('Phase error') = 0;
 Plots('EPLL phase error') = 0;
 sim.Plots = Plots;
+sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
 %% ===================== Transmitter Electric Filter ====================== 
 Tx.filt = design_filter('bessel', 5, 0.7*sim.Rs/(sim.fs/2));               % design_filter(type, order, normalized cutoff frequency)
@@ -100,7 +101,7 @@ Tx.Mod = Mod;                                                              % opt
 % deafault is att(lamb) = 0 dB/km
 % D(lamb) : function handle of dispersion (D) at wavelength (lamb) in ps/(kmnm),
 % default is D(lamb) = SSMF with lamb0 @ 1310 ps/(kmnm)
-Fiber = fiber(0e3);
+Fiber = fiber(2e3);
 Fiber.PMD = sim.PMD;                                                       % whether to similate PMD
 Fiber.meanDGDps = 0.1;                                                     % Mean DGD (ps)
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
@@ -117,8 +118,8 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
-Rx.LO.PdBm = 9.8;                                                           % Total local oscillator power (dBm)
-Rx.LO.freqOffset = 0.1e9;                                                    % Frequency shift with respect to transmitter laser in Hz
+Rx.LO.PdBm = 15;                                                           % Total local oscillator power (dBm)
+Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -155,10 +156,10 @@ Rx.N0 = (30e-12)^2;                                                        % One
 Analog.filt = design_filter('butter', 5, 0.7*sim.Rs/(sim.fs/2));
 
 % Carrier Phase recovery type: either 'EPLL' or 'OPLL'
-Analog.CarrierPhaseRecovery = 'Feedforward';
+Analog.CarrierPhaseRecovery = 'EPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations}
-Analog.CPRmethod = '4th-power';                                            
+Analog.CPRmethod = 'Costas';                                            
 
 componentFilter = []; %design_filter('bessel', 1, 0.7*sim.Rs/(sim.fs/2));
 componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
@@ -195,10 +196,27 @@ Analog.Comparator.filt = componentFilter;
 % Loop filter
 Analog.Kdc = 1;                                                            % DC gain
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 20e-12;                                                     % Loop delay in s
+Analog.Delay = 100e-12;                                                     % Loop delay in s
 
 Rx.Analog = Analog;
 
+%% ========================= Time recovery ============================
+% % Squarer (spectral line method: nonlinearity -> BPF)
+% Rx.TimeRec.type = 'squarer';
+% BW = 1e9;
+% lpf = design_filter('bessel', 5, BW/(sim.fs/2));
+% [bpf.num, bpf.den] = iirlp2bp(lpf.num, lpf.den, BW/(sim.fs/2), mpam.Rs/(sim.fs/2) + BW/(sim.fs/2)*[-1 1]);
+% Rx.TimeRec.bpf = bpf;
+% Rx.TimeRec.bpf.H = @(f) freqz(bpf.num, bpf.den, 2*pi*f).*exp(1j*2*pi*f*grpdelay(bpf.num, bpf.den, 1));
+
+% M&M (decision directed method using 1 sample per symbol)
+Rx.TimeRec.type = 'Mueller-Muller';
+Rx.TimeRec.csi = sqrt(2)/2; % damping
+Rx.TimeRec.wn = 2*pi*3e9; % relaxation frequency of PLL
+Rx.TimeRec.CT2DT = 'bilinear'; % continuous-time to discrete-time conversion method 
+Rx.TimeRec.detect = @(x) sign(x); % decision 
+
+%% Simulation swipe
 Tx.PlaunchdBm = -35:-25;
 Tx.PlaunchdBm = -20;
 sim.Nsetup = sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)

@@ -38,29 +38,30 @@ for k = 1:length(Tx.PlaunchdBm)
 
     %% ========= Propagation ========== 
     Erec = Fiber.linear_propagation(Ein, sim.f, Tx.Laser.lambda);
+    % Note: since polarization demultiplexing is not done here, the fiber
+    % must maitain polarization states
     
     %% ========= Receiver =============
-    Y = dual_pol_coherent_receiver(Erec, sim.M, Rx, sim);
+    Ys = dual_pol_coherent_receiver(Erec, sim.M, Rx, sim);
     
-    % Receiver filter
+    %% Receiver filter
     Hrx = ifftshift(Analog.filt.H(sim.f/sim.fs));
-    Yxi = real(ifft(fft(real(Y(1, :))).*Hrx));
-    Yxq = real(ifft(fft(imag(Y(1, :))).*Hrx));
-    Yyi = real(ifft(fft(real(Y(2, :))).*Hrx));
-    Yyq = real(ifft(fft(imag(Y(2, :))).*Hrx));
+    Yxi = real(ifft(fft(real(Ys(1, :))).*Hrx));
+    Yxq = real(ifft(fft(imag(Ys(1, :))).*Hrx));
+    Yyi = real(ifft(fft(real(Ys(2, :))).*Hrx));
+    Yyq = real(ifft(fft(imag(Ys(2, :))).*Hrx));
 
     Ys = [Yxi + 1j*Yxq; Yyi + 1j*Yyq];
-          
-    %% Pol demux !!! Must be implemented 
     
+    %% Carrier phase recovery
     switch lower(Analog.CarrierPhaseRecovery)
         case 'epll' %% Carrier phase recovery via electric PLL (EPLL)
             switch lower(Analog.CPRmethod)
-                case 'costas' % EPLL via Costas loop
+                case 'costas' % EPLL using Costas loop for phase estimation
                    [Xs, LoopFilterInput, LoopFilterOutput, Analog] = analog_epll_costas(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim);
-                case 'logic' % EPLL via logic (XOR) operations
+                case 'logic' % EPLL using logic (XOR) operations for phase estimation
                    [Xs, LoopFilterInput, LoopFilterOutput, Analog] = analog_epll_logic(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim);
-                case '4th-power'
+                case '4th-power' % EPLL using 4th-power for phase estimation
                     [Xs, LoopFilterInput, LoopFilterOutput, Analog] = analog_epll_4thpower(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim);
                 otherwise
                     error('ber_coherent_analog_epll/invalid electric PLL type %s\nAnalog.receiver must be either Costas or Logic\n', Analog.receiver)
@@ -72,26 +73,52 @@ for k = 1:length(Tx.PlaunchdBm)
                 Analog.CarrierPhaseRecovery)
     end
     
-    % Sampling
-    Y = Xs(:, sim.Mct/2:sim.Mct:end);  
-    % Note: decisions could be obtained directly from Xd. Xs is used here 
-    % instead so we can see the constellation 
+    %% Time recovery and sampling
+    % Note: clock obtained from I is used in Q in order to prevent
+    % differences in sampling in I and Q
+    Y(1, :) = analog_time_recovery(Xs(1, :), Rx.TimeRec, sim);
+    Y(2, :) = analog_time_recovery(Xs(2, :), Rx.TimeRec, sim);
     
     % Automatic gain control
     Y(1, :) = sqrt(2/mean(abs(Y(1, :)).^2))*Y(1, :);
     Y(2, :) = sqrt(2/mean(abs(Y(2, :)).^2))*Y(2, :);
     
-    % Correct for constant phase rotation
-    eq.Ntrain = Inf;
-    eq.mu = 1e-2;
-    [~, phi] = phase_estimation(Y, eq, symbolsTX, sim);  
-    phaseShift(1) = mean(phi(1, end-1000:end));
-    phaseShift(2) = mean(phi(2, end-1000:end));
+    %% Align symbol sequence and correct for phase rotation
+    [c(1, :), ind] = xcorr(symbolsTX(1, :), Y(1, :), 20, 'coeff');
+    c(2, :) = xcorr(symbolsTX(2, :), Y(2, :), 20, 'coeff');
+       
+    % maximum correlation position
+    [~, p] = max(abs(c), [], 2);
+    theta = [angle(c(1, p(1))), angle(c(2, p(2)))];
     
-    Y(1, :) = exp(-1j*phaseShift(1))*Y(1, :);
-    Y(2, :) = exp(-1j*phaseShift(2))*Y(2, :);
+    % Circularly shift symbol sequence
+    Y = [circshift(Y(1, :), [0 ind(p(1))]);...
+        circshift(Y(2, :), [0 ind(p(2))])];
+       
+    % Rotate constellations accordingly
+    Y = [Y(1, :).*exp(+1j*theta(1));...
+        Y(2, :).*exp(+1j*theta(2))];
     
-    % Detection
+%     % Sampling
+%     Y = Xs(:, sim.Mct/2:sim.Mct:end);  
+%     % Note: decisions could be obtained directly from Xd. Xs is used here 
+%     % instead so we can see the constellation 
+%     
+%     % Automatic gain control
+%     Y(1, :) = sqrt(2/mean(abs(Y(1, :)).^2))*Y(1, :);
+%     Y(2, :) = sqrt(2/mean(abs(Y(2, :)).^2))*Y(2, :);
+%     
+%     % Correct for constant phase rotation
+%     eq.Ntrain = Inf;
+%     eq.mu = 1e-2;
+%     [~, phi] = phase_estimation(Y, eq, symbolsTX, sim);  
+%     phaseShift(1) = mean(phi(1, end-1000:end));
+%     phaseShift(2) = mean(phi(2, end-1000:end));
+%     
+%     Y(1, :) = exp(-1j*phaseShift(1))*Y(1, :);
+%     Y(2, :) = exp(-1j*phaseShift(2))*Y(2, :);
+    
+    %% Detection
     dataRX = [demodulate(Y(1, :)); demodulate(Y(2, :))];
     
     dataRX(:, [1:sim.Ndiscard end-sim.Ndiscard+1:end]) = []; % discard first and last sim.Ndiscard symbols
@@ -105,13 +132,13 @@ for k = 1:length(Tx.PlaunchdBm)
     ber.count(k) = 0.5*(berX(k) + berY(k));
     
    % Constellation plots
-   if sim.Plots.isKey('Constellations') && sim.Plots('Constellations')
+   if sim.shouldPlot('Constellations')
        figure(203), clf
        subplot(121)
        plot_constellation(Y(1, sim.Ndiscard+1:end-sim.Ndiscard),...
            dataTX(1, sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
        axis square
-       title('Pol X')   
+       title('Pol X')       
       subplot(122)
        plot_constellation(Y(2, sim.Ndiscard+1:end-sim.Ndiscard),...
            dataTX(2, sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
@@ -129,7 +156,7 @@ end
 plots
 
 %% Plot BER curve
-if isfield(sim, 'Plots') && sim.Plots('BER') && length(ber.count) > 1
+if sim.shouldPlot('BER') && length(ber.count) > 1
     figure(100), box on, hold on
     [~, link_attdB] = Fiber.link_attenuation(Tx.Laser.lambda);
     Prx = Tx.PlaunchdBm - link_attdB;

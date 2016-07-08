@@ -38,11 +38,11 @@ ber_ideal = berAWGN(SNRdBtheory);
 % estiamate theoretical BER
 eq.type = 'fixed td-sr-le';
 eq.Ntaps = 31;
-mpam = PAM(sqrt(sim.M), sim.Rs, 'equally-spaced', @(n) double(n >= 0 & n < sim.Mct));
+pulse_shape = select_pulse_shape('rect', sim.Mct);
+mpam = PAM(sqrt(sim.M), sim.Rs, 'equally-spaced', pulse_shape);
 Hch = (Tx.filt.H(sim.f/sim.fs).*Tx.Mod.Hel.*Fiber.Hdisp(sim.f, Tx.Laser.lambda)).';
 sim.f = sim.f.';
-[~, eq] = equalize(eq, [], Hch, mpam, Rx, sim); 
-% this generates zero-forcing linear equalizer, which should be a good
+[~, eq] = equalize(eq, [], Hch, mpam, sim); % this generates zero-forcing linear equalizer, which should be a good
 % approximation of MMSE linear equalizer.
 noiseBW_noiseEnhance = trapz(sim.f, abs(eq.Hrx.*eq.Hff(sim.f/sim.Rs)).^2)/2;
 
