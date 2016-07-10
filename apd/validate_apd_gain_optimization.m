@@ -5,149 +5,132 @@ addpath ../mpam
 addpath ../f
 addpath f
 
-% Simulation parameters
-sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
-sim.Mct = 9;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done  right, and FIR filters have interger grpdelay)  
-sim.L = 2;        % de Bruijin sub-sequence length (ISI symbol length)
+%% Simulation parameters
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+sim.ros.txDSP = 1; % oversampling ratio of transmitter DSP
+sim.ros.rxDSP = 1; % oversampling ratio of receivre DSP
+sim.Mct = 8*sim.ros.rxDSP;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done right, and FIR filters have interger grpdelay)  
+sim.L = 4;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 16; % number of symbols to be discarded from the begning and end of the sequence
+sim.Ndiscard = 256;  % number of 0 symbols to be inserted at the begining and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.WhiteningFilter = true;
 
 %
-sim.shot = true; % include shot noise. Only included in montecarlo simulation (except for APD)
 sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
-sim.verbose = 0; % show stuff
+sim.quantiz = false; % whether quantization is included
+sim.terminateWhenBERReaches0 = true; % whether simulation is terminated when counted BER reaches 0
 
-% M-PAM
-mpam = PAM(4, 100e9, 'optimized', @(n) double(n >= 0 & n < sim.Mct));
+sim.Plots = containers.Map();
+% sim.Plots('BER') = 1;
+% sim.Plots('Adaptation MSE') = 0;
+% sim.Plots('Frequency Response') = 0;
+% sim.Plots('Equalizer') = 1;
+% sim.Plots('DAC output') = 1;
+% sim.Plots('Optical eye diagram') = 1;
+% sim.Plots('Received signal eye diagram') = 1;
+% sim.Plots('Signal after equalization') = 1;
+sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
+
+%% M-PAM
+pulse_shape = select_pulse_shape('rect', sim.ros.txDSP);
+mpam = PAM(4, 107e9, 'optimized', pulse_shape);
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
+[sim.f, sim.t] = freq_time(sim.N, sim.fs);
 
-dt = 1/sim.fs;
-t = (0:dt:(sim.N-1)*dt).';
-df = 1/(dt*sim.N);
-f = (-sim.fs/2:df:sim.fs/2-df).';
-
-sim.t = t;
-sim.f = f;
+%% Laser
+% Laser constructor: laser(lambda (nm), PdBm (dBm), RIN (dB/Hz), linewidth (Hz), frequency offset (Hz))
+% lambda : wavelength (nm)
+% PdBm : output power (dBm)
+% RIN : relative intensity noise (dB/Hz)
+% linewidth : laser linewidth (Hz)
+% freqOffset : frequency offset with respect to wavelength (Hz)
+Tx.Laser = laser(1250e-9, 0, -150, 0.2e6, 0);
 
 %% Transmitter
-if mpam.M == 4
-	tx.PtxdBm = -25:1:-10;
-else
-    tx.PtxdBm = -20:1:-8;
-end
+Tx.PtxdBm = -22:-10; % transmitted power swipe
+% Tx.PtxdBm = -15; % transmitted power swipe
 
-tx.lamb = 1310e-9; % wavelength
-tx.alpha = 0; % chirp parameter
-tx.RIN = -150;  % dB/Hz
-tx.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
+%% DAC
+Tx.DAC.fs = sim.ros.txDSP*mpam.Rs; % DAC sampling rate
+Tx.DAC.ros = sim.ros.txDSP; % oversampling ratio of transmitter DSP
+Tx.DAC.resolution = Inf; % DAC effective resolution in bits
+Tx.DAC.filt = design_filter('bessel', 5, 100e9/(sim.fs/2)); % DAC analog frequency response
 
+%% Modulator
+Tx.Mod.alpha = 2; % chirp parameter
+Tx.Mod.rexdB = -10;  % extinction ratio in dB. Defined as Pmin/Pmax
 % Modulator frequency response
-tx.modulator.fc = 30e9; % modulator cut off frequency
-tx.modulator.H = @(f) 1./(1 + 2*1j*f/tx.modulator.fc - (f/tx.modulator.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-tx.modulator.h = @(t) (2*pi*tx.modulator.fc)^2*t(t >= 0).*exp(-2*pi*tx.modulator.fc*t(t >= 0));
-tx.modulator.grpdelay = 2/(2*pi*tx.modulator.fc);  % group delay of second-order filter in seconds
+Tx.Mod.BW = 30e9;
+Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
+Tx.Mod.h = @(t) (2*pi*Tx.Mod.fc)^2*t(t >= 0).*exp(-2*pi*Tx.Mod.fc*t(t >= 0));
+Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
+Tx.Mod.H = @(f) exp(1j*2*pi*f.*Tx.Mod.grpdelay)./(1 + 2*1j*f/Tx.Mod.fc - (f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
 
 %% Fiber
-fiber = fiber();
+Fiber = fiber(5e3);
 
 %% Receiver
-rx.N0 = (30e-12).^2; % thermal noise psd
-% Electric Lowpass Filter
-% rx.elefilt = design_filter('bessel', 5, 1.25*mpam.Rs/(sim.fs/2));
-% rx.elefilt = design_filter('matched', mpam.pshape, 1/sim.Mct);
+Rx.N0 = (30e-12).^2; % thermal noise psd
+Rx.filtering = 'matched'; % Electric Lowpass Filter prior to sampling and equalization: either 'antialisaing' or 'matched'
+
+%% ADC
+Rx.ADC.ros = sim.ros.rxDSP;
+Rx.ADC.fs = Rx.ADC.ros*mpam.Rs*(mpam.pulse_shape.rolloff + 1)/2;
+Rx.ADC.filt = design_filter('butter', 5, 0.5*Rx.ADC.fs/(sim.fs/2)); % Antialiasing filter
+Rx.ADC.ENOB = Inf; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
+Rx.ADC.rclip = 0;
 
 %% Equalization
-rx.eq.type = 'Fixed TD-SR-LE';
-% rx.eq.ros = 2;
-rx.eq.Ntaps = 31;
-% rx.eq.Ntrain = 2e3;
-% rx.eq.mu = 1e-2;
+% Rx.eq.type = 'None';
+% Rx.eq.type = 'Adaptive TD-LE';
+Rx.eq.type = 'Fixed TD-SR-LE';
+Rx.eq.ros = sim.ros.rxDSP;
+Rx.eq.Ntaps = 15;
+Rx.eq.mu = 1e-2;
+Rx.eq.Ntrain = Inf; % Number of symbols used in training (if Inf all symbols are used)
+Rx.eq.Ndiscard = [1e4 512]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
 
 %% APD 
-% (GaindB, ka, BW, R, Id) 
-apdG = apd(6, 0.1, [20e9 200e9], 1, 10e-9);
+% apd(GaindB, ka, BW, R, Id) 
+Apd = apd(6, 0.1, [20e9 200e9], 1, 10e-9);
 
 GainsdB = (3:18);
-% GainsdB = apd_opt.GaindB;
 Gains = 10.^(GainsdB/10);
 
 %  
 PtxdBm_BERtarget = zeros(size(GainsdB));
-figure, hold on, grid on
-legends = {};
+figure(10), clf, hold on, grid on
+xlabel('Received Power (dBm)')
+ylabel('log(BER)')
+axis([Tx.PtxdBm(1) Tx.PtxdBm(end) -8 0])
+legs = {};
 for k= 1:length(GainsdB)
     fprintf('Gain = %.2f dB\n', GainsdB(k));
 
-    apdG.GaindB = GainsdB(k);
+    Apd.GaindB = GainsdB(k);
 
     % BER
-    ber_apd = apd_ber(mpam, tx, fiber, apdG, rx, sim);
+    ber_apd = apd_ber(mpam, Tx, Fiber, Apd, Rx, sim)
      
     % Calculate power at the target BER
-    PtxdBm_BERtarget(k) = interp1(log10(ber_apd.gauss), tx.PtxdBm, log10(sim.BERtarget));
+    PtxdBm_BERtarget(k) = interp1(log10(ber_apd.enum), Tx.PtxdBm, log10(sim.BERtarget));
     
-    hline = plot(tx.PtxdBm, log10(ber_apd.gauss), '-');
-    plot(tx.PtxdBm, log10(ber_apd.count), '-o', 'Color', get(hline, 'Color'))
+    hline = plot(Tx.PtxdBm, log10(ber_apd.enum), '-');
+    plot(Tx.PtxdBm, log10(ber_apd.count), '-o', 'Color', get(hline, 'Color'))
+    drawnow
     
-    legends = [legends, sprintf('Gain = %.1f dB', GainsdB(k)), sprintf('Gain = %.1f dB (Count)', GainsdB(k))];
+    legs = [legs, sprintf('Gain = %.1f dB', GainsdB(k)), sprintf('Gain = %.1f dB (Count)', GainsdB(k))];
 end
-
-xlabel('Received Power (dBm)')
-ylabel('log(BER)')
-legend(legends{:})
-axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
+legend(legs{:})
 
 %% APD gain optimization for margin
-Gopt_margin = apdG.optGain(mpam, tx, fiber, rx, sim, 'margin'); 
+Gopt_margin = Apd.optGain(mpam, Tx, Fiber, Rx, sim); 
 
 figure, hold on, grid on
 plot(Gains, PtxdBm_BERtarget)
 plot(Gopt_margin, interp1(Gains, PtxdBm_BERtarget, Gopt_margin), 'ok')
 xlabel('APD Gain (Linear Units)')
 ylabel(sprintf('Transmitted Optical Power (dBm) @ BER = %g', sim.BERtarget))
-% axis([Gains(1) Gains(end) -21 -19]);
-
-% %% APD gain optimization for BER
-% % for each power optimize APD gain
-% for k = 1:length(tx.PtxdBm)
-%     tx.Ptx = 1e-3*10^(tx.PtxdBm(k)/10);
-%     
-%     Gopt(k) = apdG.optGain(mpam, tx, fiber, rx, sim, 'BER'); 
-%     apdG.Gain = Gopt(k);
-% 
-%     % Noise std
-%     noise_std = apdG.stdNoise(rx.elefilt.noisebw(sim.fs)/2, rx.N0, tx.RIN, sim);
-% 
-%     % Level spacing optimization
-%     if mpam.optimize_level_spacing
-%         mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, tx.rexdB, noise_std);  
-%     end
-%     
-%     mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
-%     
-%     Gopt_analytical(k) = apdG.optGain_minBER_analytical(mpam, rx.N0);
-%           
-%     mpam = mpam.adjust_levels(tx.Ptx*apdG.Gain*apdG.R, tx.rexdB);
-%     
-%     beropt(k) = mpam.ber_awgn(noise_std);
-% %     [~, beropt(k)] = ber_apd_gauss(mpam, tx, fiber, apdG, rx, sim);
-% end          
-% 
-% plot(tx.PtxdBm, log10(beropt), '-k')
-% 
-% legends = [legends, 'Optimal gain at every P'];
-% xlabel('Received Power (dBm)')
-% ylabel('log(BER)')
-% legend(legends{:})
-% axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])
-% 
-% figure, hold on, box on, grid on
-% plot(tx.PtxdBm, Gopt)
-% plot(tx.PtxdBm, Gopt_analytical, '--')
-% legend('Gopt', 'Gopt analytical')
-% xlabel('Received Power (dBm)')
-% ylabel('Gain')

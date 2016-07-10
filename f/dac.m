@@ -58,7 +58,7 @@ end
 Nhold = sim.Mct/DAC.ros; % number of samples to hold
 assert(floor(Nhold) == ceil(Nhold), 'dac: oversampling ratio of DAC (DAC.ros) must be an integer multiple of oversampling ratio of continuous time (sim.Mct)');
 xqzoh = upsample(xq, Nhold);
-xqzoh = filter(ones(1, Nhold), 1, xqzoh);
+xqzoh = filter(ones(1, Nhold), 1, xqzoh); % group delay due to ZOH is removed inn the frequency domain
 
 % Filtering
 if not(isempty(DAC.filt))
@@ -87,12 +87,20 @@ if exist('verbose', 'var') && verbose
     Nstart = sim.Ndiscard*sim.Mct+1;
     Nend = min(Nstart + Ntraces*2*sim.Mct, length(xa));
     figure(301)
-    subplot(211), box on
+    subplot(221), box on
     eyediagram(xqzoh(Nstart:Nend), 2*sim.Mct)
     title('Eye diagram after ZOH')
-    subplot(212), box on
+    subplot(222), box on
     eyediagram(xa(Nstart:Nend), 2*sim.Mct)
 %     eyediagram(xa(Nstart:Nend), 2*sim.Mct, sim.Mct, ceil(sim.Mct/2))
-    title('Eye diagram of DAC output')
+    title('DAC output eye diagram')
+    subplot(223), box on
+    plot(sim.f/1e9, abs(fftshift(fft(xa-mean(xa)))).^2)
+    xlabel('Frequency (GHz')
+    ylabel('|X(f)|^2')
+    title('DAC output spectrum')
+    a = axis;
+    axis([-DAC.fs/1e9 DAC.fs/1e9 a(3:4)])
+    subplot(224)
     drawnow
 end

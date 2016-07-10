@@ -1,70 +1,79 @@
-function ber = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim)
-%% Pre calculations
-% Channel response
-% Hch does not include transmitter or receiver filter
-if isfield(tx, 'modulator')
-    Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
-    .*fiber.H(sim.f, tx).*apd.H(sim.f);
-%     Hch = tx.modulator.H(sim.f).*exp(1j*2*pi*sim.f*tx.modulator.grpdelay)...
-%     .*fiber.Hlarge_signal(sim.f, tx).*apd.H(sim.f);
-else
-    Hch = fiber.H(sim.f, tx).*apd.H(sim.f);
-%     Hch = fiber.Hlarge_signal(sim.f, tx).*apd.H(sim.f);
-end
+function ber = ber_apd_montecarlo(mpam, Tx, Fiber, Apd, Rx, sim)
+%% Calculate BER of unamplified IM-DD system with APD detector using montecarlo simulation
 
-link_gain = apd.Gain*apd.R*fiber.link_attenuation(tx.lamb); % Overall link gain
+% System received pulse shape frequency response
+HrxPshape = apd_system_received_pulse_shape(mpam, Tx, Fiber, Apd, Rx, sim); % this is only used if rx.filtering = matched or eq.type = fixed...
 
 % Ajust levels to desired transmitted power and extinction ratio
-mpam = mpam.adjust_levels(tx.Ptx, tx.rexdB);
-Pmax = mpam.a(end); % used in the automatic gain control stage
+mpam = mpam.adjust_levels(Tx.Ptx, Tx.Mod.rexdB);
+AGC = 1/(mpam.a(end)*Apd.Gain*Apd.R*Fiber.link_attenuation(Tx.Laser.wavelength));
 
 %% Modulated PAM signal
+% dataTX = [0 0 0 0 0 1 0 0 0 0 0];
 dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence
-xt = mpam.mod(dataTX, sim.Mct);
-xt(1:sim.Mct*sim.Ndiscard) = 0; % zero sim.Ndiscard first symbols
-xt(end-sim.Mct*sim.Ndiscard+1:end) = 0; % zero sim.Ndiscard last symbbols
+dataTX([1:sim.Ndiscard end-sim.Ndiscard:end]) = 0;
+xk = mpam.signal(dataTX);
+
+%% DAC
+xt = dac(xk, Tx.DAC, sim, sim.shouldPlot('DAC output')); 
 
 %% Generate optical signal
-[Et, ~] = optical_modulator(xt, tx, sim);
+[Etx, Pt] = eam(Tx.Laser.cw(sim), xt, Tx.Mod, sim.f);
+
+%% Ensures that transmitted power is at the right level
+AGC = AGC/(Tx.Ptx/mean(Pt));
+Etx = Etx*sqrt(Tx.Ptx/mean(Pt));
 
 %% Fiber propagation
-Et = fiber.linear_propagation(Et, sim.f, tx.lamb);
+Erx = Fiber.linear_propagation(Etx, sim.f, Tx.Laser.wavelength);
 
 %% Detect and add noises
-yt = apd.detect(Et, sim.fs, 'gaussian', rx.N0);
+% yt = Apd.detect(Erx, sim.fs, 'no noise');
+yt = Apd.detect(Erx, sim.fs, 'gaussian', Rx.N0);
 
 %% Whitening filter
 if sim.WhiteningFilter
-    [Hw, yt] = apd.Hwhitening(sim.f, tx.Ptx, rx.N0, yt);
-else
-    Hw = 1;
+    [~, yt] = Apd.Hwhitening(sim.f, mean(abs(Erx).^2), Rx.N0, yt);
 end
 
 %% Automatic gain control
 % Normalize signal so that highest level is equal to 1
-yt = yt/(Pmax*link_gain);
 mpam = mpam.norm_levels;
+yt = yt*AGC;
+yt = yt - mean(yt) + mean(mpam.a);
+
+%% ADC
+% ADC performs filtering, quantization, and downsampling
+% For an ideal ADC, ADC.ENOB = Inf
+% Rx.ADC.offset = 0;
+switch lower(Rx.filtering)
+    case 'antialiasing' % receiver filter is specified in ADC.filt
+        [yk, ~, ytf] = adc(yt, Rx.ADC, sim);
+    case 'matched' % receiver filter is matched filter
+        Hrx = conj(HrxPshape);
+        [yk, ~, ytf] = adc(yt, Rx.ADC, sim, Hrx); % replace ADC antialiasing filter by matched filter
+    otherwise
+        error('ber_preamp_sys_montecarlo: Rx.filtering must be either antialiasing or matched')
+end     
 
 %% Equalization
-rx.eq.TrainSeq = dataTX;
-[yd, rx.eq] = equalize(rx.eq, yt, Hw.*Hch, mpam, rx, sim);
+Rx.eq.trainSeq = dataTX;
+[yd, Rx.eq] = equalize(Rx.eq, yk, HrxPshape, mpam, sim);
 
-% Symbols to be discarded in BER calculation
-Ndiscard = sim.Ndiscard*[1 1];
-if strfind(lower(rx.eq.type), 'adaptive') % must increase discareded symbols to account for filter length, adaptation period, etc
-    Ndiscard = Ndiscard + rx.eq.Ndiscard; 
-end
-ndiscard = [1:Ndiscard(1) sim.Nsymb-Ndiscard(2):sim.Nsymb];
+% Symbols to be discard in BER calculation
+ndiscard = [1:Rx.eq.Ndiscard(1)+sim.Ndiscard (sim.Nsymb-Rx.eq.Ndiscard(2)-sim.Ndiscard):sim.Nsymb];
+ydfull = yd;
 yd(ndiscard) = []; 
 dataTX(ndiscard) = [];
 
 %% Demodulate
-dataRX = mpam.demod(yd);
+dataRX = mpam.demod(yd.');
 
 %% True BER
 [~, ber] = biterr(dataRX, dataTX);
 
-if isfield(sim, 'plots') && sim.plots('Empirical noise pdf')
+%% Plots
+if sim.shouldPlot('Empirical noise pdf')
     % Empirical pdf for a level
     figure(100)
     [nn, xx] = hist(yd(dataTX == 2), 50);
@@ -73,41 +82,66 @@ if isfield(sim, 'plots') && sim.plots('Empirical noise pdf')
     title('Empirical pdf for PAM level 2')
 end    
 
-if isfield(sim, 'plots') && sim.plots('Frequency Response')   
-    figure(10), hold on, box on    
-    leg = {};
-    if isfield(tx, 'modulator')
-        Hmod = tx.modulator.H(sim.f);
-        plot(sim.f/1e9, abs(Hmod).^2)
-        leg = [leg 'Modulator'];
-    end
+if sim.shouldPlot('Equalizer')
+    figure(101), clf
+    for k = 1:size(Rx.eq.h, 2)
+        [h, w] = freqz(Rx.eq.h(:, k), 1);
+        subplot(121), hold on, box on
+        plot(w/(2*pi), abs(h).^2)
         
-    if fiber.D(tx.lamb) ~= 0
-        Hfib = fiber.H(sim.f, tx);
-        plot(sim.f/1e9, abs(Hfib).^2)
-        leg = [leg 'Fiber'];
+        subplot(122), hold on, box on
+        plot(w/(2*pi), unwrap(angle(h)))
     end
-    
-    if ~isinf(apd.BW)
-        Hapd = apd.H(sim.f);
-        plot(sim.f/1e9, abs(Hapd).^2)
-        leg = [leg 'APD'];
-    end
-    
-    if sim.WhiteningFilter
-        plot(sim.f/1e9, abs(Hw).^2)
-        leg = [leg 'Noise Whitening'];
-    end
-    
-    if ~strcmpi(rx.eq.type, 'none')
-        plot(sim.f/1e9, abs(rx.eq.Hrx).^2)
-        plot(sim.f/1e9, abs(rx.eq.Hff(sim.f/(rx.eq.ros*mpam.Rs))).^2)
-        leg = [leg 'Receiver filter', 'Equalizer'];       
-    end
+    subplot(121), hold on, box on
+    xlabel('Normalized frequency')
+    ylabel('|H(f)|^2')
+    title('Equalizer amplitude response')
 
-    xlabel('Frequency (GHz')
-    ylabel('Frequency Response')
+    subplot(122), hold on, box on
+    xlabel('Normalized frequency')
+    ylabel('arg(H(f))')
+    title('Equalizer phase response')
+    drawnow
+end
+
+if sim.shouldPlot('Optical eye diagram')  
+    Ntraces = 500;
+    Nstart = sim.Ndiscard*sim.Mct + 1;
+    Nend = min(Nstart + Ntraces*2*sim.Mct, length(Etx));
+    figure(103), clf, box on
+    eyediagram(abs(Etx(Nstart:Nend)).^2, 2*sim.Mct)
+    title('Optical eye diagram')
+    drawnow
+end
+
+if sim.shouldPlot('Received signal eye diagram')
+    mpam = mpam.norm_levels();
+    Ntraces = 500;
+    Nstart = sim.Ndiscard*sim.Mct + 1;
+    Nend = min(Nstart + Ntraces*2*sim.Mct, length(ytf));
+    figure(104), clf, box on, hold on
+    eyediagram(ytf(Nstart:Nend), 2*sim.Mct)
+    title('Received signal eye diagram')
     a = axis;
-    axis([0 mpam.Rs/1e9 a(3) a(4)])
-    legend(leg)
+    h1 = plot(a(1:2), mpam.a*[1 1], '-k');
+    h2 = plot(a(1:2), mpam.b*[1 1], '--k');
+    h3 = plot((sim.Mct+1)*[1 1], a(3:4), 'k');
+    legend([h1(1) h2(1) h3], {'Levels', 'Decision thresholds', 'Sampling point'})
+    drawnow
+end
+
+if sim.shouldPlot('Signal after equalization')
+    mpam = mpam.norm_levels();
+    figure(105), clf, box on, hold on
+    h1 = plot(ydfull, 'o');
+    a = axis;
+    h2= plot(a(1:2), mpam.a*[1 1], '-k');
+    h3 = plot(a(1:2), mpam.b*[1 1], '--k');
+    h4 = plot(Rx.eq.Ndiscard(1)*[1 1], a(3:4), ':k');
+    h5 = plot((sim.Nsymb-Rx.eq.Ndiscard(2))*[1 1], a(3:4), ':k');
+    legend([h1 h2(1) h3(1) h4], {'Equalized samples', 'PAM levels',...
+        'Decision thresholds', 'BER measurement window'})
+    title('Signal after equalization')
+    axis([1 sim.Nsymb -0.2 1.2])
+    drawnow
 end

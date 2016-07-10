@@ -11,6 +11,7 @@ classdef laser
     
     properties(Dependent)
         PW % power in Watts
+        wavelength % same as lambda
     end      
     
     methods
@@ -42,11 +43,6 @@ classdef laser
             Units = {'nm'; 'GHz'; 'dBm'; 'dB/Hz'; 'kHz'};
 
             LaserTable = table(Variables, Values, Units, 'RowNames', rows);
-        end
-        
-        %% Get Methods
-        function PW = get.PW(self)
-            PW = dBm2Watt(self.PdBm);
         end
         
         %% Main Methos
@@ -103,7 +99,7 @@ classdef laser
             % are included in simulations.
             % If freqshift ~= 0, then sim must also contain time vector (t)
             
-            Pout = self.PW*ones(1, sim.N);
+            Pout = self.PW*ones(size(sim.t));
             
             if isfield(sim, 'RIN') && sim.RIN
                 Pout = self.addIntensityNoise(Pout, sim.fs);
@@ -146,5 +142,29 @@ classdef laser
             % Clip
             Pout(Pout < 0) = 0;
         end          
+    end
+    
+    %% Get and Set methods
+    methods 
+        function PW = get.PW(self)
+            PW = dBm2Watt(self.PdBm);
+        end
+        
+        function self = set.PW(self, Ptx)
+            self.PdBm = Watt2dBm(Ptx);
+        end
+        
+        function self = setPower(self, PtxW)
+            self.PdBm = Watt2dBm(PtxW);
+        end
+        
+        function lamb = get.wavelength(self)
+            lamb = self.lambda;
+        end
+        
+        function self = set.wavelength(self, lamb)
+            self.wavelength = lamb;
+            self.lambda = lamb;
+        end
     end
 end

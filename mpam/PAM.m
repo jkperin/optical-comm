@@ -62,7 +62,7 @@ classdef PAM
             Values = {self.M; self.Rs; self.level_spacing; self.pulse_shape.type};
             Units = {''; 'Gbaud'; ''; ''};
 
-            PAMtable = table(Variables, Values, Units, 'RowNames', rows)
+            PAMtable = table(Variables, Values, Units, 'RowNames', rows);
         end
         
         %% Get methods
@@ -135,6 +135,14 @@ classdef PAM
                 h = h/h((n+1)/2);
             end
                 
+        end
+        
+        function H = Hpshape(self, f)
+            %% Frequency response of PAM pulse shape
+            fs = self.Rs*self.pulse_shape.sps;
+            delay = grpdelay(self.pulse_shape.h, 1, 1);
+            H = freqz(self.pulse_shape.h/abs(sum(self.pulse_shape.h)), 1, f/fs)...
+                .*exp(1j*2*pi*f*delay);
         end
         
         function [xt, xd] = signal(self, dataTX)
@@ -279,7 +287,7 @@ classdef PAM
             self.b = bopt;
             self.a = aopt;
 
-            BERerror = abs(self.ber_awgn(noise_std) - BERtarget)/BERtarget;
+            BERerror = abs(self.berAWGN(noise_std) - BERtarget)/BERtarget;
             if  BERerror > self.maxBERerror
                 warning('PAM>optimize_level_spacing_gauss_approx: BER error %g greater than maximum acceptable error\n', BERerror);
             end                

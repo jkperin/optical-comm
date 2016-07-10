@@ -35,7 +35,7 @@ else % if Hrx exists use Hrx instead. This is typically a matched filter
     Hrx = ifftshift(Hrx); % time shift so that first sample correspond to the center of symbol
 end
 
-if isfield(ADC, 'offset') % time shift in number of samples. Need not be integer
+if isfield(ADC, 'offset') && ADC.offset ~= 0 % time shift in number of samples. Need not be integer
     Hshift = ifftshift(exp(1j*2*pi*sim.f/sim.fs*ADC.offset)); % time shift to make first sample center of first pulse
 else
     Hshift = 1;

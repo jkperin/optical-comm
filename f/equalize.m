@@ -1,4 +1,4 @@
-function [yd, eq] = equalize(eq, yt, Hch, mpam, sim)
+function [yd, eq] = equalize(eq, yt, HrxPshape, mpam, sim)
 %% Design equalizer and equalize yt
 % If yt is empty only designs equalizer
 % Inputs: 
@@ -14,7 +14,8 @@ function [yd, eq] = equalize(eq, yt, Hch, mpam, sim)
 %       - mu (if adaptive): adaptation rate
 %       - MSE (if adaptive): mean square error
 % - yt: input signal
-% - Hch (required if fixed equalizer): channel frequency response including pulse shape
+% - HrxPshape (required if fixed equalizer): received pulse shape frequency
+% response
 % - mpam: mpam class
 % - sim: simulation parameters struct
 % Outputs:
@@ -39,7 +40,7 @@ end
 % Makes sure everything is in right dimensions
 if size(sim.f, 1) == 1
     sim.f = sim.f.';
-    Hch = Hch.';
+    HrxPshape = HrxPshape.';
 end
 
 ytsize = size(yt);
@@ -47,17 +48,12 @@ if ytsize(1) == 1
     yt = yt.';
 end
 
-% if yt is empty i.e., only design filter, then change equalization type
-% from adaptive to fixed
-if isempty(yt)
-    eq.type = strrep(eq.type, 'Adaptive', 'Fixed');
-end
-
 %% Filters are defined as follows
 %      _____           _____
 %     |     |    /    |     |
 % --->| Hrx |---/ --->| Hff |--->
 %     |_____|         |_____|
+% Hrx is receiver filtering before sampling and Hff is the linear equalizer
 
 switch lower(eq.type)
     case 'none'
@@ -133,12 +129,12 @@ switch lower(eq.type)
         if not(isfield(eq, 'ros'))
             eq.ros = 1;
         elseif eq.ros ~= 1
-            warning('equalize/eq.ros = %.2f, but symbol-rate equalization is set', eq.ros)
+            error('equalize/eq.ros = %.2f, but symbol-rate equalization is set', eq.ros)
         end
         Ntaps = eq.Ntaps;
         
-        Hch = Hch/interp1(sim.f, Hch, 0);   % normalize to unit gain at DC 
-        Hmatched = conj(Hch); % matched filterd matched to the received pulse shape
+        HrxPshape = HrxPshape/sqrt(interp1(sim.f, abs(HrxPshape).^2, 0));   % normalize to unit gain at DC 
+        Hmatched = conj(HrxPshape); % matched filterd matched to the received pulse shape
 
         %% MMSE Time-domain symbol-rate equalizer
         n = -floor(Ntaps/2)*sim.Mct:sim.Mct*floor(Ntaps/2);
@@ -185,7 +181,7 @@ switch lower(eq.type)
         % Aux
         eq.h = W;
         eq.Hff = @(f) freqz(eq.h, 1, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.h, 1, 1)); % removed group delay
-        eq.Hrx = Hmatched; 
+        eq.Hrx = Hmatched.'; 
     otherwise
         error('equalize: Equalization type *%s* not implemented yet!', eq.type)
 end

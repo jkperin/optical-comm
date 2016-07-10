@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Name the job in Grid Engine
-#$ -N Preq_vs_gain
+#$ -N sensitivity_vs_gain
 
 #tell grid engine to use current directory
 #$ -cwd
@@ -18,8 +18,6 @@
 # 
 module load matlab
 
-echo "Preq_vs_gain_qsub $M $ka $level_spacing $BW0 $GainBW $modBW"
+echo "sensitivity_vs_gain_qsub $M $ka $level_spacing $BW0 $GainBW $modBW"
 
-# margin_vs_gain_qsub(M, ka, level_spacing, BW0GHz, GainBWGHz, modBWGHz)
-
-matlab -nodesktop -singleCompThread -r "Preq_vs_gain_qsub $M $ka $level_spacing $BW0 $GainBW $modBW"
+matlab -nodesktop -singleCompThread -r "sensitivity_vs_gain_qsub $M $ka $level_spacing $BW0 $GainBW $modBW"

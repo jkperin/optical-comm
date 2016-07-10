@@ -1,70 +1,100 @@
-function [ber, mpam, apd] = apd_ber(mpam, tx, fiber, apd, rx, sim)
-%% Calculate BER of unamplified IM-DD system with APD detector 
+function [ber, mpam, Apd] = apd_ber(mpam, Tx, Fiber, Apd, Rx, sim)
+%% Calculate BER of unamplified IM-DD system with APD detector for each transmitted power value in Tx.PtxdBm
 % BER is calculated via montecarlo simulation, analytically, AWGN channel, 
 % AWGN channel including noise enhancement penalty.
-dBm2Watt = @(x) 1e-3*10.^(x/10);
 
 % If equalizer is not defined assume no equalization
-if ~isfield(rx, 'eq')
-    rx.eq.type = 'None';
-    rx.eq.ros = 1; % assuming symbol-rate sampling
+if ~isfield(Rx, 'eq')
+    Rx.eq.type = 'None';
+    Rx.eq.ros = 1; % assuming symbol-rate sampling
 end
+
+if strcmpi(Rx.eq.type, 'Fixed TD-SR-LE')
+    assert(Rx.eq.ros == 1 && sim.ros.rxDSP == 1, 'If fixed time-domain linear equalizer is used, then oversampling ratio must be 1')
+end
+
+% System received pulse shape frequency response
+Tx.Ptx = dBm2Watt(Tx.PtxdBm(end));
+[~, H] = apd_system_received_pulse_shape(mpam, Tx, Fiber, Apd, Rx, sim); % this is only used if rx.filtering = matched or eq.type = fixed...
 
 % Optimize APD gain
 if isfield(sim, 'OptimizeGain') && sim.OptimizeGain
-    [apd.Gain, mpam] = apd.optGain(mpam, tx, fiber, rx, sim);
-    fprintf('Optimal APD Gain = %.2f (%2.f dB)\n', apd.Gain, apd.GaindB);
-    % if mpam.level_spacing = 'optimized', then apd.optGain returns mpam 
+    [Apd.Gain, mpam] = Apd.optGain(mpam, Tx, Fiber, Rx, sim);
+    fprintf('Optimal APD Gain = %.2f (%2.f dB)\n', Apd.Gain, Apd.GaindB);
+    % if mpam.level_spacing = 'optimized', then Apd.optGain returns mpam 
     % with optimal level spacing
 elseif mpam.optimize_level_spacing  %% Level Spacing Optimization
     % Optimize levels using Gaussian approximation
-    [~, mpam] = apd.optimize_PAM_levels(apd.Gain, mpam, tx, fiber, rx, sim);
+    [~, mpam] = Apd.optimize_PAM_levels(Apd.Gain, mpam, Tx, Fiber, Rx, sim);
     mpam = mpam.norm_levels();
 end
 
 %% BER
 % Transmitted power
-Ptx = dBm2Watt(tx.PtxdBm);
+Ptx = dBm2Watt(Tx.PtxdBm);
 
 ber.count = zeros(size(Ptx)); % counted BER
-ber.gauss = zeros(size(Ptx)); % analysis assuming Gaussian stats
+ber.enum = zeros(size(Ptx)); % analysis assuming Gaussian stats
 ber.awgn = zeros(size(Ptx)); % AWGN approximation (includes noise enhancement penalty)
-ber.gauss_levels = zeros(mpam.M, length(Ptx)); % symbol error prob for each level
+run_montecarlo = true;
 for k = 1:length(Ptx)
-    tx.Ptx = Ptx(k);
+    Tx.Ptx = Ptx(k);
             
     % Montecarlo simulation
-    ber.count(k) = ber_apd_montecarlo(mpam, tx, fiber, apd, rx, sim);
+    if run_montecarlo
+        ber.count(k) = ber_apd_montecarlo(mpam, Tx, Fiber, Apd, Rx, sim);
+    end
     
     % BER using Gaussian stats approximation for shot noise (enumeration)
-    % AWGN approximation is also included by this function
-    [ber.gauss(k), ber.gauss_levels(:, k), ber.awgn(k)] = ...
-        ber_apd_gauss(mpam, tx, fiber, apd, rx, sim);
+    ber.enum(k) = ber_apd_enumeration(mpam, Tx, Fiber, Apd, Rx, sim);
+    
+    % BER using AWGN system approximation including noise enhacement
+    ber.awgn(k) = ber_apd_awgn(mpam, Tx, Fiber, Apd, Rx, sim);
+    
+    if isfield(sim, 'terminateWhenBERReaches0') && sim.terminateWhenBERReaches0 && ber.count(k) == 0
+        run_montecarlo = false;
+    end
 end
 
-if isfield(sim, 'plots') && sim.plots('BER')
-    PrxdBm = tx.PtxdBm - 10*log10(fiber.link_attenuation(tx.lamb));
+%% Plot BER
+if sim.shouldPlot('BER') && length(ber.count) > 1
+    PrxdBm = Tx.PtxdBm - 10*log10(Fiber.link_attenuation(Tx.Laser.wavelength));
     figure(1), hold on, box on
     hline = plot(PrxdBm, log10(ber.count), 'o');
-    plot(PrxdBm, log10(ber.gauss), '-', 'Color', get(hline, 'Color'))
+    plot(PrxdBm, log10(ber.enum), '-', 'Color', get(hline, 'Color'))
     plot(PrxdBm, log10(ber.awgn), '--', 'Color', get(hline, 'Color'))
-    legend('Counted', 'Gaussian stats approximation', 'AWGN approximation',...
+    legend('Counted', 'Enumeration', 'AWGN approximation',...
         'Location', 'SouthWest')
     xlabel('Received Power (dBm)')
     ylabel('log_{10}(BER)')
     grid on
-    axis([tx.PtxdBm(1) tx.PtxdBm(end) -8 0])  
+    axis([Tx.PtxdBm(1) Tx.PtxdBm(end) -8 0])  
     drawnow
-    
-    % Difference between montecarlo simulation and analysis @ target BER
-    try
-        valid = not(isnan(log10(ber.count)) | isinf(log10(ber.count)));
-        Pdiff = spline(log10(ber.count(valid)), PrxdBm(valid), log10(sim.BERtarget))...
-            -spline(log10(ber.gauss(valid)), PrxdBm(valid), log10(sim.BERtarget));
-        fprintf('Difference between montecarlo simulation and analysis @ target BER: %.2f dB\n', Pdiff)
-    catch e
-        disp('Could not calculate difference between montecarlo simulation and analysis @ target BER')
-        warning(e.message)
-    end       
 end
+
+% Frequency respnose
+if sim.shouldPlot('Frequency Response')   
+    figure(100), clf, hold on, box on 
+    plot(sim.f/1e9, abs(H.dac).^2)
+    plot(sim.f/1e9, abs(H.mod).^2)
+    plot(sim.f/1e9, abs(H.fiber).^2)
+    leg = {'DAC', 'Modulator', 'Fiber'};
+        
+    if ~isinf(Apd.BW)
+        plot(sim.f/1e9, abs(H.apd).^2)
+        leg = [leg 'APD'];
+    end
+    
+    if ~isinf(Apd.BW) && sim.WhiteningFilter
+        plot(sim.f/1e9, abs(H.w).^2)
+        leg = [leg 'Noise Whitening'];
+    end
+    
+    plot(sim.f/1e9, abs(H.rx).^2)
+    leg = [leg 'Receiver filter'];       
+    xlabel('Frequency (GHz')
+    ylabel('Frequency Response')
+    a = axis;
+    axis([0 2*mpam.Rs/1e9 a(3) a(4)])
+    legend(leg)
 end
