@@ -61,17 +61,11 @@ mpam = PAM(4, sim.Rb, 'equally-spaced', pulse_shape);
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
 
-dt = 1/sim.fs;
-t = (0:dt:(sim.N-1)*dt);
-df = 1/(dt*sim.N);
-f = (-sim.fs/2:df:sim.fs/2-df);
-
-sim.t = t;
-sim.f = f;
+[sim.f, sim.t] = freq_time(sim.N, sim.fs);
 
 %% Transmitter
-Tx.PtxdBm = -28:-15; % transmitter power range
-% Tx.PtxdBm = -15; % transmitter power range
+% Tx.PtxdBm = -28:-15; % transmitter power range
+Tx.PtxdBm = -20; % transmitter power range
 
 Tx.rexdB = -22;  % extinction ratio in dB. Defined as Pmin/Pmax
 Tx.alpha = 0; % chirp parameter for laser or modulator
@@ -98,7 +92,7 @@ Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
 Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
 Tx.Mod.Vbias = 0; % bias voltage normalized by Vpi
 Tx.Mod.Vswing = 1.2;  % voltage swing normalized by Vpi
-Tx.Mod.H = exp(1j*2*pi*f*Tx.Mod.grpdelay)./(1 + 2*1j*f/Tx.Mod.fc - (f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
 
 %% Fiber
 % fiber(Length in m, anonymous function for attenuation versus wavelength

@@ -38,17 +38,28 @@ if isfield(sim, 'quantiz') && sim.quantiz && ~isinf(DAC.resolution)
     xmin = min(x);
     xamp = xmax - xmin;    
     
-    % Clipping
-    % clipped: [xmin, xmin + xamp*rclip) and (xmax - xamp*rclip, xmax]
-    % not clipped: [xmin + xamp*rclip, xmax - xamp*rclip]
-    xmin = xmin + xamp*rclip; % discounts portion to be clipped
-    xmax = xmax - xamp*rclip;
-    xamp = xmax - xmin;
-    
     dx = xamp/(2^(enob)-1);
     
     codebook = xmin:dx:xmax;
     partition = codebook(1:end-1) + dx/2;
+    
+    % Clipping
+    % clipped: [xmin, xmin + xamp*rclip) and (xmax - xamp*rclip, xmax]
+    % not clipped: [xmin + xamp*rclip, xmax - xamp*rclip]
+    if isfield(DAC, 'Vswing') 
+        x = DAC.Vswing*x;
+    elseif isfield(DAC, 'rclip')
+        xmin = xmin + xamp*rclip; % discounts portion to be clipped
+        xmax = xmax - xamp*rclip;
+        xamp = xmax - xmin;
+    else
+        warning('dac/clipping parameters Vswing or rclip not assigned. Clipping was not performed.')
+    end
+        
+    dx = xamp/(2^(enob)-1);
+    codebook = xmin:dx:xmax;
+    partition = codebook(1:end-1) + dx/2;
+
     [~, xq, varQ] = quantiz(x, partition, codebook); 
 else
     xq = x;
@@ -85,6 +96,9 @@ end
 % Plot
 if exist('verbose', 'var') && verbose
     Ntraces = 100;
+    if ~isfield(sim, 'Ndiscard')
+        sim.Ndiscard = 1;
+    end
     Nstart = sim.Ndiscard*sim.Mct+1;
     Nend = min(Nstart + Ntraces*2*sim.Mct, length(xa));
     figure(301)
@@ -101,7 +115,7 @@ if exist('verbose', 'var') && verbose
     ylabel('|X(f)|^2')
     title('DAC output spectrum')
     a = axis;
-    axis([-DAC.fs/1e9 DAC.fs/1e9 a(3:4)])
+    axis([-DAC.fs/2e9 DAC.fs/2e9 a(3:4)])
     subplot(224)
     drawnow
 end

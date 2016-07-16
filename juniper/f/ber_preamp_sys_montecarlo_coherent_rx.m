@@ -1,4 +1,4 @@
-function [ber_count, ber_awgn] = ber_preamp_sys_montecarlo(mpam, Tx, Fibers, Amp, Rx, sim)
+function [ber_count, OSNRdB] = ber_preamp_sys_montecarlo_coherent_rx(mpam, Tx, Fibers, Amp, Rx, sim)
 %% Calculate BER of pre-amplified IM-DD system through montecarlo simulation
 % Inputs:
 % - mpam: PAM class
@@ -88,30 +88,53 @@ end
 % Adjust power to make sure desired power is transmitted
 Etx = Etx*sqrt(Tx.Ptx/mean(abs(Etx).^2));
 
+%% Booster
+% Etx = Amp(1).amp(Etx, sim.fs);
+% Etx = attenuate(Etx, 10);
+
 %% Fiber propagation
 Erx = Etx;
-link_gain = Amp.Gain*Rx.PD.R;
+% link_gain = Amp.Gain*Rx.PD.R;
 for k = 1:length(Fibers)
     fiberk = Fibers(k); 
     
     Erx = fiberk.linear_propagation(Erx, sim.f, Tx.Laser.wavelength); % propagation through kth fiber in Fibers
     
-    link_gain = link_gain*fiberk.link_attenuation(Tx.Laser.wavelength);
+%     link_gain = link_gain*fiberk.link_attenuation(Tx.Laser.wavelength);
 end
 
 %% Pre-amplifier
-Erx = Amp.amp(Erx, sim.fs);
+if isfield(sim, 'preAmp') && sim.preAmp
+    [Erx, OSNRdB2] = Amp(2).amp(Erx, sim.fs);
+    OSNRdB2
+    % Erx = Erx/sqrt(10);
+    % link_gain = link_gain/10;
 
-%% Optical bandpass filter
-Hopt = ifftshift(Rx.optfilt.H(f));
-Erx = [ifft(fft(Erx(1, :)).*Hopt);...
-    ifft(fft(Erx(2, :)).*Hopt)];
+    %% Optical bandpass filter
+%     Hopt = ifftshift(Rx.optfilt.H(f));
+%     Erx = [ifft(fft(Erx(1, :)).*Hopt);...
+%         ifft(fft(Erx(2, :)).*Hopt)];
+else
+    Erx = [Erx; zeros(size(Erx))];
+end
+
+Erx = Erx*sqrt(dBm2Watt(sim.PrxdBm)/dBm2Watt(power_meter(Erx)));  % keep constant received power of 
+power_meter(Erx)
+
+OSNRdB = estimate_osnr(Erx, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'))
 
 % Direct detection and add thermal noise
 % PD.detect(Ein: Input electric field, fs: sampling rate of samples in Ein,
 % noise statistics {'gaussian', 'no noise'}, N0: one-sided PSD of thermal
 % noise)
-yt = Rx.PD.detect(Erx, sim.fs, 'gaussian', Rx.N0);
+LO = laser(Tx.Laser.wavelength, 16, -150, 200e3);
+Elo = LO.cw(sim);
+Elo = sqrt(2)*[Elo; Elo];
+Ii = Rx.PD.detect(1/2*(Erx + Elo), sim.fs, 'gaussian') - Rx.PD.detect(1/2*1j*(Erx - Elo), sim.fs, 'gaussian');
+Iq = Rx.PD.detect(1/2*(1j*Erx - Elo), sim.fs, 'gaussian') - Rx.PD.detect(1/2*(-Erx + 1j*Elo), sim.fs, 'gaussian');
+
+yt = abs(Ii + 1j*Iq).^2;
+yt = yt + sqrt(sim.fs*Rx.N0/2)*randn(size(yt));
 
 %% Automatic gain control
 mpam = mpam.norm_levels();
@@ -136,8 +159,12 @@ end
 
 %% Finer gain control
 yk = yk - mean(yk);
-yk = yk*sqrt(var(mpam.a)/(sqrt(2)*mean(abs(yk).^2)));
-yk = yk + mean(mpam.a);
+yk = yk*sqrt(var(mpam.a)/(mean(abs(yk).^2)));
+% yk = yk + mean(mpam.a);
+
+mpam.b = mpam.b - mean(mpam.a);
+mpam.a = mpam.a - mean(mpam.a);
+mpam = mpam.norm_levels;
 
 %% Equalization
 Rx.eq.trainSeq = dataTX;
@@ -155,53 +182,57 @@ dataRX = mpam.demod(yd.');
 %% Counted BER
 [~, ber_count] = biterr(dataRX, dataTX);
 
-%% AWGN approximation
-% Note: this calculation includes noise enhancement due to equalization,
-% but dominant noise in pre-amplified system is the signal-spontaneous beat
-% noise, which is not Gaussian distributed
+% %% AWGN approximation
+% % Note: this calculation includes noise enhancement due to equalization,
+% % but dominant noise in pre-amplified system is the signal-spontaneous beat
+% % noise, which is not Gaussian distributed
+% 
+% % Noise bandwidth
+% if isfield(Rx, 'eq')
+%     % Normalize to have unit gain at DC
+%     H2 = abs(Hrx.*Rx.eq.Hff(sim.f/(mpam.Rs*Rx.eq.ros))).^2; 
+%     H2 = H2/interp1(sim.f, H2, 0);
+%     noiseBW = trapz(sim.f, H2)/2;
+% else 
+%     noiseBW = mpam.Rs/2;
+% end
+% fprintf('Noise bandwidth = %.2f GHz\n', noiseBW/1e9);
+% 
+% BWopt = Rx.optfilt.noisebw(sim.fs); % optical filter noise bandwidth; Not divided by 2 because optical filter is a bandpass filter
+% 
+% % Thermal noise
+% varTherm = Rx.N0*noiseBW; % variance of thermal noise
+% 
+% % RIN
+% if isfield(sim, 'RIN') && sim.RIN
+%     varRIN =  @(Plevel) 10^(Tx.Laser.RIN/10)*Plevel.^2*noiseBW;
+% else
+%     varRIN = @(Plevel) 0;
+% end
+% 
+% % Noise std for intensity level Plevel
+% Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
+% noise_std = @(Plevel) sqrt(varTherm + Rx.PD.varShot(Plevel, noiseBW) + Rx.PD.R^2*varRIN(Plevel)...
+%     + Rx.PD.R^2*Amp.varAWGN(Plevel/Amp.Gain, noiseBW, BWopt, Npol));
+% % Note: Plevel is divided by amplifier gain to obtain power at the amplifier input
+% 
+% % AWGN approximation
+% mpam = mpam.adjust_levels(Tx.Ptx*link_gain, Tx.rexdB);
 
-% Noise bandwidth
-if isfield(Rx, 'eq')
-    % Normalize to have unit gain at DC
-    H2 = abs(Hrx.*Rx.eq.Hff(sim.f/(mpam.Rs*Rx.eq.ros))).^2; 
-    H2 = H2/interp1(sim.f, H2, 0);
-    noiseBW = trapz(sim.f, H2)/2;
-else 
-    noiseBW = mpam.Rs/2;
-end
-fprintf('Noise bandwidth = %.2f GHz\n', noiseBW/1e9);
-
-BWopt = Rx.optfilt.noisebw(sim.fs); % optical filter noise bandwidth; Not divided by 2 because optical filter is a bandpass filter
-
-% Thermal noise
-varTherm = Rx.N0*noiseBW; % variance of thermal noise
-
-% RIN
-if isfield(sim, 'RIN') && sim.RIN
-    varRIN =  @(Plevel) 10^(Tx.Laser.RIN/10)*Plevel.^2*noiseBW;
-else
-    varRIN = @(Plevel) 0;
-end
-
-% Noise std for intensity level Plevel
-Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
-noise_std = @(Plevel) sqrt(varTherm + Rx.PD.varShot(Plevel, noiseBW) + Rx.PD.R^2*varRIN(Plevel)...
-    + Rx.PD.R^2*Amp.varAWGN(Plevel/Amp.Gain, noiseBW, BWopt, Npol));
-% Note: Plevel is divided by amplifier gain to obtain power at the amplifier input
-
-% AWGN approximation
-mpam = mpam.adjust_levels(Tx.Ptx*link_gain, Tx.rexdB);
-
-ber_awgn = mpam.berAWGN(noise_std);
+ber_awgn = [];
 
 %% Plots
 if sim.shouldPlot('Optical eye diagram')  
     Ntraces = 500;
     Nstart = sim.Ndiscard*sim.Mct + 1;
     Nend = min(Nstart + Ntraces*2*sim.Mct, length(Etx));
-    figure(103), clf, box on
+    figure(103), clf
+    subplot(211), box on
     eyediagram(abs(Etx(Nstart:Nend)).^2, 2*sim.Mct)
-    title('Optical eye diagram')
+    title('Transmitted optical signal eye diagram')
+    subplot(212), box on
+    eyediagram(abs(Erx(1, Nstart:Nend)).^2, 2*sim.Mct)
+    title('Received optical signal eye diagram')
     drawnow
 end
 
@@ -233,7 +264,7 @@ if sim.shouldPlot('Signal after equalization')
     legend([h1 h2(1) h3(1) h4], {'Equalized samples', 'PAM levels',...
         'Decision thresholds', 'BER measurement window'})
     title('Signal after equalization')
-    axis([1 sim.Nsymb -0.2 1.2])
+%     axis([1 sim.Nsymb -0.2 1.2])
     drawnow
 end
 

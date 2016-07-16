@@ -1,4 +1,4 @@
-function [yd, eq] = equalize(eq, yt, Hch, mpam, sim)
+function [yd, eq] = equalize(eq, yt, Hch, mpam, sim, verbose)
 %% Design equalizer and equalize yt
 % If yt is empty only designs equalizer
 % Inputs: 
@@ -17,6 +17,7 @@ function [yd, eq] = equalize(eq, yt, Hch, mpam, sim)
 % - Hch (required if fixed equalizer): channel frequency response including pulse shape
 % - mpam: mpam class
 % - sim: simulation parameters struct
+% - verbose (optional, default = false): whether to plot results
 % Outputs:
 % - yd: equalized signal sampled at symbol rate
 % - eq: equalizer struct with equalizer parameters
@@ -112,9 +113,16 @@ switch lower(eq.type)
                 k = k + 1;
             end
         end
-               
-        if sim.shouldPlot('Adaptation MSE')         
-            figure(400), hold on, box on
+
+        eq.h = W; % [Ntaps x Nfilters]
+        % Frequency response is calculated for only one of the filters
+        eq.Hff = @(f) freqz(eq.h(:, 1), 1, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.h(:, 1), 1, 1)); % removed group delay
+        eq.MSE = abs(e).^2;
+   
+        
+        if exist('verbose', 'var') && verbose       
+            figure(400), clf
+            subplot(221), hold on, box on
             plot(abs(e).^2)
             a = axis;
             plot(eq.Ndiscard(1)*[1 1], a(3:4), ':k')
@@ -122,13 +130,40 @@ switch lower(eq.type)
             legend('MSE', 'Valid window')
             xlabel('Iteration')
             ylabel('MSE')
-        end
+            title('Equalizer MSE')
 
-        eq.h = W; % [Ntaps x Nfilters]
-        % Frequency response is calculated for only one of the filters
-        eq.Hff = @(f) freqz(eq.h(:, 1), 1, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.h(:, 1), 1, 1)); % removed group delay
-        eq.MSE = abs(e).^2;
-   
+            
+            fnorm = linspace(-0.5, 0.5);
+            for k = 1:size(W, 2)
+                subplot(222), hold on, box on
+                stem(-(eq.Ntaps-1)/2:(eq.Ntaps-1)/2, abs(W(:, k)))
+                
+                Hw = freqz(W(:, k), 1, 2*pi*fnorm);
+                subplot(223), hold on, box on
+                plot(mpam.Rs*eq.ros*fnorm/1e9, abs(Hw).^2)
+
+                subplot(224), hold on, box on
+                plot(mpam.Rs*eq.ros*fnorm/1e9, unwrap(angle(Hw)))
+            end
+            subplot(222)   
+            xlabel('n')
+            ylabel('|W(n)|')
+            title('Equalizer taps')
+            
+            subplot(223)
+            a = axis;
+            axis([-mpam.Rs*eq.ros/2e9 mpam.Rs*eq.ros/2e9 a(3:4)]);
+            xlabel('Frequency (GHz)')
+            ylabel('|H_W(f)|^2')
+
+            subplot(224)
+            a = axis;
+            axis([-mpam.Rs*eq.ros/2e9 mpam.Rs*eq.ros/2e9 a(3:4)]);
+            xlabel('Frequency (GHz)')
+            ylabel('arg(H_W(f))')
+            drawnow
+        end
+        
     case 'fixed td-sr-le' 
         if not(isfield(eq, 'ros'))
             eq.ros = 1;
@@ -137,7 +172,7 @@ switch lower(eq.type)
         end
         Ntaps = eq.Ntaps;
         
-        Hch = Hch/interp1(sim.f, Hch, 0);   % normalize to unit gain at DC 
+        Hch = Hch/sqrt(interp1(sim.f, abs(Hch).^2, 0));   % normalize to unit gain at DC 
         Hmatched = conj(Hch); % matched filterd matched to the received pulse shape
 
         %% MMSE Time-domain symbol-rate equalizer
@@ -186,6 +221,25 @@ switch lower(eq.type)
         eq.h = W;
         eq.Hff = @(f) freqz(eq.h, 1, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.h, 1, 1)); % removed group delay
         eq.Hrx = Hmatched; 
+        
+        if exist('verbose', 'var') && verbose       
+            figure(400)
+            subplot(211), box on
+            stem(-(eq.Ntaps-1)/2:(eq.Ntaps-1)/2, abs(W))
+            xlabel('n')
+            ylabel('|W(n)|')
+            title('Equalizer taps')
+            subplot(212), box on
+            fnorm = linspace(-0.5, 0.5);
+            Hw = freqz(W, 1, 2*pi*fnorm);
+            plot(fnorm*mpam.Rs*eq.ros/1e9, abs(Hw).^2)
+            a = axis;
+            axis([-mpam.Rs*eq.ros/2e9 mpam.Rs*eq.ros/2e9 a(3:4)]);
+            xlabel('Frequency (GHz)')
+            ylabel('|H_W(f)|^2')
+            title('Equalizer frequency response')
+            drawnow
+        end
     otherwise
         error('equalize: Equalization type *%s* not implemented yet!', eq.type)
 end

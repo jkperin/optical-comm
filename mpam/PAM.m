@@ -146,6 +146,14 @@ classdef PAM
                 
         end
         
+        function H = Hpshape(self, f)
+            %% Frequency response of PAM pulse shape
+            fs = self.Rs*self.pulse_shape.sps;
+            delay = grpdelay(self.pulse_shape.h, 1, 1);
+            H = freqz(self.pulse_shape.h/abs(sum(self.pulse_shape.h)), 1, f, fs)...
+                .*exp(1j*2*pi*f/fs.*delay); % remove group delay
+        end        
+        
         function [xt, xd] = signal(self, dataTX)
             %% Generate PAM signal
             % Note: group delay due to pulse shaping filtering is not

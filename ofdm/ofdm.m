@@ -106,6 +106,9 @@ classdef ofdm < handle
                 %% Optimal power allocation and bit loading   
                 case 'palloc'
                     [this.Pn, this.CSn] = palloc(this, Gch, varNoise, BERtarget);
+                case 'none'
+                    this.Pn = ones(size(this.fc));
+                    this.CSn = this.CS*ones(size(this.fc));
                 otherwise 
                     error('power_allocation: invalid option') 
             end
@@ -165,7 +168,7 @@ classdef ofdm < handle
             xncp = reshape(xncp, 1, (this.Nc + this.Npre_os)*Nsymb); % time-domain ofdm signal w/ cyclic prefix
         end
         
-        function Xn = detect(this, yk, eq, verbose)
+        function [Xn, AGCn, W] = detect(this, yk, eq, verbose)
             %% Detect OFDM signal
             % Inputs:
             % - yk: time-domain signal sampled at the symbol rate
@@ -261,7 +264,7 @@ classdef ofdm < handle
             end
         end
         
-        function [bercount, interval] = countBER(self, Ndiscard)
+        function [bercount, interval] = countBER(self, Ndiscard, verbose)
             %% Measured BER
             ind = Ndiscard(1)+1:size(self.dataTX, 2)-Ndiscard(2);
             Nsymb = length(ind);
@@ -279,7 +282,14 @@ classdef ofdm < handle
 
             % 95% confidence intervals for the counted BER
             [~, interval] = berconfint(Nerr, Nbits);
-            interval = [min(interval(:,1)), max(interval(:,2))];      
+            interval = [min(interval(:,1)), max(interval(:,2))];  
+            
+            if exist('verbose', 'var') && verbose
+                figure(410), box on
+                stem(1:self.Nu/2, Nerr)
+                xlabel('Subcarrier')
+                ylabel('Number of bit errors')
+            end
         end
         
         function set_cyclic_prefix(self, Nn, Np)
@@ -467,10 +477,10 @@ classdef ofdm < handle
         
         function set.powerAllocationType(self, type)
             %% Power allocation type
-            if strcmpi(type, 'preemphasis') || strcmpi(type, 'palloc')
-                self.powerAllocationType = type;
+            if strcmpi(type, 'preemphasis') || strcmpi(type, 'palloc') || strcmpi(type, 'none')
+                self.powerAllocationType = lower(type);
             else
-                error('ofdm/powerAllocationType: Invalid power allocation type. It must be either preemphasis or palloc')
+                error('ofdm/powerAllocationType: Invalid power allocation type. It must be either preemphasis, palloc, or none.')
             end
         end
     end

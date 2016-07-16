@@ -33,7 +33,9 @@ for k = 1:length(Fibers)
 end
 
 %% EDFA
-EDFA.summary();
+for k = 1:length(EDFA)
+    EDFA(1).summary();
+end
 
 %% Receiver paramaters
 disp('Receiver parameters summary')

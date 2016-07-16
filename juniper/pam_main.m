@@ -15,8 +15,8 @@ addpath ../apd % for PIN photodetectors
 
 %% Simulation parameters
 sim.Rb = 56e9;    % bit rate in bits/sec
-sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
-sim.ros.txDSP = 1; % oversampling ratio transmitter DSP (must be integer). DAC samping rate is sim.ros.txDSP*mpam.Rs
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+sim.ros.txDSP = 2; % oversampling ratio transmitter DSP (must be integer). DAC samping rate is sim.ros.txDSP*mpam.Rs
 % For DACless simulation must make Tx.dsp.ros = sim.Mct and DAC.resolution = Inf
 sim.ros.rxDSP = 2; % oversampling ratio of receiver DSP. If equalization type is fixed time-domain equalizer, then ros = 1
 sim.Mct = 2*5;      % Oversampling ratio to simulate continuous time. Must be integer multiple of sim.ros.txDSP and numerator of sim.ros.rxDSP
@@ -26,12 +26,17 @@ sim.BERtarget = 1e-4;
 sim.Ndiscard = 128; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Modulator = 'MZM'; % 'MZM' only
+sim.PrxdBm = 10; % constant received power
  
+sim.preAmp = true;
+sim.coherentDetector = true;
+sim.preemphasis = true;
+sim.preemphRange = 20e9;
 sim.predistortion = 'none';
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
 sim.PMD = false; % whether to simulate PMD
-sim.quantiz = false; % whether quantization is included
+sim.quantiz = ~true; % whether quantization is included
 sim.stopSimWhenBERReaches0 = true; % stop simulation when counted BER reaches 0
 
 % Control what should be plotted
@@ -46,6 +51,8 @@ sim.Plots('Adaptation MSE') = 0;
 sim.Plots('Ouptut signal') = 0;
 sim.Plots('Heuristic noise pdf') = 0;
 sim.Plots('Channel frequency response') = 0;
+sim.Plots('OSNR') = 0;
+sim.Plots('Received signal optical spectrum') = 0;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
 %% Pulse shape
@@ -60,18 +67,11 @@ mpam = PAM(4, sim.Rb, 'equally-spaced', pulse_shape);
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
-
-dt = 1/sim.fs;
-t = (0:dt:(sim.N-1)*dt);
-df = 1/(dt*sim.N);
-f = (-sim.fs/2:df:sim.fs/2-df);
-
-sim.t = t;
-sim.f = f;
+[sim.f, sim.t] = freq_time(sim.N, sim.fs);
 
 %% Transmitter
-Tx.PtxdBm = -28:-15; % transmitter power range
-% Tx.PtxdBm = -15; % transmitter power range
+Tx.PtxdBm = -20:-12; % transmitter power range
+% Tx.PtxdBm = -10; % transmitter power range
 
 Tx.rexdB = -22;  % extinction ratio in dB. Defined as Pmin/Pmax
 Tx.alpha = 0; % chirp parameter for laser or modulator
@@ -79,9 +79,10 @@ Tx.alpha = 0; % chirp parameter for laser or modulator
 %% DAC
 Tx.DAC.fs = sim.ros.txDSP*mpam.Rs; % DAC sampling rate
 Tx.DAC.ros = sim.ros.txDSP; % oversampling ratio of transmitter DSP
-Tx.DAC.resolution = Inf; % DAC effective resolution in bits
+Tx.DAC.resolution = 8; % DAC effective resolution in bits
 % Tx.DAC.filt = design_filter('butter', 3, 20e9/(sim.fs/2)); % DAC analog frequency response
 Tx.DAC.filt = design_filter('butter', 5, 30e9/(sim.fs/2)); % DAC analog frequency response
+Tx.DAC.rclip = 0;
 
 %% Laser
 % Laser constructor: laser(lambda (nm), PdBm (dBm), RIN (dB/Hz), linewidth (Hz), frequency offset (Hz))
@@ -93,19 +94,26 @@ Tx.DAC.filt = design_filter('butter', 5, 30e9/(sim.fs/2)); % DAC analog frequenc
 Tx.Laser = laser(1550e-9, 0, -150, 0.2e6, 0);
 
 %% Modulator
+% Tx.Mod.type = sim.Modulator;    
+% Tx.Mod.BW = 15e9;
+% Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
+% Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
+% Tx.Mod.Vbias = 0.5; % bias voltage normalized by Vpi
+% Tx.Mod.Vswing = 0.6;  % normalized voltage swing. 1 means that modulator is driven at full scale
+% Tx.Mod.H = exp(1j*2*pi*f*Tx.Mod.grpdelay)./(1 + 2*1j*f/Tx.Mod.fc - (f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+
 Tx.Mod.type = sim.Modulator;    
-Tx.Mod.BW = 25e9;
-Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
-Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
-Tx.Mod.Vbias = 0.5; % bias voltage normalized by Vpi
-Tx.Mod.Vswing = 0.6;  % normalized voltage swing. 1 means that modulator is driven at full scale
-Tx.Mod.H = exp(1j*2*pi*f*Tx.Mod.grpdelay)./(1 + 2*1j*f/Tx.Mod.fc - (f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+Tx.Mod.BW = 10e9;
+Tx.Mod.Vbias = 0.4; % bias voltage normalized by Vpi
+Tx.Mod.Vswing = 0.7;  % normalized voltage swing. 1 means that modulator is driven at full scale
+Tx.Mod.filt = design_filter('Bessel', 5, Tx.Mod.BW/(sim.fs/2));
+Tx.Mod.H = Tx.Mod.filt.H(sim.f/sim.fs);
 
 %% Fiber
 % fiber(Length in m, anonymous function for attenuation versus wavelength
 % (default: att(lamb) = 0 i.e., no attenuation), anonymous function for 
 % dispersion versus wavelength (default: SMF28 with lamb0 = 1310nm, S0 = 0.092 s/(nm^2.km))
-SMF = fiber(10e3); 
+SMF = fiber(0); 
 DCF = fiber(0, @(lamb) 0, @(lamb) -0.1*(lamb-1550e-9)*1e3 - 40e-6); 
 
 Fibers = [SMF DCF];
@@ -113,7 +121,8 @@ Fibers = [SMF DCF];
 %% Amplifier
 % Class SOA characterizes amplifier in terms of gain and noise figure
 % soa(GaindB: amplifier gain in dB, NFdB: noise figure in dB, lambda: operationa wavelength, maxGaindB: maximum amplifier gain)
-EDFA = soa(20, 5, 1550e-9, 20); 
+EDFA(1) = soa(20, 7, 1550e-9, 20); 
+EDFA(2) = soa(20, 7, 1550e-9, 20); 
 
 %% Photodiode
 % pin(R: Responsivity (A/W), Id: Dark current (A), BW: bandwidth (Hz))
@@ -125,7 +134,7 @@ Rx.PD = pin(1, 10e-9, Inf);
 Rx.N0 = (30e-12).^2; 
 
 % Optical Bandpass Filter (fiber Brag gratting)
-Rx.optfilt = design_filter('fbg', 4, 50e9/(sim.fs/2));
+Rx.optfilt = design_filter('fbg', 4, 200e9/(sim.fs/2));
 
 Rx.filtering = 'antialiasing'; % {'antialiasing' or 'matched'}
 
@@ -133,7 +142,7 @@ Rx.filtering = 'antialiasing'; % {'antialiasing' or 'matched'}
 Rx.ADC.ros = sim.ros.rxDSP;
 Rx.ADC.fs = Rx.ADC.ros*mpam.Rs*(mpam.pulse_shape.rolloff + 1)/2;
 Rx.ADC.filt = design_filter('butter', 5, 0.5*Rx.ADC.fs/(sim.fs/2)); % Antialiasing filter
-Rx.ADC.ENOB = 4; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
+Rx.ADC.ENOB = 6; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
 Rx.ADC.rclip = 0;
 
 %% Equalizer
@@ -142,8 +151,8 @@ Rx.eq.ros = sim.ros.rxDSP;
 Rx.eq.type = 'Adaptive TD-LE';
 Rx.eq.Ntaps = 15;
 Rx.eq.mu = 1e-2;
-Rx.eq.Ntrain = 0.5e4; % Number of symbols used in training (if Inf all symbols are used)
-Rx.eq.Ndiscard = [1e4 1024]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
+Rx.eq.Ntrain = 0.3e4; % Number of symbols used in training (if Inf all symbols are used)
+Rx.eq.Ndiscard = [0.5e4 1024]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
 
 %% Generate summary
 generate_summary(mpam, Tx, Fibers, EDFA, Rx, sim);
