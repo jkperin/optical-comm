@@ -1,4 +1,4 @@
-function [Xs, S, Sf, Analog] = analog_epll_4thpower(Ys, totalLineWidth, Analog, sim)
+function [Xs, Analog] = analog_epll_4thpower(Ys, totalLineWidth, Analog, sim, verbose)
 %% Analog electric phase locked loop via 4th power operation
 % Inputs:
 % - Ys: received signal after filtering to remove noise
@@ -57,7 +57,7 @@ fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1
 LoopDelaySamples = round(totalGroupDelay*sim.fs); % loop delay in samples
 
 % Optimize EPLL parameters
-Analog.wn = optimizePLL(Analog.csi, Analog.Kdc, totalGroupDelay, totalLineWidth, sim);
+Analog.wn = optimizePLL(Analog.csi, Analog.Kdc, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
 Analog.EPLL.nums = Analog.Kdc*[2*Analog.csi*Analog.wn Analog.wn^2];
 Analog.EPLL.dens = [1 0 0]; % descending powers of s
 [Analog.EPLL.numz, Analog.EPLL.denz] = impinvar(Analog.EPLL.nums, Analog.EPLL.dens, sim.fs);
@@ -104,4 +104,20 @@ Xs = [X(1, :) + 1j*X(2, :); X(3, :) + 1j*X(4, :)];
 delay = round((Mx1.groupDelay + Sx1.groupDelay)*sim.fs); % Group delay of downconversion stage
 Xs = [Xs(:, delay+1:end) Xs(:, 1:delay)]; % remove group delay
 
+
+ % Phase error plot -------------------------------------------------------
+if exist('verbose', 'var') && verbose
+    figure(404), clf
+    subplot(211), hold on, box on
+    plot(sim.t, S)
+    xlabel('time (s)')
+    ylabel('Loop filter input')       
+    subplot(212), hold on, box on
+    plot(sim.t, Sf)
+    p = polyfit(sim.t, Sf, 1);
+    plot(sim.t, polyval(p, sim.t));
+    legend('VCO phase', sprintf('Linear fit (for freq offset) = %.2f GHz ramp', p(1)/(2*pi*1e9)))
+    xlabel('time (s)')
+    ylabel('Phase (rad)')
+end
 

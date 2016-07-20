@@ -1,46 +1,37 @@
 %% Simulation of DSP-based coherent detection system
-clear, clc, close all
+clear, clc
 
 addpath DSP/
 addpath f/
 addpath ../f/
 addpath ../apd/
 addpath ../soa/
-addpath ../mpam/
+
+%% Simulation launched power swipe
+Tx.PlaunchdBm = -38:-28;
+% Tx.PlaunchdBm = -28;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
-sim.ros = 5/4;          % Oversampling ratio of DSP
-sim.Mct = 8*sim.ros;    % Oversampling ratio to simulate continuous time 
+sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
+sim.Mct = 8;    % Oversampling ratio to simulate continuous time 
+sim.ros.rxDSP = 2;
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 1e3; % number of symbols to be discarded from the begining and end of the sequence 
+sim.Ndiscard = 1024; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
-sim.ModFormat = 'QAM';                                                     % either 'QAM' or 'DPSK'
-sim.M    = 4;                                                              % QAM order
-sim.pulse = 'NRZ';                                                         % Transmitter pulse shape ('NRZ')
 sim.Npol = 2;                                                              % number of polarizations
-sim.Modulator = 'SiPhotonics';                                                     % Modulator type: {'MZM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
-sim.Rs = sim.Rb/(sim.Npol*log2(sim.M));                                     % Symbol Rate
+sim.Modulator = 'SiPhotonics';                                             % Modulator bandwidth limitation: {'MZM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
+sim.pulse_shape = select_pulse_shape('rect', sim.Mct);                     % pulse shape
+sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-QAM modulation format
+% sim.ModFormat = DPSK(4, sim.Rb/sim.Npol, sim.pulse_shape);                     % M-DPSK modulation format
 
-% Simulation
-sim.RIN = true; 
-sim.PMD = true;
-sim.phase_noise = true;
+% Simulation control
+sim.RIN = ~true; 
+sim.PMD = ~true;
+sim.phase_noise = ~true;
 sim.preAmp = false;
-sim.quantiz = true;
+sim.quantiz = false;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
-
-%% Time and frequency
-sim.fs = sim.Rs*sim.Mct;  % sampling frequency for 'continuous-time' simulation
-
-dt = 1/sim.fs;
-t = 0:dt:(sim.N-1)*dt;
-df = 1/(dt*sim.N);
-f = -sim.fs/2:df:sim.fs/2-df;
-
-sim.t = t;
-sim.f = f;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
@@ -49,7 +40,7 @@ Plots('Equalizer')            = 0;
 Plots('Eye diagram') = 0;
 Plots('DPLL phase error') = 0;
 Plots('Feedforward phase error') = 0;
-Plots('Frequency offset estimation') = 0;
+Plots('Frequency offset estimation') = 1;
 Plots('Channel frequency response') = 0;
 Plots('Constellations') = 0;
 Plots('Diff group delay')       = 0;
@@ -58,8 +49,13 @@ Plots('Frequency estimation')  = 0;
 sim.Plots = Plots;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
+%% Time and frequency
+sim.Rs = sim.ModFormat.Rs;
+sim.fs = sim.ModFormat.Rs*sim.Mct;  % sampling frequency for 'continuous-time' simulation
+[sim.f, sim.t] = freq_time(sim.N, sim.fs);
+
 %% ===================== Transmitter Electric Filter ====================== 
-Tx.filt = design_filter('bessel', 5, 0.7*sim.Rs/(sim.fs/2));               % design_filter(type, order, normalized cutoff frequency)
+Tx.filt = design_filter('bessel', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));               % design_filter(type, order, normalized cutoff frequency)
 Tx.Delx  = 0;                                                               % Delay of x pol. in pol. mux. (symbol intervals)
 Tx.Dely  = 0;                                                               % Delay of y pol. in pol. mux. (symbol intervals)
 
@@ -70,34 +66,20 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1390e-9, 0, -150, 0.2e6, 0);
+Tx.Laser = laser(1250e-9, 0, -150, 200e3, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
     %% Mach-Zehnder (limited by velocity mismatch and loss)
-    % K. P. Ho, Phase-Modulated Optical Communication Systems. New York: Springer, 2005.
-    % Parameters are the taken from Milad's code to result in a MZM with
-    % bandwidth of about 50 GHz
-    omega = 2*pi*f;
-    c = 3e8;
-    Mod.Vpi = 4.5;                                                         % Modulator switching voltage (V)
-    ratio      = 0.98;                                                     % velocity mismatch ratio         
-    n_r        = 2.15;                                                     % refractive index of coplanar-waveguide (CPW) for TM input light
-    n_m        = n_r*ratio;                                                % 
-    Mod.d_12   = (n_m -n_r)/c;                                             % Velocity mismatch difference between the optical and electrical waveguides
-    Mod.a      = 0.01*100*sqrt(abs(omega)/2/pi*1e-9);                      % Microwave attenuation coefficient (electrode loss)
-    Mod.L      = 0.05;                                                     % Interaction length 
-    Mod.Hel    = (1-exp(Mod.L*(-Mod.a + 1j*Mod.d_12*omega)))./...          % Freq. response of the optical modulator limited by elec. loss and velocity mismatch
-                    (Mod.a-1j*Mod.d_12*omega)/Mod.L;
-    Mod.Hel(isnan(Mod.Hel)) = 1;                                           % Mod.Hel(f=0) is NaN  
+    % Mod = mzm_frequency_response(ratio : velocity mismatch, L : iteractive length in m, f: frequency vector, verbose: whether to plot results)
+    Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
 elseif strcmpi(sim.Modulator, 'SiPhotonics') 
     %% Si Photonics (limited by parasitics, 2nd-order response)
-    Mod.BW = 40e9;
-    Mod.fc = Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
-    Mod.grpdelay = 2/(2*pi*Mod.fc);  % group delay of second-order filter in seconds
-    Mod.Hel = exp(1j*2*pi*f*Mod.grpdelay)./(1 + 2*1j*f/Mod.fc - (f/Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-end
-Tx.Mod = Mod;                                                              % optical modulator
+    Tx.Mod.BW = 40e9;
+    Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
+    Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
+    Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+end                                                           % optical modulator
 
 %% =============================== Fiber ==================================
 % Constructor: fiber(L, att(lamb) (optional), D(lamb) (optional)) 
@@ -106,7 +88,7 @@ Tx.Mod = Mod;                                                              % opt
 % deafault is att(lamb) = 0 dB/km
 % D(lamb) : function handle of dispersion (D) at wavelength (lamb) in ps/(kmnm),
 % default is D(lamb) = SSMF with lamb0 @ 1310 ps/(kmnm)
-Fiber = fiber();
+Fiber = fiber(0*5e3);
 Fiber.PMD = sim.PMD;                                                       % whether to similate PMD
 Fiber.meanDGDps = 0.1;                                                     % Mean DGD (ps)
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
@@ -123,7 +105,7 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
-Rx.LO.PdBm = 9.8;                                                           % Total local oscillator power (dBm)
+Rx.LO.PdBm = 15;                                                           % Total local oscillator power (dBm)
 Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
@@ -159,9 +141,9 @@ Rx.N0 = (30e-12)^2;                                                        % One
 %% ================================= ADC ==================================
 Rx.ADC.ENOB = 4;                                                           % effective number of bits
 Rx.ADC.rclip = 0;                                                          % clipping ratio: clipped intervals: [xmin, xmin + xamp*rclip) and (xmax - xamp*rclip, xmax]
-Rx.ADC.ros = sim.ros;                                                      % oversampling ratio with respect to symbol rate 
+Rx.ADC.ros = sim.ros.rxDSP;                                                      % oversampling ratio with respect to symbol rate 
 Rx.ADC.fs = Rx.ADC.ros*sim.Rs;                                             % ADC sampling rate
-Rx.ADC.filt = design_filter('cheby1', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
+Rx.ADC.filt = design_filter('butter', 5, 0.7*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
 % ADC filter should include all filtering at the receiver: TIA,
 % antialiasing, etc.
 
@@ -172,7 +154,7 @@ Rx.AdEq.structure = '2 filters';                                           % Str
 Rx.AdEq.Ntrain = 1e4;                                                    % Number of symbols used for training (only used if LMS)
 Rx.AdEq.mu = 1e-3;                                                         % Adaptation rate 
 Rx.AdEq.Ntaps = 7;                                                         % Number of taps for each filter
-Rx.AdEq.ros = sim.ros;                                                     % Oversampling ratio
+Rx.AdEq.ros = sim.ros.rxDSP;                                               % Oversampling ratio
 
 %% Carrrier phase recovery
 % Only used if sim.ModFormat = 'QAM'
@@ -181,36 +163,25 @@ Rx.CPR.phaseEstimation = 'NDA';                                             % Ph
 Rx.CPR.Delay = 0;                                                       % Delay in number of symbols due to pipelining and parallelization
 Rx.CPR.Ntrain = 1;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
-Rx.CPR.Filter = 'Wiener';                                                  % {'Wiener': Wiener filter, 'Averaging': samples are averaged rather than filtered by Wiener filter}
+Rx.CPR.Filter = 'Averaging';                                                  % {'Wiener': Wiener filter, 'Averaging': samples are averaged rather than filtered by Wiener filter}
 Rx.CPR.FilterType = 'FIR';                                                 % Filter type: {'FIR', 'IIR'}
 Rx.CPR.structure = '2 filters';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
-Rx.CPR.Ntaps = 10;                                                          % Maximum number of taps of filter 
+Rx.CPR.Ntaps = 10;                                                          % Number of filter taps
 Rx.CPR.NDAorder = 'reverse';                                               % Order of phase estimation (PE) and filtering in NDA FF:{'direct': PE followed by filtering, 'reverse': filtering followed by PE}
 % Carrier phase recovery parameters for 'DPLL'
 Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
 Rx.CPR.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
 Rx.CPR.wn = 2*pi*0.8e9;                                                    % relaxation frequency of second-order loop filter: optimized using optimize_PLL.m
-% Phase tracking stage
-% This only compensates for constant phase offsets, which may be required
-% since feedforward or DPLL may converge to a rotated constellation when
-% the frequency offset and loop delays are large
-% Phase tracking is adpated using LMS
-Rx.PT.mu = 0.005;
-Rx.PT.Ntrain = 0.1e4;
 
 %% Frequency recovery
 % Used in DQPSK receiver and QPSK with feedforward carrier recovery
 % Frequency recovery algorithm uses 4th power method to estimate frequency
 % offset. Hence, it only works for quaternary modulation formats
-Rx.FreqRec.mu = [0.0005 0];                                                 % Adaptation rate. A vector means that gear shifting is used
-Rx.FreqRec.muShift = 1e4;                                  % Controls when gears are shifted. From 1:muShift(1) use mu(1), from muShift(1)+1:muShift(2) use mu(2), etc
+Rx.FreqRec.mu = 5e-4;                                                % Adaptation rate. A vector means that gear shifting is used
 Rx.FreqRec.Ntrain = 1e4;
 
 %% Generate summary
-generate_summary(sim, Tx, Fiber, Rx);
-
-Tx.PlaunchdBm = -35:-28;
-sim.Nsetup = Rx.AdEq.Ntrain + (Rx.LO.freqOffset~=0)*Rx.FreqRec.Ntrain + sim.Ndiscard; % Number of symbols after which BER will be meaured (only for DPSK)
+coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
 ber = ber_coherent_dsp(Tx, Fiber, Rx, sim)
 % ber = ber_coherent_dsp_matched_filtering(Tx, Fiber, Rx, sim)

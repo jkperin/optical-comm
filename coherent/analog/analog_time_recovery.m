@@ -1,4 +1,4 @@
-function [ysamp, idx] = analog_time_recovery(yct, TimeRec, sim)
+function [ysamp, idx] = analog_time_recovery(yct, TimeRec, sim, verbose)
 %% Time recovery for analog-based receiver
 % Inputs:
 % - yc: input signal in "continuous-time". If yct is complex, ony the I 
@@ -15,82 +15,66 @@ function [ysamp, idx] = analog_time_recovery(yct, TimeRec, sim)
 % - ysamp: sampled signal
 % - idx: indices such that ysamp = yct(idx)
 
-% Only I component is used in timing recovery
-y = real(yct);
-
 switch lower(TimeRec.type)
-    case 'squarer'
+    case 'spectral-line-bpf'
         %% Spectral line syncronizer based on squaring and bandpass filtering
         % Differentiator -> nonlinearity (squaring) -> band pass filter
         % centered at the symbol rate
         % Note: BPF could be replaced by a PLL, but this is not considered
         % here
         
-        ynl = diff([y 0]).^2;
-        clk = real(ifft(fft(ynl).*ifftshift(TimeRec.bpf.H(sim.f/sim.fs))));
+        yct = resample(yct, TimeRec.Mct, sim.Mct);
+        fs = sim.fs*TimeRec.Mct/sim.Mct;
+        [f, t] = freq_time(length(yct), fs);
+        Hbpf = ifftshift(TimeRec.bpf.H(f/fs));
+        
+        % Nonlinearity + differentiator
+        y = real(yct);
+%         ynl = diff([y 0]).^2;
+        ynl = y.^2;
+        
+        % BPF
+        clk = real(ifft(fft(ynl).*Hbpf));
+        
+        % Limiting amps
         clk(clk > 0) = 1;
         clk(clk < 0) = 0;
+        
+        % Rising-edge detection
         samp = diff([clk 0]);
         idx = find(samp > 0);
-        ysamp = yct(idx);
-                
-    case 'mueller-muller'
-        %% Mueller and Muller (M&M) algorithm
-        % Discrete-time error-tracking algorithm     
-        % Build loop filter
-        csi = TimeRec.csi;
-        wn = TimeRec.wn;
-        if not(isfield(TimeRec, 'CT2DT'))
-            TimeRec.CT2DT = 'bilinear';
-        end
         
-        % Open-loop analog filter coefficients
-        nums = [0 2*csi*wn wn^2];
-        dens = [1 0 0]; % descending powers of s
-        % Closed-loop digital filter coefficients using bilinear transformation
-        if strcmpi(TimeRec.CT2DT, 'bilinear')
-            [numz, denz] = bilinear(nums, dens+nums, sim.Rs); % ascending powers of z^–1
-        elseif strcmpi(TimeRec.CT2DT, 'impinvar')
-            [numz, denz] = impinvar(nums, dens+nums, sim.Rs); % ascending powers of z^–1
-        else
-            error('analog_time_recovery: invalid method for continuous time to discrete time conversion')
-        end
+        % Sampling
+        tsamp = t(idx);
+        ysamp = trim_pad(yct(idx));        
         
-        LoopFilter = ClassFilter(numz, denz, sim.Rs);
-        
-        T = sim.Mct;
-        xhat = [0 0];
-        k = 2;
-        n = T+1;
-        s = zeros(1, sim.Nsymb);
-        idx = ones(1, sim.Nsymb);
-        mk = zeros(1, sim.Nsymb);
-        ysamp = zeros(1, sim.Nsymb);
-        while n <= length(y) && k <= sim.Nsymb
-            ysamp(k) = y(n);
-            idx(k) = n;
-            xhat(2) = xhat(1);
-            xhat(1) = TimeRec.detect(y(n)); % make symbol decision
-            mk(k) = xhat(2)*ysamp(k) - xhat(1)*ysamp(k-1); % M&M timing error detector
-
-            % Loop filter 
-            s(k) = LoopFilter.filter(mk(k));
-
-            s(k) = max(-T+1, s(k)); % makes sure sampler is always moving forward
-            n = round(n + T + s(k));
-            k = k + 1;
+        % Plots
+        if exist('verbose', 'var') && verbose
+            figure(405), clf, hold on
+            plot(1e12*(sim.t(1:sim.Mct:min(length(sim.t), length(tsamp)*sim.Mct)) - tsamp))
+            xlabel('Symbol')
+            ylabel('Sampling time error (ps)')
+            title('Timing recovery')
+            scatterplot(ysamp)
         end
-
-        ysamp = yct(idx(idx ~= 0));
-       
+ 
+    case 'spectral-line-pll'
+        ysamp = yct(1:sim.Mct:end); 
     case 'none'
-        if mod(sim.Mct, 2) == 0 % even
-            idx = sim.Mct/2:sim.Mct:length(y);
-        else % odd
-            idx = (sim.Mct + 1)/2:sim.Mct:length(y);
-        end
-        
-        ysamp = yct(idx);     
+        ysamp = yct(1:sim.Mct:end);     
     otherwise
         error('analog_time_recovery: invalide time recovery type')
+end
+
+function y = trim_pad(x)
+%% Ensures that vector x has sim.Nsymb points by trimming or padding zeros
+    N = sim.Nsymb;
+    if length(x) > N
+        y = x(1:N);
+    elseif length(x) < N
+        y = [x zeros(1, N-length(x))];
+    else
+        y = x;
+    end
+end
 end

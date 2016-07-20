@@ -6,7 +6,7 @@ classdef ClassFilter < handle
         fs % sampling frequency
     end
     
-    properties(GetAccess=protected)
+    properties(SetAccess=private)
         implementationType % FIR or IIR
         memForward % register for forward path
         memFeedback % register for feedback path
@@ -72,6 +72,7 @@ classdef ClassFilter < handle
                 inputSignal = randn(1, 1000); % generates random signal for testing
             end
             
+            self.reset();
             outputSignal = zeros(size(inputSignal));
             self = self.reset();
             for t = 1:length(inputSignal)
@@ -83,6 +84,7 @@ classdef ClassFilter < handle
             plot(outputSignal, 'r')
             plot(filter(self.num, self.den, inputSignal), '--k');
             legend('Input signal', 'Output signal', 'Output signal using matlab function filter')
+            self.reset();
         end  
     end
 end

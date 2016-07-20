@@ -1,13 +1,12 @@
-%% Digital PLL analysis
-function [wnOpt, wn, phiError] = optimizePLL(csi, Kdc, Delay, linewidth, sim)
+function [wnOpt, wn, phiError] = optimizePLL(csi, Kdc, Delay, linewidth, sim, verbose)
 %% Optimizes PLL relaxation frequency given csi (damping), Kdc (DC gain), Delay, linewidth for a target BER
 
 Ts = 1/sim.Rs;
-M = sim.M;
+M = sim.ModFormat.M;
 BER = sim.BERtarget;
-SNRdB = SNRreq(BER, M, sim.ModFormat);
+SNRdB = SNRreq(BER, M, sim.ModFormat.type);
 SNR = 10^(SNRdB/10);
-etac = mean(abs(qammod(0:M-1, M)).^2)/mean(1./abs(qammod(0:M-1, M)).^2);
+etac = mean(abs(sim.ModFormat.mod(0:M-1)).^2)/mean(1./abs(sim.ModFormat.mod(0:M-1)).^2);
 
 varPN = 2*pi*linewidth*Ts;
 
@@ -38,7 +37,7 @@ end
 [minPhiError, ind] = min(phiError);
 wnOpt = wn(ind);
 
-if sim.Plots.isKey('Phase error variance') && sim.Plots('Phase error variance')
+if exist('verbose', 'var') && verbose
     figure(300), hold on
     h = plot(wn/1e9, phiError);
     plot(wnOpt/1e9, minPhiError, 'o', 'Color', get(h, 'Color'))

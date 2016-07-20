@@ -24,14 +24,14 @@
 
 \section{Transmitter}
 \subsection{Intensity Noise}
-Modeled as an AWG noise added to the optical power at the transmitter.
+Intensity noise is modeled as an AWGN added to the optical power at the transmitter.
 
 The value of RIN is defined as the ratio between the noise power divide by the noise bandwidth and the signal power \cite{agilent-RIN-measurement}: 
 \begin{equation}
 RIN = \frac{P_{noise}}{B_{noise}P_{signal}}
 \end{equation}
 
-Thus the \textbf{one-sided RIN PSD} and \textbf{RIN variance} at a certain instant are given by
+Hence, the \textbf{one-sided RIN PSD} and \textbf{RIN variance} at a certain instant are given by
 \begin{align}
 & S_{RIN}(t) = RIN\cdot P(t)^2 \\
 & \sigma^2_{RIN}(t) = S_{RIN}(t)\frac{f_{s, sim}}{2}
@@ -228,6 +228,32 @@ $R_s$ is the symbol rate and $R_s/2$ is the one-sided noise bandwidth. The facto
 \begin{equation}
 \mathrm{SNR} = \frac{2E_s}{N_0}, \qquad \frac{E_s}{N_0} = \log_2M\frac{E_b}{N_0}
 \end{equation}
+
+\subsection{Using coherent detection to obtain intensity in a pre-amplified system}
+
+Balanced detectors output:
+\begin{align} \nonumber
+I_I &= |E_1|^2 - |E_2|^2 \\ \nonumber
+&= \frac{1}{2}\Big(E_sE_{LO}^* + E_s^*E_{LO} \Big)
+\end{align}
+
+\begin{align} \nonumber
+I_Q &= |E_3|^2 - |E_4|^2 \\ \nonumber
+&= \frac{1}{2}\Big(-jE_sE_{LO}^* + jE_s^*E_{LO}\Big)
+\end{align}
+
+\begin{align} \nonumber
+Y &= |I_I|^2 + |I_Q|^2 \\ \nonumber
+&= |E_sE_{LO}|^2
+\end{align}
+
+Including noise
+\begin{align} \nonumber
+Y &= |E_sE_{LO}|^2 = |(E_s + E_N)E_{LO}|^2 \\
+&= |E_{LO}|^2(|E_s|^2 + |E_N|^2 + E_s^*E_N + E_sE_N^*) \\
+&= |E_{LO}|^2(|E_s|^2 + |E_N|^2 + 2E_{N,1}\mathrm{Re}(E_s) + 2E_{N,1}\mathrm{Im}(E_s)) \\
+\end{align}
+
 
 \section{Digital signal processing based receiver}
 

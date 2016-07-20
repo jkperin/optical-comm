@@ -1,4 +1,4 @@
-function [Xs, S, Sf, Analog] = analog_epll_costas(Ys, totalLineWidth, Analog, sim)
+function [Xs, Analog] = analog_epll_costas(Ys, totalLineWidth, Analog, sim, verbose)
 %% Analog electric phase locked loop via Costas loop
 % Inputs:
 % - Ys: received signal after filtering to remove noise
@@ -57,7 +57,7 @@ fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1
 LoopDelaySamples = round(totalGroupDelay*sim.fs); % loop delay in samples
 
 % Optimize EPLL parameters
-Analog.wn = optimizePLL(Analog.csi, Analog.Kdc, totalGroupDelay, totalLineWidth, sim);
+Analog.wn = optimizePLL(Analog.csi, Analog.Kdc, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
 Analog.EPLL.nums = Analog.Kdc*[2*Analog.csi*Analog.wn Analog.wn^2];
 Analog.EPLL.dens = [1 0 0]; % descending powers of s
 [Analog.EPLL.numz, Analog.EPLL.denz] = impinvar(Analog.EPLL.nums, Analog.EPLL.dens, sim.fs);
@@ -96,7 +96,7 @@ for t = LoopDelaySamples+1:length(sim.t)
 
     Sx = AdderX.add(MixerIdQx.mix(Xd(1, t), X(2, t)), -MixerQdIx.mix(Xd(2, t), X(1, t)));
     Sy = AdderY.add(MixerIdQy.mix(Xd(3, t), X(4, t)), -MixerQdIy.mix(Xd(4, t), X(3, t)));
-    S(t) = AdderXY.add(Sx, Sy);
+    S(t) = AdderXY.add(Sx, Sy); % loop filter input
 
     % Loop filter
     Sf(t) = LoopFilter.filter(S(t));  
@@ -111,4 +111,20 @@ Xs = [Xs(:, delay+1:end) Xs(:, 1:delay)]; % remove group delay
 
 % Rotate constellation by pi/4
 Xs = Xs*exp(1j*pi/4);
+
+ % Phase error plot -------------------------------------------------------
+if exist('verbose', 'var') && verbose
+    figure(404), clf
+    subplot(211), hold on, box on
+    plot(sim.t, S)
+    xlabel('time (s)')
+    ylabel('Loop filter input')       
+    subplot(212), hold on, box on
+    plot(sim.t, Sf)
+    p = polyfit(sim.t, Sf, 1);
+    plot(sim.t, polyval(p, sim.t));
+    legend('VCO phase', sprintf('Linear fit (for freq offset) = %.2f GHz ramp', p(1)/(2*pi*1e9)))
+    xlabel('time (s)')
+    ylabel('Phase (rad)')
+end
 

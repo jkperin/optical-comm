@@ -1,4 +1,4 @@
-function generate_summary(sim, tx, fiber, rx)
+function coherent_simulation_summary(sim, tx, fiber, rx)
 %% Simulation parameters
 disp('-- Simulation parameters summary:')
 
@@ -10,22 +10,34 @@ if ~isfield(sim, 'quantiz')
     sim.quantiz = false;
 end
 
-rows = {'Bit rate'; 'Modulation format'; 'Modulation Order'; 'Number of polarizations';...
+if ~isfield(sim, 'PMD')
+    sim.PMD = false;
+end
+
+if ~isfield(sim, 'phase_noise')
+    sim.phase_noise = false;
+end
+
+rows = {'Bit rate'; 'Number of polarizations'; 'Modulation format'; 'Modulation Order';...
     'Symbol Rate'; 'Number of symbols'; 'Oversampling to emulate continuous time';...
     'Target BER'; 'Include phase noise?'; 'Inlcude RIN?'; 'Include PMD?'; 'Include quantization?'};
 
-Variables = {'Rb'; 'ModFormat'; 'M'; 'Npol';...
-    'Rs'; 'Nsymb'; 'Mct';...
+Variables = {'Rb'; 'Npol'; 'ModFormat.type'; 'ModFormat.M';...
+    'ModFormat.Rs'; 'Nsymb'; 'Mct';...
     'BERtarget'; 'phase_noise'; 'RIN'; 'PMD'; 'quantiz'};
 
-Values = {sim.Rb/1e9; sim.ModFormat; sim.M; sim.Npol; sim.Rs/1e9; sim.Nsymb;...
-    sim.Mct; sim.BERtarget; sim.phase_noise; sim.RIN; sim.PMD; sim.quantiz};
+Values = {sim.Rb/1e9; sim.Npol; sim.ModFormat.type; sim.ModFormat.M;  
+    sim.ModFormat.Rs/1e9; sim.Nsymb; sim.Mct;...
+    sim.BERtarget; sim.phase_noise; sim.RIN; sim.PMD; sim.quantiz};
 
 Units = {'Gb/s'; ''; ''; '';...
     'Gbaud'; ''; '';...
     ''; ''; ''; ''; ''};
 
 simTable = table(Variables, Values, Units, 'RowNames', rows)
+
+%% Modulation format
+sim.ModFormat.summary()
 
 %% Transmitter laser parameters
 tx.Laser.summary()
@@ -131,7 +143,7 @@ if isfield(rx, 'CPR')
 end
 
 %% Analog
-if isfield(rx, 'Analog')
+if isfield(rx, 'Analog') && strcmpi(sim.ModFormat.type, 'QAM')
     disp('-- Analog receiver parameters summary')
 
     rows = {'Antialiasing filter type'; 'Antialiasing filter order'; 'Antialiasing filter bandwidth';...
