@@ -1,4 +1,4 @@
-function [ber_count, ber_awgn, OSNRdB] = ber_preamp_sys_montecarlo(mpam, Tx, Fibers, Amp, Rx, sim)
+function [ber_count, ber_awgn, OSNRdB] = ber_preamp_sys_montecarlo_labsetup(mpam, Tx, Fibers, Amp, Rx, sim)
 %% Calculate BER of pre-amplified IM-DD system through montecarlo simulation
 % Inputs:
 % - mpam: PAM class
@@ -9,16 +9,14 @@ function [ber_count, ber_awgn, OSNRdB] = ber_preamp_sys_montecarlo(mpam, Tx, Fib
 % - Rx: struct with receiver parameters
 % - sim: struct with simulation parameters
 
-mpamRef = mpam; % used in Gaussian approximation
+mpamRef = mpam;
+mpam = mpam.unbias;
 
-% Normalized frequency
-f = sim.f/sim.fs;
-
-dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence   
+dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence 
 Nzero = 10;
 dataTX([1:Nzero end-Nzero+1:end]) = 0; % set first and last Nzero symbols to 0 to make sequence periodic
 
-%% Duobinary enconding
+%% ======================= Duobinary enconding  ===========================
 if isfield(sim, 'duobinary') && sim.duobinary
     mpamdb = mpam.set_levels(0:mpam.M-1, 0.5 + (0:mpam.M-2));    
     
@@ -27,16 +25,18 @@ if isfield(sim, 'duobinary') && sim.duobinary
     xd = duobinary_encoding(xd);
     
     xd_enc = xd;
-else
-    xd = mpam.signal(dataTX); % Modulated PAM signal
+else %% Ordinary PAM
+    % Ajust levels to desired transmitted power and extinction ratio
+    if isfield(sim, 'mzm_predistortion') && strcmpi(sim.mzm_predistortion, 'levels')   
+        mpamPredist = mpam.mzm_predistortion(Tx.Pswing, sim.shouldPlot('PAM levels MZM predistortion'));
+        mpamPredist = mpamPredist.unbias;
+        xd = mpamPredist.signal(dataTX); % Modulated PAM signal
+    else
+        xd = mpam.signal(dataTX); % Modulated PAM signal
+    end 
 end  
 
-%% Predistortion to compensate for MZM non-linear response
-if isfield(sim, 'predistortion') && strcmpi(sim.predistortion, 'levels')    
-    xd = sqrt(abs(xd)).*sign(xd); % apply predistortion
-end  
-
-%% Preemphasis
+%% ============================ Preemphasis ===============================
 if sim.preemphasis
     femph = abs(freq_time(sim.Nsymb*sim.ros.txDSP, mpam.Rs*sim.ros.txDSP));
     femph(femph >= sim.preemphRange) = 0;
@@ -45,8 +45,7 @@ if sim.preemphasis
     xd = real(ifft(fft(xd).*ifftshift(emphasis_filter)));
 end
 
-%% Driver
-xd = xd - mean(xd); % Remove DC bias, since modulator is IM-MZM
+%% ============================== Driver ==================================
 xmax = max(abs(xd)); % this takes into account penalty due to enhanced PAPR after pulse shapping 
 xd = Tx.Mod.Vswing/2*xd/xmax + Tx.Mod.Vbias; % Normalized to have excursion from approx +-Vswing 
 % Note: Vswing and Vswing and Vbias are normalized by Vpi/2. This scaling
@@ -55,86 +54,87 @@ xd = Tx.Mod.Vswing/2*xd/xmax + Tx.Mod.Vbias; % Normalized to have excursion from
 % modulator
 
 %% Predistortion to compensate for MZM non-linear response
-if isfield(sim, 'predistortion') && strcmpi(sim.predistortion, 'analog')    
+if isfield(sim, 'mzm_predistortion') && strcmpi(sim.mzm_predistortion, 'analog')    
     xd = 2/pi*asin(sqrt(abs(xd))).*sign(xd); % apply predistortion
 end  
 
-%% DAC
+%% ================================ DAC ===================================
 % Set DAC time offset in order to remove group delay due to pulse shaping. 
 % This way the first sample of xt will be the center of the first pulse. 
 % This is only important for plotting.
 Tx.DAC.offset = sim.Mct/mpam.pulse_shape.sps*(length(mpam.pulse_shape.h)-1)/2;
-
 xt = dac(xd, Tx.DAC, sim);
 % Note: Driving signal xd must be normalized by Vpi
 
-%% Generate optical signal
+%% ============================= Modulator ================================
 Tx.Laser.PdBm = Watt2dBm(Tx.Ptx);
 Ecw = Tx.Laser.cw(sim);
-Etx = mzm(Ecw, xt, Tx.Mod);
-
-% Chirp
-% Adds transient chirp just to measure its effect. MZM in push pull should
-% have no chirp
-if isfield(Tx, 'alpha') && Tx.alpha ~= 0
-    disp('chirp added!')
-    Etx = Etx.*exp(1j*Tx.alpha/2*log(abs(Etx).^2));
-end
+Etx = mzm(Ecw, xt, Tx.Mod); % transmitted electric field
 
 % Adjust power to make sure desired power is transmitted
 Etx = Etx*sqrt(Tx.Ptx/mean(abs(Etx).^2));
 
-%% Fiber propagation
+P = abs(Etx).^2;
+rexdB = 10*log10(min(P(1:sim.Mct:end))/max(P(1:sim.Mct:end)))
+
+%% ========================= Fiber propagation ============================
 Erx = Etx;
-Prx = Tx.Ptx;
+% link_gain = Amp.Gain*Rx.PD.R;
 for k = 1:length(Fibers)
     fiberk = Fibers(k); 
     
     Erx = fiberk.linear_propagation(Erx, sim.f, Tx.Laser.wavelength); % propagation through kth fiber in Fibers
-    
-    Prx = Prx*fiberk.link_attenuation(Tx.Laser.wavelength);
 end
 
-%% Pre-amplifier
-[Erx, OSNRdB] = Amp.amp(Erx, sim.fs);
-Prx = Prx*Amp.Gain;
+%% ========================= Preamplifier =================================
+if isfield(sim, 'preAmp') && sim.preAmp
+    [Erx, OSNRdBest] = Amp.amp(Erx, sim.fs);
+    
+    %% Optical bandpass filter
+%     Hopt = ifftshift(Rx.optfilt.H(sim.f/sim.fs));
+%     Erx = [ifft(fft(Erx(1, :)).*Hopt);...
+%         ifft(fft(Erx(2, :)).*Hopt)];
+else
+    Erx = [Erx; zeros(size(Erx))];
+end
 
-%% Optical bandpass filter
-Hopt = ifftshift(Rx.optfilt.H(f));
-Erx = [ifft(fft(Erx(1, :)).*Hopt);...
-    ifft(fft(Erx(2, :)).*Hopt)];
+% Ensure that signal has the desired output power (EDFA in power mode)
+Att = dBm2Watt(sim.PrxdBm)/dBm2Watt(power_meter(Erx));
+Erx = Erx*sqrt(Att);  % keep constant received power of 
 
-% Direct detection and add thermal noise
-% PD.detect(Ein: Input electric field, fs: sampling rate of samples in Ein,
-% noise statistics {'gaussian', 'no noise'}, N0: one-sided PSD of thermal
-% noise)
-yt = Rx.PD.detect(Erx, sim.fs, 'gaussian', Rx.N0);
+% Measure OSNR
+OSNRdB = estimate_osnr(Erx, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'))
 
-%% Automatic gain control
-mpam.b = mpam.b - mean(mpam.a);
-mpam.a = mpam.a - mean(mpam.a);
-mpam = mpam.norm_levels();
 
-yt = yt - mean(yt);
-yt = yt*sqrt(var(mpam.a)/(sqrt(2)*mean(abs(yt).^2)));
+%% ========================== Receiver ====================================
 
-%% ADC
-% ADC performs filtering, quantization, and downsampling
-% For an ideal ADC, ADC.ENOB = Inf
-% Rx.ADC.offset = -1;
-switch lower(Rx.filtering)
-    case 'antialiasing' % receiver filter is specified in ADC.filt
-        Hrx = Rx.ADC.filt.H(f);
-        [yk, ~, ytf] = adc(yt, Rx.ADC, sim);
-    case 'matched' % receiver filter is matched filter
-        Hrx = conj(Hch);
-        [yk, ~, ytf] = adc(yt, Rx.ADC, sim, Hrx);
-    otherwise
-        error('ber_preamp_sys_montecarlo: Rx.filtering must be either antialiasing or matched')
-end     
+if isfield(sim, 'coherentReceiver') && sim.coherentReceiver
+    %% Do direct detection using coherent receiver
+    yk = coherent_imdd_rx(Erx, mpam, Tx.Laser, Rx, sim); 
+    filt = design_filter('butter', 5, 0.7*mpam.Rs/(sim.fs/2));
+    Hrx = filt.H(sim.f/sim.fs);
+else
+    %% Direct detection
+    % Direct detection and add thermal noise
+    % PD.detect(Ein: Input electric field, fs: sampling rate of samples in Ein,
+    % noise statistics {'gaussian', 'no noise'}, N0: one-sided PSD of thermal
+    % noise)
+    yt = Rx.PD.detect(Erx(1, :), sim.fs, 'gaussian', Rx.N0);
 
-%% Equalization
-Rx.eq.trainSeq = dataTX;
+    % Gain control
+    yt = yt - mean(yt);
+    yt = yt*sqrt(mean(abs(mpam.a).^2)/(sqrt(2)*mean(abs(yt).^2)));
+    
+    %% ADC
+    % ADC performs filtering, quantization, and downsampling
+    % For an ideal ADC, ADC.ENOB = Inf
+    % Rx.ADC.offset = -1;       
+    Hrx = Rx.ADC.filt.H(sim.f/sim.fs);
+    [yk, ~, ytf] = adc(yt, Rx.ADC, sim);
+end
+
+%% =========================== Equalization ===============================
+Rx.eq.trainSeq = dataTX; % training sequence
 [yd, Rx.eq] = equalize(Rx.eq, yk, [], mpam, sim, sim.shouldPlot('Equalizer'));
 
 % Symbols to be discard in BER calculation
@@ -143,7 +143,7 @@ ydfull = yd;
 yd(ndiscard) = []; 
 dataTX(ndiscard) = [];
 
-%% Demodulate
+%% =========================== Demodulation ===============================
 dataRX = mpam.demod(yd.');
 
 %% Counted BER
@@ -163,26 +163,59 @@ BWopt = Rx.optfilt.noisebw(sim.fs); % optical filter noise bandwidth; Not divide
 
 % Noise std for intensity level Plevel
 Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
-noise_std = @(Plevel) sqrt(2*Plevel*Amp.N0*noiseBW + 1/2*Npol*Amp.N0^2*BWopt*noiseBW);
+if isfield(sim, 'coherentReceiver') && sim.coherentReceiver % includes shot noise penalty
+    noise_std = @(Plevel) sqrt(2*Att*Plevel*Amp.N0*noiseBW + 1/2*Npol*Amp.N0^2*BWopt*noiseBW...
+        + 8*Plevel*Rx.PD.varShot(Rx.PlodBm, noiseBW));
+else
+    noise_std = @(Plevel) sqrt(2*Att*Plevel*Amp.N0*noiseBW + 1/2*Npol*Amp.N0^2*BWopt*noiseBW);
+end
+    
 % Note: Plevel is divided by amplifier gain to obtain power at the amplifier input
 
 % AWGN approximation
-mpamRef = mpamRef.adjust_levels(Prx, -Inf);
+Prx = dBm2Watt(sim.PrxdBm) - Amp.N0*sim.fs;
+% Note: fs is not divided by 2 to account for noise in two pols
+mpamRef = mpamRef.adjust_levels(Prx, rexdB);
 
 ber_awgn = mpamRef.berAWGN(noise_std);
+
+%% 4-PAM Bias analysis
+Vset = [];
+if mpam.M == 4
+	p(1) = mean(yd(yd < mpam.b(1)));
+    p(2) = mean(yd(yd > mpam.b(1) & yd < mpam.b(2)));
+    p(3) = mean(yd(yd > mpam.b(2) & yd < mpam.b(3)));
+    p(4) = mean(yd(yd > mpam.b(3)));
+    
+    mzm_nonlinearity = @(levels, V) V(3)*abs(sin(pi/2*(levels*V(1) + V(2)))).^2 + V(4);
+    
+    [Vset, fval, exitflag] = fminsearch(@(V) norm(p.' - (mzm_nonlinearity(mpam.a, V) - mean(mzm_nonlinearity(mpam.a, V)))), [0.5 0.5 1 0]);
+    
+    if exitflag ~= 1
+        disp('4-PAM bias control did not converge')
+    end
+    
+    fprintf('Vgain/Vpi = %.2f\n', Vset(1))
+    fprintf('Vbias/Vpi = %.2f\n', Vset(2))
+end
 
 %% Plots
 if sim.shouldPlot('Optical eye diagram')  
     Ntraces = 500;
     Nstart = sim.Ndiscard*sim.Mct + 1;
     Nend = min(Nstart + Ntraces*2*sim.Mct, length(Etx));
-    figure(103), clf, box on
+    figure(103), clf
+    subplot(121), box on
     eyediagram(abs(Etx(Nstart:Nend)).^2, 2*sim.Mct)
-    title('Optical eye diagram')
+    title('Transmitted optical signal eye diagram')
+    subplot(122), box on
+    eyediagram(abs(Erx(1, Nstart:Nend)).^2, 2*sim.Mct)
+    title('Received optical signal eye diagram')
     drawnow
 end
 
 if sim.shouldPlot('Received signal eye diagram')
+    mpam = mpam.norm_levels();
     Ntraces = 500;
     Nstart = sim.Ndiscard*sim.Mct + 1;
     Nend = min(Nstart + Ntraces*2*sim.Mct, length(ytf));
@@ -198,17 +231,18 @@ if sim.shouldPlot('Received signal eye diagram')
 end
 
 if sim.shouldPlot('Signal after equalization')
+    mpam = mpam.norm_levels();
     figure(105), clf, box on, hold on
     h1 = plot(ydfull, 'o');
     a = axis;
     h2= plot(a(1:2), (mpam.a*[1 1]).', '-k');
     h3 = plot(a(1:2), (mpam.b*[1 1]).', '--k');
-    h4 = plot(Rx.eq.Ndiscard(1)*[1 1], a(3:4), ':k');
-    h5 = plot((sim.Nsymb-Rx.eq.Ndiscard(2))*[1 1], a(3:4), ':k');
+    h4 = plot((Rx.eq.Ndiscard(1)+sim.Ndiscard)*[1 1], a(3:4), ':k');
+    plot(((sim.Nsymb-Rx.eq.Ndiscard(2)-sim.Ndiscard))*[1 1], a(3:4), ':k');
     legend([h1 h2(1) h3(1) h4], {'Equalized samples', 'PAM levels',...
         'Decision thresholds', 'BER measurement window'})
     title('Signal after equalization')
-    axis([1 sim.Nsymb -1.2 1.2])
+%     axis([1 sim.Nsymb -0.2 1.2])
     drawnow
 end
 

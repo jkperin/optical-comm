@@ -48,9 +48,9 @@ xa = real(ifft(fft(x).*Hrx.*Hshift));
 if isInteger(sim.Mct/ADC.ros) % resampling is not required
     xs = xa(1:sim.Mct/ADC.ros:end);
 else
-    warning('adc: sim.Mct/ADC.ros is not interger, so resampling is performed')
-    [N, D] = rat(ADC.ros);
-    xs = resample(xa, D, N);
+    [N, D] = rat(ADC.ros/sim.Mct);
+    fprintf('adc: sim.Mct/ADC.ros is not interger, so signal was resampled by %d/%d.\n', N, D);
+    xs = resample(xa, N, D);
 end
 
 % Quantize

@@ -36,22 +36,22 @@ classdef PAM
             
             obj.M = M;
             obj.Rb = Rb;
-            obj.level_spacing = level_spacing;
-            assert(~strcmp(class(pulse_shape), 'function_handle'), 'PAM: behaviour of PAM has changed. Now PAM expects a struct as opposed to the function handle.')
-            obj.pulse_shape = pulse_shape;
-            obj.pulse_shape.h = obj.norm_filter_coefficients(obj.pulse_shape.h);
             
-            switch level_spacing
-                case 'equally-spaced'
-                    obj.a = ((0:2:2*(M-1))/(2*(M-1))).';
-                    obj.b = ((1:2:(2*(M-1)-1))/(2*(M-1))).';
-                case 'optimized'
-                    % Optimize level spacing function must be called
-                    obj.a = []; 
-                    obj.b = [];
-                otherwise
-                    error('pam class: Invalid level spacing option')
+            if exist('level_spacing', 'var')
+                obj.level_spacing = level_spacing;
+            else
+                obj.level_spacing = 'equally-spaced';
             end
+            
+            if exist('pulse_shape', 'var')
+                assert(~strcmp(class(pulse_shape), 'function_handle'), 'PAM: behaviour of PAM has changed. Now PAM expects a struct as opposed to the function handle.')
+                obj.pulse_shape = pulse_shape;
+                obj.pulse_shape.h = obj.norm_filter_coefficients(obj.pulse_shape.h);
+            else
+                obj.pulse_shape = select_pulse_shape('rect', 1);
+            end
+            
+            obj = obj.reset_levels();
         end
         
         function PAMtable = summary(self)
@@ -133,7 +133,74 @@ classdef PAM
             
             self.a = Plevels;
             self.b = Pthresh;            
-        end       
+        end   
+        
+        function self = mzm_predistortion(self, Pswing, verbose)
+            %% Predistort levels to compensate for MZM nonlinear response in IM-DD 
+            % Note: Decision thresholds are not predistorted, since the predistortion is only
+            % used for generatign the levels at the transmitter.
+            Pmean = 0.5; % Normalized average output power
+            Pk = self.a;
+            Pk = Pk*Pswing/(Pk(end) - Pk(1));
+            
+            Pk = Pk - mean(Pk) + Pmean; % center levels
+            
+            assert(all(Pk >= 0), 'mpma/mzm_predist: Pswing too high. Pswing must be such that all levels are non-negative')
+            % Predistortion
+            ak = 2/pi*asin(sqrt(Pk));
+            % Set
+            self = self.set_levels(ak, self.b);
+            
+            if exist('verbose', 'var') && verbose
+                figure(233), clf, hold on, box on
+                t = linspace(0, 1);
+                plot(t, sin(pi/2*t).^2, 'k');
+                plot((self.a*[1 1]).', [zeros(1, self.M); sin(pi/2*self.a.').^2], 'k');
+                plot([zeros(1, self.M); self.a.'], (Pk*[1 1]).', 'k')
+                xlabel('Driving signal')
+                ylabel('Resulting power levels')
+                axis([0 1 0 1])
+            end        
+        end
+        
+        function bset = place_thresholds(self)
+            %% Given leves mpam.a, find best position of thresholds by simply scaling and/or offseting them
+            %% This assumes that noise is signal independent
+            tideal = diff(self.a);
+            tideal = self.a(1:end-1) + tideal/2;
+            cost_function = @(t) norm(t - tideal);
+            
+            [Vset, fval, exitflag] = fminsearch(@(V) cost_function(V(1)*(self.b - mean(self.b)) + V(2)), [1 0]);
+    
+            if exitflag ~= 1
+               warning('PAM/place_thresholds: optimization did not converge')
+            end   
+            
+            bset = Vset(1)*(self.b - mean(self.b)) + Vset(2);
+         end
+        
+        function self = unbias(self)
+            %% Remove DC bias from levels and normalize to have excusion from -1 to 1
+            self.b = self.b - mean(self.a);
+            self.a = self.a - mean(self.a);
+            self = self.norm_levels;
+        end
+            
+        
+        function self = reset_levels(self)
+            %% Reset levels and decision thresholds to original configuration
+            switch lower(self.level_spacing)
+                case 'equally-spaced'
+                    self.a = ((0:2:2*(self.M-1))/(2*(self.M-1))).';
+                    self.b = ((1:2:(2*(self.M-1)-1))/(2*(self.M-1))).';
+                case 'optimized'
+                    % Optimize level spacing function must be called
+                    self.a = []; 
+                    self.b = [];
+                otherwise
+                    error('pam/reset_levels: Invalid level spacing option')
+            end
+        end
         
         function h = norm_filter_coefficients(~, h)
             %% Normalize coefficients of FIR filter h so that impulse response of h at t = 0 is 1

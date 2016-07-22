@@ -145,9 +145,13 @@ classdef ofdm < handle
             dataTXm = zeros(this.Nu/2, Nsymb);
             symbsTXm = zeros(this.Nu/2, Nsymb);
             for kk = 1:this.Nu/2
-                this.dataTX(kk,:) = randi([0 this.CSn(kk)-1], [1 Nsymb]);              % data to be encoded (symbols columnwise)
-                symbsTXm(kk,:) = qammod(this.dataTX(kk,:), this.CSn(kk), 0, 'gray');    % encoded QAM symbols to be modulated onto subcarriers
-                dataTXm(kk,:) = sqrt(this.Pn(kk))*symbsTXm(kk,:)/sqrt(this.Pqam(kk));  % scale constellation so that Pn is the power at nth subcarrier (E(|Xn|^2) = Pn)
+                if this.CSn(kk) > 1
+                    this.dataTX(kk,:) = randi([0 this.CSn(kk)-1], [1 Nsymb]);              % data to be encoded (symbols columnwise)
+                    symbsTXm(kk,:) = qammod(this.dataTX(kk,:), this.CSn(kk), 0, 'gray');    % encoded QAM symbols to be modulated onto subcarriers
+                    dataTXm(kk,:) = sqrt(this.Pn(kk))*symbsTXm(kk,:)/sqrt(this.Pqam(kk));  % scale constellation so that Pn is the power at nth subcarrier (E(|Xn|^2) = Pn)
+                else
+                    continue;
+                end
             end          
             
             % zero-pad and ensure Hermitian symmetry
@@ -217,7 +221,8 @@ classdef ofdm < handle
                 plot_constellation(Xn(1, :), this.dataTX(1, :), this.CSn(1))
                 title('1st subcarrier')
                 subplot(222), hold on, box on
-                plot_constellation(Xn(end, :), this.dataTX(end, :), this.CSn(end))
+                csn = find(this.CSn ~= 0, 1, 'last');
+                plot_constellation(Xn(csn, :), this.dataTX(csn, :), this.CSn(csn))
                 title('Last subcarrier')
                 subplot(223)
                 plot(abs(e(1, :)).^2)
@@ -466,7 +471,11 @@ classdef ofdm < handle
         %% Calculate the average power of a CS-QAM constellation with dmin = 2 (used to normalize symbol power after qammod)
             Pqam = zeros(1, this.Nu/2);
             for k = 1:this.Nu/2
-                Pqam(k) = mean(abs(qammod(0:this.CSn(k)-1, this.CSn(k), 0, 'gray')).^2);
+                if this.CSn(k) == 0
+                    continue
+                else
+                    Pqam(k) = mean(abs(qammod(0:this.CSn(k)-1, this.CSn(k), 0, 'gray')).^2);
+                end
             end
         end  
         

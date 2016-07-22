@@ -57,7 +57,7 @@ elseif size(Vin, 1) == 1 && isreal(Vin)
 
     % Modulate signal fields (each has unit average power)
     Enorm = 1; % normalize so that E(|Vout|^2) = 1, if Vx in [-1, 1]
-    Vout   = Enorm*sin(pi*Vx/2);    
+    Vout   = Enorm*sin(pi*Vx/2);
 
     Eout =  Ein.*Vout(1, :);  % polarization multiplexed signal
 else

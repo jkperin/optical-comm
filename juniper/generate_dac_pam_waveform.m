@@ -5,6 +5,8 @@ addpath f/
 addpath ../f/
 addpath ../mpam/
 
+% S = load('data/waveforms/BER_vs_OSNR_b2b_MZM_predist/pam4_rect_Rb=55Gbps_preemph_predist.mat');
+
 %% Pre calculations to determine bitrate, trigger frequency, etc
 Rs_tentative = 28e9;
 Npoints = 2^12; % desired number of points to load to DAC
@@ -23,12 +25,14 @@ sim.Nzero = 5; % set first and last Nzero symbols to 0
 sim.qunatiz = true;
 sim.preemph = true;
 sim.preemphRange = 20e9;
-sim.duobinary = ~true;
+sim.mzm_predistortion = false;
+sim.duobinary = true;
+sim.overwrite = true;
 
 %% DAC
 Tx.DAC.fs = 2687.5*32*1e6; % DAC sampling rate
 Tx.DAC.ros = sim.ros.txDSP; % oversampling ratio of transmitter DSP
-Tx.DAC.Vswing = 0.9;
+Tx.DAC.Vswing = 1;
 Tx.DAC.resolution = 8; % bits
 
 %% M-PAM
@@ -55,6 +59,7 @@ table(Variables, Values, Units, 'RowNames', rows)
 
 %% Generate data
 dataTX = randi([0 mpam.M-1], [1 sim.Nsymb]);
+% dataTX = S.dataTX;
 dataTX(1:sim.Nzero) = 0;
 dataTX(end-sim.Nzero+1:end) = 0;
 
@@ -72,8 +77,15 @@ if isfield(sim, 'duobinary') && sim.duobinary
     xk = filter(ones(1, mpam.pulse_shape.sps)/mpam.pulse_shape.sps, 1, ximp);
     xk = xk - mean(xk);
 else
-    xk = mpam.signal(dataTX); % Generate signal at sim.ros.txDSP rate
-    xk = xk - mean(xk); 
+    if isfield(sim, 'mzm_predistortion') && sim.mzm_predistortion
+        Pswing = 0.9;
+        mpamPredist = mpam.mzm_predistortion(Pswing, true);
+        mpamPredist = mpamPredist.unbias;
+        xk = mpamPredist.signal(dataTX); % Generate signal at sim.ros.txDSP rate
+    else
+        mpam = mpam.unbias;
+        xk = mpam.signal(dataTX); % Generate signal at sim.ros.txDSP rate
+    end
 end  
 
 %% Preemphasis
@@ -146,10 +158,12 @@ end
 
 if sim.duobinary
     filename = [filename '_duobin'];
+elseif sim.mzm_predistortion
+    filename = [filename '_predist'];
 end
 
 filename
-if exist([filename '.mat'], 'file')
+if exist([filename '.mat'], 'file') && not(sim.overwrite)
     disp('File already exists! Using existing file instead')
     load([filename '.mat'])
 else

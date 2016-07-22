@@ -1,5 +1,5 @@
-%% Process scope data
-function ber_count = process_pam_waveforms(file, dacfile)
+function [ber_count, Vset] = process_pam_waveforms(file_or_data, dacfile)
+%% Process PAM waveforms saved with DSO
 
 addpath f/
 addpath ../f/
@@ -15,11 +15,21 @@ ros = Dac.sim.ros.txDSP; % DAC oversampling rate
 mpam = Dac.mpam;
 
 %% Load channels
-hinfo =  hdf5info(file);
-ch1 = h5read(file, '/Waveforms/Channel 1/Channel 1Data');
-ch2 = h5read(file, '/Waveforms/Channel 2/Channel 2Data');
-ch3 = h5read(file, '/Waveforms/Channel 3/Channel 3Data');
-ch4 = h5read(file, '/Waveforms/Channel 4/Channel 4Data');
+if ischar(file_or_data)
+    file = file_or_data;
+    ch1 = h5read(file, '/Waveforms/Channel 1/Channel 1Data');
+    ch2 = h5read(file, '/Waveforms/Channel 2/Channel 2Data');
+    ch3 = h5read(file, '/Waveforms/Channel 3/Channel 3Data');
+    ch4 = h5read(file, '/Waveforms/Channel 4/Channel 4Data');
+elseif strcmpi(class(file_or_data), 'double')
+    data = file_or_data;
+    ch1 = data(:, 1);
+    ch2 = data(:, 2);
+    ch3 = data(:, 3);
+    ch4 = data(:, 4);
+else
+    error('process_pam_waveforms: First parameter must be either a .h5 file path or a matrix with the waveforms in each column')
+end
 
 ch1 = double(ch1).';
 ch2 = double(ch2).';
@@ -41,31 +51,20 @@ ch4 = ch4 - mean(ch3.*ch4)*ch4;
 
 %% Pre-filtering
 f = freq_time(length(ch1), fs);
-Filt = design_filter('butter', 5, mpam.Rs/(fs/2)); % half of the sampling rate
+Filt = design_filter('butter', 5, 1.2*mpam.Rs/(fs/2)); % half of the sampling rate
 
-ch1 = real(ifft(fft(ch1).*ifftshift(Filt.H(f/fs))));
-ch2 = real(ifft(fft(ch2).*ifftshift(Filt.H(f/fs))));
-ch3 = real(ifft(fft(ch3).*ifftshift(Filt.H(f/fs))));
-ch4 = real(ifft(fft(ch4).*ifftshift(Filt.H(f/fs))));
+% ch1 = real(ifft(fft(ch1).*ifftshift(Filt.H(f/fs))));
+% ch2 = real(ifft(fft(ch2).*ifftshift(Filt.H(f/fs))));
+% ch3 = real(ifft(fft(ch3).*ifftshift(Filt.H(f/fs))));
+% ch4 = real(ifft(fft(ch4).*ifftshift(Filt.H(f/fs))));
 
 X = ch1 + 1j*ch2;
 Y = ch3 + 1j*ch4;
-
-%% Frequency offset compensaion
-% [~, foff_ind] = max(abs(fftshift(fft(X))));
-% foff = f(foff_ind)
-% 
-% X = X.*exp(-1j*2*pi*foff*t);
-% Y = Y.*exp(-1j*2*pi*foff*t);
-% 
-% figure, plot(f, abs(fftshift(fft(X).^2)))
-% figure, plot(t, real(X), t, imag(X))
 
 %% Convert to intensity
 Xrx = abs(X).^2 + abs(Y).^2; % Get intensity in X-pol
 
 %% Antialiasing filter and reduce noise
-f = freq_time(length(Xrx), fs);
 Filt = design_filter('butter', 5, 0.7*mpam.Rs/(fs/2)); % half of the sampling rate
 Xfilt = real(ifft(fft(Xrx).*ifftshift(Filt.H(f/fs))));
 
@@ -85,9 +84,13 @@ cmax = max(abs(c));
 threshold = 0.7;
 ind = find(abs(c) >= cmax*threshold & lags > 1);
 pos = lags(ind);
-remapping =(sign(c(ind(1))) == -1);
+remapping = (sign(c(ind(1))) == -1);
 
-figure, plot(lags, c)
+if remapping
+    warning('Received sequence is the opposite of what was expected. Try to bias the MZM at a differnt point')
+end
+
+% figure, plot(lags, c)
 
 Xrx = Xrx(pos(1):end);
 Npatterns = floor(length(Xrx)/length(xref));
@@ -97,16 +100,13 @@ Xrx = Xrx(1:N);
 %% PAM symbol detection
 yk = Xrx;
 
-%% Finer gain control
+%% Gain control
 yk = yk - mean(yk);
-yk = yk*sqrt(var(mpam.a)/(mean(abs(yk).^2)));
-% yk = yk + mean(mpam.a);
-
-% f = freq_time(length(yk), mpam.Rs*ros)/(mpam.Rs*ros);
-% yk = real(ifft(fft(yk).*ifftshift(exp(1j*2*pi*f*1/2))));
+yk = yk*sqrt(mean(abs(mpam.a).^2)/(mean(abs(yk).^2)));
 
 mpam.b = mpam.b - mean(mpam.a);
 mpam.a = mpam.a - mean(mpam.a);
+mpam = mpam.norm_levels();
 
 %% Equalization
 % Resample to have at least 2 samples per symbol
@@ -115,10 +115,10 @@ yk = resample(yk, p, q);
 
 eq.type = 'Adaptive TD-LE';
 eq.Ntaps = 15;
-eq.mu = 1e-2;
+eq.mu = 1e-3;
 eq.ros = 2;
 eq.Ntrain = Inf;
-eq.Ndiscard = [1e5 1024];
+eq.Ndiscard = [2e4 1024];
 
 if remapping 
     remap = [2 3 0 1];
@@ -166,15 +166,16 @@ title('Symbol-rate samples after equalization')
 drawnow
 
 %% 4-PAM Bias analysis
+Vset = [];
 if mpam.M == 4
 	p(1) = mean(yd(yd < mpam.b(1)));
     p(2) = mean(yd(yd > mpam.b(1) & yd < mpam.b(2)));
     p(3) = mean(yd(yd > mpam.b(2) & yd < mpam.b(3)));
     p(4) = mean(yd(yd > mpam.b(3)));
     
-    mzm_nonlinearity = @(levels, V) abs(sin(pi*(levels*V(1) + V(2)))).^2;
+    mzm_nonlinearity = @(levels, V) V(3)*abs(sin(pi/2*(levels*V(1) + V(2)))).^2 + V(4);
     
-    [Vset, fval, exitflag] = fminsearch(@(V) norm(p.' - (mzm_nonlinearity(mpam.a, V) - mean(mzm_nonlinearity(mpam.a, V)))), [0.5 0.5]);
+    [Vset, fval, exitflag] = fminsearch(@(V) norm(p.' - (mzm_nonlinearity(mpam.a, V) - mean(mzm_nonlinearity(mpam.a, V)))), [0.5 0.5 1 0]);
     
     if exitflag ~= 1
         disp('4-PAM bias control did not converge')
@@ -183,14 +184,14 @@ if mpam.M == 4
     fprintf('Vgain/Vpi = %.2f\n', Vset(1))
     fprintf('Vbias/Vpi = %.2f\n', Vset(2))
     
-    figure(102), clf, box on, hold on
-    h1 = plot([1 2], ((mpam.a + 0.5)*[1 1]), '-k');
-    h2 = plot([1 2], (mzm_nonlinearity(mpam.b, Vset)*[1 1]).', '--k');
-    h3 = plot([1 2], (mzm_nonlinearity(mpam.a, Vset)*[1 1]), ':k');
-    legend([h1(1) h2(1) h3(1)], {'Desired PAM levels', 'Decision thresholds', 'Distorted PAM levels'})
-    title('4-PAM Bias analysis')
-    % axis([1 sim.Nsymb -0.2 1.2])
-    drawnow
+%     figure(102), clf, box on, hold on
+%     h1 = plot([1 2], ((mpam.a + 0.5)*[1 1]), '-k');
+%     h2 = plot([1 2], (mzm_nonlinearity(mpam.b, Vset)*[1 1]).', '--k');
+%     h3 = plot([1 2], (mzm_nonlinearity(mpam.a, Vset)*[1 1]), ':k');
+%     legend([h1(1) h2(1) h3(1)], {'Desired PAM levels', 'Decision thresholds', 'Distorted PAM levels'})
+%     title('4-PAM Bias analysis')
+%     % axis([1 sim.Nsymb -0.2 1.2])
+%     drawnow
 end
     
 

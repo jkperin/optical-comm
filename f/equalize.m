@@ -82,6 +82,7 @@ switch lower(eq.type)
         % Initialize filter coefficients
         W = zeros(Ntaps, Nfilters);
         W(ceil(Ntaps/2), :) = 1;
+        Wdc = zeros(1, Nfilters); % adjustable DC bias
        
         e = zeros(1, ceil(length(yt)/ros));
         filt = 1;
@@ -93,7 +94,7 @@ switch lower(eq.type)
             % k indexes samples and n indexes symbols
             z = yt(k + window); % input of filter
 
-            yd(n) = W(:, filt).'*z;
+            yd(n) = W(:, filt).'*z + Wdc(filt);
 
             if n < Ntrain % Training
                 e(n) = yd(n) - trainingSymbols(n);
@@ -102,6 +103,7 @@ switch lower(eq.type)
             end
 
             W(:, filt) = W(:, filt) - 2*mu*e(n)*z;
+            Wdc(filt) = Wdc(filt) - 2*mu*e(n)*1;
             
             filt = mod(filt, Nfilters) + 1;
             
@@ -115,6 +117,7 @@ switch lower(eq.type)
         end
 
         eq.h = W; % [Ntaps x Nfilters]
+        eq.Wdc = Wdc; % ajustable dc bias
         % Frequency response is calculated for only one of the filters
         eq.Hff = @(f) freqz(eq.h(:, 1), 1, 2*pi*f).*exp(1j*2*pi*f*grpdelay(eq.h(:, 1), 1, 1)); % removed group delay
         eq.MSE = abs(e).^2;
@@ -137,6 +140,7 @@ switch lower(eq.type)
             for k = 1:size(W, 2)
                 subplot(222), hold on, box on
                 stem(-(eq.Ntaps-1)/2:(eq.Ntaps-1)/2, abs(W(:, k)))
+                plot([-(eq.Ntaps-1)/2 (eq.Ntaps-1)/2], Wdc(k)*[1 1])
                 
                 Hw = freqz(W(:, k), 1, 2*pi*fnorm);
                 subplot(223), hold on, box on
@@ -149,6 +153,7 @@ switch lower(eq.type)
             xlabel('n')
             ylabel('|W(n)|')
             title('Equalizer taps')
+            legend('Equalizer taps', 'DC bias')
             
             subplot(223)
             a = axis;
