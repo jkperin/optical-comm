@@ -1,4 +1,4 @@
-function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
+function [xhat, thetahat, Delta] = feedforward_cpr(y, CPR, ModFormat, verbose)
 % CPR.m   Milad Sharif  02-22-13
 % Simulates carrier recovery for QPSK in two polarizations.
 % See: E. Ip and J. M. Kahn, "Feedforward Carrier Recovery for Coherent Optical Communications",
@@ -9,29 +9,30 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
 
 % Inputs:
 % y : input signal in two polarizations
-% Cpr : sctruct containing carrier phase recovery parameters
-% Cpr.{phaseEstimation, varPN, SNRdB (optional), Ntaps, FilterType}
-
+% CPR : sctruct containing carrier phase recovery parameters
+% CPR.{phaseEstimation, varPN, SNRdB (optional), Ntaps, FilterType}
+% ModFormat: class of modulation format
     y1 = y(1,:).';
     y2 = y(2,:).';
     
-    M = sim.M; % QAM order (must be 4 if Cpr.type ~= 'DD')
-    Ntrain = Cpr.Ntrain;
-    Ytrain = Cpr.Ytrain;
-    sigmapsq = Cpr.varPN;
-    crtype   = Cpr.phaseEstimation;    
-    L     = Cpr.Ntaps; % FIR: actual length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed, IIR: length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed in approximating the IIR filter
-    filttype = Cpr.FilterType;
-    structure = Cpr.structure;
-    Delay = Cpr.Delay;
+    M = ModFormat.M; % QAM order (must be 4 if CPR.type ~= 'DD')
+    detect = @(y) ModFormat.mod(ModFormat.demod(y));
+    Ntrain = CPR.Ntrain;
+    Ytrain = CPR.trainSeq;
+    sigmapsq = CPR.varPN;
+    crtype   = CPR.phaseEstimation;    
+    L     = CPR.Ntaps; % FIR: actual length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed, IIR: length of Whd (for DD or NDA 1) or of Wsd (for NDA 2) employed in approximating the IIR filter
+    filttype = CPR.FilterType;
+    structure = CPR.structure;
+    Delay = CPR.Delay;
 
     % perform some computations related to carrier recovery
     probx = 1; % symbols probability (only ~= 1 when shapping is used)
     x = qammod(0:M-1, M); % QAM symbols
     eta_c = mean(abs(x.^2).*probx) * mean((abs(x).^(-2)).*probx);   % constellation penalty
 
-    if isfield(Cpr, 'SNRdB') % SNR was specified
-        snr_des_dB = Cpr.SNRdB;
+    if isfield(CPR, 'SNRdB') % SNR was specified
+        snr_des_dB = CPR.SNRdB;
     else
         snr_des_notrack_dB = 8         % SNR per symbol at which the carrier recovery is optimized when snrtrack = 'n'
         snr_des_dB = snr_des_notrack_dB;
@@ -65,7 +66,7 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
     if strcmp(crtype,'DD')
         % Whether to do Weiner filtering or simply average of past and
         % future samples
-        switch (lower(Cpr.Filter))
+        switch (lower(CPR.Filter))
             case 'wiener'
                 Wsd = wiener_fir(d,0,sigmandsq,sigmapsq);
                 Whd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
@@ -129,7 +130,7 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
     elseif strcmp(crtype,'NDA')
         % Whether to do Weiner filtering or simply average of past and
         % future samples
-        switch (lower(Cpr.Filter))
+        switch (lower(CPR.Filter))
             case 'wiener'
                 Wsd = wiener_fir(L,Delta,sigmandsq,sigmapsq);
             case 'averaging'
@@ -138,7 +139,7 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
                 error('feedforward_cpr/invalid CPR.Filter')
         end
         
-        switch(lower(Cpr.NDAorder))
+        switch(lower(CPR.NDAorder))
             case 'direct' % phase estimation -> filtering
                 psi = zeros(2,N);                                               % soft-decision phase estimate
                 for k=L:N
@@ -177,7 +178,7 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
 
     xhat = [x1hat.';x2hat.'];    
     
-    if sim.Plots.isKey('Feedforward phase error') && sim.Plots('Feedforward phase error')
+    if exist('verbose', 'var') && verbose
         figure(205), clf, hold on, box on
         plot(thetahat(:, 1))
         plot(thetahat(:, 2))
@@ -186,9 +187,5 @@ function [xhat, thetahat, Delta] = feedforward_cpr(y, Cpr, sim)
         legend('Pol X', 'Pol Y', 'End of training')
         title('Feedforward phase error')
         hold off
-    end
-    
-    function x = detect(y)
-        x = qammod(qamdemod(y, M, 0, 'Gray'), M, 0, 'Gray');
     end
 end

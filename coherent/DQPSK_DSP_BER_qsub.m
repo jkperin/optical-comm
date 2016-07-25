@@ -1,4 +1,4 @@
-function BER = DQPSK_BER_qsub(fiberLength, Modulator, ModBW, EqNtaps, linewidth, fOffset, ros, ENOB)
+function BER = DQPSK_DSP_BER_qsub(fiberLengthKm, Modulator, ModBWGHz, EqNtaps, linewidthKHz, fOffsetGHz, ros, ENOB)
 %% Simulation of DSP-based coherent detection system using DQPSK
 % - fiberLength: fiber length in km
 % - Modulator: either 'EOM' or 'SiPhotonics'
@@ -7,7 +7,7 @@ function BER = DQPSK_BER_qsub(fiberLength, Modulator, ModBW, EqNtaps, linewidth,
 % - linewidth: transmitter and LO laser linewidth in kHz
 % - fOffset: frequency offset of the LO laser with respect to transmitter
 % laser in GHz. 
-% - ros: oversampling ratio of DSP
+% - ros: oversampling ratio of DSP. Must be passed as a fraction e.g., 5/4
 % - ENOB: effective number of bits
 
 addpath DSP/
@@ -15,71 +15,68 @@ addpath f/
 addpath ../f/
 addpath ../apd/
 addpath ../soa/
-addpath ../mpam/
 
 ros = eval(ros);
-filename = sprintf('results/DSP_DQPSK_BER_L=%skm_%s_BW=%sGHz_Ntaps=%staps_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
-        fiberLength, Modulator, ModBW, EqNtaps, linewidth, fOffset, round(100*ros), ENOB)
+filename = sprintf('results/DQPSK_DSP_BER_L=%skm_%s_BW=%sGHz_Ntaps=%staps_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
+        fiberLengthKm, Modulator, ModBWGHz, EqNtaps, linewidthKHz, fOffsetGHz, round(100*ros), ENOB)
 
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([fiberLength ModBW EqNtaps linewidth fOffset ENOB]))
-    fiberLength = 1e3*str2double(fiberLength);
-    ModBW = 1e9*str2double(ModBW);
+if ~all(isnumeric([fiberLengthKm ModBWGHz EqNtaps linewidthKHz fOffsetGHz ENOB]))
+    fiberLength = 1e3*str2double(fiberLengthKm);
+    ModBW = 1e9*str2double(ModBWGHz);
     EqNtaps = round(str2double(EqNtaps));
-    linewidth = 1e3*str2double(linewidth);
-    fOffset = 1e9*str2double(fOffset);
+    linewidth = 1e3*str2double(linewidthKHz);
+    fOffset = 1e9*str2double(fOffsetGHz);
     ENOB = round(str2double(ENOB));
 end
 
+%% Simulation launched power swipe
+Tx.PlaunchdBm = -38:-28;
+% Tx.PlaunchdBm = -25;
+
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^17;                                                          % Number of symbols in montecarlo simulation
-sim.ros = ros;                                                             % Oversampling ratio of DSP
-sim.Mct = 8*sim.ros;                                                       % Oversampling ratio to simulate continuous time 
-sim.BERtarget = 1.8e-4;                                                    % Target BER
-sim.Ndiscard = 1e3;                                                        % number of symbols to be discarded from the begining and end of the sequence 
-sim.N = sim.Mct*sim.Nsymb;                                                 % number points in 'continuous-time' simulation
-sim.Rb = 2*112e9;                                                          % Bit rate
-sim.ModFormat = 'DPSK';                                                     % either 'QAM' or 'DPSK'
-sim.M    = 4;                                                              % QAM order
-sim.pulse = 'NRZ';                                                         % Transmitter pulse shape ('NRZ')
-sim.Npol = 2;                                                              % number of polarizations (currently ignored in generating the signal)
-sim.Modulator = Modulator;                                                 % Modulator type: {'EOM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
-sim.Rs = sim.Rb/(sim.Npol*log2(sim.M));                                    % Symbol Rate
-sim.save = true;
+sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
+sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
+sim.ros.rxDSP = ros;
+sim.BERtarget = 1.8e-4; 
+sim.Ndiscard = 1024; % number of symbols to be discarded from the begining and end of the sequence 
+sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
+sim.Rb = 2*112e9; % Bit rate
+sim.Npol = 2;                                                              % number of polarizations
+sim.Modulator = 'SiPhotonics';                                             % Modulator bandwidth limitation: {'MZM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
+sim.pulse_shape = select_pulse_shape('rect', sim.Mct);                     % pulse shape
+sim.ModFormat = DPSK(4, sim.Rb/sim.Npol, sim.pulse_shape);                 % M-DPSK modulation format
 
 % Simulation control
 sim.RIN = true; 
-sim.PMD = true;
+sim.PMD = false;
 sim.phase_noise = (linewidth ~= 0);
-sim.preAmp = false;  % currently ignored
-sim.quantiz = ~isinf(ENOB);
+sim.preAmp = false;
+sim.quantiz = not(isinf(ENOB));
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
-
-%% Time and frequency
-sim.fs = sim.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
-
-dt = 1/sim.fs;
-t = 0:dt:(sim.N-1)*dt;
-df = 1/(dt*sim.N);
-f = -sim.fs/2:df:sim.fs/2-df;
-
-sim.t = t;
-sim.f = f;
+sim.save = true;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
 Plots('BER')                  = 1; 
-Plots('Equalizer')            = 0;
-Plots('ChannelFrequencyResponse') = 0;
-Plots('CarrierPhaseNoise')    = 0;
-Plots('DiffGroupDelay')       = 0;
-Plots('PhaseTracker')         = 0;
-Plots('FrequencyEstimation')  = 0; 
+Plots('Eye diagram') = 0;
+Plots('Channel frequency response') = 0;
+Plots('Constellations') = 0;
+Plots('Diff group delay')       = 0;
+Plots('Phase tracker') = 0;
+Plots('EPLL phase error') = 0;
+Plots('Time recovery') = 0;
+Plots('Phase error variance') = 0;
 sim.Plots = Plots;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
+%% Time and frequency
+sim.Rs = sim.ModFormat.Rs; % symbol rate
+sim.fs = sim.ModFormat.Rs*sim.Mct;  % sampling frequency for 'continuous-time' simulation
+[sim.f, sim.t] = freq_time(sim.N, sim.fs);
+
 %% ===================== Transmitter Electric Filter ====================== 
-Tx.filt = design_filter('bessel', 5, 0.7*sim.Rs/(sim.fs/2));               % design_filter(type, order, normalized cutoff frequency)
+Tx.filt = design_filter('bessel', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));      % design_filter(type, order, normalized cutoff frequency)
 Tx.Delx  = 0;                                                               % Delay of x pol. in pol. mux. (symbol intervals)
 Tx.Dely  = 0;                                                               % Delay of y pol. in pol. mux. (symbol intervals)
 
@@ -95,29 +92,15 @@ Tx.Laser = laser(1250e-9, 0, -150, linewidth, 0);
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
     %% Mach-Zehnder (limited by velocity mismatch and loss)
-    % K. P. Ho, Phase-Modulated Optical Communication Systems. New York: Springer, 2005.
-    % Parameters are the taken from Milad's code to result in a MZM with
-    % bandwidth of about 50 GHz
-    omega = 2*pi*f;
-    c = 3e8;
-    Mod.Vpi = 4.5;                                                         % Modulator switching voltage (V)
-    ratio      = 0.98;                                                     % velocity mismatch ratio         
-    n_r        = 2.15;                                                     % refractive index of coplanar-waveguide (CPW) for TM input light
-    n_m        = n_r*ratio;                                                % 
-    Mod.d_12   = (n_m -n_r)/c;                                             % Velocity mismatch difference between the optical and electrical waveguides
-    Mod.a      = 0.01*100*sqrt(abs(omega)/2/pi*1e-9);                      % Microwave attenuation coefficient (electrode loss)
-    Mod.L      = 0.05;                                                     % Interaction length 
-    Mod.Hel    = (1-exp(Mod.L*(-Mod.a + 1j*Mod.d_12*omega)))./...          % Freq. response of the optical modulator limited by elec. loss and velocity mismatch
-                    (Mod.a-1j*Mod.d_12*omega)/Mod.L;
-    Mod.Hel(isnan(Mod.Hel)) = 1;                                           % Mod.Hel(f=0) is NaN  
+    % Mod = mzm_frequency_response(ratio : velocity mismatch, L : iteractive length in m, f: frequency vector, verbose: whether to plot results)
+    Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
 elseif strcmpi(sim.Modulator, 'SiPhotonics') 
     %% Si Photonics (limited by parasitics, 2nd-order response)
-    Mod.BW = ModBW;
-    Mod.fc = Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
-    Mod.grpdelay = 2/(2*pi*Mod.fc);  % group delay of second-order filter in seconds
-    Mod.Hel = exp(1j*2*pi*f*Mod.grpdelay)./(1 + 2*1j*f/Mod.fc - (f/Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
+    Tx.Mod.BW = ModBW;
+    Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
+    Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
+    Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
 end
-Tx.Mod = Mod;                                                              % optical modulator
 
 %% =============================== Fiber ==================================
 % Constructor: fiber(L, att(lamb) (optional), D(lamb) (optional)) 
@@ -143,7 +126,7 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
-Rx.LO.PdBm = 9.8;                                                           % Total local oscillator power (dBm)
+Rx.LO.PdBm = 15;                                                           % Total local oscillator power (dBm)
 Rx.LO.freqOffset = fOffset;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
@@ -179,7 +162,7 @@ Rx.N0 = (30e-12)^2;                                                        % One
 %% ================================= ADC ==================================
 Rx.ADC.ENOB = ENOB;                                                           % effective number of bits
 Rx.ADC.rclip = 0;                                                          % clipping ratio: clipped intervals: [xmin, xmin + xamp*rclip) and (xmax - xamp*rclip, xmax]
-Rx.ADC.ros = sim.ros;                                                      % oversampling ratio with respect to symbol rate 
+Rx.ADC.ros = sim.ros.rxDSP;                                                      % oversampling ratio with respect to symbol rate 
 Rx.ADC.fs = Rx.ADC.ros*sim.Rs;                                             % ADC sampling rate
 Rx.ADC.filt = design_filter('butter', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
 % ADC filter should include all filtering at the receiver: TIA,
@@ -189,25 +172,29 @@ Rx.ADC.filt = design_filter('butter', 5, 0.5*Rx.ADC.fs/(sim.fs/2));            %
 %% Equalization transmitter filter, CD, PMD, etc
 Rx.AdEq.type  = 'CMA';                                                     % Adaptive equalization type: 'LMS' or 'CMA'. LMS only works when there's no phase noise or frequency offset
 Rx.AdEq.structure = '2 filters';                                           % Structure: '2 filters' or '4 filters'. If '4 filters' corresponds to tranditional implementation, '2 filters' is simplified for short reach
-Rx.AdEq.Ntrain = 2e4;                                                    % Number of symbols used for training (only used if LMS)
+Rx.AdEq.Ntrain = 1e4;                                                    % Number of symbols used for training (only used if LMS)
 Rx.AdEq.mu = 1e-3;                                                         % Adaptation rate 
 Rx.AdEq.Ntaps = EqNtaps;                                                         % Number of taps for each filter
-Rx.AdEq.ros = sim.ros;                                                     % Oversampling ratio
+Rx.AdEq.ros = sim.ros.rxDSP;                                                     % Oversampling ratio
 
-Tx.PlaunchdBm = -32:0.5:-23;
+%% Frequency recovery
+% Used in DQPSK receiver and QPSK with feedforward carrier recovery
+% Frequency recovery algorithm uses 4th power method to estimate frequency
+% offset. Hence, it only works for quaternary modulation formats
+Rx.FreqRec.mu = 5e-4;                                                % Adaptation rate. A vector means that gear shifting is used
+Rx.FreqRec.Ntrain = 1e4;
 
-sim.Nsetup = Rx.AdEq.Ntrain + sim.Ndiscard;
-BER = ber_coherent_dsp(Tx, Fiber, Rx, sim)
+%% Generate summary
+coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
+%% Runs simulation
+BER = ber_coherent_dsp(Tx, Fiber, Rx, sim);
+
+%% Save results
 if sim.save   
     % delete large variables
-    clear t f Mod omega Fiber c
     sim = rmfield(sim, 'f');
     sim = rmfield(sim, 't');
-    Tx.Mod = rmfield(Tx.Mod, 'Hel');
-    if isfield(Tx.Mod, 'a')
-        Tx.Mod = rmfield(Tx.Mod, 'a');
-    end
-    
+    Tx.Mod = rmfield(Tx.Mod, 'H');    
     save(filename)
 end

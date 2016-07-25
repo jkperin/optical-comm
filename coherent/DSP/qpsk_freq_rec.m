@@ -1,4 +1,4 @@
-function [Y, Df] = qpsk_freq_rec(X, FreqRec, sim)
+function [Y, Df] = qpsk_freq_rec(X, FreqRec,  verbose)
 %% Frequency recovery algorithm for QPSK
 % Based on: 
 % 1. Sebastian Hoffmann, Suhas Bhandare, Timo Pfau, Olaf Adamczyk, Christian
@@ -12,38 +12,34 @@ function [Y, Df] = qpsk_freq_rec(X, FreqRec, sim)
 % X : input signal in two polarizations [2 x N]
 % FreqRec : FreqRec.{mu : adaptation speed (can be a vector for gear
 % shifting), muShift : transition points for each change mu}
+% Algorithm:
+% Algorithm proceeds with adaptation rate mu until Ntrain. After that point,
+% adaptation stops and the last value with frequency offset is used for the
+% rest of the sequence
 
+Ntrain = FreqRec.Ntrain;
+Rs = FreqRec.Rs;
 mu = FreqRec.mu;
-muShift = FreqRec.muShift;
 
-muVec = [];
-muShift = [0 muShift length(X)];
-for k = 1:length(mu)
-    muVec = [muVec repmat(mu(k), 1, muShift(k+1)-muShift(k))];
-end
-
-thetaX = (angle((X(1, 2:end).*conj(X(1, 1:end-1))).^4)); % starts at k = 2
-thetaY = (angle((X(2, 2:end).*conj(X(2, 1:end-1))).^4));
-
-Df = zeros(1, 1+length(thetaX));
+Df = zeros(1, length(X));
+theta = zeros(size(X));
+Y = zeros(size(X));
 for k = 2:length(X)
-    Df(k) = Df(1, k-1)*(1-muVec(k)) + muVec(k)/2*(thetaX(k-1)/(8*pi) + thetaY(k-1)/(8*pi));
+    theta(:, k) = angle((X(:, k).*conj(X(:, k-1))).^4); 
+    
+    if k < Ntrain
+        Df(k) = Df(k-1)*(1-mu) + mu/(16*pi)*(theta(1, k) + theta(2, k));
+    else
+        Df(k) = Df(k -1);
+    end
+    
+    Y(:, k) = X(:, k)*exp(-1j*2*pi*Df(k)*k);
 end
 
-% Df = filter([Rs*mu/(8*pi) 0], [1 -(1-mu)], theta);
-
-% t = 0:length(Df)-1;
-t = 0:length(X)-1;
-Y = [X(1, :).*exp(-1j*2*pi*Df.*t);...
-    X(2, :).*exp(-1j*2*pi*Df.*t)];
-
-if isfield(sim, 'Plots') && sim.Plots('Frequency offset estimation')
-    figure(201), clf, hold on, box on
-    plot(sim.Rs*Df)
-    a = axis;
-    for k = 1:length(muShift)
-        plot(muShift(k)*[1 1], a(3:4), ':k')
-    end
-    hold off
-    legend('Frequency offset estimation', 'Gear shifting points')
+if exist('verbose', 'var') && verbose
+    figure(201), hold on, box on
+    plot(Rs*Df/1e9)
+    xlabel('Symbols')
+    ylabel('Frequency offset (GHz)')
+    drawnow
 end

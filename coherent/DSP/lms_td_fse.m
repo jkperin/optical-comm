@@ -1,15 +1,18 @@
-function [Y, W, MSE] = lms_td_fse(X, eq, Ytrain, M)
+function [Y, W, MSE] = lms_td_fse(X, eq, verbose)
 %% Adaptive time-domain fractionally spaced linear equalizer adapted using LMS algorithm
 % Inputs:
 % - eq : equalizer parameters {eq.ros = oversampling ratio, eq.Ntrain = 
 % number of traning symbols, eq.mu = adaptation rate}
 % - X : input samples in the two polarizations [2 x N] at rate ros x Rs
 % - Xtrain : symbols for training length(Xtrain) >= Ntrain
-% - M : qam order
+% - verbose (optional, default=false): whether to plot equalizer frequency
+% response and convergence
 % Output:
 % - Y : Equalized symbols at rate 1 x Rs
 % - Wx, Wy : Filters coefficients 
 % - MSE: mean square error
+M = eq.M;  % qam order
+Ytrain = eq.trainSeq;
 ros = eq.ros;
 Ntrain = eq.Ntrain;
 mu = eq.mu;
@@ -152,3 +155,48 @@ end
 % Build outputs
 Y = [yx_hat; yy_hat];
 MSE = [abs(ex).^2; abs(ey).^2];
+
+
+% Equalizer frequency response and convergence-----------------------------
+if exist('verbose', 'var') && verbose
+    Wx = W{1};
+    Wy = W{2};
+    figure(102)
+    subplot(221), hold on, box on
+    plot(1:length(MSE), MSE(1, :))
+    a = axis;
+    plot([1 1]*eq.Ntrain, [a(3) a(4)], '--k')
+    axis([1 length(MSE) a(3:4)])
+    xlabel('Iteration'); ylabel('MSE')
+    
+    subplot(222), hold on, box on
+    plot(1:length(MSE), MSE(2, :))
+    a = axis;
+    plot([1 1]*eq.Ntrain, [a(3) a(4)], '--k')
+    axis([1 length(MSE) a(3:4)])
+    xlabel('Iteration'); ylabel('MSE')
+    
+    subplot(223), hold on, box on
+    for filt = 1:size(Wx, 2)
+        [hx, w] = freqz(Wx(:, filt), 1);
+        hy = freqz(Wy(:, filt), 1, w);
+        hline(1) = plot(w/(2*pi), abs(hx).^2, '-');
+        hline(2) = plot(w/(2*pi), abs(hy).^2, '--', 'Color', get(hline(1), 'Color'));
+    end
+    xlabel('Frequency')
+    ylabel('Magnitude')
+    legend(hline, {'X pol', 'Y pol'})
+    title(sprintf('%s, %d taps', eq.type, eq.Ntaps))
+    
+    subplot(224), hold on, box on
+    for filt = 1:size(Wx, 2)
+        [hx, w] = freqz(Wx(:, filt), 1);
+        hy = freqz(Wy(:, filt), 1, w);
+        hline(1) = plot(w/(2*pi),  unwrap(angle(hx)), '-');
+        hline(2) = plot(w/(2*pi),  unwrap(angle(hy)), '--', 'Color', get(hline(1), 'Color'));
+    end    
+    xlabel('Frequency')
+    ylabel('Phase')
+    legend('X pol', 'Y pol')
+    title(sprintf('%s, %d taps', eq.type, eq.Ntaps))
+end

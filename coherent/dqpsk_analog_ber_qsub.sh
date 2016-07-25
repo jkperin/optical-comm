@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Name the job in Grid Engine
-#$ -N Analog_DQPSK_BER
+#$ -N DQPSK_Analog_BER
 
 #tell grid engine to use current directory
 #$ -cwd

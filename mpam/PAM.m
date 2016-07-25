@@ -157,7 +157,7 @@ classdef PAM
             
             % Normalize filter taps to preserve levels amplitude           
             self.pulse_shape.h = self.norm_filter_coefficients(self.pulse_shape.h);
-            % Generate data, upsample, filter, and remove group delay
+            % Generate data, upsample, and filter
             xd = self.mod(dataTX); % 1 x length(dataTX)
             ximp = upsample(xd, self.pulse_shape.sps);
             xt = filter(self.pulse_shape.h, 1, ximp); 

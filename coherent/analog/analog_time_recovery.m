@@ -1,4 +1,4 @@
-function [ysamp, idx] = analog_time_recovery(yct, TimeRec, sim)
+function [ysamp, idx, Ndiscard] = analog_time_recovery(yct, TimeRec, sim, verbose)
 %% Time recovery for analog-based receiver
 % Inputs:
 % - yc: input signal in "continuous-time". If yct is complex, ony the I 
@@ -15,82 +15,175 @@ function [ysamp, idx] = analog_time_recovery(yct, TimeRec, sim)
 % - ysamp: sampled signal
 % - idx: indices such that ysamp = yct(idx)
 
-% Only I component is used in timing recovery
-y = real(yct);
+if not(isfield(TimeRec, 'Ndiscard'))
+    Ndiscard = [0 0];
+end
 
 switch lower(TimeRec.type)
-    case 'squarer'
+    case 'spectral-line-bpf'
         %% Spectral line syncronizer based on squaring and bandpass filtering
         % Differentiator -> nonlinearity (squaring) -> band pass filter
         % centered at the symbol rate
         % Note: BPF could be replaced by a PLL, but this is not considered
         % here
         
-        ynl = diff([y 0]).^2;
-        clk = real(ifft(fft(ynl).*ifftshift(TimeRec.bpf.H(sim.f/sim.fs))));
+        yct = resample(yct, TimeRec.Mct, sim.Mct);
+        fs = sim.fs*TimeRec.Mct/sim.Mct;
+        [f, t] = freq_time(length(yct), fs);
+        Squarer = AnalogSquaring(TimeRec.squarerFilt, TimeRec.N0, fs);
+        
+        % Only uses I component in estimating clock
+        y = real(yct);
+               
+        % Nonlinearity
+        ynl = Squarer.square(y);
+        % Note: group delay due to filtering operations in squarer must be
+        % removed completely to preserve the accuracy of time recovery
+        
+        % BPF
+        tdelay = 1/(4*sim.Rs); % 90deg delay at symbol rate
+        clk = filtfilt(TimeRec.bpf.num, TimeRec.bpf.den, ynl); % use zero-phase filtering
+        clk = real(ifft(fft(clk).*ifftshift(exp(-1j*2*pi*f*tdelay)))); % 90deg shift at symbol rate   
+        
+        % Limiting amps
         clk(clk > 0) = 1;
         clk(clk < 0) = 0;
+        
+        % Rising-edge detection
         samp = diff([clk 0]);
         idx = find(samp > 0);
-        ysamp = yct(idx);
+        
+        % discard adaptation period
+        idx(diff([idx 0]) < round(sim.Mct*0.4)) = [];
                 
-    case 'mueller-muller'
-        %% Mueller and Muller (M&M) algorithm
-        % Discrete-time error-tracking algorithm     
-        % Build loop filter
-        csi = TimeRec.csi;
-        wn = TimeRec.wn;
-        if not(isfield(TimeRec, 'CT2DT'))
-            TimeRec.CT2DT = 'bilinear';
-        end
+        % Sampling
+        tsamp = t(idx);
+        ysamp = trim_pad(yct(idx));
         
-        % Open-loop analog filter coefficients
-        nums = [0 2*csi*wn wn^2];
+        Ndiscard = TimeRec.Ndiscard;
+        
+        % Plots
+        if exist('verbose', 'var') && verbose
+            try % sometimes matrix length will not match
+                figure(405), clf, hold on
+                plot(1e12*(sim.t(1:sim.Mct:min(length(sim.t), length(tsamp)*sim.Mct)) - tsamp))
+                xlabel('Symbol')
+                ylabel('Sampling time error (ps)')
+                title('Timing recovery')
+                drawnow
+            catch e
+                disp('Error while trying to plot Sampling time error')
+            end
+        end
+ 
+    case 'spectral-line-pll'
+    %% Spectral line syncronizer based on squaring and PLL
+        % Differentiator -> nonlinearity (squaring) -> band pass filter
+        % centered at the symbol rate
+        % Note: BPF could be replaced by a PLL, but this is not considered
+        % here        
+        
+        % Upsample signal to have better time accuray
+        yct = resample(yct, TimeRec.Mct, sim.Mct);
+        fs = sim.fs*TimeRec.Mct/sim.Mct;
+        [~, tct] = freq_time(length(yct), fs);
+        
+        Squarer = AnalogSquaring(TimeRec.squarerFilt, TimeRec.N0, fs); % Squarer
+        M = AnalogMixer(TimeRec.mixerFilt, TimeRec.N0, fs); % Mixer
+        
+        % Loop filter
+        nums = [2*TimeRec.csi*TimeRec.wn TimeRec.wn^2];
         dens = [1 0 0]; % descending powers of s
-        % Closed-loop digital filter coefficients using bilinear transformation
         if strcmpi(TimeRec.CT2DT, 'bilinear')
-            [numz, denz] = bilinear(nums, dens+nums, sim.Rs); % ascending powers of z^–1
+            [numz, denz] = bilinear(nums, dens, fs); 
         elseif strcmpi(TimeRec.CT2DT, 'impinvar')
-            [numz, denz] = impinvar(nums, dens+nums, sim.Rs); % ascending powers of z^–1
+            [numz, denz] = impinvar(nums, dens, fs); 
         else
-            error('analog_time_recovery: invalid method for continuous time to discrete time conversion')
-        end
+            error('analog_time_recovery: continuous-time to discrete-time conversion method (CT2DT) must be either bilinear or impinvar')
+        end         
+        LoopFilter = ClassFilter(numz, denz, fs);
         
-        LoopFilter = ClassFilter(numz, denz, sim.Rs);
-        
-        T = sim.Mct;
-        xhat = [0 0];
-        k = 2;
-        n = T+1;
-        s = zeros(1, sim.Nsymb);
-        idx = ones(1, sim.Nsymb);
-        mk = zeros(1, sim.Nsymb);
-        ysamp = zeros(1, sim.Nsymb);
-        while n <= length(y) && k <= sim.Nsymb
-            ysamp(k) = y(n);
-            idx(k) = n;
-            xhat(2) = xhat(1);
-            xhat(1) = TimeRec.detect(y(n)); % make symbol decision
-            mk(k) = xhat(2)*ysamp(k) - xhat(1)*ysamp(k-1); % M&M timing error detector
+        % Only uses I component in estimating clock
+        y = real(yct);
+              
+        % Nonlinearity
+        ynl = Squarer.square(y);
 
-            % Loop filter 
-            s(k) = LoopFilter.filter(mk(k));
+        % Note: group delay due to filtering operations is not removed
+        f0 = sim.Rs; % VCO natural frequency
+        S = zeros(size(tct));
+        Sf = zeros(size(tct));
+        clk = zeros(size(tct));
+        additionalDelay = max(1, TimeRec.loopDelay); % at least 1 sample
+        fprintf('analog_group_delay: Time recovery loop delay = %.2f ps (%d samples)\n', additionalDelay/fs*1e12, additionalDelay);
+        for t = additionalDelay+1:length(tct)
+            % VCO: generates VCO output
+            clk(t) = sin(2*pi*f0*tct(t) - Sf(t-additionalDelay));
 
-            s(k) = max(-T+1, s(k)); % makes sure sampler is always moving forward
-            n = round(n + T + s(k));
-            k = k + 1;
+            % Mixing            
+            S(t) = M.mix(ynl(t), clk(t));
+            
+            % Loop filter
+            Sf(t) = LoopFilter.filter(S(t));  
         end
-
-        ysamp = yct(idx(idx ~= 0));
-       
+              
+        % Limiting amps
+        clk(clk > 0) = 1;
+        clk(clk < 0) = 0;
+        
+        % Rising-edge detection
+        samp = diff([clk 0]);
+        idx = find(samp > 0);
+        
+        % Sampling
+        tsamp = tct(idx);
+        ysamp = trim_pad(yct(idx));   
+        
+        Ndiscard = TimeRec.Ndiscard;
+        
+        % Plots
+        if exist('verbose', 'var') && verbose
+            try % sometimes matrix length will not match
+                figure(405), clf
+                subplot(211), hold on, box on
+                tplot = sim.t(1:sim.Mct:min(length(sim.t), length(tsamp)*sim.Mct));
+                plot(1e12*(tplot - tsamp(1:min(length(tsamp), length(tplot)))))
+                a = axis;
+                plot((sim.Ndiscard+Ndiscard(1)+1)*[1 1], a(3:4), ':k')
+                plot((sim.Nsymb-sim.Ndiscard-Ndiscard(2))*[1 1], a(3:4), ':k')
+                xlabel('Symbol')
+                ylabel('Sampling time error (ps)')
+                title('Timing recovery')
+                axis tight
+                subplot(212)
+                plot(tct*1e9, Sf)
+                xlabel('Time (ns)')
+                ylabel('Loop filter output')
+                drawnow
+            catch e
+                disp('Error while trying to plot Sampling time error')
+            end
+        end
+ 
     case 'none'
-        if mod(sim.Mct, 2) == 0 % even
-            idx = sim.Mct/2:sim.Mct:length(y);
-        else % odd
-            idx = (sim.Mct + 1)/2:sim.Mct:length(y);
-        end
-        
-        ysamp = yct(idx);     
+        idx = 1:sim.Mct:length(yct);
+        ysamp = yct(idx);
+        Ndiscard = [0 0];
     otherwise
         error('analog_time_recovery: invalide time recovery type')
+end
+
+function y = trim_pad(x)
+%% Ensures that vector x has sim.Nsymb points by trimming or padding zeros
+    N = sim.Nsymb;
+    if length(x) > N
+        fprintf('analog_time_recovery: first %d samples were discarded\n', length(x)-N)
+        y = x(length(x)-N+1:end);
+    elseif length(x) < N
+        fprintf('analog_time_recovery: %d zeros were padded at the end\n', N-length(x))
+        y = [x zeros(1, N-length(x))];
+    else
+        y = x;
+    end
+end
 end

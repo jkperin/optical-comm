@@ -1,4 +1,4 @@
-function [X, Xhat] = dpll(Y, DPLL, sim)
+function [X, Xhat] = dpll(Y, DPLL, ModFormat, verbose)
 %% Digital phase locked loop
 % Loop filter is assumed to be a second-order filter defined by parameters
 % csi (damping) and wn (relaxation frequency). The loop filter frequency
@@ -9,8 +9,8 @@ function [X, Xhat] = dpll(Y, DPLL, sim)
 % - DPLL : struct containing DPLL parameters DPLL.{csi, wn, Ntrain, Ytrain}
 % - sim : simulation parameters sim.{M : modulation order, Rs : symbol rate}
 
-M = sim.M;
-Ts = 1/sim.Rs;
+M = ModFormat.M;
+Ts = 1/ModFormat.Rs;
 csi = DPLL.csi;
 if strcmpi(DPLL.CT2DT, 'bilinear')
     wn = 2/Ts*atan(DPLL.wn*Ts/2); % Compensates for frequency warping in bilinear transformation.
@@ -19,7 +19,7 @@ else
 end
 Delay = DPLL.Delay; % Number of symbols in loop delay
 Ntrain = DPLL.Ntrain;
-Ytrain = DPLL.Ytrain;
+Ytrain = DPLL.trainSeq;
 
 % Generate continuous-time loop filter and convert it to discrete-time
 % using bilinear transformation
@@ -35,23 +35,23 @@ nums = [0 2*csi*wn wn^2];
 dens = [1 0 0]; % descending powers of s
 % Closed-loop digital filter coefficients using bilinear transformation
 if strcmpi(DPLL.CT2DT, 'bilinear')
-    [numz, denz] = bilinear(nums, dens+nums, sim.Rs); % ascending powers of z^–1
+    [numz, denz] = bilinear(nums, dens+nums, ModFormat.Rs); % ascending powers of z^–1
 elseif strcmpi(DPLL.CT2DT, 'impinvar')
-    [numz, denz] = impinvar(nums, dens+nums, sim.Rs); % ascending powers of z^–1
+    [numz, denz] = impinvar(nums, dens+nums, ModFormat.Rs); % ascending powers of z^–1
 else
     error('dpll/invalid method for continuous time to discrete time conversion')
 end
-Nnum = length(numz);
-Nden = length(denz);
-window_num = 0:-1:-Nnum+1;
-window_den = 0:-1:-Nden+2;
+
+% Loop filter
+LoopFilterX = ClassFilter(numz, denz, ModFormat.Rs); % X pol
+LoopFilterY = ClassFilter(numz, denz, ModFormat.Rs); % Y pol
 
 N = length(Y);
 X = zeros(2, N);
 phiLO = zeros(2, N+1);
 phiN = zeros(2, N+1);
 Xhat = zeros(2, N);
-for k = max([Nnum, Nden, Delay]+1):N % runs over symbols
+for k = max([length(numz), length(denz), Delay]+1):N % runs over symbols
     % Correct phase
     X(:, k) = Y(:, k).*exp(-1j*phiLO(:, k-Delay));
     
@@ -65,7 +65,7 @@ for k = max([Nnum, Nden, Delay]+1):N % runs over symbols
         if k < Ntrain % training sequence
             Xhat(:, k) = Ytrain(:, k);
         else % switch to decision directed
-            Xhat(:, k) = detect(X(:, k)); 
+            Xhat(:, k) = ModFormat.mod(ModFormat.demod((X(:, k)))); 
         end
         
         % Remove signal component from phase
@@ -79,15 +79,15 @@ for k = max([Nnum, Nden, Delay]+1):N % runs over symbols
     end
     
     % Loop filter updates LO phase
-    phiLO(:, k+1) = phiN(:, k+1 + window_num)*numz.'...
-        - phiLO(:, k + window_den)*denz(2:end).';
+    phiLO(1, k+1) = LoopFilterX.filter(phiN(1, k+1));
+    phiLO(2, k+1) = LoopFilterY.filter(phiN(2, k+1));
 end
 % 
 phiN = unwrap(phiN, [], 2);
 phiLO = unwrap(phiLO, [], 2);
 
 % Plots
-if isfield(sim, 'Plots') && sim.Plots.isKey('DPLL phase error') && sim.Plots('DPLL phase error')
+if exist('verbose', 'var') && verbose
     figure(200), clf
     subplot(211), box on, hold on
     plot(phiN(1, :), 'b')
@@ -106,10 +106,6 @@ if isfield(sim, 'Plots') && sim.Plots.isKey('DPLL phase error') && sim.Plots('DP
     title(['var(\phi_s)/var(\phi_s-\phi_{LO}) = ' num2str(var(phiN(1, :))/var(phiN(1, :)-phiLO(1, :)))])
     hold off
     drawnow
-end
-
-function x = detect(y)
-    x = qammod(qamdemod(y, M, 0, 'Gray'), M, 0, 'Gray');
 end
 end
 
