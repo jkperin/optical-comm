@@ -12,6 +12,10 @@
 \usepackage{tikz}
 \usepackage{bm}
 
+\DeclareGraphicsExtensions{.eps,.pdf,.png}
+\graphicspath{{figs/}}
+
+
 
 \title{Coherent Detection Systems for Data Centers}
 
@@ -210,7 +214,7 @@ P_{sig} &= \frac{P_{rec}P_{LO}}{8}
 
 One-sided PSD per real dimension of thermal and shot noise:
 \begin{align}
-S_{th} = N_0
+S_{th} = N_0 \\
 S_{sh} = 2(2qRP_{PD})
 \end{align}
 where $N_0$ is the PSD of the trans-impedance amplifier and $P_{PD}$ is the incident power in each photodiode:
@@ -408,57 +412,28 @@ I_i(t) = |A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_n(t)) \\
 I_q(t) = |A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_n(t))
 \end{align}
 
-\section{Power consumption}
-% \begin{table}[t]
-%	\caption{Power consumption \cite{Pillai2014}}
-%	\label{tab:power_consumption}
-%	\centering
-%	\begin{tabular}{l|l|l}
-%		\hline
-%		Component & Power consumption \\
-%		\hline
-%		DAC  & $E_{DAC} = 4F_Dn_dF_s/R_b$     \\
-%		Photodiode & $E_{PD}=8RV_{bias}P_{rx}/R_b$ \\
-%		TIA and ACG & $E_{TIA} = \frac{1.88}{R_b\log_2M}$ \\
-%		ADC & $E_{ADC} = 4F_An_{adc}F_s/R_b$ \\
-%		DSP:CD & $N_{CD} = 0.032R_sL_{km}D_{SMF}/1000$ \\
-%		DSP:TR & 
-%		\hline
-%	\end{tabular}
-%\end{table}
+\section{Phase locking}
+Sections extracted from \cite{Gardner} chapters 5 and 8. 
 
-\begin{table}[t]
-	\caption{List of parameters used in Table~\ref{tab:power_consumption}}
-	\label{tab:param}
+\subsection{Hold-in range}
+Frequency range over which the loop will hold lock. In other words, the largest step in frequency over which the system will still hold lock.	
+
+\subsection{Lock-in range (self-acquisition range)}
+
+If signal frequency is close enough to VCO frequency, a PLL locks up with
+just a phase transient; there is no cycle slipping prior to lock. The frequency range over which the loop acquires phase without slips is called the lock-in range of the PLL. In a first-order loop, the lock-in range is equal to the hold-in range; the loop self-acquires any signal that it can hold. The same is not true of type 2 or higher loops; \textbf{the lock-in range is invariably less than the hold-in range}. Moreover, there is a frequency interval, smaller than the hold-in interval
+and larger than the lock-in interval, over which the loop will acquire lock after slipping cycles for awhile. This intermediate interval is called the pull-in range.
+
+\subsection{Frequency pull-in, or simply, pull-in}
+
+Pull-in Limits If the loop filter contains a perfect integrator, pull-in will be accomplished no matter how large the initial frequency error. (This statement neglects clipping limits; the loop clearly cannot pull in a signal that requires excessive control voltage to the VCO. Also, it is assumed that there are no unwanted DC offsets within the loop that would counteract the pull-in voltage and cause the VCO frequency to be pushed out instead.) In an analog loop filter, the integrator is imperfect and the DC gain is some finite number F(0). If vp is small enough—if the initial frequency error is large enough—the loop cannot pull in. The largest frequency for which the loop can still pull into lock is called the pull-in limit and is represented by $\Delta\omega_p$.
+
+\begin{figure}[h!]
 	\centering
-	\begin{tabular}{l|l}
-		\hline
-		Parameter & Description \\
-		\hline
-		$M$ & constellation size \\
-		$R_b$ & bit rate \\
-		$R_s$ & symbol rate \\
-		$P_{rx}$ & received power; approximately equal to the LO power \\
-		$F_D$  & DAC figure of merit     \\
-		$n_d$ & DAC resolution \\
-		$R$ & photodiode responsivity \\
-		$V_{bias}$ & photodiode bias voltage \\
-		$F_A$ & ADC figure of merit \\
-		$n_{adc}$ & nominal ADC resolution \\
-		$F_s$ & ADC sampling rate ideally $F_s = r_{os}R_s$ \\
-		$L_{km}$ & Fiber length in km \\
-		$D_{SMF}$ & Fiber dispersion in \\
-		
-		
-		Photodiode & $E_{PD}=8RV_{bias}P_{rx}/R_b$ \\
-		OOFDM signal bandwidth (BW) & $BW \leq 10$ GHz \\
-		Accumulated dispersion ($DL$)  								& $DL \leq 1700$ ps/nm    \\
-		Linewidth enhancement factor ($\alpha$)&  $2 \leq \alpha \leq 5$   \\
-		Adiabatic chirp coefficient ($\kappa$)  & 	$10 \leq \kappa \leq 15$ GHz/mW     \\
-		Average optical power ($P_0$)														 &  $1 \leq P_0 \leq 5$ mW \\
-		\hline
-	\end{tabular}
-\end{table}
+	\includegraphics[width=\textwidth]{transient_phase_error_of_2nd_order_pll.png}
+	\label{fig:transient_2nd_pll}
+	\caption{\cite{Gardner}}
+\end{figure}
 
 
 \bibliographystyle{plain}

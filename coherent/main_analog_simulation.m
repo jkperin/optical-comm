@@ -9,13 +9,13 @@ addpath ../soa/
 
 %% Simulation launched power swipe
 Tx.PlaunchdBm = -38:-28;
-% Tx.PlaunchdBm = -25;
+Tx.PlaunchdBm = -20;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
-sim.Mct = 8;    % Oversampling ratio to simulate continuous time 
+sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
+sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 1024; % number of symbols to be discarded from the begining and end of the sequence 
+sim.Ndiscard = 256; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
 sim.Npol = 2;                                                              % number of polarizations
@@ -27,7 +27,7 @@ sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-Q
 % Simulation control
 sim.RIN = true; 
 sim.PMD = false;
-sim.phase_noise = true;
+sim.phase_noise = ~true;
 sim.preAmp = false;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
@@ -38,10 +38,11 @@ Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
 Plots('Constellations') = 0;
 Plots('Diff group delay')       = 0;
-Plots('Phase tracker') = 0;
 Plots('EPLL phase error') = 0;
+Plot('Feedforward phase recovery') = 1;
 Plots('Time recovery') = 0;
 Plots('Phase error variance') = 0;
+Plots('Symbol errors') = 0;
 sim.Plots = Plots;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
@@ -84,7 +85,7 @@ end
 % deafault is att(lamb) = 0 dB/km
 % D(lamb) : function handle of dispersion (D) at wavelength (lamb) in ps/(kmnm),
 % default is D(lamb) = SSMF with lamb0 @ 1310 ps/(kmnm)
-Fiber = fiber(0*2e3);
+Fiber = fiber(0e3);
 Fiber.PMD = sim.PMD;                                                       % whether to similate PMD
 Fiber.meanDGDps = 0.1;                                                     % Mean DGD (ps)
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
@@ -102,7 +103,7 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 15;                                                           % Total local oscillator power (dBm)
-Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
+Rx.LO.freqOffset = 1e9;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -141,7 +142,7 @@ Analog.filt = design_filter('butter', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 %% Carrier phase recovery and components
 % Carrier Phase recovery type: either 'OPLL' (not implemented), 'EPLL',
 % and 'Feedforward'
-Analog.CarrierPhaseRecovery = 'EPLL';
+Analog.CarrierPhaseRecovery = 'Feedforward';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations}
 Analog.CPRmethod = 'logic';                                            
@@ -156,9 +157,6 @@ componentN0 = 4e-21*componentRn/pi;
 % Adder
 Analog.Adder.filt = componentFilter;
 Analog.Adder.N0 = componentN0;
-
-% 
-Analog.FeedforwardLPF.filt = design_filter('bessel', 5, 10e9/(sim.fs/2));
 
 % Mixer
 Analog.Mixer.filt = componentFilter;
@@ -179,11 +177,22 @@ Analog.Comparator.Vcc = 1;
 Analog.Comparator.N0 = componentN0;
 Analog.Comparator.filt = componentFilter;
 
-% PLL loop filter parameters.
+%% PLL loop filter parameters.
 % Note: relaxation frequency is optimized at every iteration
 Analog.Kdc = 1;                                                            % DC gain
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 0;                                                    % Loop delay in s
+Analog.Delay = 0;                                                          % Additional loop delay in s (not including group delay from filters)
+
+%% Feedforward additional components
+Analog.Feedforward.freqDivDelay = 0;                                       % delay in samples
+Analog.Feedforward.FreqDiv1.Mixer.filt = [];
+Analog.Feedforward.FreqDiv1.Mixer.N0 = 0;
+Analog.Feedforward.FreqDiv2.Mixer.filt = [];
+Analog.Feedforward.FreqDiv2.Mixer.N0 = 0;
+
+Analog.Feedforward.LPF.filt = design_filter('bessel', 5, 5e9/(sim.fs/2));
+Analog.Feedforward.FreqDiv1.filt = design_filter('bessel', 5, 2e9/(sim.fs/2));
+Analog.Feedforward.FreqDiv2.filt = design_filter('bessel', 5, 1e9/(sim.fs/2));
 
 Rx.Analog = Analog;
 
@@ -191,24 +200,29 @@ Rx.Analog = Analog;
 % Two types are supported: 'spectral-line'
 % Spectral line method: nonlinearity (squarer) -> BPF or PLL
 Rx.TimeRec.type = 'spectral-line-bpf';
-% Rx.TimeRec.type = 'spectral-line-pll';
-% Rx.TimeRec.type = 'none';
+Rx.TimeRec.type = 'spectral-line-pll';
+Rx.TimeRec.type = 'none';
+Rx.TimeRec.Mct = 30; % oversampling ratio of continuous time used in TimeRecovery
+Rx.TimeRec.fs = Rx.TimeRec.Mct*sim.ModFormat.Rs;
+Rx.TimeRec.squarerFilt = design_filter('fir', 32, sim.ModFormat.Rs/(Rx.TimeRec.fs/2)); 
+% Note: use FIR filter to model squarerFilt so that group delay can be
+% easily removed in order to preserve timing accuracy.
+Rx.TimeRec.N0 = componentN0; % noise PSD of circuitry
+Rx.TimeRec.Ndiscard = [2e3 512];
 
 % Additional paramters for 'spectral-line-bpf'
 BW = 1e9;
-Rx.TimeRec.Mct = 16; % oversampling ratio of continuous time used in TimeRecovery
-Rx.TimeRec.fs = Rx.TimeRec.Mct*sim.ModFormat.Rs;
-lpf = design_filter('bessel', 5, BW/(Rx.TimeRec.fs/2));
+lpf = design_filter('butter', 5, BW/(Rx.TimeRec.fs/2));
 [bpf.num, bpf.den] = iirlp2bp(lpf.num, lpf.den, BW/(Rx.TimeRec.fs/2), sim.ModFormat.Rs/(Rx.TimeRec.fs/2) + BW/(Rx.TimeRec.fs/2)*[-1 1]); % converts to BPF
-Rx.TimeRec.bpf = bpf;
-Rx.TimeRec.bpf.H = @(f) freqz(bpf.num, bpf.den, 2*pi*f).*exp(1j*2*pi*f*grpdelay(bpf.num, bpf.den, 1));
+Rx.TimeRec.bpf = bpf; % this will be filtered using filtfilt (zero-phase filtering)
 
 % Additional paramters for 'spectral-line-pll'
 Rx.TimeRec.csi = sqrt(2)/2; % damping
-Rx.TimeRec.wn = 2*pi*3e9; % relaxation frequency of PLL
+Rx.TimeRec.wn = 2*pi*1e9; % relaxation frequency of PLL
 Rx.TimeRec.CT2DT = 'bilinear'; % continuous-time to discrete-time conversion method 
-Rx.TimeRec.detect = @(x) sign(x); % decision device 
-
+Rx.TimeRec.mixerFilt = []; % design_filter('butter', 5, (sim.ModFormat.Rs)/(Rx.TimeRec.fs/2)); % filtering operation performed before and after squaring
+Rx.TimeRec.loopDelay = 10; % additional loop delay
+    
 %% Generate summary
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 

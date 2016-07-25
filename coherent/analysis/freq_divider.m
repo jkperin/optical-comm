@@ -15,7 +15,7 @@ phase_noise = true;
 awgn_noise = true;
 frequency_offset = true;
 
-Filt = AnalogFilter(design_filter('bessel', 5, 0.5e9/fs), fs)
+Filt = ClassFilter('bessel', 5, 0.5e9/fs, fs);
 Filt.memForward = ones(size(Filt.memForward));
 %
 foff = 1e9;
@@ -24,7 +24,7 @@ y = ones(size(x));
 
 for t = Mct+1:length(x)
     [x(t), y(t-1)];
-    if t < 100
+    if false % t < 100
         yt(t) = x(t);
         Filt.filter(x(t)*y(t-1));
     else

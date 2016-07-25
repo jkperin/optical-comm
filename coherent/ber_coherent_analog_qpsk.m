@@ -22,7 +22,7 @@ dataTX(:, end-Nzero+1:end) = 0;
 
 % Filter drive waveforms for modulators txfilt.
 % group delay of Tx.filt.H has already been removed
-Htx = ifftshift(Tx.filt.H(sim.f/sim.fs).*exp(1j*2*pi*sim.f/sim.fs*Qpsk.pulse_shape_grpdelay)); % transmitter filter and remove group delay due to pulse shaping in ModFormat
+Htx = ifftshift(Tx.filt.H(sim.f/sim.fs).*exp(1j*2*pi*sim.f/sim.fs*(Qpsk.pulse_shape_grpdelay + 5.67))); % transmitter filter and remove group delay due to pulse shaping in ModFormat
 Vout(1, :) = real(ifft(fft(real(Vin(1, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(1, :))).*Htx)); 
 Vout(2, :)= real(ifft(fft(real(Vin(2, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(2, :))).*Htx));
 
@@ -31,8 +31,6 @@ Vout(2, :)= real(ifft(fft(real(Vin(2, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(2,
 
 %% Swipe launched power
 ber.count = zeros(size(Tx.PlaunchdBm));
-validInd = 1:sim.Nsymb;
-validInd([1:sim.Ndiscard end-sim.Ndiscard+1:end]) = [];  % symbols used in BER measurement
 for k = 1:length(Tx.PlaunchdBm)
     fprintf('-- Launch power: %.2f dBm\n', Tx.PlaunchdBm(k));
     
@@ -72,7 +70,7 @@ for k = 1:length(Tx.PlaunchdBm)
                     error('ber_coherent_analog_epll/invalid electric PLL type %s\nAnalog.receiver must be either Costas or Logic\n', Analog.CPRmethod)
             end
         case 'feedforward'
-            [Xs, Analog] = analog_feedforward(Ys, Analog, sim);
+            [Xs, Analog] = analog_feedforward(Ys, Analog, sim, sim.shouldPlot('Feedforward phase recovery'));
         case 'opll'
             error('ber_coherent_analog_epll/OPLL not implemented yet.')
         otherwise
@@ -83,8 +81,8 @@ for k = 1:length(Tx.PlaunchdBm)
     %% Time recovery and sampling
     % Note: clock obtained from I is used in Q in order to prevent
     % differences in sampling between I and Q
-    X = [analog_time_recovery(Xs(1, :), Rx.TimeRec, sim, sim.shouldPlot('Time recovery'));...
-         analog_time_recovery(Xs(2, :), Rx.TimeRec, sim)];
+    [X(1, :), ~, Nsetup] = analog_time_recovery(Xs(1, :), Rx.TimeRec, sim, sim.shouldPlot('Time recovery'));
+    X(2, :) = analog_time_recovery(Xs(2, :), Rx.TimeRec, sim);
        
     % Automatic gain control
     X = [sqrt(2/mean(abs(X(1, :)).^2))*X(1, :);
@@ -108,26 +106,38 @@ for k = 1:length(Tx.PlaunchdBm)
     %% Detection
     dataRX = Qpsk.demod(X);
     
-    dataRX(:, [1:sim.Ndiscard end-sim.Ndiscard+1:end]) = []; % discard first and last sim.Ndiscard symbols
-    
+    % Valid range for BER measurement
+    validInd = sim.Ndiscard+Nsetup(1)+1:sim.Nsymb-sim.Ndiscard-Nsetup(2);
+        
     % BER calculation
-    [~, berX(k)] = biterr(dataTX(1, validInd), dataRX(1, :))
-    [~, berY(k)] = biterr(dataTX(2, validInd), dataRX(2, :))
+    [~, berX(k)] = biterr(dataTX(1, validInd), dataRX(1, validInd))
+    [~, berY(k)] = biterr(dataTX(2, validInd), dataRX(2, validInd))
     ber.count(k) = 0.5*(berX(k) + berY(k));
     
    % Constellation plots
    if sim.shouldPlot('Constellations')
        figure(203), clf
        subplot(121)
-       plot_constellation(X(1, validInd), dataTX(1, validInd), sim.M);
+       plot_constellation(X(1, validInd), dataTX(1, validInd), Qpsk.M);
        axis square
        title('Pol X')       
        subplot(122)
-       plot_constellation(X(2, validInd), dataTX(2, validInd), sim.M);
+       plot_constellation(X(2, validInd), dataTX(2, validInd), Qpsk.M);
        axis square
        title('Pol Y')   
        drawnow
    end 
+   
+   if sim.shouldPlot('Symbol errors')
+        figure(204), clf
+        subplot(121)
+        stem(dataTX(1, validInd) ~= dataRX(1, validInd))
+        title('Pol X')       
+        subplot(122)
+        stem(dataTX(2, validInd) ~= dataRX(2, validInd))
+        title('Pol Y')   
+        drawnow
+   end
    
    % Stop simulation when counted BER reaches 0
    if sim.stopWhenBERreaches0 && ber.count(k) == 0

@@ -56,15 +56,13 @@ xnorY2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
 S1 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
 
 % Converts delay to number of samples in order to avoid interpolation
-Delay = round(Analog.Delay*sim.fs) + 1; % delay is at least one sample
+additionalDelay = max(round(Analog.Delay*sim.fs), 1); % delay is at least one sample
 
 % Calculate group delay
 totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Four quadrant multiplier
     + Comp1.groupDelay + xnorX1.groupDelay + xnorX2.groupDelay + S1.groupDelay... % phase estimation    
-    + Delay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
+    + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
-
-LoopDelaySamples = round(totalGroupDelay*sim.fs); % loop delay in samples
 
 % Optimize EPLL parameters
 Analog.wn = optimizePLL(Analog.csi, Analog.Kdc, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
@@ -87,10 +85,10 @@ Yxq = imag(Ys(1, :));
 Yyi = real(Ys(2, :));
 Yyq = imag(Ys(2, :));
 
-for t = LoopDelaySamples+1:length(sim.t)
+for t = additionalDelay+1:length(sim.t)
     % VCO: generates VCO output
-    Vcos = cos(Sf(t-LoopDelaySamples));
-    Vsin = sin(Sf(t-LoopDelaySamples));
+    Vcos = cos(Sf(t-additionalDelay));
+    Vsin = sin(Sf(t-additionalDelay));
 
     % Four quadrant multiplier                  
     X(1, t) = Sx1.add(Mx1.mix(Yxi(t), Vcos), -Mx2.mix(Yxq(t), Vsin)); % pol X, I
@@ -117,12 +115,16 @@ for t = LoopDelaySamples+1:length(sim.t)
     Sf(t) = LoopFilter.filter(S(t)); 
 end
 
+% Remove group delay from signal path
+delay = (Mx1.groupDelay + Sx1.groupDelay); % Group delay in signal path
+Hdelay = ifftshift(exp(1j*2*pi*sim.f*delay));
+X(1, :) = real(ifft(fft(X(1, :)).*Hdelay ));
+X(2, :) = real(ifft(fft(X(2, :)).*Hdelay ));
+X(3, :) = real(ifft(fft(X(3, :)).*Hdelay ));
+X(4, :) = real(ifft(fft(X(4, :)).*Hdelay ));
+
 % Build output
 Xs = [X(1, :) + 1j*X(2, :); X(3, :) + 1j*X(4, :)];
-
-% Remove group delay
-delay = round((Mx1.groupDelay + Sx1.groupDelay)*sim.fs); % Group delay of four quadrant multiplier
-Xs = [Xs(:, delay+1:end) Xs(:, 1:delay)]; % remove group delay
 
  % Phase error plot -------------------------------------------------------
 if exist('verbose', 'var') && verbose

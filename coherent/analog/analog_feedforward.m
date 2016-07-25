@@ -1,4 +1,4 @@
-function [Xs, Analog] = analog_feedforward(Ys, Analog, sim)
+function [Xs, Analog] = analog_feedforward(Ys, Analog, sim, verbose)
 %% Analog feedforward
 % Inputs:
 % - Ys: received signal after filtering to remove noise
@@ -43,100 +43,100 @@ Cube2 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
 Cube3 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
 Cube4 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
 
+% Low-pass filter
+Fx = ClassFilter(Analog.Feedforward.LPF.filt, sim.fs);
+Fy = ClassFilter(Analog.Feedforward.LPF.filt, sim.fs);
+Fx.removeGroupDelay = false;
+Fy.removeGroupDelay = false;
+
 % Mixers and filters for regenerative frequency dividers
-MdivX1 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-MdivX2 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-MdivY1 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-MdivY2 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
+FreqDivXM1 = AnalogMixer(Analog.Feedforward.FreqDiv1.Mixer.filt, Analog.Feedforward.FreqDiv1.Mixer.N0, sim.fs);
+FreqDivYM1 = AnalogMixer(Analog.Feedforward.FreqDiv1.Mixer.filt, Analog.Feedforward.FreqDiv2.Mixer.N0, sim.fs);
+FreqDivXM2 = AnalogMixer(Analog.Feedforward.FreqDiv2.Mixer.filt, Analog.Feedforward.FreqDiv1.Mixer.N0, sim.fs);
+FreqDivYM2 = AnalogMixer(Analog.Feedforward.FreqDiv2.Mixer.filt, Analog.Feedforward.FreqDiv2.Mixer.N0, sim.fs);
 
-FdivX1 = AnalogFilter(Analog.FeedforwardLPF.filt, sim.fs);
-FdivX2 = AnalogFilter(Analog.FeedforwardLPF.filt, sim.fs);
-FdivY1 = AnalogFilter(Analog.FeedforwardLPF.filt, sim.fs);
-FdivY2 = AnalogFilter(Analog.FeedforwardLPF.filt, sim.fs);
+FreqDivXF1 = ClassFilter(Analog.Feedforward.FreqDiv1.filt, sim.fs);
+FreqDivYF1 = ClassFilter(Analog.Feedforward.FreqDiv1.filt, sim.fs);
+FreqDivXF2 = ClassFilter(Analog.Feedforward.FreqDiv2.filt, sim.fs);
+FreqDivYF2 = ClassFilter(Analog.Feedforward.FreqDiv2.filt, sim.fs);
 
-% -90deg phase shift filter
-H = exp(-1j*pi/2*sign(sim.f));
-h = real(fftshift(ifft(ifftshift(H))));
-tol = 1e-3;
-Eh = cumtrapz(sim.t, abs(h).^2)/trapz(sim.t, abs(h).^2);
-n = -sim.N/2:sim.N/2-1;
-n1 = find(Eh >= 1-tol, 1, 'first');
-n2 = find(Eh <= tol, 1, 'last');
-nmax = max(abs([n(n1) n(n2)]));
-h = h(n > -nmax & n < nmax);
-n = n(n > -nmax & n < nmax);
-shifterLen = length(h);
-
-filt.h = h;
-filt.num = h;
-filt.den = 1;
-phaseShifterX =  AnalogFilter(filt, sim.fs);
-phaseShifterY =  AnalogFilter(filt, sim.fs);
+% Set filter memory to one so frequency divider can start
+FreqDivXF1.memForward = ones(size(FreqDivXF1.memForward));
+FreqDivYF1.memForward = ones(size(FreqDivYF1.memForward));
+FreqDivXF2.memForward = ones(size(FreqDivXF2.memForward));
+FreqDivYF2.memForward = ones(size(FreqDivYF2.memForward));
 
 % Initializations
-X = zeros(4, length(sim.t));
-
-Sx = zeros(size(sim.t));
-Sy = zeros(size(sim.t));
-
-Yxi = real(Ys(1, :));
-Yxq = imag(Ys(1, :));
-Yyi = real(Ys(2, :));
-Yyq = imag(Ys(2, :));
+Y = [real(Ys(1, :));
+     imag(Ys(1, :));
+     real(Ys(2, :));
+     imag(Ys(2, :))];
 
 % Delay
-freqDivDelay = round((MdivX1.groupDelay + FdivX1.groupDelay)*sim.fs);
-shifterDelay = (shifterLen-1)/2; % delay of symmetric FIR filter
+freqDivDelay = max(Analog.Feedforward.freqDivDelay, 1);
 Delay = round((Cube1.groupDelay + MixerIdQx.groupDelay + AdderX.groupDelay... % phase estimation
-    + MdivX1.groupDelay + FdivX1.groupDelay... % regenerative frequency divider 1
-    + MdivX2.groupDelay + FdivX2.groupDelay)*sim.fs... % regenerative frequency divider 2
-    + shifterDelay);
+    + FreqDivXM1.groupDelay + FreqDivXF1.groupDelay... % regenerative frequency divider 1
+    + FreqDivXM2.groupDelay + FreqDivXF2.groupDelay)*sim.fs); % regenerative frequency divider 2
 
-for t = 1:length(sim.t)
-    % Phase estimation
-    % = Im{(xi + 1jxq)^4} = 4*(xi^3xq - xq^3xi)
-    Sx(t) = -1/4*AdderX.add(MixerIdQx.mix(Cube1.cube(Yxi(t)), Yxq(t)), -MixerQdIx.mix(Cube2.cube(Yxq(t)), Yxi(t)));
-    Sy(t) = -1/4*AdderY.add(MixerIdQy.mix(Cube3.cube(Yyi(t)), Yyq(t)), -MixerQdIy.mix(Cube4.cube(Yyq(t)), Yyi(t)));
-end
+% 4-th power phase estimation
+% = Im{(xi + 1jxq)^4} = 4*(xi^3xq - xq^3xi)
+Sx = 1/4*AdderX.add(MixerIdQx.mix(Cube1.cube(Y(1, :)), Y(2, :)), -MixerQdIx.mix(Cube2.cube(Y(2, :)), Y(1, :)));
+Sy = 1/4*AdderY.add(MixerIdQy.mix(Cube3.cube(Y(3, :)), Y(4, :)), -MixerQdIy.mix(Cube4.cube(Y(4, :)), Y(3, :)));
+
+% Low pass filtering and -1 gain
+Sxf = -Fx.filter(Sx);
+Syf = -Fy.filter(Sy);
 
 % Initialization
-Vx = Sx;
-Vsinx = Sx;
-Vy = Sy;
-Vsiny = Sy;
-Vcosx = zeros(size(sim.t));
-Vcosy = zeros(size(sim.t));
-AA = cos(2*pi*1e9*sim.t);
-Vx = ones(size(AA));
-for t = max([Delay sim.Mct])+1:length(sim.t)
-    Vx(t) = FdivX1.filter(2*MdivX1.mix(AA(t), Vx(t-freqDivDelay)));
-    Vy(t) = FdivX2.filter(2*MdivY2.mix(Sy(t), Vy(t-freqDivDelay)));
+Sxf = cos(2*pi*6e9*sim.t);
+V2sinx = ones(size(Sxf));
+V2siny = Syf;
+Vsinx = V2sinx;
+Vsiny = V2siny;
+for t = freqDivDelay+1:length(sim.t)    
+    % 1st regenerative frequency divider
+%     V2sinx(t) = FreqDivXF1.filter(FreqDivXM1.mix(Sxf(t), V2sinx(t-freqDivDelay)));
+    V2sinx(t) = 2*FreqDivXF1.filter(Sxf(t)*V2sinx(t-freqDivDelay));
+    V2siny(t) = FreqDivYF1.filter(FreqDivYM1.mix(Syf(t), V2siny(t-freqDivDelay)));
     
-    Vsinx(t) = regenerative_frequency_divider(Vx(t), Vsinx(t-freqDivDelay), MdivX2, FdivX2);
-    Vsiny(t) = regenerative_frequency_divider(Vy(t), Vsiny(t-freqDivDelay), MdivY2, FdivY2);
-    
-    Vcosx(t) = -phaseShifterX.filter(Vsinx(t));
-    Vcosy(t) = -phaseShifterY.filter(Vsiny(t));
-    
-    % Downconversion                 
-    X(1, t) = Sx1.add(Mx1.mix(Yxi(t-Delay), Vcosx(t)), Mx2.mix(Yxq(t-Delay), Vsinx(t-shifterDelay))); % pol X, I
-    X(2, t) = Sx2.add(-Mx3.mix(Yxi(t-Delay), Vsinx(t-shifterDelay)), Mx4.mix(Yxq(t-Delay), Vcosx(t))); % pol X, Q
-    X(3, t) = Sy1.add(My1.mix(Yyi(t-Delay), Vcosy(t)), My2.mix(Yyq(t-Delay), Vsiny(t-shifterDelay))); % pol Y, I
-    X(4, t) = Sy2.add(-My3.mix(Yyi(t-Delay), Vsiny(t-shifterDelay)), My4.mix(Yyq(t-Delay), Vcosy(t))); % pol Y, Q
+    % 2nd regenerative frequency divider
+    Vsinx(t) = FreqDivXF2.filter(FreqDivXM2.mix(V2sinx(t), Vsinx(t-freqDivDelay)));
+    Vsiny(t) = FreqDivYF2.filter(FreqDivYM2.mix(V2siny(t), Vsiny(t-freqDivDelay)));    
 end
+
+% 90deg phase shift
+Hshift = ifftshift(exp(-1j*pi/2*sign(sim.f)));
+Vcosx = real(ifft(fft(Vsinx).*Hshift));
+Vcosy = real(ifft(fft(Vsinx).*Hshift));
+
+% Delay inputs
+Y = circshift(Y, [0, -Delay]);
+
+% Downconversion                 
+X(1, :) = Sx1.add(Mx1.mix(Y(1, :), Vcosx), Mx2.mix(Y(2, :), Vsinx)); % pol X, I
+X(2, :) = Sx2.add(-Mx3.mix(Y(1, :), Vsinx), Mx4.mix(Y(2, :), Vcosx)); % pol X, Q
+X(3, :) = Sy1.add(My1.mix(Y(3, :), Vcosy), My2.mix(Y(4, :), Vsiny)); % pol Y, I
+X(4, :) = Sy2.add(-My3.mix(Y(3, :), Vsiny), My4.mix(Y(4, :), Vcosy)); % pol Y, Q
+
+% Remove group delay from signal path
+delayDownconversion = sim.fs*(Mx1.groupDelay + Sx1.groupDelay); % Group delay in signal path
+Hdelay = ifftshift(exp(1j*2*pi*sim.f/sim.fs*(Delay + delayDownconversion)));
+X(1, :) = real(ifft(fft(X(1, :)).*Hdelay));
+X(2, :) = real(ifft(fft(X(2, :)).*Hdelay));
+X(3, :) = real(ifft(fft(X(3, :)).*Hdelay));
+X(4, :) = real(ifft(fft(X(4, :)).*Hdelay));
 
 % Build output
 Xs = [X(1, :) + 1j*X(2, :); X(3, :) + 1j*X(4, :)];
 
-% Sampling
-delay = round((Cube1.grpdelay + MixerIdQx.grpdelay + AdderX.grpdelay... % phase estimation
-    + MdivX1.groupDelay + FdivX1.grpdelay... % regenerative frequency divider 1
-    + MdivX2.groupDelay + FdivX2.grpdelay)*sim.fs... % regenerative frequency divider 2
-    + shifterDelay... % 90deg phase shift
-    + (Mx1.groupDelay + Sx1.groupDelay)*sim.fs); % downconversion
-Xs = [Xs(:, delay+1:end) Xs(:, 1:delay)]; % remove group delay
-
-    function y = regenerative_frequency_divider(x, ypast, mix, filt)
-        y = filt.filter(2*mix.mix(x, ypast));
-    end
+if exist('verbose', 'var') && verbose
+    figure(404), clf
+%     subplot(212), hold on
+    plot(Sx, 'DisplayName', 'pol X: phase estimation (PE)')
+    plot(Sy, 'DisplayName', 'pol Y: PE')
+    plot(Sx, 'DisplayName', 'pol X: PE fitlered')
+    plot(Sy, 'DisplayName', 'pol Y: PE filtered')
+    legend('-DynamicLegend')
 end
+
+
