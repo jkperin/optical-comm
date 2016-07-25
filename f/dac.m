@@ -101,6 +101,5 @@ if exist('verbose', 'var') && verbose
     title('DAC output spectrum')
     a = axis;
     axis([-DAC.fs/1e9 DAC.fs/1e9 a(3:4)])
-    subplot(224)
     drawnow
 end

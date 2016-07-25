@@ -6,7 +6,7 @@ addpath ../f
 addpath f
 
 %% Simulation parameters
-sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
 sim.ros.txDSP = 1; % oversampling ratio of transmitter DSP
 sim.ros.rxDSP = 1; % oversampling ratio of receivre DSP
 sim.Mct = 8*sim.ros.rxDSP;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done right, and FIR filters have interger grpdelay)  
@@ -70,7 +70,7 @@ Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in s
 Tx.Mod.H = @(f) exp(1j*2*pi*f.*Tx.Mod.grpdelay)./(1 + 2*1j*f/Tx.Mod.fc - (f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
 
 %% Fiber
-Fiber = fiber(5e3);
+Fiber = fiber(10e3);
 
 %% Receiver
 Rx.N0 = (30e-12).^2; % thermal noise psd
@@ -89,13 +89,13 @@ Rx.ADC.rclip = 0;
 Rx.eq.type = 'Fixed TD-SR-LE';
 Rx.eq.ros = sim.ros.rxDSP;
 Rx.eq.Ntaps = 15;
-Rx.eq.mu = 1e-2;
+Rx.eq.mu = 1e-3;
 Rx.eq.Ntrain = Inf; % Number of symbols used in training (if Inf all symbols are used)
-Rx.eq.Ndiscard = [1e4 512]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
+Rx.eq.Ndiscard = [1024 1024]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
 
 %% APD 
 % apd(GaindB, ka, BW, R, Id) 
-Apd = apd(6, 0.1, [20e9 200e9], 1, 10e-9);
+Apd = apd(6, 0.2, [20e9 270e9], 0.74, 10e-9);
 
 GainsdB = (3:18);
 Gains = 10.^(GainsdB/10);
@@ -120,6 +120,7 @@ for k= 1:length(GainsdB)
     
     hline = plot(Tx.PtxdBm, log10(ber_apd.enum), '-');
     plot(Tx.PtxdBm, log10(ber_apd.count), '-o', 'Color', get(hline, 'Color'))
+    plot(Tx.PtxdBm, log10(ber_apd.awgn), '--', 'Color', get(hline, 'Color'))
     drawnow
     
     legs = [legs, sprintf('Gain = %.1f dB', GainsdB(k)), sprintf('Gain = %.1f dB (Count)', GainsdB(k))];

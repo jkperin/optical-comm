@@ -45,7 +45,9 @@ yt = yt - mean(yt) + mean(mpam.a);
 %% ADC
 % ADC performs filtering, quantization, and downsampling
 % For an ideal ADC, ADC.ENOB = Inf
+% Align received and transmitted signals
 % Rx.ADC.offset = 0;
+Rx.ADC.timeRefSignal = xt; % align filtered signal ytf to this reference
 switch lower(Rx.filtering)
     case 'antialiasing' % receiver filter is specified in ADC.filt
         [yk, ~, ytf] = adc(yt, Rx.ADC, sim);

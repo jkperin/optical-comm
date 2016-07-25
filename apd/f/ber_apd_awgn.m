@@ -14,7 +14,7 @@ end
 [~, Rx.eq] = equalize(Rx.eq, [], HrxPshape, mpam, sim);
 
 % Noise std: includes RIN, shot and thermal noise (assumes gaussian stats)
-noise_std = Apd.stdNoise(H.w.*H.rx, Rx.eq.Hff(sim.f/(Rx.eq.ros*mpam.Rs)), Rx.N0, Tx.Laser.RIN, sim);
+noiseSTD = Apd.stdNoise(H.w.*H.rx, Rx.eq.Hff(sim.f/(Rx.eq.ros*mpam.Rs)), Rx.N0, Tx.Laser.RIN, sim);
 
 % Receiver filter
 % For symbol-rate sampling linear equalizer = APD -> Whitening filter ->
@@ -37,6 +37,10 @@ hhd = hhd/abs(sum(hhd));
 % Psymbs = mean(mpam.a); % symbol power in the memory of APD
 Psymbs = mpam.a(end);
 
-ber_awgn = mpam.berAWGN(@(P) noise_std(P*hhd(hh0) + Psymbs*(sum(hhd)-hhd(hh0))));
+% Update noise standard deviation at each level including Shot noise ISI
+noise_std = @(P) noiseSTD(P*hhd(hh0) + Psymbs*(sum(hhd)-hhd(hh0)));
 % In calculating noise_std for AWGN channel, all other symbols in hh
 % are assumed to be the highest PAM level.
+
+% Calculate BER
+ber_awgn = mpam.berAWGN(@(P) noise_std(P));

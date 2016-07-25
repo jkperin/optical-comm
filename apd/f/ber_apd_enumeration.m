@@ -69,6 +69,7 @@ yt = yt - mean(yt) + mean(mpam.a);
 % ADC performs filtering, quantization, and downsampling
 % For an ideal ADC, ADC.ENOB = Inf
 Rx.ADC.ros = 1; % symbol-rate sampling 
+Rx.ADC.timeRefSignal = xt; % align filtered signal ytf to this reference
 [yk, ~, ytf] = adc(yt, Rx.ADC, sim, conj(HrxPshape));
 
 %% Equalization

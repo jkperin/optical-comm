@@ -282,7 +282,7 @@ classdef apd
             else
                 % Adjust power to get to target BER
                 [Gopt, ~, exitflag] = fminbnd(@(Gapd) fzero(@(PtxdBm)...
-                    this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim) - sim.BERtarget, -20), 1, maxGain(this, mpam.Rs/5));
+                    log10(this.calc_apd_ber(PtxdBm, Gapd, mpam, tx, fiber, rx, sim)) - log10(sim.BERtarget), -20), 1, maxGain(this, mpam.Rs/5));
             end
 
             % Check whether solution is valid
@@ -308,78 +308,32 @@ classdef apd
             % Noise whitening filter depends on optical power, so the levels
             % must be calculated iteratively.
             this.Gain = Gapd;
-            
-            % If equalization is required, then assume fixed symbol-rate equalizer for analysis
-            if isfield(Rx, 'eq') && ~strcmpi(Rx.eq.type, 'none')
-                Rx.eq.type = 'Fixed TD-SR-LE'; 
-                Rx.eq.ros = 1;
-            end
-            
-            % Calculate system frequency response. Assumes no noise
-            % whitening filter for start
-            if isfield(sim, 'WhiteningFilter')
-                WhiteningFilter = sim.WhiteningFilter;
-            else
-                WhiteningFilter = false;
-            end
-            sim.WhiteningFilter = false;
-            [HrxPshape, H] = apd_system_received_pulse_shape(mpam, Tx, Fiber, this, Rx, sim); 
-            sim.WhiteningFilter = WhiteningFilter;
-            
+                       
             %% Iterate until convergence
-            Pmean = 0;
-            Pmax = 0;
-            Pmean_old = 1;
-            tol = 1e-3;
-            n = 0;
+            Pmean = [0 1];
+            tol = 1e-6;
+            n = 1;
             maxIterations = 50;
-            Hw = 1; % begin with no noise whitening filter
-            while abs(Pmean-Pmean_old)/Pmean > tol && n < maxIterations     
-                % Design equalizer
-                [~, Rx.eq] = equalize(Rx.eq, [], Hw.*HrxPshape, mpam, sim); % design equalizer
-                % This design assumes fixed zero-forcing equalizers  
+            Tx.Ptx = 1e-3; % initial power 
+            Fiber.att = @(l) 0; % disregard attenuation
+            Pdiff = Inf;
+            mpam = mpam.adjust_levels(Tx.Ptx, Tx.Mod.rexdB); % starting level spacing
+            while Pdiff > tol && n < maxIterations  
+                [~, noise_std]  = ber_apd_awgn(mpam, Tx, Fiber, this, Rx, sim);
+                % noise_std assumes that levels and decision thresholds are
+                % referred to the receiver
+
+                mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, Tx.Mod.rexdB, noise_std); % Optimized levels are with respect to transmitter
+                % Levels optimized at the receiver
                 
-                % Noise standard deviation
-                noise_std = this.stdNoise(Hw.*H.rx, Rx.eq.Hff(sim.f/mpam.Rs), Rx.N0, Tx.Laser.RIN, sim);
-                
-                %% Calculate signal-dependent noise variance after matched filtering and equalizer 
-                if ~strcmp(Rx.eq.type, 'None')
-                    Hshot = Hw.*H.apd.*Rx.eq.Hrx.*Rx.eq.Hff(sim.f/mpam.Rs);
-                    h2 = fftshift(real(ifft(ifftshift(Hshot))));
-                    hn = h2(cumsum(abs(h2).^2)/sum(abs(h2).^2) > 0.001 & cumsum(abs(h2).^2)/sum(abs(h2).^2) < 0.99);
-
-                    hh = hn.*conj(hn);
-                    hh = hh/abs(sum(hh));
-
-                    hh0 = round(grpdelay(hh, 1, 1));
-                    hhd_prev = hh(hh0:-sim.Mct:1);
-                    hhd_post = hh(hh0:sim.Mct:end);
-                    hhd = [hhd_prev(end:-1:2) hhd_post];
-                    hh0 = length(hhd_prev);
-                    hhd = hhd/abs(sum(hhd));
-
-                    % Optimize levels
-                    mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, Tx.Mod.rexdB,...
-                        @(P) noise_std(P*hhd(hh0) + Pmax*(sum(hhd)-hhd(hh0))));
-                    % Note: this assumes that all symbols in the memory of hhd 
-                    % are the highest symbol (worst case)
-                else % AWGN
-                    % Optimize levels
-                    mpam = mpam.optimize_level_spacing_gauss_approx(sim.BERtarget, Tx.Mod.rexdB, noise_std);
-                end
-
                 % Required power at the APD input
-                Pmean_old = Pmean;
-                Pmean = mean(mpam.a)/this.Geff;
-                Pmax = mpam.a(end);
-                
-                % Update noise whitening filter
-                if sim.WhiteningFilter
-                    Hw = this.Hwhitening(sim.f, Pmean, Rx.N0);
-                end
-
+                Pmean(n+1) = mean(mpam.a)/this.Geff;
+                Tx.Ptx = Pmean(n+1);
+                Pdiff = abs((Pmean(n+1) - Pmean(n))/Pmean(n));
                 n = n+1; 
             end
+            
+            Pmean = Pmean(end);
             
             if n >= maxIterations
                 warning('apd/optimize_PAM_levels: optimization did not converge')

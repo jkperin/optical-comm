@@ -35,17 +35,17 @@ if ~isnumeric([M, ka, BW0GHz, GainBWGHz, modBWGHz])
     Lkm = str2double(Lkm);
 end
 
-filename = sprintf('results/sensitivity_vs_L/sensitivity_vs_L_%d-PAM_%s_ka=%d_BW0=%d_GainBW=%d_modBW=%d_lamb=%dnm_L=%dkm',...
+filename = sprintf('results/sensitivity_vs_L/fixed/sensitivity_vs_L_%d-PAM_%s_ka=%d_BW0=%d_GainBW=%d_modBW=%d_lamb=%dnm_L=%dkm',...
     M, level_spacing, round(100*ka), BW0GHz, GainBWGHz, modBWGHz, lamb, Lkm)
 
 %% Simulation parameters
-sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
 sim.ros.txDSP = 1; % oversampling ratio of transmitter DSP
 sim.ros.rxDSP = 1; % oversampling ratio of receivre DSP
-sim.Mct = 8*sim.ros.rxDSP;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done right, and FIR filters have interger grpdelay)  
+sim.Mct = 12*sim.ros.rxDSP;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done right, and FIR filters have interger grpdelay)  
 sim.L = 4;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 1024;  % number of 0 symbols to be inserted at the begining and end of the sequence
+sim.Ndiscard = 128;  % number of 0 symbols to be inserted at the begining and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 
 %
@@ -59,7 +59,7 @@ sim.terminateWhenBERReaches0 = true; % whether simulation is terminated when cou
 sim.Plots = containers.Map();
 % sim.Plots('Gain swipe') = 1;
 % sim.Plots('BER') = 1;
-% sim.Plots('Adaptation MSE') = 0;
+% sim.Plots('Adaptation MSE') = 1;
 % sim.Plots('Frequency Response') = 0;
 % sim.Plots('Equalizer') = 1;
 % sim.Plots('DAC output') = 1;
@@ -130,10 +130,14 @@ if isinf(BW0GHz) && isinf(modBWGHz) % awgn simulation
     Rx.eq.Ndiscard = 1024*[1 1]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
 else
     disp('> Equalizer = fixed time-domain symbol-rate linear equalizer')
+%     disp('> Equalizer = adaptive time-domain symbol-rate linear equalizer')
     Rx.eq.type = 'Fixed TD-SR-LE';
+%     Rx.eq.type = 'Adaptive TD-LE';
     Rx.eq.ros = sim.ros.rxDSP;
     Rx.eq.Ntaps = 31;
-    Rx.eq.Ndiscard = 1024*[1 1]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
+%     Rx.eq.mu = 1e-3;
+%     Rx.eq.Ntrain = 5e3;
+    Rx.eq.Ndiscard = [1024 1024]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
     
     % Adaptive
 %     disp('> Equalizer = adaptive time-domain symbol-rate linear equalizer')

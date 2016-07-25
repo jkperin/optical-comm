@@ -73,11 +73,10 @@ switch type
         
     case 'fir'
         % FIR
-        imp_length = 100;
+        imp_length = order;
                 
         num = fir1(imp_length, fcnorm);
         den = 1;
-        freqz(num, den); 
         
     case 'gaussian'
         nlength = 256;   % number of samples used for fitting. 

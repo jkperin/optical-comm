@@ -17,7 +17,7 @@ Pt = abs(Ein).^2./mean(abs(Ein).^2).*real(ifft(fft(Vin).*ifftshift(Mod.H(f))));
 %     Pt = Pt + Padd;
 % end
 
-Pt(Pt < 0) = 0; 
+Pt(Pt <= 0) = 0; 
 
 assert(all(Pt >= 0), 'eam: Negative power')
 

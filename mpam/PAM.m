@@ -41,17 +41,8 @@ classdef PAM
             obj.pulse_shape = pulse_shape;
             obj.pulse_shape.h = obj.norm_filter_coefficients(obj.pulse_shape.h);
             
-            switch level_spacing
-                case 'equally-spaced'
-                    obj.a = ((0:2:2*(M-1))/(2*(M-1))).';
-                    obj.b = ((1:2:(2*(M-1)-1))/(2*(M-1))).';
-                case 'optimized'
-                    % Optimize level spacing function must be called
-                    obj.a = []; 
-                    obj.b = [];
-                otherwise
-                    error('pam class: Invalid level spacing option')
-            end
+            obj.a = ((0:2:2*(M-1))/(2*(M-1))).';
+            obj.b = ((1:2:(2*(M-1)-1))/(2*(M-1))).';
         end
         
         function PAMtable = summary(self)
@@ -80,6 +71,15 @@ classdef PAM
         function self = set_levels(self, levels, thresholds)
             %% Set levels to desired values
             % Levels and decision thresholds are normalized that last level is unit
+            assert(length(levels) == self.M, 'mpam/set_levels: invalid number of levels');
+            assert(length(thresholds) == self.M-1, 'mpam/set_levels: invalid number of decision thresholds');
+            if size(levels, 1) < size(levels, 2) % ensure levels are M x 1 vector
+                levels = levels.'; 
+            end
+            if size(thresholds, 1) < size(thresholds, 2)  % ensure thresholds are M x 1 vector
+                thresholds = thresholds.';
+            end
+
             self.a = levels;
             self.b = thresholds;
         end

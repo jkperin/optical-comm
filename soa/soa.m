@@ -11,6 +11,7 @@ classdef soa
         N0 % one-sided baseband equivalent of psd of ASE noise (complex Gaussian) per polarization 
     end
     properties (Constant, Hidden)
+        BWref = 12.5e9; % reference bandwidth
         h = 6.62606957e-34; % Planck
         q = 1.60217657e-19; % electron charge
         c = 299792458;      % speed of light
@@ -89,24 +90,34 @@ classdef soa
             % responsivity make sig2 = R^2*sig2
         end
        
-        function output = amp(obj, Ein, fs)
+        function [output, OSNRdB] = amp(obj, Ein, fs)
             %% Amplification
             % - Ein = received electric field (must be a N x 1 or 2 matrix
             % depending on number of polarizations)
             % - fs = sampling frequency     
+            % Ouptuts:
+            % - output: amplified signal
+            % - OSNRdB: OSNR in 0.1nm in dB
+            
+            N = length(Ein);
             
             % N0 is the psd per polarization
-            w_x = sqrt(1/2*obj.N0*fs/2)*(randn(size(Ein)) + 1j*randn(size(Ein)));
-            w_y = sqrt(1/2*obj.N0*fs/2)*(randn(size(Ein)) + 1j*randn(size(Ein)));
+            w_x = sqrt(1/2*obj.N0*fs/2)*(randn(1, N) + 1j*randn(1, N));
+            w_y = sqrt(1/2*obj.N0*fs/2)*(randn(1, N) + 1j*randn(1, N));
             % Note: soa.N0 is one-sided baseband equivalent of ASE PSD.
             % Thus we multiply by sim.fs/2
             
             if any(size(Ein) == 1) % 1-Pol
                 output = [Ein*sqrt(obj.Gain) + w_x; w_y]; 
             else % 2-Pols
-                output = sqrt(obj.Gain)*Ein + [wx; wy];
+                output = sqrt(obj.Gain)*Ein + [w_x; w_y];
             end
-        end
+            
+            [~, Ps] = power_meter(Ein);
+            
+            % Calculate OSNR
+            OSNRdB = 10*log10(obj.Gain*Ps/(mean(abs(w_y).^2) + mean(abs(w_x).^2))) - 10*log10(fs/12.5e9);
+        end 
     end
 end
             

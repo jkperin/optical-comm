@@ -1,15 +1,15 @@
 %% Validate APD BER calculation using Montecarlo simulation, enummeration, and AWGN approximation including noise enhancement
-clear, clc, close all
+clear, clc
 
 addpath ../mpam
 addpath ../f
 addpath f
 
 %% Simulation parameters
-sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
 sim.ros.txDSP = 1; % oversampling ratio of transmitter DSP
 sim.ros.rxDSP = 1; % oversampling ratio of receivre DSP
-sim.Mct = 8*sim.ros.rxDSP;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done right, and FIR filters have interger grpdelay)  
+sim.Mct = 12*sim.ros.rxDSP;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done right, and FIR filters have interger grpdelay)  
 sim.L = 4;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 256;  % number of 0 symbols to be inserted at the begining and end of the sequence
@@ -23,7 +23,7 @@ sim.terminateWhenBERReaches0 = true; % whether simulation is terminated when cou
 
 sim.Plots = containers.Map();
 sim.Plots('BER') = 1;
-% sim.Plots('Adaptation MSE') = 0;
+% sim.Plots('Adaptation MSE') = 1;
 % sim.Plots('Frequency Response') = 1;
 % sim.Plots('Equalizer') = 1;
 % sim.Plots('DAC output') = 1;
@@ -89,20 +89,19 @@ Rx.ADC.rclip = 0;
 Rx.eq.type = 'Fixed TD-SR-LE';
 Rx.eq.ros = sim.ros.rxDSP;
 Rx.eq.Ntaps = 31;
-Rx.eq.mu = 1e-2;
-Rx.eq.Ntrain = Inf; % Number of symbols used in training (if Inf all symbols are used)
-Rx.eq.Ndiscard = [512 512]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
+% Rx.eq.mu = 1e-3;
+% Rx.eq.Ntrain = Inf; % Number of symbols used in training (if Inf all symbols are used)
+Rx.eq.Ndiscard = [1024 1024]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
 
 %% APD 
 % apd(GaindB, ka, [BW GBP=Inf], R, Id) 
-Apd = apd(16, 0.1, [20e9 300e9], 1, 10e-9);
+Apd = apd(10, 0.1, [20e9 270e9], 0.74, 10e-9);
 % Apd = apd(15, 0.5, Inf, 1, 10e-9);
 
 % Apd = pin(1, 1e-9);
 
-
 % BER
-sim.OptimizeGain = ~true;
+sim.OptimizeGain = true;
 ber_apd = apd_ber(mpam, Tx, Fiber, Apd, Rx, sim);
 % 
 mpam.level_spacing = 'optimized';
