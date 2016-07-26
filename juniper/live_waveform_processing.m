@@ -12,12 +12,13 @@ AgilentScope.SamplingRate = 80E9;               % Samples / second
 
 v=visa('agilent', ['TCPIP0::' AgilentScope.IPAddr '::inst0::INSTR']);
 
-dacfile = 'data/waveforms/BER_vs_OSNR_b2b/pam4_rect_Rb=55Gbps_preemph.mat';
+dacfile = 'data/waveforms/pam4_rect_Rb=15Gbps_preemph';
 % dacfile = 'data/waveforms/pam4_rect_Rb=55Gbps_preemph_duobin.mat';
 waitingTime = 0; % s
 
+Dac = load(dacfile);
 OSNRdB = 27;
-ber_gauss = -log10(pam_ber_from_osnr(4, OSNRdB, 56e9/4));
+ber_gauss = -log10(pam_ber_from_osnr(Dac.mpam.M, OSNRdB, Dac.mpam.Rs/2));
 
 iterations = 1;
 figure(1), clf, box on  
@@ -27,7 +28,7 @@ while true
     WaveForms = getAgilentWaveform( AgilentScope, v ); % Acquire and download
     
     [ber_count(iterations), Vset] = process_pam_waveforms(WaveForms, dacfile);
-    ber_mzmnl(iterations) = pam_ber_from_osnr_mzmnl(4, OSNRdB, 56e9/4, Vset(1:2));
+    ber_mzmnl(iterations) = pam_ber_from_osnr_mzmnl(Dac.mpam.M, OSNRdB, Dac.mpam.Rs/2, Vset(1:2));
        
     figure(1), hold on
     stem(1:iterations, -log10(ber_count), 'b')

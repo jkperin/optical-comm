@@ -13,7 +13,7 @@ Tx.DAC.Vswing = 1; % controls clipping. If Vswing > 1 signal will be clipped
 % Tx.DAC.filt = design_filter('butter', 3, 20e9/(sim.fs/2)); % DAC analog frequency response
 
 Rb_tentative = 43e9*1.3;
-sim.M = 4;
+sim.M = 16;
 Rs_tentative = 2*Rb_tentative/log2(sim.M);
 Ncp = 14;
 Nc = 256;
@@ -46,7 +46,7 @@ ofdm.set_cyclic_prefix(Ncp/2, Ncp/2);
 %% Power allocation 
 Hpreemph = 10.^(polyval([-0.0013 0.5846 1.5859], ofdm.fc/1e9)/20); 
 Hmod = 1./Hpreemph; % MZM frequency response
-Fiber = fiber(0e3);
+Fiber = fiber(10e3);
 Himdd = Fiber.Himdd(ofdm.fc, 1550e-9, 0, 'large signal');
 
 PrxdBm = 13; % expected received power in dBm

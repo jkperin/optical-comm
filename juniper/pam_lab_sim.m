@@ -9,7 +9,7 @@
 % only by gain and noise figure, optical bandpass filter, antialiasing 
 % filter, sampling, and linear equalization
 
-clear, clc, close all
+clear, clc
 
 addpath f/ % Juniper project specific functions
 addpath ../mpam % PAM
@@ -19,7 +19,7 @@ addpath ../apd % for PIN photodetectors
 
 %% Transmit power swipe
 Tx.PtxdBm = -30:-12; % transmitter power range
-% Tx.PtxdBm = -20; % transmitter power range
+% Tx.PtxdBm = -25; % transmitter power range
 
 %% Simulation parameters
 sim.Rb = 56e9;    % bit rate in bits/sec
@@ -31,7 +31,7 @@ sim.Mct = 2*5;      % Oversampling ratio to simulate continuous time. Must be in
 % sim.Me = 16;       % Number of used eigenvalues
 % sim.L = 2; % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1e-4; 
-sim.Ndiscard = 1024; % number of symbols to be discarded from the begning and end of the sequence
+sim.Ndiscard = 512; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Modulator = 'MZM'; % 'MZM' only
  
@@ -42,7 +42,7 @@ sim.labSetup = true;
 sim.coherentReceiver = true;
 sim.preemphasis = true;
 sim.preemphRange = 20e9;
-sim.mzm_predistortion = 'none';
+sim.mzm_predistortion = 'levels';
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
 sim.PMD = false; % whether to simulate PMD
@@ -52,14 +52,14 @@ sim.stopSimWhenBERReaches0 = true; % stop simulation when counted BER reaches 0
 % Control what should be plotted
 sim.Plots = containers.Map();
 sim.Plots('BER') = 1;
-sim.Plots('DAC output') = 0;
-sim.Plots('Optical eye diagram') = 0;
+sim.Plots('DAC output') = 1;
+sim.Plots('Optical eye diagram') = 1;
 sim.Plots('Received signal eye diagram') = 0;
-sim.Plots('Signal after equalization') = 0;
+sim.Plots('Signal after equalization') = 1;
 sim.Plots('Equalizer') = 0;
 sim.Plots('Adaptation MSE') = 0;
 sim.Plots('Heuristic noise pdf') = 0;
-sim.Plots('Channel frequency response') = 0;
+sim.Plots('Channel frequency response') = 1;
 sim.Plots('OSNR') = 0;
 sim.Plots('Received signal optical spectrum') = 0;
 sim.Plots('PAM levels MZM predistortion') = 0;
@@ -74,7 +74,6 @@ Tx.pulse_shape = pulse_shape;
 % PAM(M, bit rate, leve spacing : {'equally-spaced', 'optimized'}, pulse
 % shape: struct containing properties of pulse shape 
 mpam = PAM(4, sim.Rb, 'equally-spaced', pulse_shape);
-Tx.Pswing = 0.9; % excursion of power levels after predistortion
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -112,7 +111,8 @@ Tx.Laser = laser(1550e-9, 0, -150, 0.2e6, 0);
 
 Tx.Mod.type = sim.Modulator;    
 Tx.Mod.Vbias = 0.47; % bias voltage normalized by Vpi
-Tx.Mod.Vswing = 2.2;  % normalized voltage swing. 1 means that modulator is driven at full scale
+Tx.Mod.Vswing = 2*0.31;  % normalized voltage swing. 1 means that modulator is driven at full scale
+Tx.Mod.Vgain = 3.6; % gain to compensate for preemphasis 
 % Tx.Mod.BW = 60e9;
 % Tx.Mod.filt = design_filter('Bessel', 5, Tx.Mod.BW/(sim.fs/2));
 % Tx.Mod.H = Tx.Mod.filt.H(sim.f/sim.fs);
@@ -127,7 +127,7 @@ Tx.Mod.BW = interp1(Tx.Mod.H(sim.f > 0), sim.f(sim.f > 0),  0.5);
 % fiber(Length in m, anonymous function for attenuation versus wavelength
 % (default: att(lamb) = 0 i.e., no attenuation), anonymous function for 
 % dispersion versus wavelength (default: SMF28 with lamb0 = 1310nm, S0 = 0.092 s/(nm^2.km))
-SMF = fiber(10e3); 
+SMF = fiber(0); 
 DCF = fiber(0, @(lamb) 0, @(lamb) -0.1*(lamb-1550e-9)*1e3 - 40e-6); 
 
 Fibers = [SMF DCF];
@@ -174,8 +174,8 @@ Rx.eq.ros = sim.ros.rxDSP;
 Rx.eq.type = 'Adaptive TD-LE';
 Rx.eq.Ntaps = 15;
 Rx.eq.mu = 1e-3;
-Rx.eq.Ntrain = 0.4e4; % Number of symbols used in training (if Inf all symbols are used)
-Rx.eq.Ndiscard = [0.5e4 1024]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
+Rx.eq.Ntrain = 0.5e4; % Number of symbols used in training (if Inf all symbols are used)
+Rx.eq.Ndiscard = [0.7e4 1024]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
 
 %% Generate summary
 generate_summary(mpam, Tx, Fibers, EDFA, Rx, sim);

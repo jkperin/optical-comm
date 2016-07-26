@@ -51,7 +51,7 @@ ch4 = ch4 - mean(ch3.*ch4)*ch4;
 
 %% Pre-filtering
 f = freq_time(length(ch1), fs);
-Filt = design_filter('butter', 5, 1.2*mpam.Rs/(fs/2)); % half of the sampling rate
+% Filt = design_filter('butter', 5, 1.2*mpam.Rs/(fs/2)); % half of the sampling rate
 
 % ch1 = real(ifft(fft(ch1).*ifftshift(Filt.H(f/fs))));
 % ch2 = real(ifft(fft(ch2).*ifftshift(Filt.H(f/fs))));
@@ -65,7 +65,7 @@ Y = ch3 + 1j*ch4;
 Xrx = abs(X).^2 + abs(Y).^2; % Get intensity in X-pol
 
 %% Antialiasing filter and reduce noise
-Filt = design_filter('butter', 5, 0.7*mpam.Rs/(fs/2)); % half of the sampling rate
+Filt = design_filter('butter', 5, mpam.Rs/(fs/2)); % half of the sampling rate
 Xfilt = real(ifft(fft(Xrx).*ifftshift(Filt.H(f/fs))));
 
 %% Resample
@@ -110,13 +110,13 @@ mpam = mpam.norm_levels();
 
 %% Equalization
 % Resample to have at least 2 samples per symbol
-[p, q] = rat(2/ros);
+eq.ros = 2;
+[p, q] = rat(eq.ros/ros);
 yk = resample(yk, p, q); 
 
 eq.type = 'Adaptive TD-LE';
 eq.Ntaps = 15;
 eq.mu = 1e-3;
-eq.ros = 2;
 eq.Ntrain = Inf;
 eq.Ndiscard = [2e4 1024];
 
@@ -146,9 +146,11 @@ yd(ndiscard) = [];
 dataTX(ndiscard) = [];
 
 %% Demodulate
-dataRX = mpam.demod(yd.');
+dataRX_original = mpam.demod(yd);
+[dataRX, mpam] = mpam.demod_swiping_thresholds(yd, dataTX);
 
 %% Counted BER
+[~, ber_count_original] = biterr(dataRX_original, dataTX)
 [~, ber_count] = biterr(dataRX, dataTX)
 
 % mpam = mpam.norm_levels();

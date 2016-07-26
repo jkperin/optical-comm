@@ -70,7 +70,7 @@ if length(OSNRdB) > 1
     experiment.BER.mzmnl = ber_mzmnl(idx);
     experiment.BER.ideal = ber_ideal(idx);
     experiment.dacfile = dacfile;
-    experiment.WaveForms = WaveForms{idx};
+    experiment.WaveForms = WaveForms(idx);
     experiment.Vset = Vset{idx};
     save([foldername filename], 'experiment')
     

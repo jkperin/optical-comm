@@ -8,7 +8,7 @@ addpath ../mpam/
 % S = load('data/waveforms/BER_vs_OSNR_b2b_MZM_predist/pam4_rect_Rb=55Gbps_preemph_predist.mat');
 
 %% Pre calculations to determine bitrate, trigger frequency, etc
-Rs_tentative = 28e9;
+Rs_tentative = 7e9;
 Npoints = 2^12; % desired number of points to load to DAC
 Tx.DAC.fs = 2687.5*32*1e6; % DAC sampling rate
 
@@ -24,9 +24,9 @@ sim.ros.txDSP = 2; % oversampling ratio of transmitter DSP. Must be integer
 sim.Nzero = 5; % set first and last Nzero symbols to 0
 sim.qunatiz = true;
 sim.preemph = true;
-sim.preemphRange = 20e9;
+sim.preemphRange = 15e9;
 sim.mzm_predistortion = false;
-sim.duobinary = true;
+sim.duobinary = ~true;
 sim.overwrite = true;
 
 %% DAC

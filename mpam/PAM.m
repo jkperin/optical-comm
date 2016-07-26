@@ -18,7 +18,7 @@ classdef PAM
         % Used in level spacing optimization
         maxtol = 1e-6; % maximum tolerance for convergence
         maxBERerror = 1e-3; % maximum acceptable BER error in level spacing optimization
-        maxit = 20; % maximum number of iteratios
+        maxit = 50; % maximum number of iteratios
     end
        
     methods
@@ -57,15 +57,17 @@ classdef PAM
         function PAMtable = summary(self)
             %% Generate table summarizing class values
             disp('PAM class parameters summary:')
-            rows = {'PAM order'; 'Symbol rate'; 'Level spacing'; 'Pulse shape'};
-            Variables = {'M'; 'Rs'; 'level_spacing'; 'pulse_shape.type'};
-            Values = {self.M; self.Rs; self.level_spacing; self.pulse_shape.type};
-            Units = {''; 'Gbaud'; ''; ''};
+            rows = {'PAM order'; 'Symbol rate'; 'Level spacing'; 'Pulse shape'; 'Samples per symbol in pulse shaping'};
+            Variables = {'M'; 'Rs'; 'level_spacing'; 'pulse_shape.type'; 'pulse_shape.sps'};
+            Values = {self.M; self.Rs; self.level_spacing; self.pulse_shape.type; self.pulse_shape.sps};
+            Units = {''; 'Gbaud'; ''; ''; ''};
 
             PAMtable = table(Variables, Values, Units, 'RowNames', rows);
         end
-        
-        %% Get methods
+    end
+    
+    methods 
+        %% Get and set methods
         function Rs = get.Rs(self)
             %% Symbol-rate assuming rectangular pulse
             Rs = self.Rb/log2(self.M);
@@ -76,7 +78,17 @@ classdef PAM
             optimize_level_spacing = strcmp(self.level_spacing, 'optimized');
         end
         
-        %% Auxiliary functions       
+        function H = Hpshape(self, f)
+            %% Frequency response of PAM pulse shape
+            fs = self.Rs*self.pulse_shape.sps;
+            delay = grpdelay(self.pulse_shape.h, 1, 1);
+            H = freqz(self.pulse_shape.h/abs(sum(self.pulse_shape.h)), 1, f, fs)...
+                .*exp(1j*2*pi*f/fs.*delay); % remove group delay
+        end        
+    end
+       
+    methods
+        %% Levels and decision thresholds     
         function self = set_levels(self, levels, thresholds)
             %% Set levels to desired values
             % Levels and decision thresholds are normalized that last level is unit
@@ -97,6 +109,19 @@ classdef PAM
             %% Normalize levels so that last level is 1
             self.b = self.b/self.a(end);
             self.a = self.a/self.a(end);
+        end
+        
+        function self = unbias(self)
+            %% Remove DC bias from levels and normalize to have excusion from -1 to 1
+            self.b = self.b - mean(self.a);
+            self.a = self.a - mean(self.a);
+            self = self.norm_levels;
+        end
+            
+        function self = reset_levels(self)
+            %% Reset levels and decision thresholds to original configuration
+            self.a = ((0:2:2*(self.M-1))/(2*(self.M-1))).';
+            self.b = ((1:2:(2*(self.M-1)-1))/(2*(self.M-1))).';
         end
                     
         function self = adjust_levels(self, Ptx, rexdB)
@@ -135,34 +160,6 @@ classdef PAM
             self.b = Pthresh;            
         end   
         
-        function self = mzm_predistortion(self, Pswing, verbose)
-            %% Predistort levels to compensate for MZM nonlinear response in IM-DD 
-            % Note: Decision thresholds are not predistorted, since the predistortion is only
-            % used for generatign the levels at the transmitter.
-            Pmean = 0.5; % Normalized average output power
-            Pk = self.a;
-            Pk = Pk*Pswing/(Pk(end) - Pk(1));
-            
-            Pk = Pk - mean(Pk) + Pmean; % center levels
-            
-            assert(all(Pk >= 0), 'mpma/mzm_predist: Pswing too high. Pswing must be such that all levels are non-negative')
-            % Predistortion
-            ak = 2/pi*asin(sqrt(Pk));
-            % Set
-            self = self.set_levels(ak, self.b);
-            
-            if exist('verbose', 'var') && verbose
-                figure(233), clf, hold on, box on
-                t = linspace(0, 1);
-                plot(t, sin(pi/2*t).^2, 'k');
-                plot((self.a*[1 1]).', [zeros(1, self.M); sin(pi/2*self.a.').^2], 'k');
-                plot([zeros(1, self.M); self.a.'], (Pk*[1 1]).', 'k')
-                xlabel('Driving signal')
-                ylabel('Resulting power levels')
-                axis([0 1 0 1])
-            end        
-        end
-        
         function bset = place_thresholds(self)
             %% Given leves mpam.a, find best position of thresholds by simply scaling and/or offseting them
             %% This assumes that noise is signal independent
@@ -177,50 +174,46 @@ classdef PAM
             end   
             
             bset = Vset(1)*(self.b - mean(self.b)) + Vset(2);
-         end
-        
-        function self = unbias(self)
-            %% Remove DC bias from levels and normalize to have excusion from -1 to 1
-            self.b = self.b - mean(self.a);
-            self.a = self.a - mean(self.a);
-            self = self.norm_levels;
         end
+        
+        function self = mzm_predistortion(self, Vswing, Vbias, verbose)
+            %% Predistort levels to compensate for MZM nonlinear response in IM-DD
+            predist = @(p) 2/pi*asin(sqrt(p));
+            dist = @(v) sin(pi/2*v)^2;
             
-        
-        function self = reset_levels(self)
-            %% Reset levels and decision thresholds to original configuration
-            switch lower(self.level_spacing)
-                case 'equally-spaced'
-                    self.a = ((0:2:2*(self.M-1))/(2*(self.M-1))).';
-                    self.b = ((1:2:(2*(self.M-1)-1))/(2*(self.M-1))).';
-                case 'optimized'
-                    % Optimize level spacing function must be called
-                    self.a = []; 
-                    self.b = [];
-                otherwise
-                    error('pam/reset_levels: Invalid level spacing option')
-            end
+            Vmin = Vbias - Vswing/2;
+            Vmax = Vbias + Vswing/2;
+            
+            Pmax = dist(Vmax);
+            Pmin = dist(Vmin);
+            DP = (Pmax-Pmin)/(self.M-1);
+            Pk = Pmin:DP:Pmax;
+            
+            assert(all(Pk >= 0), 'mpam/mzm_predist: Pswing too high. Pswing must be such that all levels are non-negative')
+            
+            % Predistortion
+            Vk = predist(Pk);
+            
+            % Set
+            self = self.set_levels(Vk, self.b);
+            % Note: Decision thresholds are not predistorted, since the predistortion is only
+            % used for generatign the levels at the transmitter.
+            
+            if exist('verbose', 'var') && verbose
+                figure(233), clf, hold on, box on
+                t = linspace(0, 1);
+                plot(t, sin(pi/2*t).^2, 'k');
+                plot((self.a*[1 1]).', [zeros(1, self.M); sin(pi/2*self.a.').^2], 'k');
+                plot([zeros(1, self.M); self.a.'], (Pk*[1 1]).', 'k')
+                xlabel('Driving signal')
+                ylabel('Resulting power levels')
+                axis([0 1 0 1])
+            end        
         end
-        
-        function h = norm_filter_coefficients(~, h)
-            %% Normalize coefficients of FIR filter h so that impulse response of h at t = 0 is 1
-            n = length(h);
-            if mod(n, 2) == 0 % even
-                h = 2*h/(h(n/2) + h(n/2+1));
-            else
-                h = h/h((n+1)/2);
-            end
-                
-        end
-        
-        function H = Hpshape(self, f)
-            %% Frequency response of PAM pulse shape
-            fs = self.Rs*self.pulse_shape.sps;
-            delay = grpdelay(self.pulse_shape.h, 1, 1);
-            H = freqz(self.pulse_shape.h/abs(sum(self.pulse_shape.h)), 1, f, fs)...
-                .*exp(1j*2*pi*f/fs.*delay); % remove group delay
-        end        
-        
+    end
+    
+    methods
+        %% Modulation and demodulation
         function [xt, xd] = signal(self, dataTX)
             %% Generate PAM signal
             % Note: group delay due to pulse shaping filtering is not
@@ -258,12 +251,54 @@ classdef PAM
             dataRX = bin2gray(dataRX, 'pam', self.M).';
         end
         
-        function [ber, berk] = ber_awgn(self, noise_std)
-            %% Alias for berAWGN
-            warning('mpam/ber_awgn: use berAWGN(noise_std) instead of ber_awgn(noise_std)')
-            [ber, berk] = self.berAWGN(noise_std);
-        end
-        
+        function [dataRX, mpamOpt] = demod_sweeping_thresholds(self, yd, dataTX, validInd, verbose)
+            %% Demdulate PAM signal by sweeping thresholds until BER is minimized
+            if not(exist('validInd', 'var'))
+                validInd = 1:length(dataTX);
+            end
+
+            mpamOpt = self;
+            if exist('verbose', 'var') && verbose
+                figure(999), clf, hold on, box on
+            end
+            for k = 1:self.M-1
+                [topt, fval, exitflag] = fminbnd(@(t) calc_log10_ber(t, k), mpamOpt.a(k), mpamOpt.a(k+1));
+                
+                if exitflag ~= 1
+                    warning('PAM/demod_swiping_thresholds: Threshold swiping did not cpnverge. Threshold swiping of threshold %d exited with exitflag %d', k, exitflag);
+                end
+                
+                ts = linspace(mpamOpt.a(k), mpamOpt.a(k+1));
+                lber = zeros(size(ts));
+                for kk = 1:length(ts)
+                    lber(kk) = calc_log10_ber(ts(kk), k);
+                end
+                
+                if exist('verbose', 'var') && verbose
+                    figure(999)
+                    plot(ts, lber)
+                    plot(topt, fval, 'ok')
+                    drawnow
+                end
+                
+                mpamOpt.b(k) = topt;
+            end
+               
+            dataRX = mpamOpt.demod(yd);
+            
+            function log10_ber = calc_log10_ber(threshold, threshold_idx)
+                mpamOpt.b(threshold_idx) = threshold;
+                
+                data = mpamOpt.demod(yd);
+                
+                [~, ber] = biterr(dataTX(validInd), data(validInd));
+                
+                log10_ber = log10(ber);
+            end
+        end        
+    end
+    
+    methods
         function [ber, berk] = berAWGN(self, noise_std)
             %% Calculate BER in AWGN channel where the noise standard deviation is given by the function noise_std
             % Input:
@@ -291,15 +326,15 @@ classdef PAM
             ber = sum(berk);
         end
         
-        function PreqdBm = required_power(self, N0, BERtarget)
+        function [PreqdBm, BER] = required_power(self, N0, BERtarget)
             %% Required received power to achieve target BER for a thermal noise limited receiver with N0
             % Responsivity is assumed to be 1
             R = 1;
             Preq = (self.M-1)*sqrt(self.Rb*N0/(2*R^2*log2(self.M)))*qfuncinv(self.M*BERtarget*log2(self.M)/(2*(self.M-1)));
             PreqdBm = 10*log10(Preq/1e-3);      
             
-            BER = 1/log2(self.M)*2*(self.M-1)/self.M*qfunc(sqrt(log2(self.M)/((self.M-1)^2)*Preq^2/(self.Rb*N0/2)))
-            
+            % Show resulting BER just for sanity check
+            BER = 1/log2(self.M)*2*(self.M-1)/self.M*qfunc(sqrt(log2(self.M)/((self.M-1)^2)*Preq^2/(self.Rb*N0/2))) 
         end
         
         function self = optimize_level_spacing_gauss_approx(self, BERtarget, rexdB, noise_std, verbose)
@@ -369,30 +404,44 @@ classdef PAM
             end                
 
             if nargin == 5 && verbose
-                figure, hold on
+                figure(645), hold on
                 plot(log(tol))
                 plot([1 k], log(self.maxtol*[1 1]), 'r')
                 xlabel('Iteration')
                 ylabel('log(Tolerance)')
                 legend('Tolerance', 'Required for Convergence')
                 title('Level optimization convergece')
+                drawnow
             end 
         end       
     end
-        
+    
+    %% Auxiliary functions
+    methods
+        function h = norm_filter_coefficients(~, h)
+            %% Normalize coefficients of FIR filter h so that impulse response of h at t = 0 is 1
+            n = length(h);
+            if mod(n, 2) == 0 % even
+                h = 2*h/(h(n/2) + h(n/2+1));
+            else
+                h = h/h((n+1)/2);
+            end
+        end
+    end
+            
     %% Validation methods
     methods
         function validate_pulse_shape(self)
             Mct = self.pulse_shape.sps;
             dataTX = randi([0 self.M-1], [1 1024]);
             xt = self.signal(dataTX);
+            f = freq_time(length(xt), 1);
             
+            figure
             eyediagram(xt, 2*Mct)
             title('Eye diagram')
             figure, box on
-            self.pulse_shape.h = self.norm_filter_coefficients(self.pulse_shape.h); % normalize to preserve levels amplitude
-            [H, w] = freqz(self.pulse_shape.h, 1);
-            plot(w/(2*pi), abs(H).^2)
+            plot(w/(2*pi), abs(self.Hpshape(f)).^2)
             xlabel('Normalized frequency (Hz)')
             ylabel('Amplitude')
             title('Frequency response of pulse shaping filter')

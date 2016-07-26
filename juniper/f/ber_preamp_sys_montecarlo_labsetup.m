@@ -28,7 +28,7 @@ if isfield(sim, 'duobinary') && sim.duobinary
 else %% Ordinary PAM
     % Ajust levels to desired transmitted power and extinction ratio
     if isfield(sim, 'mzm_predistortion') && strcmpi(sim.mzm_predistortion, 'levels')   
-        mpamPredist = mpam.mzm_predistortion(Tx.Pswing, sim.shouldPlot('PAM levels MZM predistortion'));
+        mpamPredist = mpam.mzm_predistortion(Tx.Mod.Vswing, Tx.Mod.Vbias, sim.shouldPlot('PAM levels MZM predistortion'));
         mpamPredist = mpamPredist.unbias;
         xd = mpamPredist.signal(dataTX); % Modulated PAM signal
     else
@@ -47,7 +47,7 @@ end
 
 %% ============================== Driver ==================================
 xmax = max(abs(xd)); % this takes into account penalty due to enhanced PAPR after pulse shapping 
-xd = Tx.Mod.Vswing/2*xd/xmax + Tx.Mod.Vbias; % Normalized to have excursion from approx +-Vswing 
+xd = Tx.Mod.Vgain*Tx.Mod.Vswing/2*xd/xmax + Tx.Mod.Vbias; % Normalized to have excursion from approx +-Vswing 
 % Note: Vswing and Vswing and Vbias are normalized by Vpi/2. This scaling
 % and offset is done before the DAC in order to have right pre-distortion
 % function, and not to have the right voltage values that will drive the
@@ -63,7 +63,7 @@ end
 % This way the first sample of xt will be the center of the first pulse. 
 % This is only important for plotting.
 Tx.DAC.offset = sim.Mct/mpam.pulse_shape.sps*(length(mpam.pulse_shape.h)-1)/2;
-xt = dac(xd, Tx.DAC, sim);
+xt = dac(xd, Tx.DAC, sim, sim.shouldPlot('DAC output'));
 % Note: Driving signal xd must be normalized by Vpi
 
 %% ============================= Modulator ================================
@@ -144,10 +144,11 @@ yd(ndiscard) = [];
 dataTX(ndiscard) = [];
 
 %% =========================== Demodulation ===============================
-dataRX = mpam.demod(yd.');
+% dataRX = mpam.demod(yd);
+[dataRX, mpam] = mpam.demod_sweeping_thresholds(yd, dataTX);
 
 %% Counted BER
-[~, ber_count] = biterr(dataRX, dataTX);
+[~, ber_count] = biterr(dataRX, dataTX)
 
 %% ====================== Gaussian approxiation ===========================
 % Note: this calculation includes noise enhancement due to equalization,
@@ -181,7 +182,7 @@ ber_awgn = mpamRef.berAWGN(noise_std);
 
 %% 4-PAM Bias analysis
 Vset = [];
-if mpam.M == 4
+if mpam.M == 4 && strcmpi(sim.mzm_predistortion, 'none')
 	p(1) = mean(yd(yd < mpam.b(1)));
     p(2) = mean(yd(yd > mpam.b(1) & yd < mpam.b(2)));
     p(3) = mean(yd(yd > mpam.b(2) & yd < mpam.b(3)));

@@ -144,7 +144,8 @@ yd(ndiscard) = [];
 dataTX(ndiscard) = [];
 
 %% Demodulate
-dataRX = mpam.demod(yd.');
+% dataRX = mpam.demod(yd);
+[dataRX, mpam] = mpam.demod_sweeping_thresholds(yd, dataTX);
 
 %% Counted BER
 [~, ber_count] = biterr(dataRX, dataTX);
