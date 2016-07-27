@@ -1,4 +1,4 @@
-function ber = ber_apd_montecarlo(mpam, Tx, Fiber, Apd, Rx, sim)
+function [ber, mpam] = ber_apd_montecarlo(mpam, Tx, Fiber, Apd, Rx, sim)
 %% Calculate BER of unamplified IM-DD system with APD detector using montecarlo simulation
 
 % System received pulse shape frequency response
@@ -11,7 +11,8 @@ AGC = 1/(mpam.a(end)*Apd.Gain*Apd.R*Fiber.link_attenuation(Tx.Laser.wavelength))
 %% Modulated PAM signal
 % dataTX = [0 0 0 0 0 1 0 0 0 0 0];
 dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence
-dataTX([1:sim.Ndiscard end-sim.Ndiscard:end]) = 0;
+Nzero = 10;
+dataTX([1:Nzero end-Nzero+1:end]) = 0;
 xk = mpam.signal(dataTX);
 
 %% DAC
@@ -69,7 +70,11 @@ yd(ndiscard) = [];
 dataTX(ndiscard) = [];
 
 %% Demodulate
-dataRX = mpam.demod(yd.');
+if mpam.optimize_level_spacing
+    dataRX = mpam.demod(yd);
+else
+    [dataRX, mpam] = mpam.demod_sweeping_thresholds(yd, dataTX);
+end
 
 %% True BER
 [~, ber] = biterr(dataRX, dataTX);

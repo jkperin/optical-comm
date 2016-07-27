@@ -10,14 +10,14 @@ m2tikz1 = matlab2tikz();
 m2tikz2 = matlab2tikz();
 
 M = 4;
-ka = 0.1;
-BW = [20 100; 20 300]; % (10:2.5:50)*1e9;
+ka = 0.18;
+BW = [24 290]; % (10:2.5:50)*1e9;
 lineStyle = {'-', '--'};
 level_spacing = {'equally-spaced', 'optimized'};
 marker = {'o', 's'};
 modBWGHz = 30;
-Lkm = 0:20;
-ReferencePowerdBm = -12.890616516961265; 
+Lkm = 0:15;
+ReferencePowerdBm = -12.890616516961265 + 10*log10(0.74); 
 % power required to achieve 1.8e-4 with 4-PAM in an ideal channel with 
 % input referred noise of 30 pA/sqrt(Hz)
 Colors = {'blue', 'red', 'green'};
@@ -85,7 +85,7 @@ ylabel('Sensitivity improvement (dB)')
 axis([0 15 0 10])
 legend(legs1)
 m2tikz1.extract(gca, 'just axis');
-m2tikz1.write('fiber_4PAM_30GHz_1270nm.tex');
+m2tikz1.write(sprintf('wdm_%dPAM_ModBW=%dGHz_%dGHz_%dnm.tex', M, modBWGHz, BW(1), lamb));
 
 figure(1001)
 xlabel('Fiber length (km)')

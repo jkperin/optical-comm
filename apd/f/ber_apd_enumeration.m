@@ -106,7 +106,16 @@ Sshd = Sshf(1:sim.Mct:end);
 Sshd = (AGC)^2*Sshd(sim.Ndiscard+1:end-sim.Ndiscard);
 
 %% Calculate error probabilities using Gaussian approximation for each transmitted symbol
-Pthresh = mpam.b; % decision thresholds referred to the receiver
+if not(mpam.optimize_level_spacing) && isfield(sim, 'mpamOpt') && not(isempty(sim.mpamOpt)) % use threshlds swept in montecarlo simulation
+    Pthresh = zeros(mpam.M-1, 1);
+    mpamOpt = sim.mpamOpt;
+    for k = 1:mpam.M-1
+        Pthresh(k) = (mpam.a(k+1)-mpam.a(k))/(mpamOpt.a(k+1)-mpamOpt.a(k))*(mpamOpt.b(k) - mpamOpt.a(k)) + mpam.a(k);
+    end
+else
+    Pthresh = mpam.b; % decision thresholds referred to the receiver
+end
+
 pe = zeros(mpam.M, 1); % symbol error probability for each level
 dat = gray2bin(dataTX, 'pam', mpam.M); % fix index mapping
 for k = 1:Nsymb

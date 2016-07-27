@@ -34,7 +34,7 @@ sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
 %% M-PAM
 pulse_shape = select_pulse_shape('rect', sim.ros.txDSP);
-mpam = PAM(4, 107e9, 'optimized', pulse_shape);
+mpam = PAM(4, 107e9, 'equally-spaced', pulse_shape);
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -70,7 +70,7 @@ Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in s
 Tx.Mod.H = @(f) exp(1j*2*pi*f.*Tx.Mod.grpdelay)./(1 + 2*1j*f/Tx.Mod.fc - (f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
 
 %% Fiber
-Fiber = fiber(10e3);
+Fiber = fiber(0e3);
 
 %% Receiver
 Rx.N0 = (30e-12).^2; % thermal noise psd
@@ -95,9 +95,9 @@ Rx.eq.Ndiscard = [1024 1024]; % symbols to be discard from begining and end of s
 
 %% APD 
 % apd(GaindB, ka, BW, R, Id) 
-Apd = apd(6, 0.2, [20e9 270e9], 0.74, 10e-9);
+Apd = apd(6, 0.18, [24e9 290e9], 0.74, 10e-9);
 
-GainsdB = (3:18);
+GainsdB = (7:15);
 Gains = 10.^(GainsdB/10);
 
 %  

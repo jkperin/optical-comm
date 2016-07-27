@@ -36,13 +36,13 @@ filename = sprintf('results/sensitivity_vs_gain/sensitivity_vs_gain_%d-PAM_%s_ka
     M, level_spacing, round(100*ka), BW0GHz, GainBWGHz, modBWGHz)
 
 %% Simulation parameters
-sim.Nsymb = 2^18; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^19; % Number of symbols in montecarlo simulation
 sim.ros.txDSP = 1; % oversampling ratio of transmitter DSP
 sim.ros.rxDSP = 1; % oversampling ratio of receivre DSP
 sim.Mct = 8*sim.ros.rxDSP;    % Oversampling ratio to simulate continuous time (must be odd so that sampling is done right, and FIR filters have interger grpdelay)  
 sim.L = 4;        % de Bruijin sub-sequence length (ISI symbol length)
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 1024;  % number of 0 symbols to be inserted at the begining and end of the sequence
+sim.Ndiscard = 512;  % number of 0 symbols to be inserted at the begining and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 
 %
@@ -50,11 +50,11 @@ sim.WhiteningFilter = true;
 sim.save = true;
 sim.RIN = true; % include RIN noise. Only included in montecarlo simulation
 sim.quantiz = false; % whether quantization is included
-sim.terminateWhenBERReaches0 = true; % whether simulation is terminated when counted BER reaches 0
+sim.terminateWhenBERReaches0 = false; % whether simulation is terminated when counted BER reaches 0
 
 % What to plot
 sim.Plots = containers.Map();
-% sim.Plots('Gain swipe') = 1;
+sim.Plots('Gain swipe') = 1;
 % sim.Plots('Sensitivity vs gain') = 1;
 % sim.Plots('BER') = 1;
 % sim.Plots('Adaptation MSE') = 0;

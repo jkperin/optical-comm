@@ -42,5 +42,9 @@ noise_std = @(P) noiseSTD(P*hhd(hh0) + Psymbs*(sum(hhd)-hhd(hh0)));
 % In calculating noise_std for AWGN channel, all other symbols in hh
 % are assumed to be the highest PAM level.
 
+if not(mpam.optimize_level_spacing)
+    mpam = mpam.optimize_thresholds(noise_std);
+end
+
 % Calculate BER
 ber_awgn = mpam.berAWGN(@(P) noise_std(P));

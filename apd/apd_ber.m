@@ -42,7 +42,8 @@ for k = 1:length(Ptx)
             
     % Montecarlo simulation
     if run_montecarlo
-        ber.count(k) = ber_apd_montecarlo(mpam, Tx, Fiber, Apd, Rx, sim);
+        [ber.count(k), mpamOpt] = ber_apd_montecarlo(mpam, Tx, Fiber, Apd, Rx, sim);
+        sim.mpamOpt = mpamOpt; % optimized by sweeping thresholds if levels are equally spaced
     end
     
     % BER using Gaussian stats approximation for shot noise (enumeration)
@@ -53,6 +54,7 @@ for k = 1:length(Ptx)
     
     if isfield(sim, 'terminateWhenBERReaches0') && sim.terminateWhenBERReaches0 && ber.count(k) == 0
         run_montecarlo = false;
+        sim.mpamOpt = []; % discard optimized thresholds. Now ber_apd_enumeration will use thresholds at the mid point
     end
 end
 
