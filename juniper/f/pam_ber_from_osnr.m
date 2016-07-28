@@ -16,17 +16,17 @@ end
 
 mpam = PAM(M, 1);
 mpam = mpam.adjust_levels(1, rexdB);
-Pmean = mean(mpam.a);
+Pmean = mean(mpam.a); % intensity levels are referred to after the amplifier
 
 BWref = 12.5e9; % OSNR measurement bandwidth
 ber = zeros(size(OSNRdB));
 for k = 1:length(OSNRdB)
     OSNR = 10^(OSNRdB(k)/10);
     
-    N0 = Pmean/(BWref*OSNR); % Amplifier one-sided ASE PSD 
+    Ssp = Pmean/(2*BWref*OSNR); % Amplifier one-sided ASE PSD per polarization 
     
     % Noise std for intensity level Plevel
-    noise_std = @(Plevel) sqrt(2*Plevel*N0*noiseBW);
+    noise_std = @(Plevel) sqrt(4*Plevel*Ssp*noiseBW);
    
     ber(k) = mpam.berAWGN(noise_std);
 end

@@ -22,8 +22,8 @@ else % 2-pol
     P = abs(fftshift(fft(x(1, :)))).^2 + abs(fftshift(fft(x(2, :)))).^2;
 end
 
-fs = -2*f(1);
-P = P/(fs*length(P)/resolution);
+fs = 2*max(abs(f));
+P = P/(fs*length(P)/(resolution)); 
 
 df = abs(f(2) - f(1));
 windowLength = round(resolution/df);

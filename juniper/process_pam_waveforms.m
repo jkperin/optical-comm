@@ -72,11 +72,17 @@ Xfilt = real(ifft(fft(Xrx).*ifftshift(Filt.H(f/fs))));
 % Resample in order to have integer number of samples per symbol specified by ros
 [p, q] = rat(ros*mpam.Rs/fs);
 Xrx = resample(Xfilt, p, q); % resample to match symbol rate at the DAC
-
 Xrx = Xrx - mean(Xrx);
 
-xref = mpam.signal(Dac.dataTX); % reference signal
-xref = xref - mean(xref);
+if strfind(dacfile, 'duobin') > -1       
+    ximp = upsample(Dac.xd_enc, mpam.pulse_shape.sps);
+    xref = filter(ones(1, mpam.pulse_shape.sps)/mpam.pulse_shape.sps, 1, ximp);
+    xref = xref - mean(xref);
+    xref = abs(xref).^2;
+else
+    xref = mpam.signal(Dac.dataTX); % reference signal
+    xref = xref - mean(xref);
+end
 
 % Align received signal
 [c, lags] = xcorr(Xrx, xref);
@@ -147,10 +153,10 @@ dataTX(ndiscard) = [];
 
 %% Demodulate
 dataRX_original = mpam.demod(yd);
-[dataRX, mpam] = mpam.demod_swiping_thresholds(yd, dataTX);
+[dataRX, mpam] = mpam.demod_sweeping_thresholds(yd, dataTX);
 
 %% Counted BER
-[~, ber_count_original] = biterr(dataRX_original, dataTX)
+[~, ber_count_original] = biterr(dataRX_original, dataTX);
 [~, ber_count] = biterr(dataRX, dataTX)
 
 % mpam = mpam.norm_levels();
@@ -169,7 +175,14 @@ drawnow
 
 %% 4-PAM Bias analysis
 Vset = [];
-if mpam.M == 4
+if mpam.M == 4 && not((isfield(Dac, 'mpamdb')))
+    if isfield(Dac, 'mpamPredist')
+        disp('Levels were predistorted')
+        a = Dac.mpamPredist.a;
+    else
+        a = mpam.a;
+    end
+            
 	p(1) = mean(yd(yd < mpam.b(1)));
     p(2) = mean(yd(yd > mpam.b(1) & yd < mpam.b(2)));
     p(3) = mean(yd(yd > mpam.b(2) & yd < mpam.b(3)));
@@ -177,7 +190,7 @@ if mpam.M == 4
     
     mzm_nonlinearity = @(levels, V) V(3)*abs(sin(pi/2*(levels*V(1) + V(2)))).^2 + V(4);
     
-    [Vset, fval, exitflag] = fminsearch(@(V) norm(p.' - (mzm_nonlinearity(mpam.a, V) - mean(mzm_nonlinearity(mpam.a, V)))), [0.5 0.5 1 0]);
+    [Vset, fval, exitflag] = fminsearch(@(V) norm(p.' - (mzm_nonlinearity(a, V) - mean(mzm_nonlinearity(a, V)))), [0.5 0.5 1 0]);
     
     if exitflag ~= 1
         disp('4-PAM bias control did not converge')
@@ -192,17 +205,9 @@ if mpam.M == 4
 %     h3 = plot([1 2], (mzm_nonlinearity(mpam.a, Vset)*[1 1]), ':k');
 %     legend([h1(1) h2(1) h3(1)], {'Desired PAM levels', 'Decision thresholds', 'Distorted PAM levels'})
 %     title('4-PAM Bias analysis')
-%     % axis([1 sim.Nsymb -0.2 1.2])
-%     drawnow
+    % axis([1 sim.Nsymb -0.2 1.2])
+    drawnow
 end
     
-
-
-    
-    
-    
-
-
-
 % S = comm.SymbolSynchronizer('TimingErrorDetector', 'Gardner (non-data-aided)', 'SamplesPerSymbol', 4);
 % yd = step(S, yk.');

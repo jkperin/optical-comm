@@ -7,17 +7,18 @@ addpath ../mpam/
 
 % Settings for DSO
 AgilentScope.IPAddr     = '192.168.7.236';      % IP of the Agilent oscilloscope
-AgilentScope.WfmLength  = 2^19; % 2^17;                 % Samples per waveform
+AgilentScope.WfmLength  = 2^18; % 2^17;                 % Samples per waveform
 AgilentScope.SamplingRate = 80E9;               % Samples / second
 
 v=visa('agilent', ['TCPIP0::' AgilentScope.IPAddr '::inst0::INSTR']);
 
-dacfile = 'data/waveforms/pam4_rect_Rb=15Gbps_preemph';
-% dacfile = 'data/waveforms/pam4_rect_Rb=55Gbps_preemph_duobin.mat';
+% dacfile = 'data\waveforms\BER_vs_OSNR_km\pam4_rect_Rb=55Gbps_preemph.mat';
+dacfile = 'data/waveforms/pam4_rect_Rb=56Gbps_preemph_predist';
+% dacfile = 'data/waveforms/pam2_rect_Rb=7Gbps_duobin'
 waitingTime = 0; % s
 
 Dac = load(dacfile);
-OSNRdB = 27;
+OSNRdB = 30;
 ber_gauss = -log10(pam_ber_from_osnr(Dac.mpam.M, OSNRdB, Dac.mpam.Rs/2));
 
 iterations = 1;
@@ -28,14 +29,12 @@ while true
     WaveForms = getAgilentWaveform( AgilentScope, v ); % Acquire and download
     
     [ber_count(iterations), Vset] = process_pam_waveforms(WaveForms, dacfile);
-    ber_mzmnl(iterations) = pam_ber_from_osnr_mzmnl(Dac.mpam.M, OSNRdB, Dac.mpam.Rs/2, Vset(1:2));
-       
+           
     figure(1), hold on
     stem(1:iterations, -log10(ber_count), 'b')
     plot([1 iterations+10], ber_gauss*[1 1], ':k')
-    plot(1:iterations, -log10(ber_mzmnl), '--ok')
     axis([1 iterations+10 0 ceil(ber_gauss)])
-    legend('Counted', 'Sig-spont limit', 'Sig-spont + MZM NL', 'Location', 'NorthWest')
+    legend('Counted', 'Sig-spont limit', 'Location', 'NorthWest')
     iterations = iterations + 1;
     pause(waitingTime)
 end

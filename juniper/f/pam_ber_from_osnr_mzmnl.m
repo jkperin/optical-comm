@@ -29,10 +29,10 @@ ber = zeros(size(OSNRdB));
 for k = 1:length(OSNRdB)
     OSNR = 10^(OSNRdB(k)/10);
     
-    N0 = Pmean/(BWref*OSNR); % Amplifier one-sided ASE PSD 
+    Ssp = Pmean/(2*BWref*OSNR); % Amplifier one-sided ASE PSD 
     
     % Noise std for intensity level Plevel
-    noise_std = @(Plevel) sqrt(2*Plevel*N0*noiseBW + 0*0.65e-3);
+    noise_std = @(Plevel) sqrt(4*Plevel*Ssp*noiseBW + 0*0.65e-3);
    
     ber(k) = mpam.berAWGN(noise_std);
 end

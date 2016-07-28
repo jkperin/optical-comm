@@ -1,13 +1,13 @@
 %% Impact of extinction ratio
 
-addpath ../mpam/
-addpath f/
+addpath ../../mpam/
+addpath ../f/
 
 mpam = PAM(4, 56e9);
 
 OSNRdB = linspace(25, 35);
 
-ERdB = [-5 -8 -10 -12 -15 -Inf];
+ERdB = [-5 -8 -10 -12 -15 -20 -30 -40 -Inf];
 
 figure, hold on, box on
 

@@ -8,25 +8,25 @@ addpath ../mpam/
 % S = load('data/waveforms/BER_vs_OSNR_b2b_MZM_predist/pam4_rect_Rb=55Gbps_preemph_predist.mat');
 
 %% Pre calculations to determine bitrate, trigger frequency, etc
-Rs_tentative = 7e9;
-Npoints = 2^12; % desired number of points to load to DAC
+Rs_tentative = 8.6e9;
+Npoints = 2^14; % desired number of points to load to DAC
 Tx.DAC.fs = 2687.5*32*1e6; % DAC sampling rate
 
-k2 = 120;
+k2 = 280; % number of trigger cycles within DAC waveform window
 ftrigger = k2*Tx.DAC.fs/Npoints;
-k1 = round(Rs_tentative*Npoints/(k2*Tx.DAC.fs));
+k1 = round(Rs_tentative/ftrigger);
 Rs = k1*ftrigger;
 
 %% Simulation parameters
-sim.M = 4; % PAM order
+sim.M = 2; % PAM order
 sim.Rb = Rs*log2(sim.M); % bit rate
 sim.ros.txDSP = 2; % oversampling ratio of transmitter DSP. Must be integer
 sim.Nzero = 5; % set first and last Nzero symbols to 0
 sim.qunatiz = true;
-sim.preemph = true;
-sim.preemphRange = 15e9;
+sim.preemph = ~true;
+sim.preemphRange = 20e9;
 sim.mzm_predistortion = false;
-sim.duobinary = ~true;
+sim.duobinary = true;
 sim.overwrite = true;
 
 %% DAC
@@ -78,8 +78,9 @@ if isfield(sim, 'duobinary') && sim.duobinary
     xk = xk - mean(xk);
 else
     if isfield(sim, 'mzm_predistortion') && sim.mzm_predistortion
-        Pswing = 0.9;
-        mpamPredist = mpam.mzm_predistortion(Pswing, true);
+        Vswing = 0.35*2;
+        Vbias = 0.47;
+        mpamPredist = mpam.mzm_predistortion(Vswing, Vbias, true);
         mpamPredist = mpamPredist.unbias;
         xk = mpamPredist.signal(dataTX); % Generate signal at sim.ros.txDSP rate
     else

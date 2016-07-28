@@ -8,7 +8,7 @@ classdef soa
     end
     properties (Dependent)
         GaindB
-        N0 % one-sided baseband equivalent of psd of ASE noise (complex Gaussian) per polarization 
+        Ssp % ASE one-sided PSD per real dimension
     end
     properties (Constant, Hidden)
         BWref = 12.5e9; % reference bandwidth for measuring OSNR
@@ -44,12 +44,10 @@ classdef soa
         end
         
         %% Get methods
-        function N0 = get.N0(obj)
-            %% ASE noise one-sided power spectrum density per polarization
+        function Ssp = get.Ssp(obj)
+            %% ASE one-sided power spectrum density per polarization
             % assumming Gain >> 1
             Ssp = (obj.Gain - 1)*10^(obj.Fn/10)/2*(obj.h*obj.c/obj.lamb); % Agrawal 6.1.15 3rd edition
-            
-            N0 = 2*Ssp; % one-sided baseband equivalent of Ssp
         end
         
         function GaindB = get.GaindB(obj)
@@ -64,30 +62,35 @@ classdef soa
     end
     
     %% Main Methods
-    methods
-        function sig2 = var_awgn(this, Plevel, Deltaf, Deltafopt, Npol)
-            warning('soa/var_awgn: use varAWGN instead')
-            sig2 = this.varAWGN(Plevel, Deltaf, Deltafopt, Npol);
-        end
-        function sig2 = varAWGN(this, Plevel, Deltaf, Deltafopt, Npol)
-            %% Noise variance using AWGN approximation
+    methods        
+        function sig2 = varSigSpont(this, Plevel, Deltaf)
+            %% Noise variance of signal-ASE beat noise
             % - Plevel = power before amplifier
             % - Deltaf = Noise bandwidth of electric filter
-            % - Deltafopt = Noise bandwidth of optical filter (!! bandpass filter)
-            % - Npol = Number of noise polarizations. Default Npol = 1
-            % !! Note: Responsivity is assumed to be 1. For different
-            % responsivity make sig2 = R^2*sig2
-            if exist('Npol', 'var') % default Noise polarizations = 1
-                Npol = 1;
-            end
-            % Signal-Spontaneous beat noise + Spont-Spont beat noise
-            % Agrawal 6.5.7 and 6.5.8 -- 3rd edition
-            sig2 = 2*this.Gain*Plevel*this.N0*Deltaf + 1/2*Npol*this.N0^2*Deltafopt*Deltaf;
-            % Note 1: N0 = 2Ssp
-            % Note 2: Responsivity is assumed to be 1. For different
+
+            % Signal-ASE beat noise Agrawal 6.5.7 and 6.5.8 -- 3rd edition
+            sig2 = 4*this.Gain*Plevel*this.Ssp*Deltaf;
+            % Note: Responsivity is assumed to be 1. For different
             % responsivity make sig2 = R^2*sig2
         end
-       
+        
+        function sig2 = varSpontSpont(this, Deltaf, Deltafopt, Npol)
+            %% Noise variance of ASE-ASE beat noise
+            % - Deltaf = Noise bandwidth of electric filter
+            % - Deltafopt = Noise bandwidth of optical filter (!! bandpass filter)
+            % - Npol = Number of noise polarizations. Default Npol = 2
+
+            if not(exist('Npol', 'var'))
+                Npol = 2;
+            end
+            
+            % ASE-ASE beat noise Agrawal 6.5.7 and 6.5.8 -- 3rd edition
+            sig2 = 2*Npol*this.Ssp^2*Deltafopt*Deltaf;
+            % Note: Responsivity is assumed to be 1. For different
+            % responsivity make sig2 = R^2*sig2
+        end
+        
+        
         function [Eout, OSNRdB] = amp(obj, Ein, fs)
             %% Amplification
             % - Ein = received electric field (must be a N x 1 or 2 matrix
@@ -101,19 +104,19 @@ classdef soa
                 Ein = [Ein; zeros(size(Ein))];
             end
             
-            dims = size(Ein);
+            N = length(Ein);
             
-            % N0 is the psd per polarization
-            W = sqrt(1/2*obj.N0*fs/2)*(randn(dims) + 1j*randn(dims));
-            % Note: soa.N0 is one-sided baseband equivalent of ASE PSD.
-            % Thus we multiply by sim.fs/2
+            % Ssp is the psd per polarization
+            W = sqrt(obj.Ssp*fs/2)*(randn(2, N) + 1j*randn(2, N));
+            % Note 1: soa.Ssp is one-sided ASE PSD. Thus we multiply by sim.fs/2
+            % Note 2: soa.Ssp is PSD per real dimension
             
             Eout = sqrt(obj.Gain)*Ein + W;
             
             [~, Ps] = power_meter(Ein);
             
             % Estimate OSNR
-            OSNRdB = 10*log10(obj.Gain*Ps/(obj.N0*obj.BWref))
+            OSNRdB = 10*log10(obj.Gain*Ps/(2*obj.Ssp*obj.BWref));
         end      
     end
 end

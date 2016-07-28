@@ -6,15 +6,15 @@ addpath ../f/
 addpath ../mpam/
 
 %%% Experiment parameters
-filename = 'PAM4_56G_BER_vs_OSNR_0km_set2';
+filename = 'PAM4_56G_BER_vs_OSNR_0km_predist_set1';
 foldername = 'data/waveforms/BER_vs_OSNR_km/';
-dacfile = 'data/waveforms/BER_vs_OSNR_b2b/pam4_rect_Rb=55Gbps_preemph.mat';
+dacfile = 'data/waveforms/pam4_rect_Rb=56Gbps_preemph_predist.mat';
 S = load(dacfile);
 mpam = S.mpam;
 
 % Settings for DSO
 AgilentScope.IPAddr     = '192.168.7.236';      % IP of the Agilent oscilloscope
-AgilentScope.WfmLength  = 2^20; % 2^17;                 % Samples per waveform
+AgilentScope.WfmLength  = 2^21; % 2^17;                 % Samples per waveform
 AgilentScope.SamplingRate = 80E9;               % Samples / second
 
 v=visa('agilent', ['TCPIP0::' AgilentScope.IPAddr '::inst0::INSTR']);

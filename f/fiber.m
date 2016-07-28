@@ -186,7 +186,7 @@ classdef fiber < handle
                 %% Small signal
                 Hf = cos(theta) - alpha*sin(theta);  % fiber small-signal frequency response
             else
-                error('fiber/Hf: undefined type of fiber frequency response')
+                error('fiber/Himdd: undefined type of fiber frequency response')
             end
             
         end

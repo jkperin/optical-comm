@@ -204,7 +204,7 @@ classdef PAM
                 t = linspace(0, 1);
                 plot(t, sin(pi/2*t).^2, 'k');
                 plot((self.a*[1 1]).', [zeros(1, self.M); sin(pi/2*self.a.').^2], 'k');
-                plot([zeros(1, self.M); self.a.'], (Pk*[1 1]).', 'k')
+                plot([zeros(1, self.M); self.a.'], ([1; 1]*Pk), 'k')
                 xlabel('Driving signal')
                 ylabel('Resulting power levels')
                 axis([0 1 0 1])
@@ -413,7 +413,7 @@ classdef PAM
                 title('Level optimization convergece')
                 drawnow
             end 
-        end       
+        end           
     end
     
     %% Auxiliary functions
