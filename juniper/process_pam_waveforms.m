@@ -65,7 +65,7 @@ Y = ch3 + 1j*ch4;
 Xrx = abs(X).^2 + abs(Y).^2; % Get intensity in X-pol
 
 %% Antialiasing filter and reduce noise
-Filt = design_filter('butter', 5, mpam.Rs/(fs/2)); % half of the sampling rate
+Filt = design_filter('butter', 5, 0.7*mpam.Rs/(fs/2)); % half of the sampling rate
 Xfilt = real(ifft(fft(Xrx).*ifftshift(Filt.H(f/fs))));
 
 %% Resample
@@ -93,6 +93,7 @@ pos = lags(ind);
 remapping = (sign(c(ind(1))) == -1);
 
 if remapping
+    figure, plot(lags, c)
     warning('Received sequence is the opposite of what was expected. Try to bias the MZM at a differnt point')
 end
 
@@ -102,6 +103,8 @@ Xrx = Xrx(pos(1):end);
 Npatterns = floor(length(Xrx)/length(xref));
 N = Npatterns*length(xref);
 Xrx = Xrx(1:N);
+
+Xrx = circshift(Xrx, [0 -ceil((mpam.pulse_shape.sps-1)/2)-2]);
 
 %% PAM symbol detection
 yk = Xrx;
@@ -121,10 +124,10 @@ eq.ros = 2;
 yk = resample(yk, p, q); 
 
 eq.type = 'Adaptive TD-LE';
-eq.Ntaps = 15;
+eq.Ntaps = 5;
 eq.mu = 1e-3;
 eq.Ntrain = Inf;
-eq.Ndiscard = [2e4 1024];
+eq.Ndiscard = [1.5e4 1024];
 
 if remapping 
     remap = [2 3 0 1];
@@ -170,7 +173,7 @@ h5 = plot((sim.Nsymb-eq.Ndiscard(2))*[1 1], a(3:4), ':k');
 legend([h1 h2(1) h3(1) h4], {'Equalized samples', 'PAM levels',...
     'Decision thresholds', 'BER measurement window'})
 title('Symbol-rate samples after equalization')
-% axis([1 sim.Nsymb -0.2 1.2])
+axis([1 sim.Nsymb -1.5 1.5])
 drawnow
 
 %% 4-PAM Bias analysis
@@ -198,14 +201,18 @@ if mpam.M == 4 && not((isfield(Dac, 'mpamdb')))
     
     fprintf('Vgain/Vpi = %.2f\n', Vset(1))
     fprintf('Vbias/Vpi = %.2f\n', Vset(2))
+
+    Vdrive = a*Vset(1) + Vset(2);
+    Pset = abs(sin(pi/2*Vdrive)).^2;
     
-%     figure(102), clf, box on, hold on
-%     h1 = plot([1 2], ((mpam.a + 0.5)*[1 1]), '-k');
-%     h2 = plot([1 2], (mzm_nonlinearity(mpam.b, Vset)*[1 1]).', '--k');
-%     h3 = plot([1 2], (mzm_nonlinearity(mpam.a, Vset)*[1 1]), ':k');
-%     legend([h1(1) h2(1) h3(1)], {'Desired PAM levels', 'Decision thresholds', 'Distorted PAM levels'})
-%     title('4-PAM Bias analysis')
-    % axis([1 sim.Nsymb -0.2 1.2])
+    figure(233), clf, hold on, box on
+    t = linspace(0, 1);
+    plot(t, sin(pi/2*t).^2, 'k');
+    plot((Vdrive*[1 1]).', [zeros(1, mpam.M); Pset.'], 'k');
+    plot([zeros(1, mpam.M); Vdrive.'], ([1; 1]*Pset.'), 'k');
+    xlabel('Driving signal')
+    ylabel('Resulting power levels')
+    axis([0 1 0 1])
     drawnow
 end
     

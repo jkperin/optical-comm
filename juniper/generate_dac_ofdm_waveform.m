@@ -7,15 +7,15 @@ addpath ../ofdm/f/
 addpath ../soa/
 
 %% DAC
-Tx.DAC.fs = 2687.5*32*1e6; % DAC sampling rate
+Tx.DAC.fs = 2625*32*1e6; % DAC sampling rate 2687.5
 Tx.DAC.resolution = 8; % DAC effective resolution in bits
 Tx.DAC.Vswing = 1; % controls clipping. If Vswing > 1 signal will be clipped
 % Tx.DAC.filt = design_filter('butter', 3, 20e9/(sim.fs/2)); % DAC analog frequency response
 
-Rb_tentative = 43e9*1.3;
-sim.M = 16;
+Rb_tentative = 42e9;
+sim.M = 4;
 Rs_tentative = 2*Rb_tentative/log2(sim.M);
-Ncp = 14;
+Ncp = 12;
 Nc = 256;
 Nu = 208;
 fs_tentative = Rs_tentative*(Nc + Ncp)/Nu;
@@ -24,7 +24,7 @@ ofdm_ros = Tx.DAC.fs/fs_tentative;
 
 %% Simulation parameters
 sim.Rb = Rb_tentative;
-sim.Nsymb = 204; % Number of symbols in pattern
+sim.Nsymb = 19; % Number of symbols in pattern
 sim.Mct = 1;      
 sim.BERtarget = 1.8e-4;
 sim.qunatiz = true;
@@ -45,9 +45,11 @@ ofdm.set_cyclic_prefix(Ncp/2, Ncp/2);
 
 %% Power allocation 
 Hpreemph = 10.^(polyval([-0.0013 0.5846 1.5859], ofdm.fc/1e9)/20); 
-Hmod = 1./Hpreemph; % MZM frequency response
-Fiber = fiber(10e3);
-Himdd = Fiber.Himdd(ofdm.fc, 1550e-9, 0, 'large signal');
+% Hmod = 1./Hpreemph; % MZM frequency response
+% Fiber = fiber(10e3);
+% Himdd = Fiber.Himdd(ofdm.fc, 1550e-9, 0, 'large signal');
+% Hch = Hmod.*Himdd;
+Hch = ones(size(ofdm.fc));
 
 PrxdBm = 13; % expected received power in dBm
 OSNRdB = 30;
@@ -56,7 +58,7 @@ OSNR = 10^(OSNRdB/10);
 N0 = dBm2Watt(PrxdBm)/(BWref*OSNR); % Amplifier one-sided ASE PSD 
 varSigSpont = 2*dBm2Watt(PrxdBm)*N0*ofdm.fs/2;
 
-ofdm.power_allocation(Hmod.*Himdd, varSigSpont*ones(size(ofdm.fc))/ofdm.Nc, sim.BERtarget, true);
+ofdm.power_allocation(Hch, varSigSpont*ones(size(ofdm.fc))/ofdm.Nc, sim.BERtarget, true);
 
 % Try detecting
 AdEq.mu = 1e-3;
@@ -67,6 +69,11 @@ figure, plot(ofdm.fc/1e9, abs(Xn).^2)
 ofdm.countBER([1 1], false) % sanity check
 
 %% Resample to DAC sampling rate
+% [~, t1] = freq_time(length(xd), ofdm.fs);
+% dt = 1/Tx.DAC.fs;
+% t2 = 0:dt:t1(end);
+% xkDACraw = interp1(t1, xd, t2);
+
 xkDACraw = resample(xd, p, q);
 
 %% Zero pad

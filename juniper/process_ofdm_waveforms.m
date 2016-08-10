@@ -6,7 +6,7 @@ addpath ../f/
 addpath ../mpam/
 
 % file = 'data/waveforms/wave-DMT-QPSK-59-ros=1_preemph.h5';
-% dacfile = 'data/waveforms/ofdm16_Rb=56Gbps_51';
+% dacfile = 'data/waveforms/ofdm4_Rb=42Gbps_19';
 Dac = load(dacfile);
 ofdm = Dac.ofdm;
 
@@ -131,3 +131,10 @@ eq.trainSeq = repmat(eq.trainSeq, 1, Npatterns);
 
 ofdm.dataTX = repmat(ofdm.dataTX, 1, Npatterns);
 ber_count = ofdm.countBER([1000 20], true)
+
+
+figure(404), clf, hold on, box on
+plot(ofdm.fc(1:length(W))/1e9, 20*log10(abs(AGCn.*W)) - 20*log10(AGCn(1).*W(1)), '-o')
+xlabel('Frequency (GHz)')
+ylabel('Amplitude (dB)')
+title('AGC and equalizer')

@@ -83,10 +83,10 @@ classdef ofdm < handle
         
         function dc = dc_bias(~, Pn, rclip, Gdac, rexdB)
             %% Calculate DC bias required for OFDM
-            if exist('Gdac', 'var')
-                dc = rclip*sqrt(sum(2*Pn));
+            if exist('Gdac', 'var') && not(isempty(Gdac))
+                dc = rclip*sqrt(2*sum(Pn.*abs(Gdac).^2));
             else
-                dc = rclip*sqrt(sum(2*Pn.*abs(Gdac).^2));
+                dc = rclip*sqrt(2*sum(Pn));
             end
             
             % Add additional dc bias due to non-ideal extinction ratio

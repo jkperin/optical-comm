@@ -101,7 +101,8 @@ yt = yt - mean(yt);
 yt = yt*sqrt(mean(abs(mpam.a).^2)/(sqrt(2)*mean(abs(yt).^2)));
 
 %% Antialiasing filter and reduce noise
-Filt = design_filter('butter', 5, 0.7*mpam.Rs/(fs/2)); % half of the sampling rate
+fBW = Rx.Filt.fcnorm*sim.fs/2;
+Filt = design_filter(Rx.Filt.type, Rx.Filt.order, fBW/(fs/2)); % half of the sampling rate
 yt = real(ifft(fft(yt).*ifftshift(Filt.H(f/fs))));
 
 %% Resample

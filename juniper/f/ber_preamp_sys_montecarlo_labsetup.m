@@ -20,11 +20,25 @@ dataTX([1:Nzero end-Nzero+1:end]) = 0; % set first and last Nzero symbols to 0 t
 if isfield(sim, 'duobinary') && sim.duobinary
     mpamdb = mpam.set_levels(0:mpam.M-1, 0.5 + (0:mpam.M-2));    
     
-    xd = mpamdb.signal(dataTX); % Modulated PAM signal
-    
+    xd = mpamdb.mod(dataTX); % Modulated PAM signal
+
     xd = duobinary_encoding(xd);
     
     xd_enc = xd;
+    
+    predist = @(p) 2/pi*asin(sqrt(p));
+    dist = @(v) sin(pi/2*v)^2;
+    
+    Vswing = 2*Tx.Mod.Vswing;
+    Pswing = dist(Vswing/2);
+    DP = Pswing/(mpam.M-1);
+    Pk = 0:DP:Pswing;
+    Vkp = predist(Pk);
+    Vk = [-Vkp(end:-1:2) Vkp];
+    Vk = Vk/Vk(end);
+        
+    ximp = upsample(Vk(xd_enc+mpam.M), mpam.pulse_shape.sps);
+    xd = filter(ones(1, mpam.pulse_shape.sps)/mpam.pulse_shape.sps, 1, ximp);
 else %% Ordinary PAM
     % Ajust levels to desired transmitted power and extinction ratio
     if isfield(sim, 'mzm_predistortion') && strcmpi(sim.mzm_predistortion, 'levels')   
@@ -43,39 +57,6 @@ if sim.modulatorPreemphasis
     emphasis_filter = 10.^(polyval([-0.0013 0.5846 1.5859], femph/1e9)/20);    
 
     xd = real(ifft(fft(xd).*ifftshift(emphasis_filter)));
-end
-
-if sim.fiberPreemphasis
-%     Dtotal = 0;
-%     for k = 1:length(Fibers)
-%         Dtotal = Dtotal + Fibers(k).D(Tx.Laser.wavelength)*Fibers(k).L;
-%     end
-%         
-%     if Dtotal ~= 0        
-%         c = 299792458;
-%         f = freq_time(sim.Nsymb*sim.ros.txDSP, mpam.Rs*sim.ros.txDSP);
-%         theta = 1/2*((Tx.Laser.wavelength.^2)/(2*pi*c))*(2*pi*f).^2*Dtotal; % theta = -1/2*beta2*w.^2*L
-%         f0 = interp1(theta(f > 0), f(f > 0), pi/2)
-%         
-%         Hpreemph = 1./cos(theta);        
-%         Hpreemph(abs(f) >= 0.9*f0) = 0;
-% 
-%         assert(all(not(isnan(Hpreemph))) && all(not(isinf(Hpreemph))), 'ber_preamp_sys_montecarlo_labsetup: Fiber preemphasis filter is not valid.')
-%         
-%         xd = real(ifft(fft(xd).*ifftshift(Hpreemph)));
-
-        % 
-        disp('Fiber preemphasis')
-        hpreemph = [-0.00144970271936409,-0.000429576923866716,0.000491372992959065,-0.000681362245221289,0.000844721790724275,-0.000601991891747232,-0.000132553963932094,0.00103277538745310,-0.00110865686692600,1.24569314477898e-05,0.00177065568856579,-0.00288324837145977,0.00181429801331902,0.00151739731706468,-0.00511354384843566,0.00554218492212434,-0.000788362071600951,-0.00726247395949835,0.0125392763821877,-0.00857729611690909,-0.00573139396735213,0.0222285651354718,-0.0258902231865190,0.00693126678375740,0.0322443937168965,-0.0593578262639624,0.0533698704966705,0.00866109362078188,-0.138197461250035,0.126422707130056,0.00912113696885391,-0.0817952964708191,1.10766093255573,-0.0817952964708191,0.00912113696885391,0.126422707130056,-0.138197461250035,0.00866109362078188,0.0533698704966705,-0.0593578262639624,0.0322443937168965,0.00693126678375740,-0.0258902231865190,0.0222285651354718,-0.00573139396735213,-0.00857729611690909,0.0125392763821877,-0.00726247395949835,-0.000788362071600951,0.00554218492212434,-0.00511354384843566,0.00151739731706468,0.00181429801331902,-0.00288324837145977,0.00177065568856579,1.24569314477898e-05,-0.00110865686692600,0.00103277538745310,-0.000132553963932094,-0.000601991891747232,0.000844721790724275,-0.000681362245221289,0.000491372992959065,-0.000429576923866716,-0.00144970271936409];
-        xd = filter(hpreemph, 1, xd);
-        xd = circshift(xd, [0 -(length(hpreemph)-1)/2]);
-         
-         %
-%          [H, W] = calculate_fiber_preemphasis(21, Tx.Laser.wavelength, Fibers(1), Rx.ADC.filt.H(sim.f/sim.fs), sim);
-%          xd = real(ifft(fft(xd).*ifftshift(Tx.Hpreemph)));
-%     else
-%         disp('ber_preamp_sys_montecarlo_labsetup: skipping fiber preemphasis since total dispersion is zero')
-%     end
 end
 
 %% ============================== Driver ==================================
@@ -98,6 +79,8 @@ end
 Tx.DAC.offset = sim.Mct/mpam.pulse_shape.sps*(length(mpam.pulse_shape.h)-1)/2;
 xt = dac(xd, Tx.DAC, sim, sim.shouldPlot('DAC output'));
 % Note: Driving signal xd must be normalized by Vpi
+
+% xt = ifft(fft(xt).*ifftshift(conj(Fibers(1).Hdisp(sim.f, Tx.Laser.wavelength))));
 
 %% ============================= Modulator ================================
 Tx.Laser.PdBm = Watt2dBm(Tx.Ptx);
@@ -146,12 +129,12 @@ OSNRdB
 OSNRdB2 = estimate_osnr(Erx, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'))
 
 %% ========================== Receiver ====================================
-
 if isfield(sim, 'coherentReceiver') && sim.coherentReceiver
     %% Do direct detection using coherent receiver
-    yk = coherent_imdd_rx(Erx, mpam, Tx.Laser, Rx, sim); 
-    filt = design_filter('butter', 5, 0.7*mpam.Rs/(sim.fs/2));
+    filt = design_filter('butter', 5, mpam.Rs/(sim.fs/2));
     Hrx = filt.H(sim.f/sim.fs);
+    Rx.Filt = filt;
+    yk = coherent_imdd_rx(Erx, mpam, Tx.Laser, Rx, sim); 
 else
     %% Direct detection
     % Direct detection and add thermal noise
@@ -175,10 +158,6 @@ end
 %% =========================== Equalization ===============================
 Rx.eq.trainSeq = dataTX; % training sequence
 [yd, Rx.eq] = equalize(Rx.eq, yk, [], mpam, sim, sim.shouldPlot('Equalizer'));
-
-
-eq = Rx.eq;
-save('equalizer', 'eq')
 
 % Symbols to be discard in BER calculation
 ndiscard = [1:Rx.eq.Ndiscard(1)+sim.Ndiscard (sim.Nsymb-Rx.eq.Ndiscard(2)-sim.Ndiscard):sim.Nsymb];
@@ -226,7 +205,14 @@ ber_awgn = mpamRef.berAWGN(noise_std);
 
 %% 4-PAM Bias analysis
 Vset = [];
-if mpam.M == 4 && strcmpi(sim.mzm_predistortion, 'none')
+if mpam.M == 4 && not(exist('mpamdb', 'var'))
+    if ~strcmpi(sim.mzm_predistortion, 'none')
+        disp('Levels were predistorted')
+        a = mpamPredist.a;
+    else
+        a = mpam.a;
+    end
+            
 	p(1) = mean(yd(yd < mpam.b(1)));
     p(2) = mean(yd(yd > mpam.b(1) & yd < mpam.b(2)));
     p(3) = mean(yd(yd > mpam.b(2) & yd < mpam.b(3)));
@@ -234,7 +220,7 @@ if mpam.M == 4 && strcmpi(sim.mzm_predistortion, 'none')
     
     mzm_nonlinearity = @(levels, V) V(3)*abs(sin(pi/2*(levels*V(1) + V(2)))).^2 + V(4);
     
-    [Vset, fval, exitflag] = fminsearch(@(V) norm(p.' - (mzm_nonlinearity(mpam.a, V) - mean(mzm_nonlinearity(mpam.a, V)))), [0.5 0.5 1 0]);
+    [Vset, fval, exitflag] = fminsearch(@(V) norm(p.' - (mzm_nonlinearity(a, V) - mean(mzm_nonlinearity(a, V)))), [0.5 0.5 1 0]);
     
     if exitflag ~= 1
         disp('4-PAM bias control did not converge')
@@ -242,6 +228,21 @@ if mpam.M == 4 && strcmpi(sim.mzm_predistortion, 'none')
     
     fprintf('Vgain/Vpi = %.2f\n', Vset(1))
     fprintf('Vbias/Vpi = %.2f\n', Vset(2))
+
+    Vdrive = a*Vset(1) + Vset(2);
+    Pset = abs(sin(pi/2*Vdrive)).^2;
+    
+    if sim.shouldPlot('Bias analysis')
+        figure(233), clf, hold on, box on
+        t = linspace(0, 1);
+        plot(t, sin(pi/2*t).^2, 'k');
+        plot((Vdrive*[1 1]).', [zeros(1, mpam.M); Pset.'], 'k');
+        plot([zeros(1, mpam.M); Vdrive.'], ([1; 1]*Pset.'), 'k');
+        xlabel('Driving signal')
+        ylabel('Resulting power levels')
+        axis([0 1 0 1])
+        drawnow
+    end
 end
 
 %% Plots

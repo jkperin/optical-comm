@@ -13,8 +13,8 @@ AgilentScope.SamplingRate = 80E9;               % Samples / second
 v=visa('agilent', ['TCPIP0::' AgilentScope.IPAddr '::inst0::INSTR']);
 
 % dacfile = 'data\waveforms\BER_vs_OSNR_km\pam4_rect_Rb=55Gbps_preemph.mat';
-dacfile = 'data/waveforms/pam4_rect_Rb=56Gbps_preemph_predist';
-% dacfile = 'data/waveforms/pam2_rect_Rb=7Gbps_duobin'
+% dacfile = 'data/waveforms/pam4_rect_Rb=56Gbps_preemph_duobin';
+dacfile = 'data/waveforms/pam4_rect_Rb=56Gbps_preemph_predist'
 waitingTime = 0; % s
 
 Dac = load(dacfile);
@@ -22,7 +22,7 @@ OSNRdB = 30;
 ber_gauss = -log10(pam_ber_from_osnr(Dac.mpam.M, OSNRdB, Dac.mpam.Rs/2));
 
 iterations = 1;
-figure(1), clf, box on  
+figure(1), clf, box on, grid on
 xlabel('Iterations')
 ylabel('-log_{10}(BER)')
 while true

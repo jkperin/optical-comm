@@ -92,8 +92,7 @@ classdef fiber < handle
             % - f = frequency vector (Hz)
             % - lambda = wavelength (m)
             % Outputs: 
-            % - Eout, Pout = output electric field and optical power
-            % respectively.
+            % - Eout = output electric field
             
             if this.L*this.D(lambda) == 0
                 Eout = Ein;
@@ -155,6 +154,17 @@ classdef fiber < handle
             Dw = -1j*1/2*beta2*(w.^2);
             Hele = exp(this.L*Dw);
         end
+        
+        function h = hdisp(self, t, lambda)
+            %% Dispersion impulse response inverseFourier(Hdisp(f))
+            % Inputs: 
+            % - f = frequency vector (Hz)
+            % - lambda = wavelength (m)
+
+            b = 1/2*self.beta2(lambda)*self.L;
+            h = sqrt(-pi*1j/b)/(2*pi)*exp(1j*t.^2/(4*b));
+            % h = sqrt(1/(4*pi*b))*(cos(t.^2/(4*b) - pi/4) + 1j*sin(t.^2/(4*b) - pi/4));
+        end
                
         function Hf = Himdd(self, f, wavelength, alpha, type)
             %% Fiber frequency response for an IM-DD system with transient chirp dominant
@@ -165,8 +175,8 @@ classdef fiber < handle
             % - wavelength: wavelength (m)
             % - alpha (optional, default alpha = 0): chirp parameter with
             % sign convention such that for DML alpha > 0
-            % - type (optional, default type = 'small signal')
-            % in m), and alpha (optional, default zero) (chirp paramter). 
+            % - type (optional, default type = 'small signal'): whether
+            % transfer function uses small signal approximation
  
             if not(exist('alpha', 'var')) % if chirp parameter is not defined
                 alpha = 0;
