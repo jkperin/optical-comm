@@ -5,13 +5,13 @@ addpath f/
 addpath ../f/
 addpath ../mpam/
 
-Nsymb = 2^12;
+Nsymb = 2^14;
 Mct = 10;
 ros = 2;
 N = Mct*Nsymb;
 lamb = 1550e-9;
 
-Fiber = fiber(20e3);
+Fiber = fiber(80e3);
 
 pulse_shape = select_pulse_shape('rect', ros);
 mpam = PAM(4, 56e9, 'equally-spaced', pulse_shape);

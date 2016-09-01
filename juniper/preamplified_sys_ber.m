@@ -21,7 +21,7 @@ fprintf('Total dispersion at %.2f nm: %.3f ps/nm\n', Tx.Laser.lambda*1e9, 1e3*Dt
 
 % Create fiber object with equivalent dispersion.
 equivFiber = fiber(1, @(lamb) 0, @(lamb) Dtotal);
-Hfiber = equivFiber.Himdd(sim.f, Tx.Laser.wavelength, Tx.alpha, 'large signal'); % frequency response of the channel (used in designing the equalizer)
+Hfiber = equivFiber.Himdd(sim.f, Tx.Laser.wavelength, Tx.Mod.alpha, 'large signal'); % frequency response of the channel (used in designing the equalizer)
 
 %% Calculate components frequency response
 f = sim.f/sim.fs;
@@ -54,12 +54,8 @@ for k = 1:length(Ptx)
     Tx.Ptx = Ptx(k);
          
     % Montecarlo simulation
-    if isfield(sim, 'labSetup') && sim.labSetup
-        disp('Lab setup simulation')
-        [ber.count(k), ber.gauss(k), OSNRdB(k)] = ber_preamp_sys_montecarlo_labsetup(mpam, Tx, Fibers, Amp, Rx, sim);
-    else
-        [ber.count(k), ber.gauss(k), OSNRdB(k)] = ber_preamp_sys_montecarlo(mpam, Tx, Fibers, Amp, Rx, sim);
-    end
+    [ber.count(k), ber.gauss(k), OSNRdBstruct] = ber_preamp_sys_montecarlo(mpam, Tx, Fibers, Amp, Rx, sim);
+    OSNRdB(k) = OSNRdBstruct.theory;
     
     if sim.stopSimWhenBERReaches0 && ber.count(k) == 0
         break;

@@ -22,7 +22,7 @@ sim.M = 4; % PAM order
 sim.Rb = Rs*log2(sim.M); % bit rate
 sim.ros.txDSP = 3; % oversampling ratio of transmitter DSP. Must be integer
 sim.Nzero = 5; % set first and last Nzero symbols to 0
-sim.qunatiz = true;
+sim.quantiz = true;
 sim.preemph = true;
 sim.preemphRange = 25e9;
 sim.mzm_predistortion = true;
@@ -88,8 +88,8 @@ if isfield(sim, 'duobinary') && sim.duobinary
 %     xk = xk - mean(xk);
 else
     if isfield(sim, 'mzm_predistortion') && sim.mzm_predistortion
-        Vswing = 0.35*2;
-        Vbias = 0.47;
+        Vswing = 0.31*2
+        Vbias = 0.47
         mpamPredist = mpam.mzm_predistortion(Vswing, Vbias, true);
         mpamPredist = mpamPredist.unbias;
         xk = mpamPredist.signal(dataTX); % Generate signal at sim.ros.txDSP rate
@@ -242,5 +242,7 @@ if isempty(fsrfDataJess)
     disp('Waveform not loaded to DAC')
 else
     disp('Waveform loaded to DAC')
-    fsrfDataJess = JESS_RAMFill_General(fsrfDataJess, xq, xqtrig, zeros(size(xq)), zeros(size(xq)));
+%     fsrfDataJess = JESS_RAMFill_General(fsrfDataJess, xq, xqtrig,...
+%     zeros(size(xq)), zeros(size(xq))); % Thorlabs modulator
+    fsrfDataJess = JESS_RAMFill_General(fsrfDataJess, zeros(size(xq)), xqtrig, zeros(size(xq)), xq); % Oclaro modulator
 end

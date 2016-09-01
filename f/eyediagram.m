@@ -1,6 +1,10 @@
-function eyediagram(x, n)
+function eyediagram(x, n, Ntraces)
+if not(exist('Ntraces', 'var'))
+    Ntraces = 500;
+end
+
 N = length(x);
-M = floor(N/n);
+M = min(Ntraces, floor(N/n));
 sel = 1:M*n;
 
 x = reshape(x(sel), n, M);

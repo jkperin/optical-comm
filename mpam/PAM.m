@@ -420,6 +420,7 @@ classdef PAM
     methods
         function h = norm_filter_coefficients(~, h)
             %% Normalize coefficients of FIR filter h so that impulse response of h at t = 0 is 1
+            % This ensures that levels are not changed after upsamplig and filtering
             n = length(h);
             if mod(n, 2) == 0 % even
                 h = 2*h/(h(n/2) + h(n/2+1));

@@ -40,6 +40,9 @@ Hq = toeplitz([hqd; zeros(Ntaps-1, 1)], [hqd(1) zeros(1, Ntaps-1)]);
 % ZF condition
 e = zeros(size(Hi, 1), 1); 
 e((size(Hi, 1)+1)/2) = 1;
+% e((size(Hi, 1)+1)/2-1) = 1;
+% e((size(Hi, 1)+1)/2-2) = 1;
+% e((size(Hi, 1)+1)/2-3) = 1;
 
 idx = (size(Hi, 1)+1)/2;
 Hic = Hi;
@@ -51,20 +54,17 @@ Hqc(idx, :) = [];
 
 %% Perform optimization
 warning('off', 'MATLAB:nargchk:deprecated')
-cvx_begin
+%% I/Q impulse
+cvx_begin quiet
     variable pI(Ntaps)
     variable pQ(Ntaps)
-%     minimize ( norm(Hic*p, 2) + norm(Hqc*p, 2) - hic*p - hqc*p)
-%     minimize ( norm(Hi*p -e, 2) + norm(Hq*p - e, 2) )
-%     minimize ( norm(Hic*pI - Hqc*pq, 2) + norm(Hqc*pI + Hic*pq, 2) )
     minimize ( norm(Hi*pI - Hq*pQ - e, 2)  +  norm(Hi*pQ + Hq*pI - e, 2) )
-%       minimize (norm(pI + 1j*pQ, 2))
     subject to
           pQ == zeros(Ntaps, 1)
 %         pI == [0;  pQ(1:end-1)]
 %         pQ == [0; 0; pI(1:end-2)]
 %           pI == [pQ(1:end-1); 0]
-%         pI == pQ
+%         pI == -0.1*pQ
 %           Hic*pI == Hqc*pQ
 %           Hic*pQ == -Hqc*pI
 cvx_end
@@ -73,6 +73,63 @@ if not(strcmpi(cvx_status, 'Solved'))
     warning('Filter optimization failed')
 end
 
+prob(1) = cvx_optval;
+probpI{1} = pI;
+probpQ{1} = pQ;
+
+%% I impulse, Q zeros
+cvx_begin quiet
+    variable pI(Ntaps)
+    variable pQ(Ntaps)
+    minimize ( norm(Hi*pI - Hq*pQ - e, 2)  +  norm(Hi*pQ + Hq*pI, 2) )
+    subject to
+%           pQ == zeros(Ntaps, 1)
+%         pI == [0;  pQ(1:end-1)]
+%         pQ == [0; 0; pI(1:end-2)]
+%           pI == [pQ(1:end-1); 0]
+%         pI == -0.1*pQ
+%           Hic*pI == Hqc*pQ
+%           Hic*pQ == -Hqc*pI
+cvx_end
+
+if not(strcmpi(cvx_status, 'Solved'))
+    warning('Filter optimization failed')
+end
+
+prob(2) = cvx_optval;
+probpI{2} = pI;
+probpQ{2} = pQ;
+
+%% Q impulse, I zeros
+cvx_begin quiet
+    variable pI(Ntaps)
+    variable pQ(Ntaps)
+    minimize ( norm(Hi*pI - Hq*pQ, 2)  +  norm(Hi*pQ + Hq*pI - e, 2) )
+    subject to
+%           pQ == zeros(Ntaps, 1)
+%         pI == [0;  pQ(1:end-1)]
+%         pQ == [0; 0; pI(1:end-2)]
+%           pI == [pQ(1:end-1); 0]
+%         pI == -0.1*pQ
+%           Hic*pI == Hqc*pQ
+%           Hic*pQ == -Hqc*pI
+cvx_end
+
+if not(strcmpi(cvx_status, 'Solved'))
+    warning('Filter optimization failed')
+end
+
+prob(3) = cvx_optval;
+probpI{3} = pI;
+probpQ{3} = pQ;
+
+%% 
+prob
+[minprob, idx] = min(prob)
+pI = probpI{idx};
+pQ = probpQ{idx};
+
+%%
 pref = hid - 1j*hqd;
 pref = pref/abs(sum(pref));
 
@@ -88,31 +145,43 @@ if exist('verbose', 'var') && verbose
     e = zeros(size(Hi, 2));
     e((size(Hi, 2)+1)/2) = 1;
     subplot(221), hold on, box on
-    stem(n, real((Hi + 1j*Hq)*p))
-    stem(n, imag((Hi + 1j*Hq)*p))
+    stem(n, real((Hi + 1j*Hq)*p), 'Linewidth', 2)
+    stem(n, imag((Hi + 1j*Hq)*p), 'Linewidth', 2)
 %     stem(n, Hi*e, '--')
 %     stem(n, Hq*e, '--')
+    xlabel('Sample', 'FontSize', 18)
+    ylabel('Filter output', 'FontSize', 18)
     title('Filtering')
+    set(gca, 'FontSize', 18)
+    a = axis;
+    axis([n(1) n(end) a(3:4)])
     
     subplot(222), box on, hold on
-    stem(-(Ntaps-1)/2:(Ntaps-1)/2, real(p))
-    stem(-(Ntaps-1)/2:(Ntaps-1)/2, imag(p))
-    title('Filter taps')
+    stem(-(Ntaps-1)/2:(Ntaps-1)/2, real(p), 'Linewidth', 2)
+    stem(-(Ntaps-1)/2:(Ntaps-1)/2, imag(p), 'Linewidth', 2)
+    xlabel('Sample', 'FontSize', 18)
+    ylabel('Filter taps', 'FontSize', 18)
+    set(gca, 'FontSize', 18)
+    title('Filter taps (real & imag)')
+    a = axis;
+    axis([-(Ntaps-1)/2 (Ntaps-1)/2 a(3:4)])
     
     P = freqz(p, 1, f, Rs);
     subplot(223)
-    plot(f/1e9, abs(P).^2)
+    plot(f/1e9, abs(P).^2, 'Linewidth', 2)
     a = axis;
     axis([-Rs/2e9 Rs/2e9 a(3:4)])
-    xlabel('Frequency (GHz)')
-    ylabel('|P(f)|^2')
+    xlabel('Frequency (GHz)', 'FontSize', 18)
+    ylabel('|P(f)|^2', 'FontSize', 18)
     title('Amplitude response')
+    set(gca, 'FontSize', 18)
     
     subplot(224)
-    plot(f/1e9, unwrap(angle(P)))
+    plot(f/1e9, unwrap(angle(P)), 'Linewidth', 2)
     a = axis;
     axis([-Rs/2e9 Rs/2e9 a(3:4)])
-    xlabel('Frequency (GHz)')
-    ylabel('arg(P(f))')
+    xlabel('Frequency (GHz)', 'FontSize', 18)
+    ylabel('arg(P(f))', 'FontSize', 18)
     title('Phase response') 
+    set(gca, 'FontSize', 18)
 end

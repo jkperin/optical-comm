@@ -15,6 +15,7 @@ v=visa('agilent', ['TCPIP0::' AgilentScope.IPAddr '::inst0::INSTR']);
 % dacfile = 'data\waveforms\BER_vs_OSNR_km\pam4_rect_Rb=55Gbps_preemph.mat';
 % dacfile = 'data/waveforms/pam4_rect_Rb=56Gbps_preemph_duobin';
 dacfile = 'data/waveforms/pam4_rect_Rb=56Gbps_preemph_predist'
+% dacfile = 'data/waveforms/pam2_rect_Rb=28Gbps_preemph_duobin'
 waitingTime = 0; % s
 
 Dac = load(dacfile);

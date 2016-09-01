@@ -6,9 +6,9 @@ addpath ../f/
 addpath ../mpam/
 
 %%% Experiment parameters
-filename = 'PAM4_56G_BER_vs_OSNR_0km_predist_set1';
-foldername = 'data/waveforms/BER_vs_OSNR_km/';
-dacfile = 'data/waveforms/pam4_rect_Rb=56Gbps_preemph_predist.mat';
+filename = 'PAM4_56G_BER_vs_OSNR_15km_predist_set1';
+foldername = 'data/waveforms/BER_vs_OSNR_km_Oclaro/';
+dacfile = 'data/waveforms/BER_vs_OSNR_km_Oclaro/pam4_rect_Rb=56Gbps_preemph_predist.mat';
 S = load(dacfile);
 mpam = S.mpam;
 
@@ -78,7 +78,7 @@ if length(OSNRdB) > 1
         foldername = [foldername '/'];
     end
     
-    disp(['File saved at' foldername filename])
+    disp(['File saved at ' foldername filename])
     
     figure(1)
     saveas(gca, filename, 'png')

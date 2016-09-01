@@ -37,41 +37,44 @@ ch3 = double(ch3).';
 ch4 = double(ch4).';
 
 %% Orthornomalization
-ch1 = ch1 - mean(ch1);
-ch1 = ch1/sqrt(mean(abs(ch1).^2));
-ch2 = ch2 - mean(ch2);
-ch2 = ch2/sqrt(mean(abs(ch2).^2));
-ch3 = ch3 - mean(ch3);
-ch3 = ch3/sqrt(mean(abs(ch3).^2));
-ch4 = ch4 - mean(ch4);
-ch4 = ch4/sqrt(mean(abs(ch4).^2));
-
-ch2 = ch2 - mean(ch1.*ch2)*ch1;
-ch4 = ch4 - mean(ch3.*ch4)*ch4;
-
-%% Pre-filtering
+% ch1 = ch1 - mean(ch1);
+% ch1 = ch1/sqrt(mean(abs(ch1).^2));
+% ch2 = ch2 - mean(ch2);
+% ch2 = ch2/sqrt(mean(abs(ch2).^2));
+% ch3 = ch3 - mean(ch3);
+% ch3 = ch3/sqrt(mean(abs(ch3).^2));
+% ch4 = ch4 - mean(ch4);
+% ch4 = ch4/sqrt(mean(abs(ch4).^2));
+% 
+% ch2 = ch2 - mean(ch1.*ch2)*ch1;
+% ch4 = ch4 - mean(ch3.*ch4)*ch4;
+% 
+% %% Pre-filtering
 f = freq_time(length(ch1), fs);
-% Filt = design_filter('butter', 5, 1.2*mpam.Rs/(fs/2)); % half of the sampling rate
+Filt = design_filter('butter', 5, 1.2*mpam.Rs/(fs/2)); % half of the sampling rate
 
-% ch1 = real(ifft(fft(ch1).*ifftshift(Filt.H(f/fs))));
-% ch2 = real(ifft(fft(ch2).*ifftshift(Filt.H(f/fs))));
-% ch3 = real(ifft(fft(ch3).*ifftshift(Filt.H(f/fs))));
-% ch4 = real(ifft(fft(ch4).*ifftshift(Filt.H(f/fs))));
+ch1 = real(ifft(fft(ch1).*ifftshift(Filt.H(f/fs))));
+ch2 = real(ifft(fft(ch2).*ifftshift(Filt.H(f/fs))));
+ch3 = real(ifft(fft(ch3).*ifftshift(Filt.H(f/fs))));
+ch4 = real(ifft(fft(ch4).*ifftshift(Filt.H(f/fs))));
 
-X = ch1 + 1j*ch2;
-Y = ch3 + 1j*ch4;
+% X = ch1 + 1j*ch2;
+% Y = ch3 + 1j*ch4;
 
-%% Convert to intensity
-Xrx = abs(X).^2 + abs(Y).^2; % Get intensity in X-pol
+% %% Convert to intensity
+% Xrx = abs(X).^2 + abs(Y).^2; % Get intensity in X-pol
+
+Xrx = ch1;
 
 %% Antialiasing filter and reduce noise
-Filt = design_filter('butter', 5, 0.7*mpam.Rs/(fs/2)); % half of the sampling rate
+Filt = design_filter('butter', 5, mpam.Rs/(fs/2)); % half of the sampling rate
 Xfilt = real(ifft(fft(Xrx).*ifftshift(Filt.H(f/fs))));
 
 %% Resample
 % Resample in order to have integer number of samples per symbol specified by ros
 [p, q] = rat(ros*mpam.Rs/fs);
 Xrx = resample(Xfilt, p, q); % resample to match symbol rate at the DAC
+% Xrx = resample_interp(Xfilt, fs, ros*mpam.Rs, 'linear');
 Xrx = Xrx - mean(Xrx);
 
 if strfind(dacfile, 'duobin') > -1       
@@ -97,8 +100,6 @@ if remapping
     warning('Received sequence is the opposite of what was expected. Try to bias the MZM at a differnt point')
 end
 
-% figure, plot(lags, c)
-
 Xrx = Xrx(pos(1):end);
 Npatterns = floor(length(Xrx)/length(xref));
 N = Npatterns*length(xref);
@@ -122,12 +123,13 @@ mpam = mpam.norm_levels();
 eq.ros = 2;
 [p, q] = rat(eq.ros/ros);
 yk = resample(yk, p, q); 
+% yk = resample_interp(yk, ros, eq.ros, 'linear');
 
 eq.type = 'Adaptive TD-LE';
-eq.Ntaps = 5;
+eq.Ntaps = 9;
 eq.mu = 1e-3;
-eq.Ntrain = Inf;
-eq.Ndiscard = [1.5e4 1024];
+eq.Ntrain = 1.5e4;
+eq.Ndiscard = [2e4 1024];
 
 if remapping 
     remap = [2 3 0 1];
@@ -215,6 +217,3 @@ if mpam.M == 4 && not((isfield(Dac, 'mpamdb')))
     axis([0 1 0 1])
     drawnow
 end
-    
-% S = comm.SymbolSynchronizer('TimingErrorDetector', 'Gardner (non-data-aided)', 'SamplesPerSymbol', 4);
-% yd = step(S, yk.');

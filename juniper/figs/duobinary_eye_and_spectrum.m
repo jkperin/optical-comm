@@ -56,15 +56,19 @@ xt = xt/sqrt(mean(abs(xt).^2));
 xxt = xxt/sqrt(mean(abs(xxt).^2));
 
 figure, hold on, box on
-plot(f/1e9, abs(fftshift(fft(xt))).^2, 'k')
+% plot(f/1e9, abs(fftshift(fft(xt))).^2, 'k')
+plot(f/1e9, 5e6*abs(sinc(f/28e9)).^2, 'r', 'LineWidth', 4)
+plot(f/1e9, 5e6*abs(sinc(f/14e9)).^2, 'k', 'LineWidth', 4)
 xlabel('Frequency (GHz)', 'FontSize', 18)
 ylabel('Power spectrum', 'FontSize', 18)
 set(gca, 'FontSize', 18)
 set(gca, 'ytick', [])
-axis([-30 30 0 12e6])
+axis([-30 30 0 5e6])
+legend('Ordinary 4-PAM', 'Duobinary 4-PAM')
 
 figure, hold on, box on
 plot(f/1e9, abs(fftshift(fft(xxt))).^2, 'k')
+plot(f/1e9, 5e6*abs(sinc(f/28e9)).^2, 'k', 'LineWidth', 4)
 xlabel('Frequency (GHz)', 'FontSize', 18)
 ylabel('Power spectrum', 'FontSize', 18)
 set(gca, 'FontSize', 18)

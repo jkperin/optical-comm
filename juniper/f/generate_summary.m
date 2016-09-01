@@ -11,30 +11,30 @@ Units = {'Gb/s'; ''; ''; ''; ''; ''};
 simTable = table(Variables, Values, Units, 'RowNames', rows)
 
 %% M-PAM
-mpam.summary();
+mpam.summary()
 
 %% Transmitter paramaters
 disp('Transmitter parameters summary')
 
 rows = {'TX DSP oversampling ratio'; 'DAC sampling ratio'; 'DAC effective resolution';... 
     'Modulator type'; 'Modulator bandwidth'; 'Modulator extinction ratio'; 'Modulator chirp parameter'};
-Variables = {'DAC.ros'; 'DAC.fs';'DAC.resolution'; 'Mod.type'; 'Mod.BW'; 'rexdB'; 'alpha'};
-Values = {Tx.DAC.ros; Tx.DAC.fs/1e9; Tx.DAC.resolution; Tx.Mod.type; Tx.Mod.BW/1e9; Tx.rexdB; Tx.alpha};
-Units = {''; 'GS/s';'bits'; ''; 'GHz'; 'dBm'; ''};
+Variables = {'DAC.ros'; 'DAC.fs';'DAC.resolution'; 'Mod.type'; 'Mod.BW'; 'rexdB'; 'Mod.alpha'};
+Values = {Tx.DAC.ros; Tx.DAC.fs/1e9; Tx.DAC.resolution; Tx.Mod.type; Tx.Mod.BW/1e9; Tx.rexdB; Tx.Mod.alpha};
+Units = {''; 'GS/s';'bits'; ''; 'GHz'; 'dB'; ''};
 
 txTable = table(Variables, Values, Units, 'RowNames', rows)
 
 %% Laser
-Tx.Laser.summary();
+Tx.Laser.summary()
 
 %% Fibers
 for k = 1:length(Fibers)
-    Fibers(k).summary(Tx.Laser.lambda);
+    Fibers(k).summary(Tx.Laser.lambda)
 end
 
 %% EDFA
 for k = 1:length(EDFA)
-    EDFA(1).summary();
+    EDFA(k).summary()
 end
 
 %% Receiver paramaters
@@ -51,7 +51,7 @@ Units = {''; 'W/Hz'; ''; 'GHz'; ''; ''; ''};
 rxTable = table(Variables, Values, Units, 'RowNames', rows)
 
 %% Photodiode
-Rx.PD.summary();
+Rx.PD.summary()
 
 %% ADC
 if isfield(Rx, 'ADC')

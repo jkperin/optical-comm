@@ -3,7 +3,7 @@
 
 This project contains codes for analysis, simulation, and experiments of 4-PAM, Duobinary 4-PAM, and OFDM/DMT for optical systems targeting data center applications up 80 km. 
 
-Many of the scripts/functions/classes in juniper/ depend on other functions/classes in the folders f/, mpam/, soa/, apd/, ofdm/, and ofdm/f/. Make sure that these folders are added to the path before running scripts.
+Many of the scripts/functions/classes in juniper/ depend on other functions/classes in the folders f/, mpam/, soa/, apd/, ofdm/, and ofdm/f/. Make sure that these folders are added to the path before running scripts and functions.
 
 ## juniper/ folders description
 - analysis: contains scripts to test ideas. Generally this simulations are overly simplified in order to better understand concepts.

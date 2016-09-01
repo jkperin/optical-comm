@@ -1,5 +1,12 @@
 clear, clc, close all
 
+addpath data/
+addpath f/ % Juniper project specific functions
+addpath ../mpam % PAM
+addpath ../f % general functions
+addpath ../soa % for pre-amplifier 
+addpath ../apd % for PIN photodetectors
+
 BERcount = [0.00296903292635433,0.00128878914044590,0.000608260295257176,0.000277029441404258,0.000106395365176998,4.01491944064142e-05,3.21193555251314e-05,1.20447583219243e-05,2.00745972032071e-06,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 BERgauss = [0.00112208819611600,0.000382424996883541,0.000121855212635715,3.14617713630098e-05,5.13373307478901e-06,5.89472770824903e-07,5.36743288428296e-08,1.88012047313734e-09,3.23540152342903e-11,2.86822278003616e-13,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 OSNRdB0ps = [24.9970979621932,25.9970979621932,26.9970979621933,27.9970979621933,28.9970979621933,29.9970979621933,30.9970979621932,31.9970979621933,32.9970979621934,33.9970979621934,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
@@ -18,7 +25,8 @@ OSNRdB200ps = [24.9970979621933,25.9970979621934,26.9970979621933,27.99709796219
 
 
 % figure(1), hold on
-load('PAM4_experiment_summary');
+load('PAM4_Oclaro_experiment_summary');
+% load('PAM4_experiment_summary');
 
 % plot(Experiment('PAM4_56G_BER_vs_OSNR_0km_set2').OSNRdB, log10(Experiment('PAM4_56G_BER_vs_OSNR_0km_set2').BER.count),...
 %     '-ok', 'LineWidth', 2, 'DisplayName', 'Experiment 2')
@@ -26,29 +34,41 @@ load('PAM4_experiment_summary');
 %     '-ok', 'LineWidth', 2, 'DisplayName', 'Experiment 3')
 % legend('-DynamicLegend')
 
+alpha = 0;
 OSNRdB = linspace(24, 40);
 ber = pam_ber_from_osnr(4, OSNRdB, 56e9/4);
 
-figure
-hline(1) = semilogy(OSNRdB0ps, BERcount, '-o', 'LineWidth', 4);
+[BER0km, OSNRdB0km] = pam_sim_fun(0, alpha, 9);
+figure(7)
+hline(1) = semilogy(OSNRdB0km, BER0km.count, '-o', 'LineWidth', 4);
 hold on
-hline(2) = semilogy(OSNRdB100ps, BERcount100ps, '-o', 'LineWidth', 4);
-hline(3) = semilogy(OSNRdB200ps, BERcount200ps, '-o', 'LineWidth', 4);
-
+[BER5km, OSNRdB5km] = pam_sim_fun(5, alpha, 9);
+figure(7)
+hline(2) = semilogy(OSNRdB5km, BER5km.count, '-o', 'LineWidth', 4);
+[BER10km, OSNRdB10km] = pam_sim_fun(10, alpha, 9);
+figure(7)
+hline(3) = semilogy(OSNRdB10km, BER10km.count, '-o', 'LineWidth', 4);
 semilogy(OSNRdB, ber, ':k', 'LineWidth', 4) 
 
 % semilogy(Experiment('PAM4_56G_BER_vs_OSNR_0km_set1').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_0km_set1').BER.count,...
 %     '-s', 'LineWidth', 4, 'Color', get(hline(1), 'Color'))
-semilogy(Experiment('PAM4_56G_BER_vs_OSNR_0km_set2').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_0km_set2').BER.count,...
+% semilogy(Experiment('PAM4_56G_BER_vs_OSNR_0km_set2').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_0km_set2').BER.count,...
+%     ':s', 'LineWidth', 4, 'Color', get(hline(1), 'Color'), 'MarkerFaceColor', get(hline(1), 'Color'))
+% semilogy(Experiment('PAM4_56G_BER_vs_OSNR_5km_set1').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_5km_set1').BER.count,...
+%     ':s', 'LineWidth', 4, 'Color', get(hline(2), 'Color'), 'MarkerFaceColor', get(hline(2), 'Color'))
+% semilogy(Experiment('PAM4_56G_BER_vs_OSNR_10km_set1').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_10km_set1').BER.count,...
+%     ':s', 'LineWidth', 4, 'Color', get(hline(3), 'Color'), 'MarkerFaceColor', get(hline(3), 'Color'))
+
+semilogy(Experiment('PAM4_56G_BER_vs_OSNR_0km_predist_set1').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_0km_predist_set1').BER.count,...
     ':s', 'LineWidth', 4, 'Color', get(hline(1), 'Color'), 'MarkerFaceColor', get(hline(1), 'Color'))
-semilogy(Experiment('PAM4_56G_BER_vs_OSNR_5km_set1').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_5km_set1').BER.count,...
+semilogy(Experiment('PAM4_56G_BER_vs_OSNR_5km_predist_set1').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_5km_predist_set1').BER.count,...
     ':s', 'LineWidth', 4, 'Color', get(hline(2), 'Color'), 'MarkerFaceColor', get(hline(2), 'Color'))
-semilogy(Experiment('PAM4_56G_BER_vs_OSNR_10km_set1').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_10km_set1').BER.count,...
+semilogy(Experiment('PAM4_56G_BER_vs_OSNR_10km_predist_set1').OSNRdB, Experiment('PAM4_56G_BER_vs_OSNR_10km_predist_set1').BER.count,...
     ':s', 'LineWidth', 4, 'Color', get(hline(3), 'Color'), 'MarkerFaceColor', get(hline(3), 'Color'))
 
 xlabel('OSNR (dB)', 'FontSize', 18)
 ylabel('BER', 'FontSize', 18)
-legend('0 ps/nm', '85 ps/nm', '170 ps/nm', 'AWGN limit')
+legend('0 km', '5 km', '10 km', 'AWGN limit')
 axis([26 38 1e-5 1e-1])
 set(gca, 'FontSize', 18)
 set(gca, 'ytick', [1e-5 1e-4 1e-3 1e-2 1e-1])
