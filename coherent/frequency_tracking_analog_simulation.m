@@ -7,10 +7,6 @@ addpath ../f/
 addpath ../apd/
 addpath ../soa/
 
-%% Simulation launched power swipe
-Tx.PlaunchdBm = -38:-28;
-Tx.PlaunchdBm = -27;
-
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
 sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
@@ -22,7 +18,6 @@ sim.Npol = 2;                                                              % num
 sim.Modulator = 'SiPhotonics';                                             % Modulator bandwidth limitation: {'MZM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
 sim.pulse_shape = select_pulse_shape('rect', sim.Mct);                     % pulse shape
 sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-QAM modulation format
-% sim.ModFormat = DPSK(4, sim.Rb/sim.Npol, sim.pulse_shape);                     % M-DPSK modulation format
 
 % Simulation control
 sim.RIN = true; 
@@ -33,16 +28,11 @@ sim.stopWhenBERreaches0 = true;                                            % whe
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 1; 
-Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
 Plots('Constellations') = 1;
-Plots('Diff group delay')       = 0;
-Plots('EPLL phase error') = 1;
-Plot('Feedforward phase recovery') = 1;
 Plots('Time recovery') = 0;
 Plots('Phase error variance') = 0;
-Plots('Symbol errors') = 0;
+Plots('Symbol errors') = 1;
 sim.Plots = Plots;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
@@ -63,7 +53,8 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1250e-9, 0, -150, 2000e3, 0);
+Tx.Laser = laser(1250e-9, 0, -150, 200e3, 0);
+Tx.PlaunchdBm = -20;
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -103,7 +94,16 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 15;                                                           % Total local oscillator power (dBm)
-Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
+
+% Frequency step
+% Tstep = sim.N/2; % frequency step begins
+% fstep = 0.5e9;
+% Rx.LO.freqOffset = [zeros(1, Tstep-1) fstep*ones(1, sim.N-Tstep+1)];    % Frequency shift with respect to transmitter laser in Hz
+
+% Frequency ramp
+Tramp = sim.N/4; % frequency ramp begins
+framp = 3e9; % frequency ramp slope in Hz/us
+Rx.LO.freqOffset = [zeros(1, Tramp-1) 1e6*framp*(0:sim.N-Tramp)/sim.fs];    % Frequency shift with respect to transmitter laser in Hz     
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -146,7 +146,7 @@ Analog.CarrierPhaseRecovery = 'EPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
 % '4th-power': based on raising signal to 4th power}
-Analog.CPRmethod = 'costas';                                            
+Analog.CPRmethod = 'logic';                                            
 
 % If componentFilter is empty, simulations assume ideal devices
 componentFilter = []; %design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
@@ -182,7 +182,7 @@ Analog.Comparator.filt = componentFilter;
 % Note: relaxation frequency is optimized at every iteration
 Analog.Kdc = 1;                                                            % DC gain
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 0;                                                          % Additional loop delay in s (not including group delay from filters)
+Analog.Delay = 0;                                                        % Additional loop delay in s (not including group delay from filters)
 
 %% Feedforward additional components
 Analog.Feedforward.freqDivDelay = 0;                                       % delay in samples
@@ -227,9 +227,5 @@ Rx.TimeRec.loopDelay = 10; % additional loop delay
 %% Generate summary
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
-%% Runs simulation
-if strcmpi(sim.ModFormat.type, 'DPSK')
-    berDPSK = ber_coherent_analog_dpsk(Tx, Fiber, Rx, sim);
-else % QPSK
-    berQAM = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim);
-end
+%% Hold in range
+frequency_tracking_coherent_analog_qpsk(Tx, Fiber, Rx, sim)
