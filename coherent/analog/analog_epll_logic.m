@@ -1,4 +1,4 @@
-function [Xs, Analog] = analog_epll_logic(Ys, totalLineWidth, Analog, sim, verbose)
+function [Xs, Analog, S, Sf] = analog_epll_logic(Ys, totalLineWidth, Analog, sim, verbose)
 %% Analog electric phase locked loop based on logic (xnor) operations
 % Inputs:
 % - Ys: received signal after filtering to remove noise

@@ -36,10 +36,10 @@ classdef laser
         function LaserTable = summary(self)
             %% Generate table summarizing class values
             disp('-- Laser class parameters summary:')
-            rows = {'Wavelength'; sprintf('Frequency offset from %.2f nm', self.lambda*1e9);...
+            rows = {'Wavelength'; sprintf('Maximum frequency offset from %.2f nm', self.lambda*1e9);...
                 'Power'; 'Relative intensity noise'; 'Linewidth'};
             Variables = {'lambda'; 'freqOffset'; 'PdBm'; 'RIN'; 'linewidth'};
-            Values = [self.lambda*1e9; self.freqOffset/1e9; self.PdBm; self.RIN; self.linewidth/1e3];
+            Values = [self.lambda*1e9; max(self.freqOffset)/1e9; self.PdBm; self.RIN; self.linewidth/1e3];
             Units = {'nm'; 'GHz'; 'dBm'; 'dB/Hz'; 'kHz'};
 
             LaserTable = table(Variables, Values, Units, 'RowNames', rows);
@@ -111,8 +111,12 @@ classdef laser
                 Eout = self.addPhaseNosie(Eout, sim.fs);
             end
             
-            if self.freqOffset ~= 0
-                Eout = freqshift(Eout, sim.t, self.freqOffset);
+            if length(self.freqOffset) == 1
+                if  self.freqOffset ~= 0
+                	Eout = Eout.*exp(1j*2*pi*self.freqOffset*sim.t);
+                end
+            else
+                Eout = Eout.*exp(1j*2*pi*self.freqOffset.*sim.t);
             end            
         end    
         

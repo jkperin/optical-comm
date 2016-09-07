@@ -1,4 +1,4 @@
-function [Xs, Analog] = analog_epll_4thpower(Ys, totalLineWidth, Analog, sim, verbose)
+function [Xs, Analog, S, Sf] = analog_epll_4thpower(Ys, totalLineWidth, Analog, sim, verbose)
 %% Analog electric phase locked loop via 4th power operation
 % Inputs:
 % - Ys: received signal after filtering to remove noise

@@ -12,10 +12,8 @@
 \usepackage{tikz}
 \usepackage{bm}
 
-\DeclareGraphicsExtensions{.eps,.pdf,.png}
+\DeclareGraphicsExtensions{.eps,.pdf,.png,.tikz}
 \graphicspath{{figs/}}
-
-
 
 \title{Coherent Detection Systems for Data Centers}
 
@@ -30,7 +28,7 @@
 \subsection{Intensity Noise}
 Intensity noise is modeled as an AWGN added to the optical power at the transmitter.
 
-The value of RIN is defined as the ratio between the noise power divide by the noise bandwidth and the signal power \cite{agilent-RIN-measurement}: 
+The value of the relative intensity noise (RIN) is defined as the ratio between the noise power divide by the noise bandwidth and the signal power \cite{agilent-RIN-measurement}: 
 \begin{equation}
 RIN = \frac{P_{noise}}{B_{noise}P_{signal}}
 \end{equation}
@@ -76,7 +74,7 @@ d_{12} = \frac{n_m-n_r}{c}
 where $n_r \approx 2.15$ is the refractive index of the coplanar waveguide for TM input light. If $n_m$ is only $95\%$ of $n_r$ a significant reduction in bandwidth may occur due to velocity mismatch \cite{Ho2005}.
 
 \subsubsection{Modulator limited by parasitics}
-Currently modeled as a second-order system with unit damping. This is based on the assumption that parasitics capacitances and inductances are the limiting factor in the bandwidth of these devices.
+This modulator is modeled as a critically damped second-order system. This is based on the assumption that parasitics capacitances and inductances are the limiting factor in the bandwidth of these devices.
 
 Second-order system with unit damping:
 \begin{equation}
@@ -106,6 +104,7 @@ For SMF28 the fiber dispersion is specified in terms of the zero-dispersion ($\l
 \begin{equation}
 D(\lambda) = \frac{S_0}{4}\bigg(\lambda - \frac{\lambda_0^4}{\lambda^3}\bigg), 1200~\text{nm} < \lambda < 1600~\text{nm}
 \end{equation}
+where $\lambda_0 = 1310$ nm and $S_0 = 0.092$ ps/nm.
 
 \subsection{Polarization-Mode Dispersion}
 Following \cite{Ip2008}
@@ -153,7 +152,7 @@ The received signal electric field $E_s(t)$ and the local oscillator electrical 
 E_s(t) &= \mathrm{Re}\Big\{\sqrt{2}|A_s(t)|\exp\Big(j(\omega_st + \phi_s(t) + \phi_{pn}(t))\Big)\Big\} \\
 E_{LO}(t) &= \mathrm{Re}\Big\{\sqrt{2}|A_{LO}(t)|\exp\Big(j(\omega_{LO}t + \phi_{LO}(t))\Big)\Big\}
 \end{align}
-where $|A_s(t)|$ and $|A_{LO}(t)|$ is the slow envelope of the signal and local oscillator electric field, respectively. The absolute value is just to indicate that this only accounts for the amplitude of the transmitted symbols. $\omega_s$ and $\omega_{LO}$ the carrier frequency of the signal and local oscillator electric field. $\phi_s(t)$ is the phase information. $\phi_{pn}(t)$ and $\phi_{LO}(t)$ are the phase noise components.
+where $|A_s(t)|$ and $|A_{LO}(t)|$ are the slow-varying envelope of the signal and local oscillator electric field, respectively. The absolute value is just to indicate that this only accounts for the amplitude of the transmitted symbols. $\omega_s$ and $\omega_{LO}$ the carrier frequency of the signal and local oscillator electric field. $\phi_s(t)$ is the phase information. $\phi_{pn}(t)$ and $\phi_{LO}(t)$ are the phase noise components.
 
 Hence, it follows that the baseband representation is 
 \begin{align}
@@ -259,7 +258,7 @@ Y &= |E_sE_{LO}|^2 = |(E_s + E_N)E_{LO}|^2 \\
 \end{align}
 
 
-\section{Digital signal processing based receiver}
+\section{Digital signal processing}
 
 \subsection{Fractionally spaced linear equalizer}
 
@@ -279,7 +278,7 @@ The equalizer output can be written as
 
 where $i = 1, \ldots, q$. We need a total of $q$ filters because in the case of non-interger oversampling ratio the samples do not align. For instance, If $r_{os} = 3/2$, we need two sets of filters, one for the odd samples and another for the even samples.
 
-This can be simplified if PMD is small so that 
+This can be simplified if DGD is small so that 
 
 \begin{align}
 \hat{x}_{1}[k] = w^{(i)}_{1}[k]\ast x_1[k] + w_{21}^{(i)}w^{(i)}_{2}[k]\ast x_2[k] \\
@@ -435,6 +434,7 @@ Pull-in Limits If the loop filter contains a perfect integrator, pull-in will be
 	\caption{\cite{Gardner}}
 \end{figure}
 
+There is some frequency-step limit below which the loop does not slip cycles but remains in lock; denote this limit as the \textbf{pullout frequency}
 
 \bibliographystyle{plain}
 \bibliography{bib}

@@ -141,6 +141,9 @@ classdef matlab2tikz < handle
                             p.color = self.colorPalletValues(self.colorCount+1, :)/255;
                             p.colorName = self.colorPalletNames{self.colorCount+1};
                             self.colorCount = mod(self.colorCount + 1, length(self.colorPalletNames));
+                        else % uses matlab's colors
+                            p.color = get(children(k), 'Color');
+                            p.colorName = ['matlabColor' num2str(k)];                            
                         end
                         self.plots = [self.plots; p];                    
                     end

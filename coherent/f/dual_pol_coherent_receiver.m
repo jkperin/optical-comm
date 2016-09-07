@@ -81,5 +81,3 @@ Y2qdet = sqrt(Enorm/mean(abs(Y2qdet).^2))*Y2qdet;
 
 % Form output
 Y = [Y1idet + 1j*Y1qdet; Y2idet + 1j*Y2qdet];
-
-% scatterplot(Y(1, :))

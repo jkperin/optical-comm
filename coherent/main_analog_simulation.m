@@ -9,7 +9,7 @@ addpath ../soa/
 
 %% Simulation launched power swipe
 Tx.PlaunchdBm = -38:-28;
-Tx.PlaunchdBm = -20;
+Tx.PlaunchdBm = -27;
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
@@ -36,9 +36,9 @@ Plots = containers.Map();                                                   % Li
 Plots('BER')                  = 1; 
 Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
-Plots('Constellations') = 0;
+Plots('Constellations') = 1;
 Plots('Diff group delay')       = 0;
-Plots('EPLL phase error') = 0;
+Plots('EPLL phase error') = 1;
 Plot('Feedforward phase recovery') = 1;
 Plots('Time recovery') = 0;
 Plots('Phase error variance') = 0;
@@ -63,7 +63,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1250e-9, 0, -150, 200e3, 0);
+Tx.Laser = laser(1250e-9, 0, -150, 2000e3, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -103,7 +103,7 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 15;                                                           % Total local oscillator power (dBm)
-Rx.LO.freqOffset = 1e9;                                                    % Frequency shift with respect to transmitter laser in Hz
+Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -142,10 +142,11 @@ Analog.filt = design_filter('butter', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 %% Carrier phase recovery and components
 % Carrier Phase recovery type: either 'OPLL' (not implemented), 'EPLL',
 % and 'Feedforward'
-Analog.CarrierPhaseRecovery = 'Feedforward';
+Analog.CarrierPhaseRecovery = 'EPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
-% requires multiplications, 'logic': EPLL based on XOR operations}
-Analog.CPRmethod = 'logic';                                            
+% requires multiplications, 'logic': EPLL based on XOR operations, 
+% '4th-power': based on raising signal to 4th power}
+Analog.CPRmethod = 'costas';                                            
 
 % If componentFilter is empty, simulations assume ideal devices
 componentFilter = []; %design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
