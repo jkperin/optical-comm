@@ -30,6 +30,8 @@ Vout(2, :)= real(ifft(fft(real(Vin(2, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(2,
 %% Swipe launched power
 % Transmitted power swipe
 ber.count = zeros(size(Tx.PlaunchdBm));
+M = ModFormat.M;
+Enorm = mean(abs(pammod(0:log2(M)-1, log2(M))).^2);
 for k = 1:length(Tx.PlaunchdBm)
     fprintf('-- Launch power: %.2f dBm\n', Tx.PlaunchdBm(k));
     Nvalid = 1; % when the window to measure BER starts
@@ -46,8 +48,16 @@ for k = 1:length(Tx.PlaunchdBm)
     Erec = Fiber.linear_propagation(Ein, sim.f, Tx.Laser.lambda);
     
     %% ========= Receiver =============
-    Yrx = dual_pol_coherent_receiver(Erec, sim.ModFormat.M, Rx, sim);
+    ELO = Rx.LO.cw(sim); % generates continuous-wave electric field in 1 pol with intensity and phase noise
+    ELO = [sqrt(1/2)*ELO;    % LO field in x polarization at PBS or BS input
+           sqrt(1/2)*ELO];    % LO field in y polarization at PBS or BS input
+    Yrx = dual_pol_coherent_receiver(Erec, ELO, Rx, sim);
     
+    %% Automatic gain control (AGC)
+    Yrx = [sqrt(Enorm./mean(abs(Yrx(1, :)).^2))*Yrx(1, :);...
+        sqrt(Enorm./mean(abs(Yrx(2, :)).^2))*Yrx(2, :)];
+    
+    %% Sampling    
     % Digital to analog conversion: antialiasing filter, sampling, and
     % quantization
     [Yxi, varQ(1)] = adc(real(Yrx(1, :)), Rx.ADC, sim);

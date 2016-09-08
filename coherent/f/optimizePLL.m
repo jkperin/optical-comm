@@ -1,5 +1,5 @@
-function [wnOpt, wn, phiError] = optimizePLL(csi, Kdc, Delay, linewidth, sim, verbose)
-%% Optimizes PLL relaxation frequency given csi (damping), Kdc (DC gain), Delay, linewidth for a target BER
+function [wnOpt, wn, phiError] = optimizePLL(csi, Delay, linewidth, sim, verbose)
+%% Optimizes PLL relaxation frequency given csi (damping), Delay, linewidth for a target BER
 
 Ts = 1/sim.Rs;
 M = sim.ModFormat.M;
@@ -16,7 +16,7 @@ GammaPN = zeros(size(wn));
 GammaAWGN = zeros(size(wn));
 phiError = zeros(size(wn));
 for k = 1:length(wn)
-    numFs = Kdc*[2*csi*wn(k) wn(k)^2];
+    numFs = [2*csi*wn(k) wn(k)^2];
     denFs = [1 0];
     
     Fw = polyval(numFs, 1j*w)./polyval(denFs, 1j*w);

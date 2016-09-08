@@ -53,20 +53,22 @@ xnorY1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
 xnorY2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
 
 % adder
-S1 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
+AdderXY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
 
 % Converts delay to number of samples in order to avoid interpolation
 additionalDelay = max(round(Analog.Delay*sim.fs), 1); % delay is at least one sample
 
 % Calculate group delay
 totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Four quadrant multiplier
-    + Comp1.groupDelay + xnorX1.groupDelay + xnorX2.groupDelay + S1.groupDelay... % phase estimation    
+    + Comp1.groupDelay + xnorX1.groupDelay + xnorX2.groupDelay + AdderXY.groupDelay... % phase estimation    
     + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
 
 % Optimize EPLL parameters
-Analog.wn = optimizePLL(Analog.csi, Analog.Kdc, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
-Analog.EPLL.nums = Analog.Kdc*[2*Analog.csi*Analog.wn Analog.wn^2];
+if not(isfield(Analog, 'wn')) % wn was not yet defined; calculate optimal wn
+    Analog.wn = optimizePLL(Analog.csi, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
+end
+Analog.EPLL.nums = [2*Analog.csi*Analog.wn Analog.wn^2];
 Analog.EPLL.dens = [1 0 0]; % descending powers of s
 [Analog.EPLL.numz, Analog.EPLL.denz] = impinvar(Analog.EPLL.nums, Analog.EPLL.dens, sim.fs);
 fprintf('Loop filter fn: %.3f GHz\n', Analog.wn/(2*pi*1e9));
@@ -109,8 +111,13 @@ for t = additionalDelay+1:length(sim.t)
 
     Sx = xnorX2.xnor(xnorX1.xnor(Xd(1, t), Xd(2, t)), CompX.compare(Xdabs(1), Xdabs(2)));
     Sy = xnorY2.xnor(xnorY1.xnor(Xd(3, t), Xd(4, t)), CompY.compare(Xdabs(3), Xdabs(4)));
-    S(t) = S1.add(Sx, Sy);
 
+    if Analog.CPRNpol == 2
+        S(t) = AdderXY.add(Sx, Sy); % loop filter input
+    else
+        S(t) = Sx; % loop filter input
+    end
+    
     % Loop filter
     Sf(t) = LoopFilter.filter(S(t)); 
 end

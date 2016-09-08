@@ -1,9 +1,17 @@
-function Y = dual_pol_coherent_receiver(Erec, M, Rx, sim)
+function Y = dual_pol_coherent_receiver(Erec, ELO, Rx, sim)
+%% Dual polarization coherent receiver: includes 90deg hybrid, 4 balanced photodiodes, transimpedance amplifier adding thermal noise, and coarse automatic gain control
+% Inputs:
+% - Erec: electric field of received signal [2 x N]
+% - ELO: electric field of local oscillator [2 x N]
+% - Rx: receiver parameters
+% - sim: simulation parameters
+% Note: if Erec and ELO are for [2 x 1] i.e., OPLL simulation, then this
+% function and subfunctions cannot performed filtering
+
+rPBS = 10^(Rx.PolSplit.Rext/10);              % extinction ratio of PBS
 
 E1rec = Erec(1,:);      % received signal in x pol.
 E2rec = Erec(2,:);      % received signal in y pol.
-
-rPBS = 10^(Rx.PolSplit.Rext/10);              % extinction ratio of PBS
 
 % split signal + ASE
 if strcmp(Rx.PolSplit.sig,'PBS')
@@ -14,11 +22,6 @@ if strcmp(Rx.PolSplit.sig,'PBS')
 elseif strcmp(Rx.PolSplit.sig,'3dB')
     [Es1, Es2] = powerSplitter(Erec, 0, 0.5, 0);
 end
-
-% Create LO field 
-ELO = Rx.LO.cw(sim); % generates continuous-wave electric field in 1 pol with intensity and phase noise
-ELO = [sqrt(1/2)*ELO;    % LO field in x polarization at PBS or BS input
-       sqrt(1/2)*ELO];    % LO field in y polarization at PBS or BS input
 
 % perform polarization splitting of LO (ignore phase shifts in beamsplitters, which don't affect performance)
 if strcmp(Rx.PolSplit.LO,'PBS')
@@ -68,16 +71,6 @@ Y1idet = Y1idet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y1idet));
 Y1qdet = Y1qdet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y1qdet));
 Y2idet = Y2idet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y2idet));
 Y2qdet = Y2qdet + sqrt(Rx.N0*sim.fs/2)*randn(size(Y2qdet));
-
-% Automatic gain control (AGC)
-% This is a course AGC to put input signal in the dynamic range of ADC.
-% Equalization filter should provide finer gain control so that QAM symbols
-% are at the expected points
-Enorm = mean(abs(pammod(0:log2(M)-1, log2(M))).^2);
-Y1idet = sqrt(Enorm/mean(abs(Y1idet).^2))*Y1idet;
-Y1qdet = sqrt(Enorm/mean(abs(Y1qdet).^2))*Y1qdet;
-Y2idet = sqrt(Enorm/mean(abs(Y2idet).^2))*Y2idet;
-Y2qdet = sqrt(Enorm/mean(abs(Y2qdet).^2))*Y2qdet;
 
 % Form output
 Y = [Y1idet + 1j*Y1qdet; Y2idet + 1j*Y2qdet];

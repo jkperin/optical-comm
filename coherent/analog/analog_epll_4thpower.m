@@ -55,8 +55,10 @@ totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Remove group delay of dow
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
 
 % Optimize EPLL parameters
-Analog.wn = optimizePLL(Analog.csi, Analog.Kdc, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
-Analog.EPLL.nums = Analog.Kdc*[2*Analog.csi*Analog.wn Analog.wn^2];
+if not(isfield(Analog, 'wn')) % wn was not yet defined; calculate optimal wn
+    Analog.wn = optimizePLL(Analog.csi, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
+end
+Analog.EPLL.nums = [2*Analog.csi*Analog.wn Analog.wn^2];
 Analog.EPLL.dens = [1 0 0]; % descending powers of s
 [Analog.EPLL.numz, Analog.EPLL.denz] = impinvar(Analog.EPLL.nums, Analog.EPLL.dens, sim.fs);
 fprintf('Loop filter fn: %.3f GHz\n', Analog.wn/(2*pi*1e9));

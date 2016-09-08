@@ -40,6 +40,8 @@ ber.theory = ber_coherent_awgn(Tx, Fiber, Rx, sim);
 % Transmitted power swipe
 ber.count = zeros(size(Tx.PlaunchdBm));
 validRange = sim.Ndiscard+1:sim.Nsymb-sim.Ndiscard;
+M = ModFormat.M;
+Enorm = mean(abs(pammod(0:log2(M)-1, log2(M))).^2);
 for k = 1:length(Tx.PlaunchdBm)
     fprintf('-- Launch power: %.2f dBm\n', Tx.PlaunchdBm(k));   
     
@@ -55,7 +57,10 @@ for k = 1:length(Tx.PlaunchdBm)
     Erec = Fiber.linear_propagation(Ein, sim.f, Tx.Laser.lambda);
 
     %% ========= Receiver =============
-    Y = dual_pol_coherent_receiver(Erec, sim.M, Rx, sim);
+    ELO = Rx.LO.cw(sim); % generates continuous-wave electric field in 1 pol with intensity and phase noise
+    ELO = [sqrt(1/2)*ELO;    % LO field in x polarization at PBS or BS input
+           sqrt(1/2)*ELO];    % LO field in y polarization at PBS or BS input
+    Y = dual_pol_coherent_receiver(Erec, ELO, Rx, sim);
         
     %% Matched filtering
     Hrx = ifftshift(conj(HrxPshape));
@@ -69,6 +74,12 @@ for k = 1:length(Tx.PlaunchdBm)
     Yxq = Yxq(1:sim.Mct:end);
     Yyi = Yyi(1:sim.Mct:end);
     Yyq = Yyq(1:sim.Mct:end);
+    
+    %% Automatic gain control (AGC)
+    Yxi = sqrt(Enorm./mean(abs(Yxi).^2))*Yxi;
+    Yxq = sqrt(Enorm./mean(abs(Yxq).^2))*Yxq;
+    Yyi = sqrt(Enorm./mean(abs(Yyi).^2))*Yyi;
+    Yyq = sqrt(Enorm./mean(abs(Yyq).^2))*Yyq;
     
     %% Equalization
     [Ydxi, eq] = equalize(eq, Yxi, HrxPshape, [], sim);

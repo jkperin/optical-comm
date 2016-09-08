@@ -1,4 +1,4 @@
-function ber = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim)
+function [ber, Analog] = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim)
 %% Calculate BER of DP-QPSK coherent system with analog-based receiver for values of launched power specified Tx.PlaunchdB
 %% Carrier phase recovery is done either with feedforward or EPLL with phase estimation done via electric PLL based on XOR operations
 
@@ -31,6 +31,8 @@ Vout(2, :)= real(ifft(fft(real(Vin(2, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(2,
 
 %% Swipe launched power
 ber.count = zeros(size(Tx.PlaunchdBm));
+M = Qpsk.M;
+Enorm = mean(abs(pammod(0:log2(M)-1, log2(M))).^2);
 for k = 1:length(Tx.PlaunchdBm)
     fprintf('-- Launch power: %.2f dBm\n', Tx.PlaunchdBm(k));
     
@@ -49,12 +51,19 @@ for k = 1:length(Tx.PlaunchdBm)
     Erec = Fiber.linear_propagation(Ein, sim.f, Tx.Laser.lambda);
     
     %% ========= Receiver =============
-    Yrx = dual_pol_coherent_receiver(Erec, Qpsk.M, Rx, sim);
-    
+    ELO = Rx.LO.cw(sim); % generates continuous-wave electric field in 1 pol with intensity and phase noise
+    ELO = [sqrt(1/2)*ELO;    % LO field in x polarization at PBS or BS input
+           sqrt(1/2)*ELO];    % LO field in y polarization at PBS or BS input
+    Yrx = dual_pol_coherent_receiver(Erec, ELO, Rx, sim);
+
     %% Receiver filter
     Hrx = ifftshift(Analog.filt.H(sim.f/sim.fs));
     Ys = [real(ifft(fft(real(Yrx(1, :))).*Hrx)) + 1j*real(ifft(fft(imag(Yrx(1, :))).*Hrx));...
           real(ifft(fft(real(Yrx(2, :))).*Hrx)) + 1j*real(ifft(fft(imag(Yrx(2, :))).*Hrx))];
+    
+    %% Automatic gain control (AGC)
+    Ys = [sqrt(Enorm./mean(abs(Ys(1, :)).^2))*Ys(1, :);...
+        sqrt(Enorm./mean(abs(Ys(2, :)).^2))*Ys(2, :)];
     
     %% Carrier phase recovery
     switch lower(Analog.CarrierPhaseRecovery)
@@ -71,10 +80,8 @@ for k = 1:length(Tx.PlaunchdBm)
             end
         case 'feedforward'
             [Xs, Analog] = analog_feedforward(Ys, Analog, sim, sim.shouldPlot('Feedforward phase recovery'));
-        case 'opll'
-            error('ber_coherent_analog_epll/OPLL not implemented yet.')
         otherwise
-            error('ber_coherent_analog_epll/invalid carrier phase recovery method %s\nAnalog.CarrierPhaseRecovery must be either EPLL, OPLL, or Feedforward\n',...
+            error('ber_coherent_analog_epll/invalid carrier phase recovery method %s\nAnalog.CarrierPhaseRecovery must be either EPLL, or Feedforward\n',...
                 Analog.CarrierPhaseRecovery)
     end
     
@@ -102,6 +109,11 @@ for k = 1:length(Tx.PlaunchdBm)
        
     % Rotate constellations
     X = [X(1, :).*exp(+1j*theta(1)); X(2, :).*exp(+1j*theta(2))];
+    
+    fprintf('> X pol signal was shifted by %d samples\n', ind(p(1)))
+    fprintf('> Y pol signal was shifted by %d samples\n', ind(p(2)))
+    fprintf('> X pol constellation was rotated by %.2f deg\n', rad2deg(theta(1)))
+    fprintf('> Y pol constellation was rotated by %.2f deg\n', rad2deg(theta(2)))
              
     %% Detection
     dataRX = Qpsk.demod(X);
