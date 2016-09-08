@@ -55,8 +55,10 @@ totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Four quadrant multiplier
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
 
 % Optimize EPLL parameters
-Analog.wn = optimizePLL(Analog.csi, Analog.Kdc, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
-Analog.EPLL.nums = Analog.Kdc*[2*Analog.csi*Analog.wn Analog.wn^2];
+if not(isfield(Analog, 'wn')) % wn was not yet defined; calculate optimal wn
+    Analog.wn = optimizePLL(Analog.csi, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
+end
+Analog.EPLL.nums = [2*Analog.csi*Analog.wn Analog.wn^2];
 Analog.EPLL.dens = [1 0 0]; % descending powers of s
 [Analog.EPLL.numz, Analog.EPLL.denz] = impinvar(Analog.EPLL.nums, Analog.EPLL.dens, sim.fs);
 fprintf('Loop filter fn: %.3f GHz\n', Analog.wn/(2*pi*1e9));
@@ -94,7 +96,12 @@ for t = additionalDelay+1:length(sim.t)
 
     Sx = AdderX.add(MixerIdQx.mix(Xd(1, t), X(2, t)), -MixerQdIx.mix(Xd(2, t), X(1, t)));
     Sy = AdderY.add(MixerIdQy.mix(Xd(3, t), X(4, t)), -MixerQdIy.mix(Xd(4, t), X(3, t)));
-    S(t) = AdderXY.add(Sx, Sy); % loop filter input
+
+    if Analog.CPRNpol == 2
+        S(t) = AdderXY.add(Sx, Sy); % loop filter input
+    else
+        S(t) = Sx; % loop filter input
+    end
 
     % Loop filter
     Sf(t) = LoopFilter.filter(S(t));  

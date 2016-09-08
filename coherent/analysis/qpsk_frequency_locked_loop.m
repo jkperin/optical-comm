@@ -68,8 +68,7 @@ Hfilt = design_filter('Bessel', 5, 20e9/(fs/2));
 % Loop filter
 csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
 wn = 2*pi*1e9;                                                    % relaxation frequency of second-order loop filter: optimized using optimize_PLL.m
-Kdc = 1;
-nums = Kdc*[2*csi*wn wn^2];
+nums = [2*csi*wn wn^2];
 dens = [1 0 0]; % descending powers of s
 % %
 % G = tf(nums, dens);

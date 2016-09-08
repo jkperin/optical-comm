@@ -208,7 +208,6 @@ Analog.Comparator.N0 = componentN0;
 Analog.Comparator.filt = componentFilter;
 
 % Loop filter
-Analog.Kdc = 1;                                                            % DC gain
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
 Analog.Delay = Delay;                                                      % Additional loop dealy
 

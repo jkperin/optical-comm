@@ -1,5 +1,11 @@
-%% Simulation of analog coherent detection system
-clear, clc
+function [BER, BERopt] = QPSK_Analog_Delay_Penalty_qsub(CPR, CPRmethod, linewidthKHz, loopBandWidthMHz)
+%% Calculate BER x Received power curves for given values of loop bandwidth and loop delay
+% - CPR: carrier phase recovery type: {'EPLL': electric PLL, 'OPLL':
+% optical PLL}
+% - ReceiverType: {'logic': based on XOR operations, 'costas': based on 
+% Costas loop, which requries multipliers}
+% - linewidthKHz: laser linewidth in kHz
+% - loopBandWidthGHz: loop filter bandwidth in GHz
 
 addpath f/
 addpath analog/
@@ -7,11 +13,34 @@ addpath ../f/
 addpath ../apd/
 addpath ../soa/
 
+% convert inputs to double (on cluster inputs are passed as strings)
+if ~all(isnumeric([linewidthKHz loopBandWidthMHz]))
+    linewidth = 1e3*str2double(linewidthKHz);
+    loopBandwidth = 1e6*str2double(loopBandWidthMHz);
+end
+
+PlaunchdBm = -38:-10;
+Delayps = 0:50:400;
+parfor k = 1:length(Delayps)
+    BER{k} = iterate(CPR, CPRmethod, PlaunchdBm, linewidth, loopBandwidth, 1e-12*Delayps(k));
+    [BERopt{k}, loopBandwidthOpt(k)] = iterate(CPR, CPRmethod, PlaunchdBm, linewidth, [], 1e-12*Delayps(k)); % BER vs received power for optimal loop bandwidth
+end
+
+% Sava data
+filename = sprintf('results/QPSK_Analog_Delay_Penalty_%s_%s_linewidth=%skHz_loopBandwidthMHz=%s',...
+        upper(CPR), CPRmethod, linewidthKHz, loopBandWidthMHz)
+save(filename)
+end
+
+function [berQAM, loopBandwidth] = iterate(CPR, CPRmethod, PlaunchdBm, linewidth, loopBandwidth, delay)
+%% Simulation launched power swipe
+Tx.PlaunchdBm = PlaunchdBm;
+
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^11; % Number of symbols in montecarlo simulation
 sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 256; % number of symbols to be discarded from the begining and end of the sequence 
+sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
 sim.Npol = 2;                                                              % number of polarizations
@@ -22,17 +51,17 @@ sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-Q
 % Simulation control
 sim.RIN = true; 
 sim.PMD = false;
-sim.phase_noise = ~true;
+sim.phase_noise = true;
 sim.preAmp = false;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('Channel frequency response') = 0;
+Plots('BER')                  = 1; 
 Plots('Constellations') = 1;
-Plots('Time recovery') = 0;
+Plots('Phase error') = 0;
 Plots('Phase error variance') = 0;
-Plots('Symbol errors') = 1;
+Plots('Symbol errors') = 0;
 sim.Plots = Plots;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
@@ -53,8 +82,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1250e-9, 0, -150, 200e3, 0);
-Tx.PlaunchdBm = -20;
+Tx.Laser = laser(1310e-9, 0, -150, linewidth, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -94,16 +122,8 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 15;                                                           % Total local oscillator power (dBm)
-
-% Frequency step
-% Tstep = sim.N/2; % frequency step begins
-% fstep = 0.5e9;
-% Rx.LO.freqOffset = [zeros(1, Tstep-1) fstep*ones(1, sim.N-Tstep+1)];    % Frequency shift with respect to transmitter laser in Hz
-
-% Frequency ramp
-Tramp = sim.N/4; % frequency ramp begins
-framp = 3e9; % frequency ramp slope in Hz/us
-Rx.LO.freqOffset = [zeros(1, Tramp-1) 1e6*framp*(0:sim.N-Tramp)/sim.fs];    % Frequency shift with respect to transmitter laser in Hz     
+Rx.LO.freqOffset = 0e9;                                                    % Frequency shift with respect to transmitter laser in Hz
+Rx.LOFMgroupDelayps = 0;                                                   % Laser FM response group delay in ps
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -140,13 +160,13 @@ Rx.N0 = (30e-12)^2;                                                        % One
 Analog.filt = design_filter('butter', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 
 %% Carrier phase recovery and components
-% Carrier Phase recovery type: either 'OPLL' (not implemented), 'EPLL',
-% and 'Feedforward'
-Analog.CarrierPhaseRecovery = 'EPLL';
+% Carrier Phase recovery type: either 'OPLL' or 'EPLL'
+Analog.CPRNpol = 2; % Number of polarizations used in CPR
+Analog.CarrierPhaseRecovery = CPR;
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
-% '4th-power': based on raising signal to 4th power}
-Analog.CPRmethod = 'logic';                                            
+% '4th-power': based on raising signal to 4th power (only for EPLL)}
+Analog.CPRmethod = CPRmethod;                                            
 
 % If componentFilter is empty, simulations assume ideal devices
 componentFilter = []; %design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
@@ -181,26 +201,19 @@ Analog.Comparator.filt = componentFilter;
 %% PLL loop filter parameters.
 % Note: relaxation frequency is optimized at every iteration
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 0;                                                        % Additional loop delay in s (not including group delay from filters)
-
-%% Feedforward additional components
-Analog.Feedforward.freqDivDelay = 0;                                       % delay in samples
-Analog.Feedforward.FreqDiv1.Mixer.filt = [];
-Analog.Feedforward.FreqDiv1.Mixer.N0 = 0;
-Analog.Feedforward.FreqDiv2.Mixer.filt = [];
-Analog.Feedforward.FreqDiv2.Mixer.N0 = 0;
-
-Analog.Feedforward.LPF.filt = design_filter('bessel', 5, 5e9/(sim.fs/2));
-Analog.Feedforward.FreqDiv1.filt = design_filter('bessel', 5, 2e9/(sim.fs/2));
-Analog.Feedforward.FreqDiv2.filt = design_filter('bessel', 5, 1e9/(sim.fs/2));
+Analog.Delay = delay;                                                       % Additional loop delay in s (not including group delay from filters)
+if not(isempty(loopBandwidth))
+    fprintf('> Loop bandwidth assigned to %.2f GHz\n', loopBandwidth/1e9);
+    Analog.wn = 2*pi*loopBandwidth;
+end
 
 Rx.Analog = Analog;
 
 %% ========================= Time recovery ================================
 % Two types are supported: 'spectral-line'
 % Spectral line method: nonlinearity (squarer) -> BPF or PLL
-Rx.TimeRec.type = 'spectral-line-bpf';
-Rx.TimeRec.type = 'spectral-line-pll';
+%     Rx.TimeRec.type = 'spectral-line-bpf';
+%     Rx.TimeRec.type = 'spectral-line-pll';
 Rx.TimeRec.type = 'none';
 Rx.TimeRec.Mct = 30; % oversampling ratio of continuous time used in TimeRecovery
 Rx.TimeRec.fs = Rx.TimeRec.Mct*sim.ModFormat.Rs;
@@ -222,9 +235,16 @@ Rx.TimeRec.wn = 2*pi*1e9; % relaxation frequency of PLL
 Rx.TimeRec.CT2DT = 'bilinear'; % continuous-time to discrete-time conversion method 
 Rx.TimeRec.mixerFilt = []; % design_filter('butter', 5, (sim.ModFormat.Rs)/(Rx.TimeRec.fs/2)); % filtering operation performed before and after squaring
 Rx.TimeRec.loopDelay = 10; % additional loop delay
-    
+
 %% Generate summary
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
-%% Hold in range
-frequency_tracking_coherent_analog_qpsk(Tx, Fiber, Rx, sim)
+%% Runs simulation
+if strcmpi(Analog.CarrierPhaseRecovery, 'OPLL')
+    [berQAM, Analog] = ber_coherent_analog_opll_qpsk(Tx, Fiber, Rx, sim);
+else
+    [berQAM, Analog] = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim);
+end
+
+loopBandwidth = Analog.wn/(2*pi);
+end

@@ -40,7 +40,10 @@ Fiber.PMD = false;
 Erec = Fiber.linear_propagation(Ein, sim.f, Tx.Laser.lambda);
 
 %% ========= Receiver =============
-Yrx = dual_pol_coherent_receiver(Erec, Qpsk.M, Rx, sim);
+ELO = Rx.LO.cw(sim); % generates continuous-wave electric field in 1 pol with intensity and phase noise
+ELO = [sqrt(1/2)*ELO;    % LO field in x polarization at PBS or BS input
+       sqrt(1/2)*ELO];    % LO field in y polarization at PBS or BS input
+Yrx = dual_pol_coherent_receiver(Erec, ELO, Rx, sim);
 
 %% Receiver filter
 Hrx = ifftshift(Analog.filt.H(sim.f/sim.fs));

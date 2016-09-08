@@ -5,7 +5,6 @@ sim.Plots = containers.Map();
 sim.Plots('Phase error variance') = 0;
 
 csi = sqrt(2)/2;
-Kdc = 1;
 Delays = [0, 250, 500, 750]*1e-12; 
 linewidth = 2*200e3;
 
@@ -17,7 +16,7 @@ sim.ModFormat = 'QAM';
 
 figure, hold on, box on
 for k = 1:length(Delays)
-    [wnOpt, wn, phiError] = optimizePLL(csi, Kdc, Delays(k), linewidth, sim);
+    [wnOpt, wn, phiError] = optimizePLL(csi, Delays(k), linewidth, sim);
     
     h(k) = plot(wn/1e9, phiError, 'LineWidth', 2);
     plot(wnOpt/1e9, min(phiError), 'o', 'Color', get(h(k), 'Color'), 'MarkerFaceColor', 'w', 'LineWidth', 2)
