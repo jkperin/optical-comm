@@ -4,5 +4,6 @@ function SNRdB = SNRreq(BER, M, format)
 [SNRdB, ~, exitflag] = fzero(@(X) log10(berawgn(X - 10*log10(log2(M)), lower(format), M)) - log10(BER), 10);
 
 if exitflag ~= 1
-    error('SNRreq/could not find SNR to achieve target BER')
+    warning('SNRreq: could not find SNR to achieve target BER')
+    SNRdB = NaN;
 end

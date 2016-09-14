@@ -64,4 +64,50 @@ qsub -v fiberLength="10",Modulator="SiPhotonics",ModBW="40",EqNtaps="3",CPRAlgor
 
 
 ########## Analog
-qsub -v fiberLengthKm="0", CPR="costas", TimeRec="none", ModBWGHz="40",linewidthKHz="200",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="0",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="200",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="400",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="600",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="800",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1000",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1200",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1400",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1600",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1800",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='1',fiberLengthKm="0",linewidthKHz="2000",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="0",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="200",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="400",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="600",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="800",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1000",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1200",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1400",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1600",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1800",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol='2',fiberLengthKm="0",linewidthKHz="2000",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="0",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="200",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="400",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="600",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="800",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1000",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1200",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1400",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1600",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="1800",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='1',fiberLengthKm="0",linewidthKHz="2000",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="0",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="200",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="400",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="600",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="800",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1000",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1200",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1400",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1600",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="1800",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol='2',fiberLengthKm="0",linewidthKHz="2000",ideal="1",Delayps="0" qpsk_analog_ber_qsub.sh

@@ -19,7 +19,7 @@ if ~all(isnumeric([linewidthKHz loopBandWidthMHz]))
     loopBandwidth = 1e6*str2double(loopBandWidthMHz);
 end
 
-PlaunchdBm = -38:-10;
+PlaunchdBm = -38:-18;
 Delayps = 0:50:400;
 parfor k = 1:length(Delayps)
     BER{k} = iterate(CPR, CPRmethod, PlaunchdBm, linewidth, loopBandwidth, 1e-12*Delayps(k));
@@ -27,8 +27,10 @@ parfor k = 1:length(Delayps)
 end
 
 % Sava data
-filename = sprintf('results/QPSK_Analog_Delay_Penalty_%s_%s_linewidth=%skHz_loopBandwidthMHz=%s',...
+filename = sprintf('results/QPSK_Analog_Delay_Penalty_%s_%s_linewidth=%skHz_loopBandwidthMHz=%s.mat',...
         upper(CPR), CPRmethod, linewidthKHz, loopBandWidthMHz)
+    
+filename = check_filename(filename);    
 save(filename)
 end
 
@@ -51,14 +53,14 @@ sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-Q
 % Simulation control
 sim.RIN = true; 
 sim.PMD = false;
-sim.phase_noise = true;
+sim.phase_noise = (linewidth ~= 0);
 sim.preAmp = false;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 1; 
-Plots('Constellations') = 1;
+Plots('BER')                  = 0; 
+Plots('Constellations') = 0;
 Plots('Phase error') = 0;
 Plots('Phase error variance') = 0;
 Plots('Symbol errors') = 0;

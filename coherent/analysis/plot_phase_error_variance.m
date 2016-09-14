@@ -1,6 +1,8 @@
 %% plot phase error vs loop filter relaxation frequency for various loop delays
 clear, clc, close all
 
+addpath ../../f/
+
 sim.Plots = containers.Map(); 
 sim.Plots('Phase error variance') = 0;
 
@@ -9,10 +11,9 @@ Delays = [0, 250, 500, 750]*1e-12;
 linewidth = 2*200e3;
 
 sim.Rb = 2*112e9;
-sim.M = 4;
-sim.Rs = sim.Rb/(2*log2(sim.M));
+sim.ModFormat = QAM(4, sim.Rb/2);
+sim.Rs = sim.ModFormat.Rs; %sim.Rb/(2*log2(sim.M));
 sim.BERtarget = 1.8e-4;
-sim.ModFormat = 'QAM';
 
 figure, hold on, box on
 for k = 1:length(Delays)

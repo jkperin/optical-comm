@@ -1,4 +1,4 @@
-function [ber, Analog] = ber_coherent_analog_opll_qpsk(Tx, Fiber, Rx, sim)
+function [ber, Analog, S, Sf] = ber_coherent_analog_opll_qpsk(Tx, Fiber, Rx, sim)
 %% Calculate BER of DP-QPSK coherent system with analog-based receiver for values of launched power specified Tx.PlaunchdB
 %% Carrier phase recovery is done either with feedforward or EPLL with phase estimation done via electric PLL based on XOR operations
 
@@ -10,7 +10,7 @@ assert(strcmpi(class(Qpsk), 'QAM') && Qpsk.M == 4, 'ber_coherent_analog: Modulat
 
 % Converts delay to number of samples in order to avoid interpolation
 additionalDelay = max(round(Analog.Delay*sim.fs), 1); % delay is at least one sample
-LOFMgroupDelay = round(Rx.LOFMgroupDelayps*sim.fs);
+LOFMgroupDelay = round(Rx.LOFMgroupDelayps/1e12*sim.fs);
 
 % Create components
 % Receiver filter
@@ -38,12 +38,12 @@ switch lower(Analog.CPRmethod)
         AdderX = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
         AdderY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
         
-        % Calculate group delay
-        totalGroupDelay = LOFMgroupDelay... % Laser FM response delay
-            + ReceiverFilterXI.groupDelay... % Receiver filter
+        % Calculate group delay in s
+        totalGroupDelay = LOFMgroupDelay/sim.fs... % Laser FM response delay
+            + ReceiverFilterXI.groupDelay/sim.fs... % Receiver filter
             + Comp1.groupDelay + MixerIdQx.groupDelay + AdderX.groupDelay + AdderXY.groupDelay... % phase estimation    
-            + additionalDelay; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
-        fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay/sim.fs*1e12, totalGroupDelay*sim.Rb/sim.fs, ceil(totalGroupDelay));       
+            + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
+        fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));       
     case 'logic'
         % Full wave rectifiers (absolute operation)
         abs1 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
@@ -61,12 +61,12 @@ switch lower(Analog.CPRmethod)
         xnorY1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
         xnorY2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
         
-        % Calculate group delay
-        totalGroupDelay = LOFMgroupDelay... % Laser FM response delay
-            + ReceiverFilterXI.groupDelay... % Receiver filter
+        % Calculate group delay in s
+        totalGroupDelay = LOFMgroupDelay/sim.fs... % Laser FM response delay
+            + ReceiverFilterXI.groupDelay/sim.fs... % Receiver filter
             + Comp1.groupDelay + xnorX1.groupDelay + xnorX2.groupDelay + AdderXY.groupDelay... % phase estimation    
-            + additionalDelay; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
-        fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay/sim.fs*1e12, totalGroupDelay*sim.Rb/sim.fs, ceil(totalGroupDelay));
+            + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
+        fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
     otherwise
         error('ber_coherent_analog_opll_qpsk: invalid carrier phase recovery method. Analog.CPRmethod must be either Costas or Logic')
 end
@@ -107,6 +107,7 @@ Vout(2, :)= real(ifft(fft(real(Vin(2, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(2,
 
 %% Swipe launched power
 ber.count = zeros(size(Tx.PlaunchdBm));
+counter = 1;
 for k = 1:length(Tx.PlaunchdBm)
     fprintf('-- Launch power: %.2f dBm\n', Tx.PlaunchdBm(k));
     
@@ -138,9 +139,9 @@ for k = 1:length(Tx.PlaunchdBm)
     M = Qpsk.M;
     Enorm = mean(abs(pammod(0:log2(M)-1, log2(M))).^2);
     Px = zeros(4, 1);
-    for t = additionalDelay+1:size(Erec, 2)
+    for t = LOFMgroupDelay+additionalDelay+1:size(Erec, 2)
         % Ajust LO phase
-        ELO(:, t) = ELO(:, t).*exp(1j*Sf(t-additionalDelay-LOFMgroupDelay));
+        ELO(:, t) = ELO(:, t).*exp(-1j*Sf(t-additionalDelay-LOFMgroupDelay));
         
         % Coherent detection
         Yrx(:, t) = dual_pol_coherent_receiver(Erec(:, t), ELO(:, t), Rx, sim);
@@ -191,33 +192,32 @@ for k = 1:length(Tx.PlaunchdBm)
     X(4, :) = real(ifft(fft(X(4, :)).*Hdelay ));
     
     % Build output
-    Xs = [X(1, :) + 1j*X(2, :); X(3, :) + 1j*X(4, :)];   
+    Xt = [X(1, :) + 1j*X(2, :); X(3, :) + 1j*X(4, :)];   
     
     %% Time recovery and sampling
     % Note: clock obtained from I is used in Q in order to prevent
     % differences in sampling between I and Q
-    X = []; % clear X
-    [X(1, :), ~, Nsetup] = analog_time_recovery(Xs(1, :), Rx.TimeRec, sim, sim.shouldPlot('Time recovery'));
-    X(2, :) = analog_time_recovery(Xs(2, :), Rx.TimeRec, sim);
+    [Xk(1, :), ~, Nsetup] = analog_time_recovery(Xt(1, :), Rx.TimeRec, sim, sim.shouldPlot('Time recovery'));
+    Xk(2, :) = analog_time_recovery(Xt(2, :), Rx.TimeRec, sim);
        
     % Automatic gain control
-    X = [sqrt(2/mean(abs(X(1, :)).^2))*X(1, :);
-         sqrt(2/mean(abs(X(2, :)).^2))*X(2, :)];
+    Xk = [sqrt(2/mean(abs(Xk(1, :)).^2))*Xk(1, :);
+         sqrt(2/mean(abs(Xk(2, :)).^2))*Xk(2, :)];
     
     %% Align received sequence and correct for phase rotation
-    [c(1, :), ind] = xcorr(symbolsTX(1, :), X(1, :), 20, 'coeff');
-    c(2, :) = xcorr(symbolsTX(2, :), X(2, :), 20, 'coeff');
+    [c(1, :), ind] = xcorr(symbolsTX(1, :), Xk(1, :), 20, 'coeff');
+    c(2, :) = xcorr(symbolsTX(2, :), Xk(2, :), 20, 'coeff');
        
     % maximum correlation position
     [~, p] = max(abs(c), [], 2);
     theta = [angle(c(1, p(1))), angle(c(2, p(2)))];
     
     % Circularly shift symbol sequence
-    X = [circshift(X(1, :), [0 ind(p(1))]);...
-        circshift(X(2, :), [0 ind(p(2))])];
+    Xk = [circshift(Xk(1, :), [0 ind(p(1))]);...
+        circshift(Xk(2, :), [0 ind(p(2))])];
        
     % Rotate constellations
-    X = [X(1, :).*exp(+1j*theta(1)); X(2, :).*exp(+1j*theta(2))];
+    Xk = [Xk(1, :).*exp(+1j*theta(1)); Xk(2, :).*exp(+1j*theta(2))];
            
     fprintf('> X pol signal was shifted by %d samples\n', ind(p(1)))
     fprintf('> Y pol signal was shifted by %d samples\n', ind(p(2)))
@@ -225,7 +225,7 @@ for k = 1:length(Tx.PlaunchdBm)
     fprintf('> Y pol constellation was rotated by %.2f deg\n', rad2deg(theta(2)))
     
     %% Detection
-    dataRX = Qpsk.demod(X);
+    dataRX = Qpsk.demod(Xk);
     
     % Valid range for BER measurement
     validInd = sim.Ndiscard+Nsetup(1)+1:sim.Nsymb-sim.Ndiscard-Nsetup(2);
@@ -237,13 +237,13 @@ for k = 1:length(Tx.PlaunchdBm)
     
    % Constellation plots
    if sim.shouldPlot('Constellations')
-       figure(203), clf
+       figure(203), clf 
        subplot(121)
-       plot_constellation(X(1, validInd), dataTX(1, validInd), Qpsk.M);
+       plot_constellation(Xk(1, validInd), dataTX(1, validInd), Qpsk.M);
        axis square
-       title('Pol X')       
+       title('Pol X') 
        subplot(122)
-       plot_constellation(X(2, validInd), dataTX(2, validInd), Qpsk.M);
+       plot_constellation(Xk(2, validInd), dataTX(2, validInd), Qpsk.M);
        axis square
        title('Pol Y')   
        drawnow
@@ -264,6 +264,14 @@ for k = 1:length(Tx.PlaunchdBm)
    if sim.stopWhenBERreaches0 && ber.count(k) == 0
        break
    end
+   
+   % Stop simulation when counted BER stays above 0.3 for 3 times
+   if ber.count(k) >= 0.3       
+       if counter == 3
+           break;
+       end
+       counter = counter + 1;
+   end          
 end
 
 plots
@@ -281,7 +289,7 @@ if sim.shouldPlot('BER') && length(ber.count) > 1
     axis([Prx(1) Prx(end) -8 0])
 end
 
- % Phase error plot -------------------------------------------------------
+%% Phase error plot
 if sim.shouldPlot('Phase error')
     figure(404), clf
     subplot(211), hold on, box on
