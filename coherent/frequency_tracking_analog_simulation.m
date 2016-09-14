@@ -8,10 +8,10 @@ addpath ../apd/
 addpath ../soa/
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
 sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 256; % number of symbols to be discarded from the begining and end of the sequence 
+sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
 sim.Npol = 2;                                                              % number of polarizations
@@ -94,16 +94,17 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 15;                                                           % Total local oscillator power (dBm)
+Rx.LOFMgroupDelayps = 0;                                                   % group delay of laser FM response in ps
 
 % Frequency step
-% Tstep = sim.N/2; % frequency step begins
-% fstep = 0.5e9;
-% Rx.LO.freqOffset = [zeros(1, Tstep-1) fstep*ones(1, sim.N-Tstep+1)];    % Frequency shift with respect to transmitter laser in Hz
+Tstep = sim.N/4; % frequency step begins
+fstep = 0.1e9;
+Rx.LO.freqOffset = [zeros(1, Tstep-1) fstep*ones(1, sim.N-Tstep+1)];    % Frequency shift with respect to transmitter laser in Hz
 
 % Frequency ramp
-Tramp = sim.N/4; % frequency ramp begins
-framp = 3e9; % frequency ramp slope in Hz/us
-Rx.LO.freqOffset = [zeros(1, Tramp-1) 1e6*framp*(0:sim.N-Tramp)/sim.fs];    % Frequency shift with respect to transmitter laser in Hz     
+% Tramp = sim.N/4; % frequency ramp begins
+% framp = 3e9; % frequency ramp slope in Hz/us
+% Rx.LO.freqOffset = [zeros(1, Tramp-1) 1e6*framp*(0:sim.N-Tramp)/sim.fs];    % Frequency shift with respect to transmitter laser in Hz     
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -140,13 +141,14 @@ Rx.N0 = (30e-12)^2;                                                        % One
 Analog.filt = design_filter('butter', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 
 %% Carrier phase recovery and components
+Analog.CPRNpol = 2; % number of polarizations used in CPR
 % Carrier Phase recovery type: either 'OPLL' (not implemented), 'EPLL',
 % and 'Feedforward'
-Analog.CarrierPhaseRecovery = 'EPLL';
+Analog.CarrierPhaseRecovery = 'OPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
 % '4th-power': based on raising signal to 4th power}
-Analog.CPRmethod = 'logic';                                            
+Analog.CPRmethod = 'costas';                                            
 
 % If componentFilter is empty, simulations assume ideal devices
 componentFilter = []; %design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
@@ -199,8 +201,8 @@ Rx.Analog = Analog;
 %% ========================= Time recovery ================================
 % Two types are supported: 'spectral-line'
 % Spectral line method: nonlinearity (squarer) -> BPF or PLL
-Rx.TimeRec.type = 'spectral-line-bpf';
-Rx.TimeRec.type = 'spectral-line-pll';
+% Rx.TimeRec.type = 'spectral-line-bpf';
+% Rx.TimeRec.type = 'spectral-line-pll';
 Rx.TimeRec.type = 'none';
 Rx.TimeRec.Mct = 30; % oversampling ratio of continuous time used in TimeRecovery
 Rx.TimeRec.fs = Rx.TimeRec.Mct*sim.ModFormat.Rs;
@@ -227,4 +229,25 @@ Rx.TimeRec.loopDelay = 10; % additional loop delay
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
 %% Hold in range
-frequency_tracking_coherent_analog_qpsk(Tx, Fiber, Rx, sim)
+[ber, Analog, S, Sf] = ber_coherent_analog_opll_qpsk(Tx, Fiber, Rx, sim);
+
+dt = sim.t(2) - sim.t(1);
+Ntaps = 101;
+Sffilt = filtfilt(ones(1, Ntaps)/Ntaps, 1, Sf); 
+figure(10), box on, hold on
+plot(sim.t*1e9, Rx.LO.freqOffset/1e6, 'k')
+plot(sim.t*1e9, diff([Sffilt Sffilt(end)])/(2*pi*dt*1e6))
+xlabel('Time (ns)')
+ylabel('Frequency (MHz)')
+legend('LO Frequency', sprintf('VCO: PD = %s', Analog.CPRmethod), 'Location', 'SouthEast')
+title('Frequency tracking')
+axis tight
+
+figure(11), box on, hold on
+plot(sim.t*1e9, cumtrapz(sim.t, Rx.LO.freqOffset), 'k')
+plot(sim.t*1e9, Sffilt)
+xlabel('Time (ns)')
+ylabel('Phase (rad/s)')
+legend('LO phase', sprintf('VCO: PD = %s', Analog.CPRmethod), 'Location', 'SouthEast')
+title('Phase tracking tracking')
+axis tight

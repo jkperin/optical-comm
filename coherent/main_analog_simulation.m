@@ -9,10 +9,10 @@ addpath ../soa/
 
 %% Simulation launched power swipe
 Tx.PlaunchdBm = -38:-28;
-Tx.PlaunchdBm = -27;
+Tx.PlaunchdBm = -30;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
 sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
@@ -41,7 +41,7 @@ Plots('Diff group delay')       = 0;
 Plots('Phase error') = 1;
 Plots('Feedforward phase recovery') = 1;
 Plots('Time recovery') = 0;
-Plots('Phase error variance') = 0;
+Plots('Phase error variance') = 1;
 Plots('Symbol errors') = 0;
 sim.Plots = Plots;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
@@ -143,7 +143,7 @@ Analog.filt = design_filter('butter', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 %% Carrier phase recovery and components
 % Carrier Phase recovery type: either 'OPLL', 'EPLL', and 'Feedforward'
 Analog.CPRNpol = 2; % Number of polarizations used in CPR
-Analog.CarrierPhaseRecovery = 'EPLL';
+Analog.CarrierPhaseRecovery = 'OPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
 % '4th-power': based on raising signal to 4th power (only for EPLL)}
@@ -182,7 +182,8 @@ Analog.Comparator.filt = componentFilter;
 %% PLL loop filter parameters.
 % Note: relaxation frequency is optimized at every iteration
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 0;                                                          % Additional loop delay in s (not including group delay from filters)
+Analog.Delay = 750e-12;                                                          % Additional loop delay in s (not including group delay from filters)
+% Analog.wn = 2*pi*300e6;
 
 %% Feedforward additional components
 Analog.Feedforward.freqDivDelay = 0;                                       % delay in samples

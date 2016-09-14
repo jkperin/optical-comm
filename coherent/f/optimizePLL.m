@@ -1,7 +1,7 @@
 function [wnOpt, wn, phiError] = optimizePLL(csi, Delay, linewidth, sim, verbose)
 %% Optimizes PLL relaxation frequency given csi (damping), Delay, linewidth for a target BER
 
-Ts = 1/sim.Rs;
+Ts = 1/sim.ModFormat.Rs;
 M = sim.ModFormat.M;
 BER = sim.BERtarget;
 SNRdB = SNRreq(BER, M, sim.ModFormat.type);
@@ -10,8 +10,8 @@ etac = mean(abs(sim.ModFormat.mod(0:M-1)).^2)/mean(1./abs(sim.ModFormat.mod(0:M-
 
 varPN = 2*pi*linewidth*Ts;
 
-wn = 1e9*(0:0.01:1);
-w = linspace(-0.5/Ts, 0.5/Ts, 1e3);
+wn = 2*pi*1e9*(0:0.01:0.3); % at most 300 Mrad/s
+w = 2*pi*linspace(-0.5/Ts, 0.5/Ts, 1e3);
 GammaPN = zeros(size(wn));
 GammaAWGN = zeros(size(wn));
 phiError = zeros(size(wn));

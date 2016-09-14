@@ -8,7 +8,7 @@ classdef QAM
     properties (Dependent)
         Rs % symbol rate
     end
-    
+       
     methods
         function obj = QAM(M, Rb, pulse_shape)
             %% Class constructor
