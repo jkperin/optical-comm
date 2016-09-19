@@ -9,11 +9,11 @@ addpath ../soa/
 
 %% Simulation launched power swipe
 Tx.PlaunchdBm = -38:-28;
-Tx.PlaunchdBm = -30;
+% Tx.PlaunchdBm = -10;
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
-sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
+sim.Mct = 12;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
@@ -63,7 +63,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1250e-9, 0, -150, 200e3, 0);
+Tx.Laser = laser(1250e-9, 0, -150, 2000e3, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -147,7 +147,7 @@ Analog.CarrierPhaseRecovery = 'OPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
 % '4th-power': based on raising signal to 4th power (only for EPLL)}
-Analog.CPRmethod = 'logic';                                            
+Analog.CPRmethod = 'costas';                                            
 
 % If componentFilter is empty, simulations assume ideal devices
 componentFilter = []; %design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
@@ -182,7 +182,7 @@ Analog.Comparator.filt = componentFilter;
 %% PLL loop filter parameters.
 % Note: relaxation frequency is optimized at every iteration
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 750e-12;                                                          % Additional loop delay in s (not including group delay from filters)
+Analog.Delay = 200e-12;                                                          % Additional loop delay in s (not including group delay from filters)
 % Analog.wn = 2*pi*300e6;
 
 %% Feedforward additional components
