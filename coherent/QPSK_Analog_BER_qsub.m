@@ -19,9 +19,11 @@ addpath ../apd/
 addpath ../soa/
 
 %
-filename = sprintf('results/opll/QPSK_Analog_BER_%s_%s_Npol=%s_L=%skm_linewidth=%skHz_ideal=%s_delay=%sps',...
-        upper(CPR), CPRmethod, CPRNpol, fiberLengthKm, linewidthKHz, ideal, Delayps)
+filename = sprintf('results/opll/QPSK_Analog_BER_%s_%s_Npol=%s_L=%skm_linewidth=%skHz_ideal=%s_delay=%sps.mat',...
+        upper(CPR), CPRmethod, CPRNpol, fiberLengthKm, linewidthKHz, ideal, Delayps);
 
+filename = check_filename(filename)
+    
 % convert inputs to double (on cluster inputs are passed as strings)
 if ~all(isnumeric([fiberLengthKm CPRNpol linewidthKHz ideal Delayps]))
     fiberLength = 1e3*str2double(fiberLengthKm);
@@ -36,8 +38,8 @@ Tx.PlaunchdBm = -38:-18;
 % Tx.PlaunchdBm = -25;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
-sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
+sim.Nsymb = 2^11; % Number of symbols in montecarlo simulation
+sim.Mct = 4;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
@@ -60,7 +62,7 @@ Plots = containers.Map();                                                   % Li
 Plots('BER')                  = 0; 
 Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
-Plots('Constellations') = 0;
+Plots('Constellations') = 1;
 Plots('Diff group delay')       = 0;
 Plots('Phase tracker') = 0;
 Plots('EPLL phase error') = 0;
@@ -249,7 +251,6 @@ end
 
 %% Save results
 if sim.save   
-    filename = check_filename(filename);
     % delete large variables
     sim = rmfield(sim, 'f');
     sim = rmfield(sim, 't');

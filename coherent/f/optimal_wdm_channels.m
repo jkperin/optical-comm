@@ -1,4 +1,4 @@
-function [lambchs, Disp] = optimal_wdm_channels(Dlamb, Nch)
+function [lambchs, Disp] = optimal_wdm_channels(Dlamb, Nch, verbose)
 %% Find set of Nch WDM channels with miminum sum of dispersion
 % Inputs:
 % - Dlamb: wavelength spacing in m
@@ -23,10 +23,12 @@ lambchs = x0*1e-9 + Dlamb*chs;
 Disp = Fiber.D(lambchs);
 
 % Plot
-lamb = linspace(lambchs(1), lambchs(end));
-figure, hold on, box on
-plot(lamb*1e9, 1e6*Fiber.D(lamb), 'k', 'LineWidth', 2)
-stem(lambchs*1e9, 1e6*Disp, 'k', 'LineWidth', 2, 'MarkerFaceColor', 'w')
-xlabel('Wavelength (nm)', 'FontSize', 12)
-ylabel('Dispersion (ps/(nm\cdot km))', 'FontSize', 12)
-set(gca, 'FontSize', 12)
+if exist('verbose', 'var') && verbose
+    lamb = linspace(lambchs(1), lambchs(end));
+    figure, hold on, box on
+    plot(lamb*1e9, 1e6*Fiber.D(lamb), 'k', 'LineWidth', 2)
+    stem(lambchs*1e9, 1e6*Disp, 'k', 'LineWidth', 2, 'MarkerFaceColor', 'w')
+    xlabel('Wavelength (nm)', 'FontSize', 12)
+    ylabel('Dispersion (ps/(nm\cdot km))', 'FontSize', 12)
+    set(gca, 'FontSize', 12)
+end
