@@ -175,6 +175,9 @@ for k = 1:length(Tx.PlaunchdBm)
             Sy = xnorY2.xnor(xnorY1.xnor(Xd(3, t), Xd(4, t)), CompY.compare(Xdabs(3), Xdabs(4)));
         end
 
+%         StempX(t) = Sx;
+%         StempY(t) = Sy;
+%         
         % Loop filter
         if Analog.CPRNpol == 2
             S(t) = AdderXY.add(Sx, Sy)/2; % loop filter input
@@ -183,6 +186,12 @@ for k = 1:length(Tx.PlaunchdBm)
         end
         Sf(t) = LoopFilter.filter(S(t));  
     end
+    
+%     figure, plot(StempX)
+%     hold on, plot(StempY)    
+%     ccorr = xcorr(StempX, StempY, 50);
+%     figure, plot(-50:50, ccorr)
+%     drawnow
     
     % Remove group delay due to loop filter
     Hdelay = ifftshift(exp(1j*2*pi*sim.f/sim.fs*ReceiverFilterXI.groupDelay));
