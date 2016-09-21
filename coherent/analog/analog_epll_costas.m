@@ -56,7 +56,7 @@ fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1
 
 % Optimize EPLL parameters
 if not(isfield(Analog, 'wn')) % wn was not yet defined; calculate optimal wn
-    Analog.wn = optimizePLL(Analog.csi, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
+    Analog.wn = optimizePLL(Analog.csi, totalGroupDelay, totalLineWidth, Analog.CPRNpol, sim, sim.shouldPlot('Phase error variance'));
 end
 Analog.EPLL.nums = [2*Analog.csi*Analog.wn Analog.wn^2];
 Analog.EPLL.dens = [1 0 0]; % descending powers of s
@@ -98,7 +98,7 @@ for t = additionalDelay+1:length(sim.t)
     Sy = AdderY.add(MixerIdQy.mix(Xd(3, t), X(4, t)), -MixerQdIy.mix(Xd(4, t), X(3, t)));
 
     if Analog.CPRNpol == 2
-        S(t) = AdderXY.add(Sx, Sy); % loop filter input
+        S(t) = AdderXY.add(Sx, Sy)/2; % loop filter input
     else
         S(t) = Sx; % loop filter input
     end

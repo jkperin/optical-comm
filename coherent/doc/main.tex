@@ -195,68 +195,143 @@ where $E_1, E_2, E_3, E_4$ are the input electric fields to the photodiodes.
 
 After balanced detection we have
 \begin{align}
-I_i(t) = |A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_n(t)) \\
-I_q(t) = |A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_n(t))
+I_i(t) = |A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_{pn}(t)) \\
+I_q(t) = |A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_{pn}(t))
 \end{align}
+
+Generalizing to the case of \textbf{two polarizations}:
+\begin{align}
+I_i(t) = \frac{1}{p}|A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_{pn}(t)) \\
+I_q(t) = \frac{1}{p}|A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_{pn}(t))
+\end{align}
+where $p = 2$ if two polarizations, $p = 1$ otherwise.
 
 Therefore, the signal power per real dimension for a quaternary signal is
 \begin{align} \nonumber
-P_{sig} &= \langle|I_i(t)|^2\rangle = \langle|I_q(t)|^2\rangle \\
-&= \frac{P_{rec}P_{LO}}{2}
+P_{s} &= \langle|I_i(t)|^2\rangle = \langle|I_q(t)|^2\rangle \\
+&= \frac{R^2P_{rx}P_{LO}}{2p^2}
 \end{align}
-since $P_{rec} = \langle|A_s(t)|^2\rangle$, and $P_{LO} = \langle|A_{LO}(t)|^2\rangle$
-
-If \textbf{two polarizations} are used
-\begin{align} 
-P_{sig} &= \frac{P_{rec}P_{LO}}{8}
-\end{align}
+since $P_{rx} = \langle|A_s(t)|^2\rangle$, and $P_{LO} = \langle|A_{LO}(t)|^2\rangle$
 
 One-sided PSD per real dimension of thermal and shot noise:
 \begin{align}
 S_{th} = N_0 \\
 S_{sh} = 2(2qRP_{PD})
 \end{align}
-where $N_0$ is the PSD of the trans-impedance amplifier and $P_{PD}$ is the incident power in each photodiode:
+where $N_0$ is the PSD of the trans-impedance amplifier, the factor of 2 appears due to balance photodetection, and $P_{PD}$ is the incident power in each photodiode:
 \begin{equation}
-P_{PD} = |E_1|^2 = |E_2|^2 = |E_3|^2 = |E_4|^2 \approx \frac{P_{LO}}{8}
+P_{PD} = |E_1|^2 = |E_2|^2 = |E_3|^2 = |E_4|^2 \approx \frac{P_{LO}}{4p}
 \end{equation}
-for two polarizations.
 
 Hence, the SNR of an ideal system with no intersymbol interfence and employing matched filtering is 
-\begin{equation}
-\mathrm{SNR} = \frac{2P_{sig}}{(S_{sh} + S_{th})R_s/2}
-\end{equation}
-$R_s$ is the symbol rate and $R_s/2$ is the one-sided noise bandwidth. The factor of 2 in the signal power appears because we have both in phase and quadrature signal components.
+\begin{align} \nonumber
+\mathrm{SNR} & = \frac{2P_{sig}}{(S_{sh} + S_{th})R_s/2} \\ \nonumber
+&= \frac{2R^2P_{rx}P_{LO}}{2p^2((2qRP_{LO})/p + N_0)R_s/2} \\
+&\approx \frac{RP_{rx}}{pqR_s} 
+\end{align}
+$R_s$ is the symbol rate and $R_s/2$ is the one-sided noise bandwidth. The factor of 2 in the signal power appears because we have both in-phase and quadrature signal components.
 
 \begin{equation}
 \mathrm{SNR} = \frac{2E_s}{N_0}, \qquad \frac{E_s}{N_0} = \log_2M\frac{E_b}{N_0}
 \end{equation}
 
-\subsection{Using coherent detection to obtain intensity in a pre-amplified system}
+%\subsection{Using coherent detection to obtain intensity in a pre-amplified system}
+%
+%Balanced detectors output:
+%\begin{align} \nonumber
+%I_I &= |E_1|^2 - |E_2|^2 \\ \nonumber
+%&= \frac{1}{2}\Big(E_sE_{LO}^* + E_s^*E_{LO} \Big)
+%\end{align}
+%
+%\begin{align} \nonumber
+%I_Q &= |E_3|^2 - |E_4|^2 \\ \nonumber
+%&= \frac{1}{2}\Big(-jE_sE_{LO}^* + jE_s^*E_{LO}\Big)
+%\end{align}
+%
+%\begin{align} \nonumber
+%Y &= |I_I|^2 + |I_Q|^2 \\ \nonumber
+%&= |E_sE_{LO}|^2
+%\end{align}
+%
+%Including noise
+%\begin{align} \nonumber
+%Y &= |E_sE_{LO}|^2 = |(E_s + E_N)E_{LO}|^2 \\
+%&= |E_{LO}|^2(|E_s|^2 + |E_N|^2 + E_s^*E_N + E_sE_N^*) \\
+%&= |E_{LO}|^2(|E_s|^2 + |E_N|^2 + 2E_{N,1}\mathrm{Re}(E_s) + 2E_{N,1}\mathrm{Im}(E_s)) \\
+%\end{align}
 
-Balanced detectors output:
-\begin{align} \nonumber
-I_I &= |E_1|^2 - |E_2|^2 \\ \nonumber
-&= \frac{1}{2}\Big(E_sE_{LO}^* + E_s^*E_{LO} \Big)
+\section{Optical PLL}
+
+After balanced detection we have in each polarization
+\begin{align}
+I_i(t) = R\frac{\sqrt{P_{rx}P_{LO}}}{p}\cos(w_{off}t + \phi_s(t) + \phi_{pn}(t)) \\
+I_q(t) =  R\frac{\sqrt{P_{rx}P_{LO}}}{p}\sin(w_{off}t + \phi_s(t) + \phi_{pn}(t))
 \end{align}
 
+After phase detection using a Costas loop, we have
+
+\begin{equation}
+S(t) = R\frac{\sqrt{2P_{rx}P_{LO}}}{p}\sin(\phi_{pn}(t)) + n_i(t) + n_q(t)
+\end{equation}
+
+Using the small-signal approximation $\sin x \approx x$:
+\begin{equation}
+S(t) \approx R\frac{\sqrt{2P_{rx}P_{LO}}}{p}\phi_{pn}(t) + n_i(t) + n_q(t)
+\end{equation}
+
+The phase error of the OPLL $\phi_e(t)$ is related to the phase noise $\phi_{pn}(t)$ by
+
+\begin{equation}
+\phi_e(s) = N_{CPR}\frac{s}{s + F(s)e^{-s\tau_d}}\phi_{pn}(s) - \frac{F(s)e^{-s\tau_d}}{s + F(s)e^{-s\tau_d}}n(s)
+\end{equation}
+where $n(s) \sim\mathcal{N}(0, 2N_{CPR}\sigma_n^2)$, and $N_{CPR}$ is the number of polarizations used in carrier phase recovery. Note that this assumes that there's no mismatch from the phase noise estimate of the two polarizations. The mismatch case will be analyzed in the next subsection.
+
+Defining the phase estimation gain
+\begin{equation}
+K_D = N_{CPR}R\frac{\sqrt{2P_{rec}P_{LO}}}{p}
+\end{equation}
+
+If all noise contributions are assumed ergodic:
+\begin{equation}
+\sigma_E^2 = E\{\phi_e(t)\}
+\end{equation}
+
+Since the system is linear
 \begin{align} \nonumber
-I_Q &= |E_3|^2 - |E_4|^2 \\ \nonumber
-&= \frac{1}{2}\Big(-jE_sE_{LO}^* + jE_s^*E_{LO}\Big)
+\sigma_E^2 &= E\{\phi_n^2(t)\} + E\{\phi_{AWGN}(t)^2\} \\ \nonumber
+&= \frac{1}{2\pi}\int_{-\infty}^\infty S_{PN}(f)\bigg|\frac{j\omega}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega + \frac{1}{2\pi K_D^2}\int_{-\infty}^\infty S_{AWGN}(f)\bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\ \nonumber
+&= \Delta\nu_{TOT}\int_{-\infty}^\infty \bigg|\frac{1}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega + \frac{2N_0/2N_{CPR}}{2\pi K_D^2}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\
+&= \Delta\nu_{TOT}\int_{-\infty}^\infty \bigg|\frac{1}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega + \frac{1}{2\pi 2N_{CPR}\gamma_sR_s}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \nonumber
 \end{align}
+where $S_{PN}(f) = \frac{\Delta\nu}{2\pi f^2}$, where $\Delta\nu$ is the combined laser linewidth of the transmitter laser and LO.  $\Delta\nu$ is the full-width half-maximum of the Lorentzian shape of phase noise PSD. $N_0$ is the AWG noise one-sided PSD per real dimension. $\gamma_s$ is the SNR.
+
+\subsection{Costas loop analysis with mismatch between two polarizations}
+
+In the previous section, it was assumed that the phase noise estimate $\phi_{pn}(t)$ were perfectly synchronized. Here, we'll assume that the phase noise from the Y polarization is delay from the phase noise estimate from the X polarization by $\Delta t$. That is,
+
+\begin{align}
+\phi_{pn, X}(t) &= \phi_{pn}(t) \\
+\phi_{pn, Y}(t)& = \phi_{pn}(t-\Delta t) = \phi_{pn}(t) - \phi_{\Delta t},
+\end{align}
+where $\phi_{\Delta t} \sim \mathcal{N}(0, 2\pi\Delta\nu_{tot}\Delta t)$, since phase noise is assumed to be a Wiener process.
+
+\begin{equation}
+S(t) \approx R\frac{\sqrt{2P_{rx}P_{LO}}}{p}(2\phi_{pn}(t) - \phi_{\Delta t}) + n(t),
+\end{equation}
+where $n(t) \sim\mathcal{N}(0, 4\sigma_n^2)$. The 4 factor appears due to I, Q and from the two polarizations. Note that $\sigma_n^2$ already includes a factor of 2 due to balanced photodetection. 
+
+Now the phase error of the PLL has an additional component due to the mismatch between the two polarizations
+\begin{equation}
+\phi_e(s) = \frac{2s}{s + F(s)e^{-s\tau_d}}\phi_{pn}(s) - \frac{s}{s + F(s)e^{-s\tau_d}}\phi_{\Delta t}(s) - \frac{F(s)e^{-s\tau_d}}{s + F(s)e^{-s\tau_d}}n(s)
+\end{equation}
 
 \begin{align} \nonumber
-Y &= |I_I|^2 + |I_Q|^2 \\ \nonumber
-&= |E_sE_{LO}|^2
+\sigma_E^2 &= \Delta\nu_{TOT}\int_{-\infty}^\infty \bigg|\frac{1}{j\omega +  F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\
+& + \frac{2\pi\Delta\nu\Delta t}{4} t\lim_{\Omega\to\infty}\frac{1}{\Omega}\int_{-\Omega}^\Omega \bigg|\frac{j\omega}{j\omega +  F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\
+&+ \frac{1}{2\pi 2N_{CPR}\gamma_sR_s}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \nonumber
 \end{align}
 
-Including noise
-\begin{align} \nonumber
-Y &= |E_sE_{LO}|^2 = |(E_s + E_N)E_{LO}|^2 \\
-&= |E_{LO}|^2(|E_s|^2 + |E_N|^2 + E_s^*E_N + E_sE_N^*) \\
-&= |E_{LO}|^2(|E_s|^2 + |E_N|^2 + 2E_{N,1}\mathrm{Re}(E_s) + 2E_{N,1}\mathrm{Im}(E_s)) \\
-\end{align}
-
+Assuming that the integral in the middle term is approximately one, then the additional phase error variance due to mismatch is $\frac{2\pi\Delta\nu\Delta t}{4}$. This only becomes considerable and the mismatch $\Delta t$ is in the order of hundreds of symbols.
 
 \section{Digital signal processing}
 
@@ -407,8 +482,8 @@ where $e^*[k] = z[k] - \hat{x}[k]$, where $\hat{x}[k]$ is a decision made based 
 \section{Analog implementation}
 After balanced detection we have
 \begin{align}
-I_i(t) = |A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_n(t)) \\
-I_q(t) = |A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_n(t))
+I_i(t) = |A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_{pn}(t)) \\
+I_q(t) = |A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_{pn}(t))
 \end{align}
 
 \section{Phase locking}
@@ -435,6 +510,20 @@ Pull-in Limits If the loop filter contains a perfect integrator, pull-in will be
 \end{figure}
 
 There is some frequency-step limit below which the loop does not slip cycles but remains in lock; denote this limit as the \textbf{pullout frequency}
+
+
+\section{QPSK phase error with imperfect carrier phase recovery}
+Following \cite{Prabhu1976}, the bit error probability of a QPSK system with imperfect carrier phase recovery so that the residual phase error $\epsilon$ is such that $\epsilon \sim \mathcal{N}(\mu_\epsilon, \sigma_\epsilon^2)$ is given by
+\begin{equation}
+P_b = \frac{1}{2}\mathrm{erfc}(\sqrt{\rho}) + \sum_{l = 0}^\infty H_l\Big(1 - \cos((2l+1)\pi/4)\cos((2l+1)\mu_\epsilon)\exp(-(2l+1)^2+\sigma_\epsilon^2)\Big)
+\end{equation}
+where
+\begin{equation}
+H_l = \frac{\rho\exp(-\rho^2/2)}{\sqrt{\pi}(2l+1)}\Big(I_l(\rho^2/2) + I_{l+1}(\rho^2/2)\Big)
+\end{equation}
+where $rho$ denotes the SNR, and $I_l(x)$ is the modified Bessel function of first kind.
+
+
 
 \bibliographystyle{plain}
 \bibliography{bib}
