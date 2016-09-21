@@ -74,15 +74,15 @@ end
 % Optimize EPLL parameters
 totalLineWidth = Tx.Laser.linewidth + Rx.LO.linewidth;
 if not(isfield(Analog, 'wn')) % wn was not yet defined; calculate optimal wn
-    Analog.wn = optimizePLL(Analog.csi, totalGroupDelay, totalLineWidth, sim, sim.shouldPlot('Phase error variance'));
+    Analog.wn = optimizePLL(Analog.csi, totalGroupDelay, totalLineWidth, Analog.CPRNpol, sim, sim.shouldPlot('Phase error variance'));
 end
-Analog.EPLL.nums = [2*Analog.csi*Analog.wn Analog.wn^2];
-Analog.EPLL.dens = [1 0 0]; % descending powers of s
-[Analog.EPLL.numz, Analog.EPLL.denz] = impinvar(Analog.EPLL.nums, Analog.EPLL.dens, sim.fs);
+Analog.OPLL.nums = [2*Analog.csi*Analog.wn Analog.wn^2];
+Analog.OPLL.dens = [1 0 0]; % descending powers of s
+[Analog.OPLL.numz, Analog.OPLL.denz] = impinvar(Analog.OPLL.nums, Analog.OPLL.dens, sim.fs);
 fprintf('Loop filter fn: %.3f GHz\n', Analog.wn/(2*pi*1e9));
 
 % Loop filter
-LoopFilter = ClassFilter(Analog.EPLL.numz, Analog.EPLL.denz, sim.fs);
+LoopFilter = ClassFilter(Analog.OPLL.numz, Analog.OPLL.denz, sim.fs);
 
 %% Generate transmitted symbols
 % Note 1: this implement assumes that no DAC is being used so ModFormat.signal
@@ -177,7 +177,7 @@ for k = 1:length(Tx.PlaunchdBm)
 
         % Loop filter
         if Analog.CPRNpol == 2
-            S(t) = AdderXY.add(Sx, Sy); % loop filter input
+            S(t) = AdderXY.add(Sx, Sy)/2; % loop filter input
         else
             S(t) = Sx; % loop filter input
         end
