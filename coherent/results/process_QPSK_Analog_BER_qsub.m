@@ -26,7 +26,7 @@ for ind1 = 1:length(CPRtype)
     for i = 1:length(ideal)
         Prec = zeros(size(Lspan));
         for k = 1:length(Lspan)
-             filename = sprintf('Analog_QPSK_BER_%s_%s_L=%dkm_%s_BW=%dGHz_linewidth=%dkHz_ideal=%d_delay=%dps',...
+             filename = sprintf('analog/Analog_QPSK_BER_%s_%s_L=%dkm_%s_BW=%dGHz_linewidth=%dkHz_ideal=%d_delay=%dps',...
                 'EPLL', CPRtype{ind1}, Lspan(k), Modulator, ModBW, linewidth, ideal(i), Delay(i));
 
             try 

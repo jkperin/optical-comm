@@ -9,29 +9,43 @@ addpath ../../soa
 
 BERtarget = 1e-3;
 Npols = [1 2];
-LineWidth = 0:200:2000;
+LineWidth = 200:200:2000;
 
 CPRmethod = {'logic', 'costas'};
 
-for CPR = 1:2
-    for k = 1:length(Npols)
+for CPR = 1 % 1:2
+    for k = 2:-1:1 %1:length(Npols)
         for kk = 1:length(LineWidth)
-%             S0 = load(sprintf('opll/QPSK_Analog_BER_OPLL_%s_Npol=%d_L=0km_linewidth=%dkHz_ideal=1_delay=0ps.mat', CPRmethod{CPR}, Npols(k), LineWidth(kk)));
-            S1 = load(sprintf('opll/QPSK_Analog_BER_OPLL_%s_Npol=%d_L=0km_linewidth=%dkHz_ideal=1_delay=200ps.mat', CPRmethod{CPR}, Npols(k), LineWidth(kk)));
-
+            counter = 1;
+            try 
+                S = load(sprintf('opll/QPSK_Analog_BER_OPLL_%s_Npol=%d_L=0km_linewidth=%dkHz_ideal=1_delay=200ps.mat', CPRmethod{CPR}, Npols(k), LineWidth(kk)));
+            catch e
+                disp(e.message);
+                continue;
+            end
+            BERcount = S.BER.count;
+            while true
+                try
+                    Snew = load(sprintf('opll/QPSK_Analog_BER_OPLL_%s_Npol=%d_L=0km_linewidth=%dkHz_ideal=1_delay=200ps(%d).mat', CPRmethod{CPR}, Npols(k), LineWidth(kk)), counter);
+                    BERcount = BERcount + Snew.BER.count;
+                    counter = counter + 1;
+                catch e
+                    break;
+                end
+            end
             
-            S = S1;
-%             BERcount = (31744*S0.BER.count(1:24)+64512*S1.BER.count)/(31744+64512);
-            BERcount = S1.BER.count;
+            BERcount = BERcount/counter;
             
             figure(1), hold on, box on
             hline = plot(S.Tx.PlaunchdBm, log10(BERcount), '-o', 'DisplayName', sprintf('CPR = %s | Npols=%d | linewidth = %d', CPRmethod{CPR}, Npols(k), LineWidth(kk)));
 %             plot(S.Tx.PlaunchdBm, log10(S.BER.theory), '-', 'DisplayName', sprintf('CPR = %s | Npols=%d | linewidth = %d', CPRmethod{CPR}, Npols(k), LineWidth(kk)), 'Color', get(hline, 'Color'))
 
             BERcount = log10(BERcount);
-            idx = not(isinf(BERcount));
-            f = fit(S.Tx.PlaunchdBm(idx).', BERcount(idx).', 'linearinterp');
+            idx = find(BERcount >= -5 & BERcount <= -2);
+            f = fit(S.Tx.PlaunchdBm(idx).', BERcount(idx).', 'poly2');
             [PrxdBm(k, kk), ~, exitflag] = fzero(@(x) f(x) - log10(BERtarget), -28);
+            hline = plot(S.Tx.PlaunchdBm, f(S.Tx.PlaunchdBm), '-', 'Color', get(hline, 'Color'));
+            axis([S.Tx.PlaunchdBm([1 end]) -8 0])
             if exitflag ~= 1
                 disp('Interpolation failed')
                 exitflag
@@ -40,6 +54,7 @@ for CPR = 1:2
         end
         figure(100), hold on, box on
         plot(LineWidth, PrxdBm(k, :), 'DisplayName', sprintf('CPR = %s | Npols=%d', CPRmethod{CPR}, Npols(k)))
+        drawnow
     end
 end
 
