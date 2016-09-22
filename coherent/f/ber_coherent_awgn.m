@@ -27,7 +27,7 @@ berAWGN = @(SNRdB) berawgn(SNRdB - 10*log10(2) - 10*log10(log2(M)), lower(sim.Mo
 Prx = dBm2Watt(Tx.PlaunchdBm)/Fiber.link_attenuation(Tx.Laser.lambda); % received power
 Plo = dBm2Watt(Rx.LO.PdBm);                                            % local oscillator power
 Ppd = abs(sqrt(Plo/(4*sim.Npol)) + sqrt(Prx/(4*sim.Npol))).^2;         % incident power in each photodiode
-Psig = Plo*Prx/(2*sim.Npol*sim.Npol);                          % Signal power per real dimension
+Psig = Rx.PD.R^2*Plo*Prx/(2*sim.Npol*sim.Npol);                          % Signal power per real dimension
 
 % Estimate SNR of an ideal symbol-rate linear equalizer   
 Rs = sim.ModFormat.Rs;

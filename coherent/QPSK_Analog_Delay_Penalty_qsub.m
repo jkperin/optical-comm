@@ -22,8 +22,10 @@ end
 PlaunchdBm = -38:-18;
 Delayps = 0:50:400;
 parfor k = 1:length(Delayps)
-    BER{k} = iterate(CPR, CPRmethod, PlaunchdBm, linewidth, loopBandwidth, 1e-12*Delayps(k));
-    [BERopt{k}, loopBandwidthOpt(k)] = iterate(CPR, CPRmethod, PlaunchdBm, linewidth, [], 1e-12*Delayps(k)); % BER vs received power for optimal loop bandwidth
+    BER2pol{k} = iterate(CPR, CPRmethod, 2, PlaunchdBm, linewidth, loopBandwidth, 1e-12*Delayps(k));
+    [BERopt2pol{k}, loopBandwidthOpt2pol(k)] = iterate(CPR, CPRmethod, 2, PlaunchdBm, linewidth, [], 1e-12*Delayps(k)); % BER vs received power for optimal loop bandwidth
+    BER1pol{k} = iterate(CPR, CPRmethod, 1, PlaunchdBm, linewidth, loopBandwidth, 1e-12*Delayps(k));
+    [BERopt1pol{k}, loopBandwidthOpt1pol(k)] = iterate(CPR, CPRmethod, 1, PlaunchdBm, linewidth, [], 1e-12*Delayps(k)); % BER vs received power for optimal loop bandwidth
 end
 
 % Sava data
@@ -34,13 +36,13 @@ filename = check_filename(filename);
 save(filename)
 end
 
-function [berQAM, loopBandwidth] = iterate(CPR, CPRmethod, PlaunchdBm, linewidth, loopBandwidth, delay)
+function [berQAM, loopBandwidth] = iterate(CPR, CPRmethod, CPRNpol, PlaunchdBm, linewidth, loopBandwidth, delay)
 %% Simulation launched power swipe
 Tx.PlaunchdBm = PlaunchdBm;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^11; % Number of symbols in montecarlo simulation
-sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+sim.Mct = 4;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
@@ -163,7 +165,7 @@ Analog.filt = design_filter('butter', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 
 %% Carrier phase recovery and components
 % Carrier Phase recovery type: either 'OPLL' or 'EPLL'
-Analog.CPRNpol = 2; % Number of polarizations used in CPR
+Analog.CPRNpol = CPRNpol; % Number of polarizations used in CPR
 Analog.CarrierPhaseRecovery = CPR;
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
