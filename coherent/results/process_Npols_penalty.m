@@ -9,12 +9,13 @@ addpath ../../soa
 
 BERtarget = 1e-3;
 Npols = [1 2];
-LineWidth = 200:200:2000;
+LineWidth = 0:200:2000;
 
 CPRmethod = {'logic', 'costas'};
-
-for CPR = 1 % 1:2
-    for k = 2:-1:1 %1:length(Npols)
+Colors = {'b', 'r', 'g', 'm', 'y'};
+Markers = {'-', '--', ':'};
+for CPR = 1:2
+    for k = 1:2 %1:length(Npols)
         for kk = 1:length(LineWidth)
             counter = 1;
             try 
@@ -53,9 +54,11 @@ for CPR = 1 % 1:2
             end
         end
         figure(100), hold on, box on
-        plot(LineWidth, PrxdBm(k, :), 'DisplayName', sprintf('CPR = %s | Npols=%d', CPRmethod{CPR}, Npols(k)))
+        plot(LineWidth, PrxdBm(k, :), Markers{CPR}, 'Color', Colors{k},...
+            'DisplayName', sprintf('CPR = %s | Npols=%d', CPRmethod{CPR}, Npols(k)))
         drawnow
     end
 end
 
+axis([0 2000 -36 -32])
 legend('-DynamicLegend')
