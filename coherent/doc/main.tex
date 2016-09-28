@@ -204,7 +204,7 @@ Generalizing to the case of \textbf{two polarizations}:
 I_i(t) = \frac{1}{p}|A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_{pn}(t)) \\
 I_q(t) = \frac{1}{p}|A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_{pn}(t))
 \end{align}
-where $p = 2$ if two polarizations, $p = 1$ otherwise.
+where $p = 2$ if two polarizations, $p = 1$ otherwise. Note that this convention assumes that the energy per symbol per polarization is 1.  
 
 Therefore, the signal power per real dimension for a quaternary signal is
 \begin{align} \nonumber
@@ -215,24 +215,12 @@ since $P_{rx} = \langle|A_s(t)|^2\rangle$, and $P_{LO} = \langle|A_{LO}(t)|^2\ra
 
 One-sided PSD per real dimension of thermal and shot noise:
 \begin{align}
-S_{th} = N_0 \\
-S_{sh} = 2(2qRP_{PD})
+S_{th} &= N_0 \\
+S_{sh} &= 2(2qRP_{PD})
 \end{align}
 where $N_0$ is the PSD of the trans-impedance amplifier, the factor of 2 appears due to balance photodetection, and $P_{PD}$ is the incident power in each photodiode:
 \begin{equation}
 P_{PD} = |E_1|^2 = |E_2|^2 = |E_3|^2 = |E_4|^2 \approx \frac{P_{LO}}{4p}
-\end{equation}
-
-Hence, the SNR of an ideal system with no intersymbol interfence and employing matched filtering is 
-\begin{align} \nonumber
-\mathrm{SNR} & = \frac{2P_{sig}}{(S_{sh} + S_{th})R_s/2} \\ \nonumber
-&= \frac{2R^2P_{rx}P_{LO}}{2p^2((2qRP_{LO})/p + N_0)R_s/2} \\
-&\approx \frac{RP_{rx}}{pqR_s} 
-\end{align}
-$R_s$ is the symbol rate and $R_s/2$ is the one-sided noise bandwidth. The factor of 2 in the signal power appears because we have both in-phase and quadrature signal components.
-
-\begin{equation}
-\mathrm{SNR} = \frac{2E_s}{N_0}, \qquad \frac{E_s}{N_0} = \log_2M\frac{E_b}{N_0}
 \end{equation}
 
 %\subsection{Using coherent detection to obtain intensity in a pre-amplified system}
@@ -260,7 +248,34 @@ $R_s$ is the symbol rate and $R_s/2$ is the one-sided noise bandwidth. The facto
 %&= |E_{LO}|^2(|E_s|^2 + |E_N|^2 + 2E_{N,1}\mathrm{Re}(E_s) + 2E_{N,1}\mathrm{Im}(E_s)) \\
 %\end{align}
 
-\section{Optical PLL}
+\subsection{SNR calculation}
+For real baseband signals we have the following ralations
+\begin{equation}
+\mathrm{SNR} = \frac{2E_s}{N_0} = \frac{2kE_b}{N_0}
+\end{equation}
+where $N_0$ is the one-sided real noise PSD, and $k = \log_2(M)$. The factor of 2 relating SNR and $E_s/N_0$ is due to the fact that the two-sided matched filter noise bandwidth of a signal with symbol rate $R_s$ is $R_s$.
+
+For a complex signal, 
+\begin{equation}
+\mathrm{SNR} = \frac{P_s}{\sigma_n^2} = \frac{E_sR_s}{N_0R_s} = \frac{E_s}{N_0}
+\end{equation}
+Note that the noise variance is $N_0R_s$ because now the noise has two dimensions. Hence, the one-sided PSD of the complex noise is $2N_0$.
+
+\begin{equation}
+\mathrm{SNR} = \frac{E_s}{N_0} = \frac{kE_b}{N_0}
+\end{equation}
+
+In both cases $N_0$ denotes the one-sided noise PSD per dimension. 
+
+Hence, the SNR of an ideal system with no intersymbol interfence and employing matched filtering is 
+\begin{align} \nonumber
+\mathrm{SNR} & = \frac{P_{sig}}{(S_{sh} + S_{th})R_s/2} \\ \nonumber
+&= \frac{R^2P_{rx}P_{LO}}{2p^2((2qRP_{LO})/p + N_0)R_s/2} \\
+&\approx \frac{RP_{rx}}{2pqR_s} 
+\end{align}
+$R_s$ is the symbol rate and $R_s/2$ is the one-sided noise bandwidth. Note that in this calculation we used the signal power and noise power per real dimension.
+
+\section{PLL-based carrier phase recovery}
 
 After balanced detection we have in each polarization
 \begin{align}
@@ -305,9 +320,9 @@ Since the system is linear
 \end{align}
 where $S_{PN}(f) = \frac{\Delta\nu}{2\pi f^2}$, where $\Delta\nu$ is the combined laser linewidth of the transmitter laser and LO.  $\Delta\nu$ is the full-width half-maximum of the Lorentzian shape of phase noise PSD. $N_0$ is the AWG noise one-sided PSD per real dimension. $\gamma_s$ is the SNR.
 
-\subsection{Costas loop analysis with mismatch between two polarizations}
+\subsection{Costas loop analysis with skew between two polarizations}
 
-In the previous section, it was assumed that the phase noise estimate $\phi_{pn}(t)$ were perfectly synchronized. Here, we'll assume that the phase noise from the Y polarization is delay from the phase noise estimate from the X polarization by $\Delta t$. That is,
+In the previous section, it was assumed that the phase noise estimate $\phi_{pn}(t)$ were perfectly synchronized. Here, we'll assume that the phase noise from the Y polarization is delayed from the phase noise estimate from the X polarization by $\Delta t$. That is,
 
 \begin{align}
 \phi_{pn, X}(t) &= \phi_{pn}(t) \\
@@ -322,16 +337,41 @@ where $n(t) \sim\mathcal{N}(0, 4\sigma_n^2)$. The 4 factor appears due to I, Q a
 
 Now the phase error of the PLL has an additional component due to the mismatch between the two polarizations
 \begin{equation}
-\phi_e(s) = \frac{2s}{s + F(s)e^{-s\tau_d}}\phi_{pn}(s) - \frac{s}{s + F(s)e^{-s\tau_d}}\phi_{\Delta t}(s) - \frac{F(s)e^{-s\tau_d}}{s + F(s)e^{-s\tau_d}}n(s)
+\phi_e(s) = \frac{s}{s + F(s)e^{-s\tau_d}}\phi_{pn}(s) - \frac{s}{s + F(s)e^{-s\tau_d}}\phi_{\Delta t}(s) - \frac{F(s)e^{-s\tau_d}}{s + F(s)e^{-s\tau_d}}n(s)
 \end{equation}
 
 \begin{align} \nonumber
 \sigma_E^2 &= \Delta\nu_{TOT}\int_{-\infty}^\infty \bigg|\frac{1}{j\omega +  F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\
 & + \frac{2\pi\Delta\nu\Delta t}{4} t\lim_{\Omega\to\infty}\frac{1}{\Omega}\int_{-\Omega}^\Omega \bigg|\frac{j\omega}{j\omega +  F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\
-&+ \frac{1}{2\pi 2N_{CPR}\gamma_sR_s}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \nonumber
+&+ \frac{1}{2\pi 4\gamma_sR_s}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \nonumber
 \end{align}
 
-Assuming that the integral in the middle term is approximately one, then the additional phase error variance due to mismatch is $\frac{2\pi\Delta\nu\Delta t}{4}$. This only becomes considerable and the mismatch $\Delta t$ is in the order of hundreds of symbols.
+Assuming that the integral in the middle term is approximately one, then the additional phase error variance due to mismatch is $\frac{2\pi\Delta\nu\Delta t}{4}$. This only becomes considerable if the mismatch $\Delta t$ is in the order of hundreds of symbols.
+
+Assuming now that only the X polarization is used in the carrier phase recovery, but the Y polarization is delay from the X polarization by $\Delta t$.
+
+\begin{align} \nonumber
+\sigma_E^2 &= \Delta\nu_{TOT}\int_{-\infty}^\infty \bigg|\frac{1}{j\omega +  F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\
+& + 2\pi\Delta\nu\Delta t \lim_{\Omega\to\infty}\frac{1}{\Omega}\int_{-\Omega}^\Omega \bigg|\frac{j\omega}{j\omega +  F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\
+&+ \frac{1}{2\pi 2\gamma_sR_s}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \nonumber
+\end{align}
+
+In this case the error due to the skew between the two polarization is $2\pi\Delta\nu\Delta t$.
+
+\subsection{Phase error variance}
+
+Both the phase noise and the AWGN component in the phase error variance have a denominator given by $|j\omega + F(j\omega)e^{-j\omega\tau_d}|$. The phase error will grow unbounded whenever this denominator goes to zero. Equating the real and complex parts of the denominator
+\begin{align}
+-\omega^2 + 2\zeta\omega_n\omega\sin(\omega\tau_d) + \omega_n^2\cos(\omega\tau_d) = 0 \\
+2\zeta\omega_n\omega\cos(\omega\tau_d) - \omega_n^2\sin(\omega\tau_d) = 0
+\end{align}
+Using the small-signal approximations $\sin(x)\approx x$ and $\cos(x) \approx 1$. We have
+\begin{align}
+2\zeta\omega_n\tau_d = 1 - (\omega_n/\omega)^2 \\
+2\zeta = \omega_n\tau_d
+\end{align}
+
+The solution of the second equation $\omega_n = \frac{}{}$
 
 \section{Digital signal processing}
 
@@ -341,7 +381,7 @@ Long-haul systems typically have a static equalization stage to compensate for C
 
 For this application bandwidth limitations due to modulator and other devices, chromatic dispersion, polarization-mode dispersion are assumed to be small enough so they can all be compensated by a single equalization stage. 
 
-Assuming an oversampling ratio $r_{os} = p/q$, $p, q \in \mathrm{Z^*_+}$, which need not be integer, we can compensate for intersymbol interference (ISI) and demultiplex the two polarizations.
+Assuming an oversampling ratio $r_{os} = p/q$, $p, q \in \mathrm{Z^*_+}$, which need not be integer, we can compensate for inter-symbol interference (ISI) and demultiplex the two polarizations.
 
 Samples at the equalizer input $\bm{X}[k]$, where $x_1[k], x_2[k]$ are the complex samples from the two polarizations. $k$ is at a rate $T_s/r_{os}$.
 
@@ -479,13 +519,6 @@ Given the signal $y[k]$ after CMA equalization. The phase tracking algorithm app
 \end{equation}
 where $e^*[k] = z[k] - \hat{x}[k]$, where $\hat{x}[k]$ is a decision made based on $z[k]$.
 
-\section{Analog implementation}
-After balanced detection we have
-\begin{align}
-I_i(t) = |A_s(t)||A_{LO}(t)|\cos(w_{off}t + \phi_s(t) + \phi_{pn}(t)) \\
-I_q(t) = |A_s(t)||A_{LO}(t)|\sin(w_{off}t + \phi_s(t) + \phi_{pn}(t))
-\end{align}
-
 \section{Phase locking}
 Sections extracted from \cite{Gardner} chapters 5 and 8. 
 
@@ -515,7 +548,7 @@ There is some frequency-step limit below which the loop does not slip cycles but
 \section{QPSK phase error with imperfect carrier phase recovery}
 Following \cite{Prabhu1976}, the bit error probability of a QPSK system with imperfect carrier phase recovery so that the residual phase error $\epsilon$ is such that $\epsilon \sim \mathcal{N}(\mu_\epsilon, \sigma_\epsilon^2)$ is given by
 \begin{equation}
-P_b = \frac{1}{2}\mathrm{erfc}(\sqrt{\rho}) + \sum_{l = 0}^\infty H_l\Big(1 - \cos((2l+1)\pi/4)\cos((2l+1)\mu_\epsilon)\exp(-(2l+1)^2+\sigma_\epsilon^2)\Big)
+P_b = \frac{1}{2}\mathrm{erfc}(\sqrt{\rho}) + \sum_{l = 0}^\infty (-1)^lH_l\Big(1 - \cos((2l+1)\pi/4)\cos((2l+1)\mu_\epsilon)\exp(-(2l+1)^2\sigma_\epsilon^2)\Big)
 \end{equation}
 where
 \begin{equation}

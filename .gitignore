@@ -4,10 +4,10 @@
 *.eps
 *.emf
 *.mat
+*.tikz
 !apd/results/apd_awgn_results_Ptx_vs_ka.mat
 !soa/results/soa_awgn_results_req_Ptx_vs_Fn.mat
 *.asv
-*.tikz
 *.zip
 *.pdf
 *.aux
@@ -21,3 +21,5 @@ mpam/trash/
 *.o*
 coherent/DSP/old/
 coherent/trash/
+*.blg
+*.xlsx

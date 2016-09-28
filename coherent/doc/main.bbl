@@ -42,4 +42,10 @@ Carrier Phase and Recovery Algorithm.
 \newblock {\em Proceedings IEEE International Conference on Communications ICC
   '95}, 1:498--502, 1995.
 
+\bibitem{Prabhu1976}
+V.K. Prabhu.
+\newblock {PSK Performance with Imperfect Carrier Phase Recovery}.
+\newblock {\em IEEE Transactions on Aerospace and Electronic Systems},
+  AES-12(2):275--286, 1976.
+
 \end{thebibliography}
