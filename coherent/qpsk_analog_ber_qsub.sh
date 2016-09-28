@@ -19,3 +19,5 @@
 module load matlab
 
 matlab -nodesktop -singleCompThread -r "QPSK_Analog_BER_qsub $CPR $CPRmethod $CPRNpol $fiberLengthKm $linewidthKHz $ideal $Delayps"
+
+matlab -nodesktop -singleCompThread -r "QPSK_Analog_BER_qsub $CPR $CPRmethod $CPRNpol $fiberLengthKm $linewidthKHz $ideal $Delayps"

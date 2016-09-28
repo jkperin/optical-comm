@@ -9,10 +9,10 @@ addpath ../soa/
 
 %% Simulation launched power swipe
 Tx.PlaunchdBm = -38:-28;
-% Tx.PlaunchdBm = -32;
+% Tx.PlaunchdBm = -38:-37;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^11; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
 sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
@@ -63,7 +63,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1250e-9, 0, -150, 1000e3, 0);
+Tx.Laser = laser(1310e-9, 0, -150, 200e3, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -72,7 +72,7 @@ if strcmpi(sim.Modulator, 'MZM')
     Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
 elseif strcmpi(sim.Modulator, 'SiPhotonics') 
     %% Si Photonics (limited by parasitics, 2nd-order response)
-    Tx.Mod.BW = 40e9;
+    Tx.Mod.BW = 30e9;
     Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
     Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
     Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
@@ -138,7 +138,7 @@ Rx.N0 = (30e-12)^2;                                                        % One
 
 %% ========================= Analog Components ============================
 %% Receiver filter
-Analog.filt = design_filter('butter', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
+Analog.filt = design_filter('bessel', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 
 %% Carrier phase recovery and components
 % Carrier Phase recovery type: either 'OPLL', 'EPLL', and 'Feedforward'

@@ -26,9 +26,9 @@ sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-Q
 % sim.ModFormat = DPSK(4, sim.Rb/sim.Npol, sim.pulse_shape);                     % M-DPSK modulation format
 
 % Simulation control
-sim.RIN = ~true; 
-sim.PMD = ~true;
-sim.phase_noise = ~true;
+sim.RIN = true; 
+sim.PMD = true;
+sim.phase_noise = true;
 sim.preAmp = false;
 sim.quantiz = false;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
@@ -42,7 +42,7 @@ Plots('DPLL phase error') = 0;
 Plots('Feedforward phase error') = 0;
 Plots('Frequency offset estimation') = 1;
 Plots('Channel frequency response') = 0;
-Plots('Constellations') = 0;
+Plots('Constellations') = 1;
 Plots('Diff group delay')       = 0;
 Plots('Phase tracker')         = 0;
 Plots('Frequency estimation')  = 0; 

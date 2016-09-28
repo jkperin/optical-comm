@@ -27,10 +27,11 @@ Vout(1, :) = real(ifft(fft(real(Vin(1, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(1
 Vout(2, :)= real(ifft(fft(real(Vin(2, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(2, :))).*Htx));
 
 % BER of ideal system with receiver filtering equal to matched filter
-[ber.theory, ber.theory_noise_enhancement] = ber_coherent_awgn(Tx, Fiber, Rx, sim);
+[ber.theory, ~, SNRdBtheory] = ber_coherent_awgn(Tx, Fiber, Rx, sim);
 
 %% Swipe launched power
 ber.count = zeros(size(Tx.PlaunchdBm));
+ber.theory_imperfect_cpr = zeros(size(Tx.PlaunchdBm));
 M = Qpsk.M;
 Enorm = mean(abs(pammod(0:log2(M)-1, log2(M))).^2);
 for k = 1:length(Tx.PlaunchdBm)
@@ -125,6 +126,11 @@ for k = 1:length(Tx.PlaunchdBm)
     [~, berX(k)] = biterr(dataTX(1, validInd), dataRX(1, validInd))
     [~, berY(k)] = biterr(dataTX(2, validInd), dataRX(2, validInd))
     ber.count(k) = 0.5*(berX(k) + berY(k));
+    
+    % Theoretical BER assuming imperfect carrier phase recovery
+    totalLineWidth = Tx.Laser.linewidth + Rx.LO.linewidth;
+    varPhaseError = phase_error_variance(Analog.csi, Analog.wn, Analog.CPRNpol, Analog.totalGroupDelay, totalLineWidth, SNRdBtheory(k), Qpsk.Rs);
+    ber.theory_imperfect_cpr(k) = ber_qpsk_imperfect_cpr(SNRdBtheory(k), varPhaseError);
     
    % Constellation plots
    if sim.shouldPlot('Constellations')

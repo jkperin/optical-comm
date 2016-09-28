@@ -53,6 +53,7 @@ totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Four quadrant multiplier
     + Comp1.groupDelay + MixerIdQx.groupDelay + AdderX.groupDelay + AdderXY.groupDelay... % phase estimation    
     + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
+Analog.totalGroupDelay = totalGroupDelay;
 
 % Optimize EPLL parameters
 if not(isfield(Analog, 'wn')) % wn was not yet defined; calculate optimal wn

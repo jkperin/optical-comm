@@ -89,7 +89,7 @@ for k = 1:length(Tx.PlaunchdBm)
         
     % Finer gain control: to make sure that QAM constellation is of the
     % right size
-    Enorm = mean(abs(pammod(0:log2(sim.M)-1, log2(sim.M))).^2);
+    Enorm = mean(abs(pammod(0:log2(ModFormat.M)-1, log2(ModFormat.M))).^2);
     Ydxi = sqrt(Enorm/mean(abs(Ydxi).^2))*Ydxi;
     Ydxq = sqrt(Enorm/mean(abs(Ydxq).^2))*Ydxq;
     Ydyi = sqrt(Enorm/mean(abs(Ydyi).^2))*Ydyi;
@@ -113,11 +113,11 @@ for k = 1:length(Tx.PlaunchdBm)
    %% Constellation plots
    if sim.shouldPlot('Constellations')
        figure(203), clf
-       subplot(211)
-       plot_constellation(Yd(1, :), dataTX(1, validRange), sim.M);
+       subplot(121)
+       plot_constellation(Yd(1, :), dataTX(1, validRange), ModFormat.M);
        axis square
-       subplot(212)
-       plot_constellation(Yd(2, :), dataTX(2, validRange), sim.M);
+       subplot(122)
+       plot_constellation(Yd(2, :), dataTX(2, validRange), ModFormat.M);
        axis square
        drawnow
    end
