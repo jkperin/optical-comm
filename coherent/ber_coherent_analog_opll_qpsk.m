@@ -103,10 +103,11 @@ Vout(1, :) = real(ifft(fft(real(Vin(1, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(1
 Vout(2, :)= real(ifft(fft(real(Vin(2, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(2, :))).*Htx));
 
 % BER of ideal system with receiver filtering equal to matched filter
-[ber.theory, ber.theory_noise_enhancement] = ber_coherent_awgn(Tx, Fiber, Rx, sim);
+[ber.theory, ber.theory_noise_enhancement, SNRdBtheory] = ber_coherent_awgn(Tx, Fiber, Rx, sim);
 
 %% Swipe launched power
 ber.count = zeros(size(Tx.PlaunchdBm));
+ber.theory_imperfect_cpr = zeros(size(Tx.PlaunchdBm));
 counter = 1;
 for k = 1:length(Tx.PlaunchdBm)
     fprintf('-- Launch power: %.2f dBm\n', Tx.PlaunchdBm(k));
@@ -174,10 +175,7 @@ for k = 1:length(Tx.PlaunchdBm)
             Sx = xnorX2.xnor(xnorX1.xnor(Xd(1, t), Xd(2, t)), CompX.compare(Xdabs(1), Xdabs(2)));
             Sy = xnorY2.xnor(xnorY1.xnor(Xd(3, t), Xd(4, t)), CompY.compare(Xdabs(3), Xdabs(4)));
         end
-
-%         StempX(t) = Sx;
-%         StempY(t) = Sy;
-%         
+      
         % Loop filter
         if Analog.CPRNpol == 2
             S(t) = AdderXY.add(Sx, Sy)/2; % loop filter input
@@ -186,15 +184,9 @@ for k = 1:length(Tx.PlaunchdBm)
         end
         Sf(t) = LoopFilter.filter(S(t));  
     end
-    
-%     figure, plot(StempX)
-%     hold on, plot(StempY)    
-%     ccorr = xcorr(StempX, StempY, 50);
-%     figure, plot(-50:50, ccorr)
-%     drawnow
-    
+       
     % Remove group delay due to loop filter
-    Hdelay = ifftshift(exp(1j*2*pi*sim.f/sim.fs*ReceiverFilterXI.groupDelay));
+    Hdelay = ifftshift(exp(1j*2*pi*sim.f/sim.fs*((ReceiverFilterXI.groupDelay))));
     X(1, :) = real(ifft(fft(X(1, :)).*Hdelay ));
     X(2, :) = real(ifft(fft(X(2, :)).*Hdelay ));
     X(3, :) = real(ifft(fft(X(3, :)).*Hdelay ));
@@ -244,6 +236,10 @@ for k = 1:length(Tx.PlaunchdBm)
     [~, berY(k)] = biterr(dataTX(2, validInd), dataRX(2, validInd))
     ber.count(k) = 0.5*(berX(k) + berY(k));
     
+    % Theoretical BER assuming imperfect carrier phase recovery
+    varPhaseError = phase_error_variance(Analog.csi, Analog.wn, Analog.CPRNpol, totalGroupDelay, totalLineWidth, SNRdBtheory(k), Qpsk.Rs);
+    ber.theory_imperfect_cpr(k) = ber_qpsk_imperfect_cpr(SNRdBtheory(k), varPhaseError);
+    
    % Constellation plots
    if sim.shouldPlot('Constellations')
        figure(203), clf 
@@ -292,7 +288,8 @@ if sim.shouldPlot('BER') && length(ber.count) > 1
     Prx = Tx.PlaunchdBm - link_attdB;
     hline(1) = plot(Prx, log10(ber.theory), '-');
     hline(2) = plot(Prx, log10(ber.count), '-o');
-    legend(hline, {'Theory', 'Counted'})
+    hline(3) = plot(Prx, log10(ber.theory_imperfect_cpr), ':');
+    legend(hline, {'Theory', 'Counted', 'Imperfect CPR'})
     xlabel('Received Power (dBm)')
     ylabel('log_{10}(BER)')
     axis([Prx(1) Prx(end) -8 0])

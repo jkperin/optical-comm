@@ -20,8 +20,7 @@ function [ber_ideal, ber_noise_enhancement, SNRdBtheory] = ber_coherent_awgn(Tx,
 
 % BER in AWGN channel
 M = sim.ModFormat.M;
-berAWGN = @(SNRdB) berawgn(SNRdB - 10*log10(2) - 10*log10(log2(M)), lower(sim.ModFormat.type), M);
-% Note: - 10*log10(2) is due to the fact SNR = 2Es/N0
+berAWGN = @(SNRdB) berawgn(SNRdB - 10*log10(log2(M)), lower(sim.ModFormat.type), M);
 
 % Power levels
 Prx = dBm2Watt(Tx.PlaunchdBm)/Fiber.link_attenuation(Tx.Laser.lambda); % received power
@@ -31,17 +30,18 @@ Psig = Rx.PD.R^2*Plo*Prx/(2*sim.Npol*sim.Npol);                          % Signa
 
 % Estimate SNR of an ideal symbol-rate linear equalizer   
 Rs = sim.ModFormat.Rs;
-noiseBW = Rs/2;  % noise bandwidth of matched filter. 
+noiseBW = Rs/2;  % one-sided noise bandwidth of matched filter. 
 % This assumes rectangular pulse shape and doesn't include noise enhancement penalty
 varShot = 2*Rx.PD.varShot(Ppd, noiseBW);                               % Shot noise variance per real dimension
+% Note: factor of 2 is due to balanced photodetection
 varThermal = Rx.N0*noiseBW;                                            % Thermal noise variance per real dimension
-SNRdBtheory = 10*log10(2*Psig./(varShot + varThermal));
+SNRdBtheory = 10*log10(Psig./(varShot + varThermal));
 ber_ideal = berAWGN(SNRdBtheory);
 
 % Design linear equalizer to estimate noise enhancement penalty
 % Calculate noise bandwidth of an ideal receiver consisting of a matched 
 % filter and symbol-rate linear equalization. This is only used to
-% estiamate theoretical BER
+% estimate theoretical BER
 eq.type = 'fixed td-sr-le';
 eq.Ntaps = 31;
 pulse_shape = select_pulse_shape('rect', sim.Mct); % assumes rectangular pulse shape
@@ -54,5 +54,5 @@ noiseBW_noiseEnhance = trapz(sim.f, abs(eq.Hrx.*eq.Hff(sim.f/Rs)).^2)/2; % one-s
 % Estimate SNR including noise enhacement penalty of an ideal symbol-rate linear equalizer   
 varShot = 2*Rx.PD.varShot(Ppd, noiseBW_noiseEnhance);                               % Shot noise variance per real dimension
 varThermal = Rx.N0*noiseBW_noiseEnhance;                                            % Thermal noise variance per real dimension
-SNRdB_noise_enhancement = 10*log10(2*Psig./(varShot + varThermal));
+SNRdB_noise_enhancement = 10*log10(Psig./(varShot + varThermal));
 ber_noise_enhancement = berAWGN(SNRdB_noise_enhancement);

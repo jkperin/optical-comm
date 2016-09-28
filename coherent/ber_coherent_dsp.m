@@ -93,7 +93,7 @@ for k = 1:length(Tx.PlaunchdBm)
     % DQPSK
     
     %% Carrier phase recovery algorithm
-    if strcmpi(sim.ModFormat.type, 'QAM') % not done if DQPSK
+    if strcmpi(ModFormat.type, 'QAM') % not done if DQPSK
         Ycpr = Y;
         Rx.CPR.trainSeq = symbolsTX(:, Nvalid:end);
         if strcmpi(Rx.CPR.type, 'feedforward')
@@ -138,9 +138,9 @@ for k = 1:length(Tx.PlaunchdBm)
           
     %% Detection
     Nvalid = Nvalid + sim.Ndiscard;
-    if strcmpi(sim.ModFormat.type, 'QAM')
+    if strcmpi(ModFormat.type, 'QAM')
         dataRX = ModFormat.demod(Y(:, sim.Ndiscard+1:end-sim.Ndiscard));
-    elseif strcmpi(sim.ModFormat.type, 'DPSK')
+    elseif strcmpi(ModFormat.type, 'DPSK')
         % Note: since DPSK has differential enconding, detection for BER
         % measurement is done after several symbols so that measurements are
         % not currepted by adaptitation, fft windowing, etc
@@ -154,27 +154,27 @@ for k = 1:length(Tx.PlaunchdBm)
     ber.count(k) = 0.5*(berX(k) + berY(k));
 
    % Constellation plots
-   if strcmpi(sim.ModFormat.type, 'QAM') && sim.shouldPlot('Constellations')
+   if strcmpi(ModFormat.type, 'QAM') && sim.shouldPlot('Constellations')
        figure(203), clf
        subplot(221)
        plot_constellation(Yeq(1, sim.Ndiscard+1:end-sim.Ndiscard),...
-           dataTX(1, Rx.AdEq.Ntrain+sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
+           dataTX(1, Rx.AdEq.Ntrain+sim.Ndiscard+1:end-sim.Ndiscard), ModFormat.M);
        axis square
        title('Pol X: After equalization')
        subplot(222)
        plot_constellation(Ycpr(1, sim.Ndiscard+1:end-sim.Ndiscard),...
-           dataTX(1, sim.Nsymb-length(Ycpr)+sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
+           dataTX(1, sim.Nsymb-length(Ycpr)+sim.Ndiscard+1:end-sim.Ndiscard), ModFormat.M);
        axis square
        title('Pol X: After CPR')   
        drawnow
        subplot(223)
        plot_constellation(Yeq(2, sim.Ndiscard+1:end-sim.Ndiscard),...
-           dataTX(2, Rx.AdEq.Ntrain+sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
+           dataTX(2, Rx.AdEq.Ntrain+sim.Ndiscard+1:end-sim.Ndiscard), ModFormat.M);
        axis square
        title('Pol Y: After equalization')
        subplot(224)
        plot_constellation(Ycpr(2, sim.Ndiscard+1:end-sim.Ndiscard),...
-           dataTX(2, sim.Nsymb-length(Ycpr)+sim.Ndiscard+1:end-sim.Ndiscard), sim.M);
+           dataTX(2, sim.Nsymb-length(Ycpr)+sim.Ndiscard+1:end-sim.Ndiscard), ModFormat.M);
        axis square
        title('Pol Y: After CPR')   
        drawnow
