@@ -56,15 +56,15 @@ switch lower(Analog.CPRmethod)
         CompY = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
 
         % xnor
-        xnorX1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-        xnorX2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-        xnorY1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-        xnorY2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
+        xorX1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
+        xorX2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
+        xorY1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
+        xorY2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
         
         % Calculate group delay in s
         totalGroupDelay = LOFMgroupDelay/sim.fs... % Laser FM response delay
             + ReceiverFilterXI.groupDelay/sim.fs... % Receiver filter
-            + Comp1.groupDelay + xnorX1.groupDelay + xnorX2.groupDelay + AdderXY.groupDelay... % phase estimation    
+            + Comp1.groupDelay + xorX1.groupDelay + xorX2.groupDelay + AdderXY.groupDelay... % phase estimation    
             + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
         fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
     otherwise
@@ -95,6 +95,8 @@ dataTX(:, 1:Nzero) = 0;
 dataTX(:, end-Nzero+1:end) = 0;
 
 [Vin, symbolsTX] = Qpsk.signal(dataTX); % X & Y pol
+
+Vin = Vin/(Qpsk.M-1);
 
 % Filter drive waveforms for modulators txfilt.
 % group delay of Tx.filt.H has already been removed
@@ -164,16 +166,16 @@ for k = 1:length(Tx.PlaunchdBm)
         Xd(4, t) = Comp4.compare(X(4, t), Analog.Comparator.Vref);
         
         if Costas % Costas loop operations
-            Sx = AdderX.add(MixerIdQx.mix(Xd(1, t), X(2, t)), -MixerQdIx.mix(Xd(2, t), X(1, t)));
-            Sy = AdderY.add(MixerIdQy.mix(Xd(3, t), X(4, t)), -MixerQdIy.mix(Xd(4, t), X(3, t))); 
+            Sx = -AdderX.add(MixerIdQx.mix(Xd(1, t), X(2, t)), -MixerQdIx.mix(Xd(2, t), X(1, t)));
+            Sy = -AdderY.add(MixerIdQy.mix(Xd(3, t), X(4, t)), -MixerQdIy.mix(Xd(4, t), X(3, t))); 
         else % Logic or XOR-based
             Xdabs(1) = abs1.abs(X(1, t));
             Xdabs(2) = abs2.abs(X(2, t));
             Xdabs(3) = abs3.abs(X(3, t));
             Xdabs(4) = abs4.abs(X(4, t));
 
-            Sx = xnorX2.xnor(xnorX1.xnor(Xd(1, t), Xd(2, t)), CompX.compare(Xdabs(1), Xdabs(2)));
-            Sy = xnorY2.xnor(xnorY1.xnor(Xd(3, t), Xd(4, t)), CompY.compare(Xdabs(3), Xdabs(4)));
+            Sx = xorX2.xor(xorX1.xor(Xd(1, t), Xd(2, t)), CompX.compare(Xdabs(1), Xdabs(2)));
+            Sy = xorY2.xor(xorY1.xor(Xd(3, t), Xd(4, t)), CompY.compare(Xdabs(3), Xdabs(4)));
         end
       
         % Loop filter

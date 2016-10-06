@@ -8,11 +8,16 @@ addpath ../../f/
 addpath ../../apd/
 addpath ../../soa/
 
-% DQPSK_Analog_BER_L=0km_lamb=1380nm_ModBW=30GHz_linewidth=200kHz
+% DQPSK_DSP_BER_L=7km_lamb=1250nm_ModBW=30GHz_Ntaps=7taps_nu=200kHz_ros=125_ENOB=4
 
 Rb = 2*112e9;
 Rs = Rb/(4);
 BERtarget = 1.8e-4;
+ros = 5/4;
+EqNtaps = 7;
+ENOB = 4;
+CPR = 'Feedforward-NDA';
+CPRtaps = 9;
 Modulator = 'SiPhotonics';
 ModBW = 30;
 linewidth = 200;
@@ -31,8 +36,9 @@ Color = {[51, 105, 232]/255, [153,153,155]/255, [255,127,0]/255};
 Lspan = 0:0.5:10;
 for l = 1:length(lamb)
     for k = 1:length(Lspan)
-        filename = sprintf('DQPSK_Analog_BER_L=%skm_lamb=%snm_ModBW=%sGHz_linewidth=%skHz',...
-        num2str(Lspan(k)), num2str(lamb(l)), num2str(ModBW), num2str(linewidth));  
+        filename = sprintf('DQPSK_DSP_BER_L=%skm_lamb=%snm_ModBW=%sGHz_Ntaps=%staps_nu=%skHz_ros=%s_ENOB=%s',...
+        num2str(Lspan(k)), num2str(lamb(l)), num2str(ModBW), num2str(EqNtaps), num2str(linewidth),...
+        num2str(round(100*ros)), num2str(ENOB));  
         try 
             S = load(filename, '-mat');
             D(l, k) = S.Fiber.D(S.Tx.Laser.wavelength)*S.Fiber.L/1e3;
@@ -48,9 +54,10 @@ for l = 1:length(lamb)
             BERcount = log10(BERcount/counter);
             BERtheory = log10(BERtheory/counter);
 
-            idx = find(BERcount <= -2 & BERcount >= -5.5);
-            f = fit(S.Tx.PlaunchdBm(idx).', BERcount(idx).', 'linearinterp');
-            [PrxdBm(l, k), ~, exitflag] = fzero(@(x) f(x) - log10(BERtarget), -28);
+            idx = find(BERcount >= -5.5);
+            f = fit(S.Tx.PlaunchdBm(idx).', BERcount(idx).', 'spline');
+            g = @(x) f(x)*(x > min(S.Tx.PlaunchdBm(idx)));
+            [PrxdBm(l, k), ~, exitflag] = fzero(@(x) g(x) - log10(BERtarget), -38);
             figure(2), clf, hold on, box on
             hline = plot(S.Tx.PlaunchdBm, BERcount, '-o');
             plot(S.Tx.PlaunchdBm, f(S.Tx.PlaunchdBm), '-', 'Color', get(hline, 'Color'));
@@ -76,5 +83,5 @@ PpendB = [PrxdBm(1, end:-1:1) PrxdBm(2, :)] -PrefdBm;
 figure(1), hold on, box on
 plot(D*1e6, PpendB, '-o', 'LineWidth', 2, 'MarkerFaceColor', 'w');
 xlabel('Dispersion ps/nm')
-ylabel('Power penalty (dB)')
+ylabel('Receiver sensitivity (dBm)')
 axis([-60 60 0 10])

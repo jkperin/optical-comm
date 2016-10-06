@@ -1,94 +1,91 @@
 %% Process data saved by QPSK_BER_qsub.m
 clear, clc, close all
 
+addpath ../
 addpath ../f/
 addpath ../DSP/
 addpath ../../f/
 addpath ../../apd/
 addpath ../../soa/
 
+% QPSK_Analog_BER_L=0.5km_lamb=1380nm_ModBW=30GHz_OPLL-costas_Npol=1_linewidth=200kHz_delay=250ps
+
+Rb = 2*112e9;
+Rs = Rb/(4);
 BERtarget = 1.8e-4;
+CPR = {'costas', 'logic'};
+delay = 250;
 Modulator = 'SiPhotonics';
-ModBW = 40;
-CPRtype = {'Costas', 'Logic'};
+ModBW = 30;
 linewidth = 200;
-ideal= [1 1 1];
-Delay = [0 250 500];
+lamb = [1250 1380];
+
+R = 1;
+q = 1.60217662e-19;
+
+SNRdB2PrxdBm = @(SNRdB) 10*log10(10^(SNRdB/10)*2*q*Rs/(R*1e-3));
+SNRdBref = SNRreq(BERtarget, 4, 'QAM');
+PrefdBm = -35.0798; % SNRdB2PrxdBm(SNRdBref);
 
 LineStyle = {'-', '--'};
-Marker = {'o', 'o', 'v'};
-Color = {[51, 105, 232]/255, [228,26,28]/255, [0,153,37]/255, [255,127,0]/255,...
-            [152,78,163]/255, [166,86,40]/255, [153,153,155]/255, [77,175,74]/255, [0,0,0]};  
-Lspan = 0:10;
-figure(1), hold on, box on
-count = 1;
-for ind1 = 1:length(CPRtype)
-    for i = 1:length(ideal)
-        Prec = zeros(size(Lspan));
-        for k = 1:length(Lspan)
-             filename = sprintf('analog/Analog_QPSK_BER_%s_%s_L=%dkm_%s_BW=%dGHz_linewidth=%dkHz_ideal=%d_delay=%dps',...
-                'EPLL', CPRtype{ind1}, Lspan(k), Modulator, ModBW, linewidth, ideal(i), Delay(i));
+Marker = {'o', 's', 'v'};
+Color = {[51, 105, 232]/255, [153,153,155]/255, [255,127,0]/255};
+Lspan = 0:0.5:10;
 
-            try 
-                S = load(filename);
 
-                lber = log10(S.BER.count);
-                valid = ~(isinf(lber) | isnan(lber)) & lber > -4.5;
-                try
-                    Pval = S.Tx.PlaunchdBm(valid).';
-                    lber_valid = lber(valid);
-                    [~, ia] = unique(lber_valid);
-                    lber_unique = lber_valid(ia).';
-                    Punique = Pval(ia);
-                    f = fit(lber_unique, Punique, 'linearinterp');
-                    Prec(k) = f(log10(BERtarget));
+PrxdBm = zeros(2, 1, length(lamb), length(Lspan));
+D = zeros(length(lamb), length(Lspan));
+for n = 1:2
+    for Ncpr = 1
+        for l = 1:length(lamb)
+            for k = 1:length(Lspan)
+                filename = sprintf('QPSK_Analog_BER_L=%skm_lamb=%snm_ModBW=%sGHz_OPLL-%s_Npol=%s_linewidth=%skHz_delay=%sps.mat',...
+                num2str(Lspan(k)), num2str(lamb(l)), num2str(ModBW), CPR{n}, num2str(Ncpr), num2str(linewidth),...
+                num2str(delay));  
+                try 
+                    S = load(filename, '-mat');
+                    D(l, k) = S.Fiber.D(S.Tx.Laser.wavelength)*S.Fiber.L/1e3;
+
+                    BERcount = 0;
+                    BERtheory = 0;
+                    counter = 0;
+                    for i = 1:S.sim.Realizations
+                        BERcount = BERcount + S.BER(i).count;
+                        BERtheory = BERtheory + S.BER(i).theory;
+                        counter = counter + 1;
+                    end
+                    BERcount = log10(BERcount/counter);
+                    BERtheory = log10(BERtheory/counter);
+
+                    idx = find(BERcount <= -2 & BERcount >= -5.5);
+                    f = fit(S.Tx.PlaunchdBm(idx).', BERcount(idx).', 'linearinterp');
+                    [PrxdBm(n, Ncpr, l, k), ~, exitflag] = fzero(@(x) f(x) - log10(BERtarget), -28);
+                    figure(2), clf, hold on, box on
+                    hline = plot(S.Tx.PlaunchdBm, BERcount, '-o');
+                    plot(S.Tx.PlaunchdBm, f(S.Tx.PlaunchdBm), '-', 'Color', get(hline, 'Color'));
+                    axis([S.Tx.PlaunchdBm([1 end]) -8 0])
+                    if exitflag ~= 1
+                        disp('Interpolation failed')
+                        exitflag
+                        PrxdBm(n, Ncpr, l, k) = NaN;
+                    end
+                    drawnow   
+                    1;
                 catch e
+                    filename
                     warning(e.message)
-                    Prec(k) = NaN;
-                    lber(valid)
-                end 
-
-                lber_theory = log10(S.BER.theory(valid));
-                Prec_theory(k) = interp1(lber_theory, S.Tx.PlaunchdBm(valid), log10(BERtarget));
-
-                figure(2), box on, hold on
-                h = plot(S.Tx.PlaunchdBm, lber, '-o');
-                plot(Prec(k), log10(BERtarget), '*', 'Color', get(h, 'Color'), 'MarkerSize', 6)
-                plot(S.Tx.PlaunchdBm(valid), lber_theory, 'k')
-                axis([S.Tx.PlaunchdBm([1 end]) -8 0])
-            catch e
-                warning(e.message)
-                Prec(k) = NaN;
-                Prec_theory(k) = NaN;
-                filename
+                    PrxdBm(n, Ncpr, l, k) = NaN;
+                end
             end
         end
-        Prec_qpsk_theory =  Prec_theory;
-        Prec_qpsk_count{i} = Prec;
-
-        figure(1), hold on
-        hline(count) = plot(Lspan, Prec, 'Color', Color{i}, 'LineStyle', LineStyle{ind1}, 'Marker', Marker{ind1}, 'LineWidth', 2, 'MarkerFaceColor', 'w');
-        count = count + 1;
-        drawnow
+        Dcomb = [D(1, end:-1:1) D(2, :)];
+        PpendBcomb(n, Ncpr, :) = [squeeze(PrxdBm(n, Ncpr, 1, end:-1:1)).' squeeze(PrxdBm(n, Ncpr, 2, :)).'] -PrefdBm;
+        figure(1), hold on, box on
+        plot(Dcomb*1e6, squeeze(PpendBcomb(n, Ncpr, :)), '-o', 'LineWidth', 2, 'MarkerFaceColor', 'w');
     end
 end
 
-hline(end+1) = plot(Lspan, Prec_theory, 'k', 'LineWidth', 2);
-xlabel('Fiber length (km)', 'FontSize', 12)
-ylabel('Receiver sensitivity (dBm)', 'FontSize', 12)
-set(gca, 'FontSize', 12)
+xlabel('Dispersion ps/nm')
+ylabel('Receiver sensitivity (dBm)')
+axis([-60 60 0 10])
 
-axis([0 10 -34 -24])
-% axis([0 10 -33 -27])
-% legend(hline, 'DPLL', 'FIR Feedforward w/ 15 taps')
-
-Preq_QPSK_eq3taps_4ENOB = [-30.4164745074869,-30.4058273271944,-30.3330441704541,-30.3715741109382,-30.2602322104346,-30.2036180718854,-29.9936936068042,-29.9671004192639,-29.7529982889092,-29.4985634102842,-29.3006527908808];
-Preq_QPSK_eq7taps_4ENOB = [-31.4125107114068,-31.3779270998451,-31.3164488824664,-31.2780039701913,-31.3520527618346,-31.2563675630953,-31.0883355328784,-31.2731071351150,-31.1648786133992,-31.0440648321642, NaN];  
-Preq_QPSK_theory = [-33.0063808502409,-33.0063808502409,-33.0063808502409,-33.0063808502409,-33.0063808502409,-33.0063808502409,-33.0063808502409,-33.0063808502409,-33.0063808502409,-33.0063808502409,-33.0063808502409];
-
-h1 = plot(Lspan, Preq_QPSK_eq3taps_4ENOB, 'Color', [153,153,155]/255, 'LineStyle', '-', 'Marker', 's', 'LineWidth', 2, 'MarkerFaceColor', 'w');
-h2 = plot(Lspan, Preq_QPSK_eq7taps_4ENOB, 'Color', [153,153,155]/255, 'LineStyle', '--', 'Marker', 's', 'LineWidth', 2, 'MarkerFaceColor', 'w');
-h3 = plot(Lspan, Preq_QPSK_theory, 'k', 'LineWidth', 2)
-hline = [h1 h2 hline(1:3) h3];
-leg = legend(hline, 'DSP w/ 3-tap equalizer', 'DSP w/ 7-tap equalizer', 'Loop delay = 0 ps', '250 ps', '500 ps', 'AWGN limit', 'Location', 'NorthWest');
-set(leg, 'FontSize', 12)

@@ -56,6 +56,12 @@ for k = 1:length(Tx.PlaunchdBm)
     %% Automatic gain control (AGC)
     Yrx = [sqrt(Enorm./mean(abs(Yrx(1, :)).^2))*Yrx(1, :);...
         sqrt(Enorm./mean(abs(Yrx(2, :)).^2))*Yrx(2, :)];
+      
+    % Introduces skew between X and Y polarizations
+    if isfield(sim, 'polSkewSamples') && sim.polSkewSamples > 0
+        fprintf('> Y pol delayed by %d samples (%.3f ps)\n', sim.polSkewSamples, 1e12*sim.polSkewSamples/sim.fs)
+        Yrx(2, :) = circshift(Yrx(2, :), [0 sim.polSkewSamples]); % delays  Y polarization by sim.polSkewSamples samples     end
+    end
     
     %% Sampling    
     % Digital to analog conversion: antialiasing filter, sampling, and
@@ -66,7 +72,7 @@ for k = 1:length(Tx.PlaunchdBm)
     [Yyq, varQ(4)] = adc(imag(Yrx(2, :)), Rx.ADC, sim);
 
     Ys = [Yxi + 1j*Yxq; Yyi + 1j*Yyq];
-          
+       
     %% Equalization
     switch upper(Rx.AdEq.type) 
         case 'CMA'
@@ -136,6 +142,11 @@ for k = 1:length(Tx.PlaunchdBm)
     % Rotate constellations
     Y = [Y(1, :).*exp(+1j*theta(1)); Y(2, :).*exp(+1j*theta(2))];
           
+    fprintf('> X pol signal was shifted by %d samples\n', ind(p(1)))
+    fprintf('> Y pol signal was shifted by %d samples\n', ind(p(2)))
+    fprintf('> X pol constellation was rotated by %.2f deg\n', rad2deg(theta(1)))
+    fprintf('> Y pol constellation was rotated by %.2f deg\n', rad2deg(theta(2)))
+    
     %% Detection
     Nvalid = Nvalid + sim.Ndiscard;
     if strcmpi(ModFormat.type, 'QAM')
@@ -162,8 +173,8 @@ for k = 1:length(Tx.PlaunchdBm)
        axis square
        title('Pol X: After equalization')
        subplot(222)
-       plot_constellation(Ycpr(1, sim.Ndiscard+1:end-sim.Ndiscard),...
-           dataTX(1, sim.Nsymb-length(Ycpr)+sim.Ndiscard+1:end-sim.Ndiscard), ModFormat.M);
+       plot_constellation(Y(1, sim.Ndiscard+1:end-sim.Ndiscard),...
+           dataTX(1, sim.Nsymb-length(Y)+sim.Ndiscard+1:end-sim.Ndiscard), ModFormat.M);
        axis square
        title('Pol X: After CPR')   
        drawnow
@@ -173,8 +184,8 @@ for k = 1:length(Tx.PlaunchdBm)
        axis square
        title('Pol Y: After equalization')
        subplot(224)
-       plot_constellation(Ycpr(2, sim.Ndiscard+1:end-sim.Ndiscard),...
-           dataTX(2, sim.Nsymb-length(Ycpr)+sim.Ndiscard+1:end-sim.Ndiscard), ModFormat.M);
+       plot_constellation(Y(2, sim.Ndiscard+1:end-sim.Ndiscard),...
+           dataTX(2, sim.Nsymb-length(Y)+sim.Ndiscard+1:end-sim.Ndiscard), ModFormat.M);
        axis square
        title('Pol Y: After CPR')   
        drawnow

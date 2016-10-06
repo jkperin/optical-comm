@@ -1,5 +1,5 @@
 %% plot phase error vs loop filter relaxation frequency for various loop delays
-clear, clc, close all
+clear, clc
 
 addpath ../f/
 addpath ../../f/
@@ -23,15 +23,15 @@ wn = 2*pi*1e9*(0:0.01:0.3);
 for k = 1:length(Delays)
     [wnOpt, minVarPhiError] = optimizePLL(csi, Delays(k), totalLinewidth, Ncpr, sim);
     
-    [varPhiError, nPN, nAWGN] = phase_error_variance(csi, wn, Ncpr, Delays(k), totalLinewidth, SNRdB, sim.Rs);
+    [varPhiError, nPN, nAWGN] = phase_error_variance(csi, wn, Ncpr, Delays(k), totalLinewidth, SNRdB, sim.Rs, true);
 
     
     figure(2), hold on
     plot(wn, nPN, wn, nAWGN)
     
     figure(1), hold on, box on
-    h(k) = plot(wn/1e9, varPhiError, 'LineWidth', 2);
-    plot(wnOpt/1e9, minVarPhiError, 'o', 'Color', get(h(k), 'Color'), 'MarkerFaceColor', 'w', 'LineWidth', 2)
+    h(k) = plot(wn/1e9, varPhiError, 'k', 'LineWidth', 2);
+    plot(wnOpt/1e9, minVarPhiError, 'ko', 'Color', get(h(k), 'Color'), 'MarkerFaceColor', 'w', 'LineWidth', 2)
     drawnow
 end
 axis([0 1 0 0.03])

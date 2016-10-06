@@ -1,12 +1,10 @@
-function BER = DQPSK_DSP_BER_qsub(fiberLengthKm, Modulator, ModBWGHz, EqNtaps, linewidthKHz, fOffsetGHz, ros, ENOB)
+function BER = DQPSK_DSP_BER_qsub(fiberLengthKm, wavelengthnm, ModBWGHz, EqNtaps, linewidthKHz, ros, ENOB)
 %% Simulation of DSP-based coherent detection system using DQPSK
 % - fiberLength: fiber length in km
-% - Modulator: either 'EOM' or 'SiPhotonics'
+% - wavelengthnm: wavelength of transmitter and LO in nm
 % - ModBW: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
 % - EqNtaps: number of taps of adaptive equalizer
 % - linewidth: transmitter and LO laser linewidth in kHz
-% - fOffset: frequency offset of the LO laser with respect to transmitter
-% laser in GHz. 
 % - ros: oversampling ratio of DSP. Must be passed as a fraction e.g., 5/4
 % - ENOB: effective number of bits
 
@@ -17,25 +15,25 @@ addpath ../apd/
 addpath ../soa/
 
 ros = eval(ros);
-filename = sprintf('results/DQPSK_DSP_BER_L=%skm_%s_BW=%sGHz_Ntaps=%staps_nu=%skHz_fOff=%sGHz_ros=%d_ENOB=%s',...
-        fiberLengthKm, Modulator, ModBWGHz, EqNtaps, linewidthKHz, fOffsetGHz, round(100*ros), ENOB)
+filename = sprintf('results/DQPSK_DSP_BER_L=%skm_lamb=%snm_ModBW=%sGHz_Ntaps=%staps_nu=%skHz_ros=%d_ENOB=%s.mat',...
+        fiberLengthKm, wavelengthnm, ModBWGHz, EqNtaps, linewidthKHz, round(100*ros), ENOB)
 
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([fiberLengthKm ModBWGHz EqNtaps linewidthKHz fOffsetGHz ENOB]))
+if ~all(isnumeric([fiberLengthKm wavelengthnm ModBWGHz EqNtaps linewidthKHz ENOB]))
     fiberLength = 1e3*str2double(fiberLengthKm);
+    wavelength = 1e-9*str2double(wavelengthnm);
     ModBW = 1e9*str2double(ModBWGHz);
     EqNtaps = round(str2double(EqNtaps));
     linewidth = 1e3*str2double(linewidthKHz);
-    fOffset = 1e9*str2double(fOffsetGHz);
     ENOB = round(str2double(ENOB));
 end
 
 %% Simulation launched power swipe
-Tx.PlaunchdBm = -38:-28;
+Tx.PlaunchdBm = -38:0.5:-10;
 % Tx.PlaunchdBm = -25;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
 sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
 sim.ros.rxDSP = ros;
 sim.BERtarget = 1.8e-4; 
@@ -46,10 +44,11 @@ sim.Npol = 2;                                                              % num
 sim.Modulator = 'SiPhotonics';                                             % Modulator bandwidth limitation: {'MZM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
 sim.pulse_shape = select_pulse_shape('rect', sim.Mct);                     % pulse shape
 sim.ModFormat = DPSK(4, sim.Rb/sim.Npol, sim.pulse_shape);                 % M-DPSK modulation format
+sim.Realizations = 4; 
 
 % Simulation control
 sim.RIN = true; 
-sim.PMD = false;
+sim.PMD = true;
 sim.phase_noise = (linewidth ~= 0);
 sim.preAmp = false;
 sim.quantiz = not(isinf(ENOB));
@@ -58,7 +57,7 @@ sim.save = true;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 1; 
+Plots('BER')                  = 0; 
 Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
 Plots('Constellations') = 0;
@@ -87,7 +86,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1250e-9, 0, -150, linewidth, 0);
+Tx.Laser = laser(wavelength, 0, -150, linewidth, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -127,7 +126,7 @@ Amp = soa(20, 7, Tx.Laser.lambda);
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
 Rx.LO.PdBm = 15;                                                           % Total local oscillator power (dBm)
-Rx.LO.freqOffset = fOffset;                                                    % Frequency shift with respect to transmitter laser in Hz
+Rx.LO.freqOffset = 0;                                                    % Frequency shift with respect to transmitter laser in Hz
 
 %% ============================ Hybrid ====================================
 % polarization splitting --------------------------------------------------
@@ -188,7 +187,9 @@ Rx.FreqRec.Ntrain = 1e4;
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
 %% Runs simulation
-BER = ber_coherent_dsp(Tx, Fiber, Rx, sim);
+parfor k = 1:sim.Realizations
+    BER(k) = ber_coherent_dsp(Tx, Fiber, Rx, sim)
+end
 
 %% Save results
 if sim.save   

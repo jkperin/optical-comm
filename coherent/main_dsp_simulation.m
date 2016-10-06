@@ -8,7 +8,7 @@ addpath ../apd/
 addpath ../soa/
 
 %% Simulation launched power swipe
-Tx.PlaunchdBm = -38:-28;
+Tx.PlaunchdBm = -38:-10;
 % Tx.PlaunchdBm = -28;
 
 %% ======================== Simulation parameters =========================
@@ -32,11 +32,12 @@ sim.phase_noise = true;
 sim.preAmp = false;
 sim.quantiz = false;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
+sim.polSkewSamples = 0;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
 Plots('BER')                  = 1; 
-Plots('Equalizer')            = 0;
+Plots('Equalizer')            = 1;
 Plots('Eye diagram') = 0;
 Plots('DPLL phase error') = 0;
 Plots('Feedforward phase error') = 0;
@@ -66,7 +67,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1250e-9, 0, -150, 200e3, 0);
+Tx.Laser = laser(1270e-9, 0, -150, 200e3, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -75,7 +76,7 @@ if strcmpi(sim.Modulator, 'MZM')
     Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
 elseif strcmpi(sim.Modulator, 'SiPhotonics') 
     %% Si Photonics (limited by parasitics, 2nd-order response)
-    Tx.Mod.BW = 40e9;
+    Tx.Mod.BW = 30e9;
     Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
     Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
     Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
@@ -88,7 +89,7 @@ end                                                           % optical modulato
 % deafault is att(lamb) = 0 dB/km
 % D(lamb) : function handle of dispersion (D) at wavelength (lamb) in ps/(kmnm),
 % default is D(lamb) = SSMF with lamb0 @ 1310 ps/(kmnm)
-Fiber = fiber(0*5e3);
+Fiber = fiber(10e3);
 Fiber.PMD = sim.PMD;                                                       % whether to similate PMD
 Fiber.meanDGDps = 0.1;                                                     % Mean DGD (ps)
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
