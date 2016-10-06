@@ -9,7 +9,7 @@ addpath ../soa/
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
-sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
+sim.Mct = 4;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
@@ -22,7 +22,7 @@ sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-Q
 % Simulation control
 sim.RIN = true; 
 sim.PMD = false;
-sim.phase_noise = ~true;
+sim.phase_noise = true;
 sim.preAmp = false;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
@@ -54,7 +54,7 @@ Tx.Dely  = 0;                                                               % De
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
 Tx.Laser = laser(1250e-9, 0, -150, 200e3, 0);
-Tx.PlaunchdBm = -20;
+Tx.PlaunchdBm = -30;
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -97,7 +97,7 @@ Rx.LO.PdBm = 15;                                                           % Tot
 Rx.LOFMgroupDelayps = 0;                                                   % group delay of laser FM response in ps
 
 % Frequency step
-Tstep = sim.N/4; % frequency step begins
+Tstep = round(sim.N/3); % frequency step begins
 fstep = 0.1e9;
 Rx.LO.freqOffset = [zeros(1, Tstep-1) fstep*ones(1, sim.N-Tstep+1)];    % Frequency shift with respect to transmitter laser in Hz
 

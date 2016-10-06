@@ -74,6 +74,24 @@ classdef DPSK < QAM
                 dataRX(k, :) = databin.'-1;
             end
         end
+        
+        
+        function ber = ber_freq_offset(self, SNRdB, foff)
+            %% DPSK ber including frequency offset between two symbols
+            % Results are based on Pawula, R. F., Rice, S. O., & Roberts, J. H. (2001). Distribution of the phase angle between two vectors perturbed by Gaussian noise II. IEEE Transactions on Vehicular Technology, 50(2), 576–583. http://doi.org/10.1109/25.923069            
+            % Eqs. 9, 12, 43
+            % Note: if foff = 0, then BER becomes equal to the one calculated using berawgn()
+            SNR = 10.^(SNRdB/10);
+            DeltaPhi = 2*pi*foff/self.Rs;
+            t = linspace(-pi/2, pi/2, 1e3);
+            F = @(psi, SNR) SNR*sin(DeltaPhi-psi)/(4*pi)*...
+                    trapz(t, exp(-(SNR-SNR*cos(DeltaPhi-psi)*cos(t)))...
+                    ./(SNR - SNR*cos(DeltaPhi-psi)*cos(t)));
+            ber = zeros(size(SNR));
+            for k = 1:length(SNR)
+                ber(k) = 2/log2(self.M)*(F(pi, SNR(k)) - F(pi/self.M, SNR(k)));
+            end
+        end
     end
     
     %% Get and set methods

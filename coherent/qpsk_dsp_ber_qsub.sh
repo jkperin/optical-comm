@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Name the job in Grid Engine
-#$ -N DSP_QPSK_BER
+#$ -N QPSK_DSP_BER
 
 #tell grid engine to use current directory
 #$ -cwd
@@ -18,4 +18,4 @@
 # 
 module load matlab
 
-matlab -nodesktop -singleCompThread -r "QPSK_BER_qsub $fiberLength $Modulator $ModBW $EqNtaps $CPRAlgorithm $CPRtaps $linewidth $fOffset $ros $ENOB"
+matlab -nodesktop -singleCompThread -r "QPSK_DSP_BER_qsub $fiberLengthKm $wavelengthnm $ModBWGHz $EqNtaps $CPRAlgorithm $PhaseEstimation $CPRtaps $linewidthKHz $ros $ENOB"

@@ -1,4 +1,4 @@
-function [BER, BERopt] = QPSK_Analog_Delay_Penalty_qsub(CPR, CPRmethod, linewidthKHz, loopBandWidthMHz)
+function [BER, BERopt] = QPSK_Analog_Delay_Penalty_qsub(CPR, CPRmethod, linewidthKHz)
 %% Calculate BER x Received power curves for given values of loop bandwidth and loop delay
 % - CPR: carrier phase recovery type: {'EPLL': electric PLL, 'OPLL':
 % optical PLL}
@@ -14,23 +14,20 @@ addpath ../apd/
 addpath ../soa/
 
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([linewidthKHz loopBandWidthMHz]))
+if ~all(isnumeric(linewidthKHz))
     linewidth = 1e3*str2double(linewidthKHz);
-    loopBandwidth = 1e6*str2double(loopBandWidthMHz);
 end
 
 PlaunchdBm = -38:-18;
-Delayps = 0:50:400;
+Delayps = 0:100:1000;
 parfor k = 1:length(Delayps)
-    BER2pol{k} = iterate(CPR, CPRmethod, 2, PlaunchdBm, linewidth, loopBandwidth, 1e-12*Delayps(k));
     [BERopt2pol{k}, loopBandwidthOpt2pol(k)] = iterate(CPR, CPRmethod, 2, PlaunchdBm, linewidth, [], 1e-12*Delayps(k)); % BER vs received power for optimal loop bandwidth
-    BER1pol{k} = iterate(CPR, CPRmethod, 1, PlaunchdBm, linewidth, loopBandwidth, 1e-12*Delayps(k));
     [BERopt1pol{k}, loopBandwidthOpt1pol(k)] = iterate(CPR, CPRmethod, 1, PlaunchdBm, linewidth, [], 1e-12*Delayps(k)); % BER vs received power for optimal loop bandwidth
 end
 
 % Sava data
-filename = sprintf('results/QPSK_Analog_Delay_Penalty_%s_%s_linewidth=%skHz_loopBandwidthMHz=%s.mat',...
-        upper(CPR), CPRmethod, linewidthKHz, loopBandWidthMHz)
+filename = sprintf('results/QPSK_Analog_Delay_Penalty_%s_%s_linewidth=%skHz.mat',...
+        upper(CPR), CPRmethod, linewidthKHz)
     
 filename = check_filename(filename);    
 save(filename)
@@ -41,7 +38,7 @@ function [berQAM, loopBandwidth] = iterate(CPR, CPRmethod, CPRNpol, PlaunchdBm, 
 Tx.PlaunchdBm = PlaunchdBm;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
 sim.Mct = 4;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
@@ -95,7 +92,7 @@ if strcmpi(sim.Modulator, 'MZM')
     Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
 elseif strcmpi(sim.Modulator, 'SiPhotonics') 
     %% Si Photonics (limited by parasitics, 2nd-order response)
-    Tx.Mod.BW = 40e9;
+    Tx.Mod.BW = 100e9;
     Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
     Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
     Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)

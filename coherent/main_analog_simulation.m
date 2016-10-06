@@ -9,7 +9,7 @@ addpath ../soa/
 
 %% Simulation launched power swipe
 Tx.PlaunchdBm = -38:-28;
-% Tx.PlaunchdBm = -38:-37;
+% Tx.PlaunchdBm = -30;
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
@@ -72,7 +72,7 @@ if strcmpi(sim.Modulator, 'MZM')
     Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
 elseif strcmpi(sim.Modulator, 'SiPhotonics') 
     %% Si Photonics (limited by parasitics, 2nd-order response)
-    Tx.Mod.BW = 30e9;
+    Tx.Mod.BW = 100e9;
     Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
     Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
     Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
@@ -138,16 +138,16 @@ Rx.N0 = (30e-12)^2;                                                        % One
 
 %% ========================= Analog Components ============================
 %% Receiver filter
-Analog.filt = design_filter('bessel', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
+Analog.filt = design_filter('butter', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 
 %% Carrier phase recovery and components
 % Carrier Phase recovery type: either 'OPLL', 'EPLL', and 'Feedforward'
-Analog.CPRNpol = 1; % Number of polarizations used in CPR
+Analog.CPRNpol =2; % Number of polarizations used in CPR
 Analog.CarrierPhaseRecovery = 'OPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
 % '4th-power': based on raising signal to 4th power (only for EPLL)}
-Analog.CPRmethod = 'costas';                                            
+Analog.CPRmethod = 'Costas';                                            
 
 % If componentFilter is empty, simulations assume ideal devices
 componentFilter = []; %design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));
@@ -182,7 +182,7 @@ Analog.Comparator.filt = componentFilter;
 %% PLL loop filter parameters.
 % Note: relaxation frequency is optimized at every iteration
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 200e-12;                                                          % Additional loop delay in s (not including group delay from filters)
+Analog.Delay = 100e-12;                                                          % Additional loop delay in s (not including group delay from filters)
 % Analog.wn = 2*pi*100e6;
 
 %% Feedforward additional components

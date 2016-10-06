@@ -18,4 +18,6 @@
 # 
 module load matlab
 
-matlab -nodesktop -singleCompThread -r "QPSK_Analog_Delay_Penalty_qsub $CPR $CPRmethod $linewidthKHz $loopBandWidthMHz"
+matlab -nodesktop -singleCompThread -r "QPSK_Analog_Delay_Penalty_qsub $CPR $CPRmethod $linewidthKHz"
+
+matlab -nodesktop -singleCompThread -r "QPSK_Analog_Delay_Penalty_qsub $CPR $CPRmethod $linewidthKHz"

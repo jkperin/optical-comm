@@ -1,4 +1,4 @@
-function BER = QPSK_Analog_BER_qsub(CPR, CPRmethod, CPRNpol, fiberLengthKm, linewidthKHz, ideal, Delayps)
+function BER = QPSK_Analog_BER_qsub(fiberLengthKm, wavelengthnm, ModBWGHz, CPR, CPRmethod, CPRNpol, linewidthKHz, Delayps)
 %% Estimate BER of a QPSK system based on analog receiver
 % - CPR: carrier phase recovery type: {'EPLL': electric PLL, 'OPLL':
 % optical PLL}
@@ -19,26 +19,27 @@ addpath ../apd/
 addpath ../soa/
 
 %
-filename = sprintf('results/opll/QPSK_Analog_BER_%s_%s_Npol=%s_L=%skm_linewidth=%skHz_ideal=%s_delay=%sps.mat',...
-        upper(CPR), CPRmethod, CPRNpol, fiberLengthKm, linewidthKHz, ideal, Delayps);
+filename = sprintf('results/QPSK_Analog_BER_L=%skm_lamb=%snm_ModBW=%sGHz_%s-%s_Npol=%s_linewidth=%skHz_delay=%sps.mat',...
+        fiberLengthKm, wavelengthnm, ModBWGHz, upper(CPR), CPRmethod, CPRNpol, linewidthKHz, Delayps);
 
 filename = check_filename(filename)
     
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([fiberLengthKm CPRNpol linewidthKHz ideal Delayps]))
+if ~all(isnumeric([fiberLengthKm wavelengthnm ModBWGHz CPRNpol linewidthKHz Delayps]))
     fiberLength = 1e3*str2double(fiberLengthKm);
+    wavelength = 1e-9*str2double(wavelengthnm);
+    ModBW = 1e9*str2double(ModBWGHz);
     linewidth = 1e3*str2double(linewidthKHz);
-    ideal = logical(str2double(ideal));
     Delay = 1e-12*round(str2double(Delayps));
     CPRNpol = round(str2double(CPRNpol));
 end
 
 %% Simulation launched power swipe
-Tx.PlaunchdBm = -38:-18;
+Tx.PlaunchdBm = -38:0.5:-25;
 % Tx.PlaunchdBm = -25;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
 sim.Mct = 4;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
@@ -48,6 +49,7 @@ sim.Npol = 2;                                                              % num
 sim.Modulator = 'SiPhotonics';                                             % Modulator bandwidth limitation: {'MZM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
 sim.pulse_shape = select_pulse_shape('rect', sim.Mct);                     % pulse shape
 sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-QAM modulation format
+sim.Realizations = 4;                                                      % Number of times to calculate the BER
 
 % Simulation
 sim.RIN = true; 
@@ -62,7 +64,7 @@ Plots = containers.Map();                                                   % Li
 Plots('BER')                  = 0; 
 Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
-Plots('Constellations') = 1;
+Plots('Constellations') = 0;
 Plots('Diff group delay')       = 0;
 Plots('Phase tracker') = 0;
 Plots('EPLL phase error') = 0;
@@ -88,7 +90,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1310e-9, 0, -150, linewidth, 0);
+Tx.Laser = laser(wavelength, 0, -150, linewidth, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -97,7 +99,7 @@ if strcmpi(sim.Modulator, 'MZM')
     Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
 elseif strcmpi(sim.Modulator, 'SiPhotonics') 
     %% Si Photonics (limited by parasitics, 2nd-order response)
-    Tx.Mod.BW = 40e9;
+    Tx.Mod.BW = ModBW;
     Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
     Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
     Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
@@ -163,7 +165,7 @@ Rx.N0 = (30e-12)^2;                                                        % One
 
 %% ========================= Analog Components ============================
 % Receiver filter
-Analog.filt = design_filter('butter', 5, 0.7*sim.Rs/(sim.fs/2));
+Analog.filt = design_filter('bessel', 5, 0.7*sim.Rs/(sim.fs/2));
 
 %% Carrier phase recovery and components
 Analog.CPRNpol = CPRNpol;
@@ -174,16 +176,14 @@ Analog.CarrierPhaseRecovery = CPR;
 % requires multiplications, 'logic': EPLL based on XOR operations}
 Analog.CPRmethod = CPRmethod;    
 
-if ideal
-    componentFilter = [];
-    componentN0 = 0;
-else
-    componentFilter = design_filter('bessel', 1, 0.7*sim.Rs/(sim.fs/2));
-    componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
-    % Huber, A. et al (2002). Noise model of InP-InGaAs SHBTs for RF circuit design. 
-    % IEEE Transactions on Microwave Theory and Techniques, 50(7), 1675–1682.
-    componentN0 = 4e-21*componentRn/pi;
-end
+% ideal components
+componentFilter = [];
+componentN0 = 0;
+%     componentFilter = design_filter('bessel', 1, 0.7*sim.Rs/(sim.fs/2));
+%     componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
+%     % Huber, A. et al (2002). Noise model of InP-InGaAs SHBTs for RF circuit design. 
+%     % IEEE Transactions on Microwave Theory and Techniques, 50(7), 1675–1682.
+%     componentN0 = 4e-21*componentRn/pi;
 
 % Adder
 Analog.Adder.filt = componentFilter;
@@ -244,9 +244,13 @@ coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
 %% Runs simulation
 if strcmpi(Analog.CarrierPhaseRecovery, 'OPLL')
-    BER = ber_coherent_analog_opll_qpsk(Tx, Fiber, Rx, sim);
+    parfor k = 1:sim.Realizations
+        BER(k) = ber_coherent_analog_opll_qpsk(Tx, Fiber, Rx, sim);
+    end
 else
-    BER = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim);
+    parfor k = 1:sim.Realizations
+        BER(k) = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim);
+    end
 end
 
 %% Save results

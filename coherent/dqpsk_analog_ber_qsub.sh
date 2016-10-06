@@ -18,4 +18,4 @@
 # 
 module load matlab
 
-matlab -nodesktop -singleCompThread -r "DQPSK_Analog_BER_qsub $fiberLength $Modulator $ModBW $linewidth"
+matlab -nodesktop -singleCompThread -r "DQPSK_Analog_BER_qsub $fiberLengthKm $wavelengthnm $ModBWGHz $linewidthKHz"

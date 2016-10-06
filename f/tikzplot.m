@@ -16,8 +16,8 @@ classdef tikzplot
         tab = 9;
         mlineStyles = {'none', '-', '--', ':'};
         tikzlineStyles = {'none', 'solid', 'dashed', 'dotted'};
-        mmarkerStyles = {'none', 'o', 's', '+', 'x', '*'};
-        tikzmarkerStyles = {'none', '*', 'square*', '+', 'x', 'asterisk'}; % filled by default
+        mmarkerStyles = {'none', 'o', 's', '+', 'x', '*', 'square'};
+        tikzmarkerStyles = {'none', '*', 'square*', '+', 'x', 'asterisk', 'square*'}; % filled by default
     end
     
     methods
@@ -58,7 +58,7 @@ classdef tikzplot
         
         function tikzmark = m2tikzmark(self, mmark)
             ind = strcmp(self.mmarkerStyles, mmark);
-            if isempty(ind)
+            if all(ind == 0)
                 ind = 1; % assume none by default
             end
             tikzmark = self.tikzmarkerStyles{ind};
