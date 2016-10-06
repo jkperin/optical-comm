@@ -149,17 +149,17 @@ where each of the $N$ sections of the fiber has frequency response matrix $\bm{H
 \subsection{Homodyne downconversion}
 The received signal electric field $E_s(t)$ and the local oscillator electrical field $E_{LO}(t)$ have the following passband representation
 \begin{align}
-E_s(t) &= \mathrm{Re}\Big\{\sqrt{2}|A_s(t)|\exp\Big(j(\omega_st + \phi_s(t) + \phi_{pn}(t))\Big)\Big\} \\
-E_{LO}(t) &= \mathrm{Re}\Big\{\sqrt{2}|A_{LO}(t)|\exp\Big(j(\omega_{LO}t + \phi_{LO}(t))\Big)\Big\}
+E_s(t) &= \mathrm{Re}\Big\{\sqrt{2}A_s(t)\exp\Big(j(\omega_st + \phi_{pn}(t))\Big)\Big\} \\
+E_{LO}(t) &= \mathrm{Re}\Big\{\sqrt{2}A_{LO}(t)\exp\Big(j(\omega_{LO}t + \phi_{LO}(t))\Big)\Big\}
 \end{align}
-where $|A_s(t)|$ and $|A_{LO}(t)|$ are the slow-varying envelope of the signal and local oscillator electric field, respectively. The absolute value is just to indicate that this only accounts for the amplitude of the transmitted symbols. $\omega_s$ and $\omega_{LO}$ the carrier frequency of the signal and local oscillator electric field. $\phi_s(t)$ is the phase information. $\phi_{pn}(t)$ and $\phi_{LO}(t)$ are the phase noise components.
+where $A_s(t)$ and $A_{LO}(t)$ are the complex baseband envelope of the signal and local oscillator electric field, respectively. $\omega_s$ and $\omega_{LO}$ the carrier frequency of the signal and local oscillator electric field. $\phi_s(t)$ is the phase information. $\phi_{pn}(t)$ and $\phi_{LO}(t)$ are the phase noise components.
 
 Hence, it follows that the baseband representation is 
 \begin{align}
-E_s(t) &= |A_s(t)|\exp\Big(j(\phi_s(t) + \phi_{pn}(t))\Big) \\
-E_{LO}(t) &= |A_{LO}(t)|\exp\Big(j(\omega_{off}t + \phi_{LO}(t))\Big)
+E_s(t) &= A_s(t) \\
+E_{LO}(t) &= A_{LO}(t)\exp\Big(j(\omega_{off}t + \phi_{ph}(t))\Big)
 \end{align}
-where $\omega_{off} =\omega_{LO}-\omega_s$
+where $\omega_{off} =\omega_{LO}-\omega_s$, and now $\phi_{ph}(t)$ is the phase noise due to LO and transmitter laser combined. For a QPSK signal, $A_s(t) = e^{j\phi_s} = \{e^{j\pi/4}, e^{j3\pi/4}, e^{j5\pi/4}, e^{j7\pi/4}\}$
 
 Considering that the 3-dB coupler has the following transfer matrix
 \begin{equation}
@@ -271,7 +271,7 @@ Hence, the SNR of an ideal system with no intersymbol interfence and employing m
 \begin{align} \nonumber
 \mathrm{SNR} & = \frac{P_{sig}}{(S_{sh} + S_{th})R_s/2} \\ \nonumber
 &= \frac{R^2P_{rx}P_{LO}}{2p^2((2qRP_{LO})/p + N_0)R_s/2} \\
-&\approx \frac{RP_{rx}}{2pqR_s} 
+&\approx \frac{RP_{rx}}{pqR_s} 
 \end{align}
 $R_s$ is the symbol rate and $R_s/2$ is the one-sided noise bandwidth. Note that in this calculation we used the signal power and noise power per real dimension.
 
@@ -371,7 +371,31 @@ Using the small-signal approximations $\sin(x)\approx x$ and $\cos(x) \approx 1$
 2\zeta = \omega_n\tau_d
 \end{align}
 
-The solution of the second equation $\omega_n = \frac{}{}$
+The solution of the second equation $\omega_n = \frac{2\zeta}{\tau_d}$. In simulations, we use $\omega_{n, \max} = \frac{\zeta}{\tau_d}$.
+
+\section{DPSK}
+In DPSK symbols the transmitted information is encoded as phase changes. In comparison with coherent PSK, DPSK has an inherent penalty of 2.4 dB.
+
+To simplify the receiver the DPSK receiver design, we will assume that the receiver does not do any form of frequency carrier recovery. 
+
+The receiver decodes the signal by determining the phase transitions between consecutive symbols. Phase noise, AWGN, and frequency offset lead to phase error. While phase noise is negligible between two symbols, frequency offset between transmitter laser and LO may lead to significant error. The error probability of M-DSPK signals was studied by \cite{Pawula2001}. The bit error probability for a DPSK signal in the presence of frequency offset is given by
+
+\begin{equation}
+P_e \approx \frac{2}{\log_2M}(F(\pi) - F(\pi/M)),
+\end{equation}
+where
+\begin{equation}
+F(\phi) = \frac{\gamma_s\sin(\Delta\Psi-\phi)}{4\pi}\int_{-\pi/2}^{\pi/2} \frac{\exp(-(\gamma_s -\gamma_s\cos(\Delta\Psi - \phi)\cos t))}{\gamma_s -\gamma_s\cos(\Delta\Psi - \phi)\cos t}dt
+\end{equation}
+and 
+\begin{equation}
+\Delta\Psi = 2\pi f_{off}T_s
+\end{equation}
+is the frequency offset.
+
+This equation assumes that the SNR between two symbols is the same.
+
+
 
 \section{Digital signal processing}
 
