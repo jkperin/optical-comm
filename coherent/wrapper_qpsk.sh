@@ -227,3 +227,30 @@ qsub -v CPR="OPLL",CPRmethod="costas",linewidthKHz="400" qpsk_analog_delay_penal
 qsub -v CPR="OPLL",CPRmethod="logic",linewidthKHz="400" qpsk_analog_delay_penalty_qsub.sh
 qsub -v CPR="OPLL",CPRmethod="costas",linewidthKHz="1000" qpsk_analog_delay_penalty_qsub.sh
 qsub -v CPR="OPLL",CPRmethod="logic",linewidthKHz="1000" qpsk_analog_delay_penalty_qsub.sh
+
+
+### Frequency tracking
+QPSK_Analog_FreqTrack_qsub $CPR $CPRmethod $CPRNpol $linewidthKHz $Delayps $FreqStepMHz
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="0" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="100" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="200" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="300" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="400" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="500" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="600" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="700" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="800" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="900" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="logic",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="1000" qpsk_analog_freqtrack_qsub.sh
+
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="0" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="100" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="200" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="300" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="400" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="500" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="600" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="700" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="800" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="900" qpsk_analog_freqtrack_qsub.sh
+qsub -v CPR="OPLL",CPRmethod="costas",CPRNpol="1",linewidthKHz="200",Delayps="250",FreqStepMHz="1000" qpsk_analog_freqtrack_qsub.sh

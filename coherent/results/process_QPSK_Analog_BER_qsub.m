@@ -1,5 +1,5 @@
 %% Process data saved by QPSK_BER_qsub.m
-clear, clc, close all
+clear, clc
 
 addpath ../
 addpath ../f/
@@ -32,7 +32,7 @@ Marker = {'o', 's', 'v'};
 Color = {[51, 105, 232]/255, [153,153,155]/255, [255,127,0]/255};
 Lspan = 0:0.5:10;
 
-
+Fiber = fiber();
 PrxdBm = zeros(2, 1, length(lamb), length(Lspan));
 D = zeros(length(lamb), length(Lspan));
 for n = 1:2
@@ -44,7 +44,7 @@ for n = 1:2
                 num2str(delay));  
                 try 
                     S = load(filename, '-mat');
-                    D(l, k) = S.Fiber.D(S.Tx.Laser.wavelength)*S.Fiber.L/1e3;
+                    D(l, k) = Fiber.D(S.Tx.Laser.wavelength)*S.Fiber.L/1e3;
 
                     BERcount = 0;
                     BERtheory = 0;
@@ -81,7 +81,7 @@ for n = 1:2
         Dcomb = [D(1, end:-1:1) D(2, :)];
         PpendBcomb(n, Ncpr, :) = [squeeze(PrxdBm(n, Ncpr, 1, end:-1:1)).' squeeze(PrxdBm(n, Ncpr, 2, :)).'] -PrefdBm;
         figure(1), hold on, box on
-        plot(Dcomb*1e6, squeeze(PpendBcomb(n, Ncpr, :)), '-o', 'LineWidth', 2, 'MarkerFaceColor', 'w');
+        plot(Dcomb*1e6, squeeze(PpendBcomb(n, Ncpr, :)), '-or', 'LineWidth', 2, 'MarkerFaceColor', 'w');
     end
 end
 

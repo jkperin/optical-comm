@@ -90,7 +90,7 @@ plot(sim.t*1e9, Sffilt)
 xlabel('Time (ns)')
 ylabel('Phase (rad/s)')
 legend('LO phase', sprintf('VCO: PD = %s', Analog.CPRmethod), 'Location', 'SouthEast')
-title('Phase tracking tracking')
+title('Phase tracking')
 axis tight
 
 %% Time recovery and sampling
