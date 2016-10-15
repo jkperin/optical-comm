@@ -1,7 +1,7 @@
-function [maxDelay, wnOpt] = max_loop_delay(SNRdBpen, csi, totalLinewidth, Ncpr, sim, wnOffFactor)
+function [maxDelay, wnSet] = max_loop_delay(SNRdB, csi, totalLinewidth, Ncpr, sim, wnOffFactor, optimizeWn)
 %% Calculate maximum loop delay to achieve a given target BER with SNR = SNRdBpen
 % Inputs:
-% - SNRdBpen: SNR in dB including maximum accepted penalty due to phase
+% - SNRdB: SNR in dB including maximum accepted penalty due to phase
 % error
 % - csi: Loop filter damping constant
 % - totalLinewidth: total linewidth i.e., combined of transmitter laser and
@@ -12,12 +12,17 @@ function [maxDelay, wnOpt] = max_loop_delay(SNRdBpen, csi, totalLinewidth, Ncpr,
 % Calculate new SNR necessary to make system operate at target BER
 % taking into account errors due to imperfect carrier phase
 % recovery
+% - optimizeWn (optinal, default = true): whether to use optimal wn or the value provided in wnOffFactor
 
 if not(exist('wnOffFactor', 'var'))
     wnOffFactor = 1; % i.e., wn = optimal wn
 end
 
-[maxDelay, ~, exitflag] = fzero(@(delay) log10(calc_ber(abs(delay)*1e-12)) - log10(sim.BERtarget), 100);
+if not(exist('optimizeWn', 'var'))
+    optimizeWn = true;
+end
+
+[maxDelay, ~, exitflag] = fzero(@(delay) log10(calc_ber(abs(delay)*1e-12)) - log10(sim.BERtarget), 1000);
 
 if exitflag ~= 1
     warning('max_loop_delay: optimization exited with exitflag = %d', exitflag);
@@ -29,9 +34,15 @@ else
 end
 
     function ber = calc_ber(delay)
-        wnOpt = optimizePLL(csi, delay, totalLinewidth, Ncpr, sim);
-        ber = ber_qpsk_imperfect_cpr(SNRdBpen,...
-            phase_error_variance(csi, wnOffFactor*wnOpt, Ncpr, delay, totalLinewidth, SNRdBpen, sim.ModFormat.Rs, false));
+        if optimizeWn
+            wnOpt = optimizePLL(csi, delay, totalLinewidth, Ncpr, sim);
+            wnSet = wnOffFactor*wnOpt;
+        else
+            wnSet = wnOffFactor; % in this case wnOffFactor is actually the chosen wn
+        end
+            
+        ber = ber_qpsk_imperfect_cpr(SNRdB,...
+            phase_error_variance(csi, wnSet, Ncpr, delay, totalLinewidth, SNRdB, sim.ModFormat.Rs, false));
     end
 end
 
