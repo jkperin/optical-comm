@@ -22,7 +22,7 @@ if not(exist('optimizeWn', 'var'))
     optimizeWn = true;
 end
 
-[maxDelay, ~, exitflag] = fzero(@(delay) log10(calc_ber(abs(delay)*1e-12)) - log10(sim.BERtarget), 1000);
+[maxDelay, ~, exitflag] = fzero(@(delay) log10(calc_ber(abs(delay)*1e-12)) - log10(sim.BERtarget), 100);
 
 if exitflag ~= 1
     warning('max_loop_delay: optimization exited with exitflag = %d', exitflag);

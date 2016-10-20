@@ -23,3 +23,5 @@ coherent/DSP/old/
 coherent/trash/
 *.blg
 *.xlsx
+coherent/results/
+!coherent/results/*.m
