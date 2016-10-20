@@ -9,7 +9,7 @@ addpath ../soa/
 
 %% Simulation launched power swipe
 Tx.PlaunchdBm = -38:-28;
-Tx.PlaunchdBm = -28;
+Tx.PlaunchdBm = -30;
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
@@ -63,7 +63,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1310e-9, 0, -150, 200e3, 0);
+Tx.Laser = laser(1310e-9, 0, -150, 2000e3, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -147,7 +147,7 @@ Analog.CarrierPhaseRecovery = 'OPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
 % '4th-power': based on raising signal to 4th power (only for EPLL)}
-Analog.CPRmethod = 'costas';                                            
+Analog.CPRmethod = 'logic';                                            
 
 % If componentFilter is empty, simulations assume ideal devices
 componentFilter = []; %design_filter('bessel', 1, 0.5*sim.Rs/(sim.fs/2));

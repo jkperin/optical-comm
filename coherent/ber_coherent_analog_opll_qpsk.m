@@ -83,6 +83,8 @@ fprintf('Loop filter fn: %.3f GHz\n', Analog.wn/(2*pi*1e9));
 
 % Loop filter
 LoopFilter = ClassFilter(Analog.OPLL.numz, Analog.OPLL.denz, sim.fs);
+% LaserFM = ClassFilter('bessel', 5, 2e9/(sim.fs/2));
+% 1e12*LaserFM.groupDelay/sim.fs
 
 %% Generate transmitted symbols
 % Note 1: this implement assumes that no DAC is being used so ModFormat.signal
@@ -184,7 +186,8 @@ for k = 1:length(Tx.PlaunchdBm)
         else
             S(t) = Sx; % loop filter input
         end
-        Sf(t) = LoopFilter.filter(S(t));  
+        Sf(t) = LoopFilter.filter(S(t)); 
+%         Sf(t) = LaserFM.filter(Sf(t));
     end
        
     % Remove group delay due to loop filter
@@ -245,6 +248,11 @@ for k = 1:length(Tx.PlaunchdBm)
    % Constellation plots
    if sim.shouldPlot('Constellations')
        figure(203), clf 
+%        subplot(221)
+%        plot_constellation(Xt(1, validInd(1)*sim.Mct+1:sim.Mct:), dataTX(1, validInd), Qpsk.M);
+%        axis square
+%        title('Pol X') 
+       
        subplot(121)
        plot_constellation(Xk(1, validInd), dataTX(1, validInd), Qpsk.M);
        axis square
@@ -311,5 +319,21 @@ if sim.shouldPlot('Phase error')
     legend('VCO phase', sprintf('Linear fit (for freq offset) = %.2f GHz ramp', p(1)/(2*pi*1e9)))
     xlabel('time (s)')
     ylabel('Phase (rad)')
+    
+    % diff is to remove integrator from frequency to phase conversion
+    figure(405), clf
+    subplot(211)
+    plot(sim.t, diff([Sf(1) Sf]))
+    xlabel('Time (s)')
+    ylabel('Loop filter output')
+    title('Loop filter output')
+    
+    subplot(212)
+    plot(sim.f/1e9, 20*log10(fftshift(abs(fft(diff([Sf(1) Sf]))))))
+    xlabel('Frequency (GHz)')
+    ylabel('Loop filter output (dB)')
+    title('Loop filter output frequency response')
+    a = axis;
+    axis([-10 10  a(3:4)])
 end
     
