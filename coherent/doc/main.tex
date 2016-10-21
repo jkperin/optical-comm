@@ -374,6 +374,8 @@ Using the small-signal approximations $\sin(x)\approx x$ and $\cos(x) \approx 1$
 The solution of the second equation $\omega_n = \frac{2\zeta}{\tau_d}$. In simulations, we use $\omega_{n, \max} = \frac{\zeta}{\tau_d}$.
 
 \section{DPSK}
+\subsection{Frequency offset penalty}
+
 In DPSK symbols the transmitted information is encoded as phase changes. In comparison with coherent PSK, DPSK has an inherent penalty of 2.4 dB.
 
 To simplify the receiver the DPSK receiver design, we will assume that the receiver does not do any form of frequency carrier recovery. 
@@ -394,8 +396,6 @@ and
 is the frequency offset.
 
 This equation assumes that the SNR between two symbols is the same.
-
-
 
 \section{Digital signal processing}
 
@@ -579,6 +579,59 @@ where
 H_l = \frac{\rho\exp(-\rho^2/2)}{\sqrt{\pi}(2l+1)}\Big(I_l(\rho^2/2) + I_{l+1}(\rho^2/2)\Big)
 \end{equation}
 where $rho$ denotes the SNR, and $I_l(x)$ is the modified Bessel function of first kind.
+
+
+\section{Laser requirements}
+
+Sampled-grating distributed Bragg reflector (SG-DBR) lasers probably have wide linewidths.  ``The wide linewidths observed in semiconductor lasers, typically in the megahertz range, require sufficiently wide loop bandwidths, i.e., small loop delays.'' \cite{Ristic2010}
+
+This linewidth, however, is not the true laser linewidth. Great part of it its just other sources of FM noise. In fact, after OPLL operation they speak of a linewidth reduction from several MHz to hundreds of kHz. 
+
+\subsection{Advantages of SG-DBR}
+
+According to \cite[Section III]{Ristic2010} there are at least four important characteristics that make SG-DBR attractive for its use in an OPLL.
+
+\begin{enumerate}
+	\item ``SG-DBR lasers have in excess of 40 nm of quasi-continuous wavelength tuning range''
+	
+	This advantage is not that important in a communication system. It's not important for an initial demonstration. 
+	
+	\item ``the FM tuning mechanism of the SG-DBR laser is very efficient. Unlike Distributed Feedback (DFB) lasers, which are tuned by current injection into the laser gain section, in SG-DBR lasers, the tuning is achieved by current injection into a small, separate, passive phase section.''
+	
+	This advantage no longer exists for a multi-electrode DFB.
+	
+	\item ``Third, an important advantage of the SG-DBR laser is that, unlike in a typical DFB laser, there is no sign change in its FM phase response. The FM response has a 3 dB bandwidth of 70 MHz, and no phase inversion is observed below this frequency. The phase inversion in a DFB laser occurs within its bandwidth at a frequency where the thermal effect becomes too slow to dominate frequency tuning with the corresponding red shift in the FM response so that frequency tuning becomes dominated by the carrier-injection effect and the corresponding blue shift in the FM response. It is very challenging to implement an OPLL feedback electronic circuit that can compensate for this phase inversion. The absence of phase inversion in the FM phase response of an SG-DBR laser is due to the fact that: 1) the small and efficient phase tuning pads require small currents for tuning, thereby reducing the thermal effects and 2) the phase section is composed of the passive material that has a band gap larger than that of the active material so that the accumulation of carriers is very efficient as they cannot be depleted by stimulated emission. ''
+	
+	This problem no longer exists in multi-electrode DFB lasers \cite{Jacquet1993}.
+	
+	\item ``Fourth, the linewidth of an SG-DBR laser is dominated by low-frequency jitter [39], which is not very difficult to compensate with the large bandwidth of an integrated OPLL, which as we will show below is at least 300 MHz.'' 
+	
+	This may actually be undesirable since we would like to make the loop frequency smaller.
+	
+\end{enumerate}
+
+From \cite{Langley1999}
+``Standard current-tuned lasers have an FM response dominated by thermal effects at low frequencies, giving a red-shifting response with increasing current, while at high frequencies, the response is dominated by band-filling and plasma effects, giving a blue-shifting response [63], [64].''
+
+The LO laser must have a FM response that is dominated by carrier injection even at low frequencies. 
+
+The FM response of standard DFB lasers is dominated by thermal effects up to 0.1 MHz, and after that carrier injection becomes the dominant effect. These two mechanisms have opposite frequency shifts, which leads to a dip in the FM response. For this application, thermal effects must be minimized so that the FM response is flat up to a few GHz and primarily caused by carrier injection. This is typically achieve with multi-electrode DFB lasers .
+
+\cite{Dilwali1992}
+Empirical Thermal FM
+\begin{equation}
+H_{TH}(f) = -\frac{2K_T}{3\sqrt{\frac{jf}{f_c}}}\Big[\tanh\Big(\frac{jf}{f_c}\Big)^{\frac{1}{2}} + \tanh\Big(\frac{1}{2}\Big(\frac{jf}{f_c}\Big)^\frac{1}{2}\Big)\Big]
+\end{equation}
+where $K_T$ is the thermal FM gain, which increases with the bias.
+
+Carrier-induced FM
+\begin{equation}
+H_{CFM}(\omega) = K_c\frac{1 + j\omega\omega_m/\omega_0^2}{1 - (\omega/\omega_0)^2 + j(\omega/\omega_0)}
+\end{equation}
+where $K_c$ is the efficiency at low frequencies in HzmA$^{-1}$, $\omega_0$ is the bias-dependent relaxation oscillation frequency, and $\omega_m = \tau_1\omega_0^2$, where $\tau_1$ is a damping time constant.
+
+Note that while the thermal FM has a negative sign (red shift), the carrier-induced FM has a positive sign (blue shift). This leads to a dip in the FM response once the thermal FM decays at higher frequencies. Moreover, this sign change is undesirable, since in practice it would require some form of equalization.
+
 
 
 
