@@ -5,10 +5,10 @@ addpath ../../f % class fiber path
 c = 299792458;  % speed of light
 Fspacing = 100e9; % Hz
 L = 40; % km
-receiverSensitivity = -35; % dBm
+receiverSensitivity = -35+5; % dBm
 maxD = 50e-6; 
 att = 0.35; % dB/km
-CDpenalty = 8;
+CDpenalty = 5;
 Pmax = 9.8; % dBm
 
 lamb0 = 1310e-9;
