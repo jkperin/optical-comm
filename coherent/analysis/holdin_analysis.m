@@ -1,4 +1,4 @@
-%% Simulation of analog coherent detection system
+%% Simulation of the performance of CPR to a step in frequency
 clear, clc
 
 addpath ../f/
@@ -16,16 +16,17 @@ sim.Npol = 2;                                                              % num
 sim.pulse_shape = select_pulse_shape('rect', sim.Mct);                     % pulse shape
 sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-QAM modulation format
 sim.Rs = sim.ModFormat.Rs;
+Ncpr = 1;
 
 sim.fs = sim.ModFormat.Rs*sim.Mct;
 [f, t] = freq_time(sim.N, sim.fs);
 dt = t(2) - t(1);
 
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 300e-12;                                                        % Additional loop delay in s (not including group delay from filters)
+Analog.Delay = 600e-12;                                                        % Additional loop delay in s (not including group delay from filters)
 
 % Optimize EPLL parameters
-Analog.wn = optimizePLL(Analog.csi, 1, Analog.Delay, 2*200e3, sim, false);
+Analog.wn = optimizePLL(Analog.csi, Analog.Delay, 2*200e3, Ncpr, sim, false);
 Analog.EPLL.nums = [2*Analog.csi*Analog.wn Analog.wn^2];
 Analog.EPLL.dens = [1 0 0]; % descending powers of s
 [Analog.EPLL.numz, Analog.EPLL.denz] = impinvar(Analog.EPLL.nums, Analog.EPLL.dens, sim.fs);

@@ -1,4 +1,8 @@
 %% Transient phase error response in 2nd-order PLL
+% This analysis doesn't include the possibility of cycle slips. Hence, the
+% actual transient time is much longer than the one shown here
+% This analysis also doesn't include loop delay
+
 clear, clc, close all
 
 addpath ../../f/
@@ -7,7 +11,7 @@ Rb = 2*112e9;
 Npol = 2;
 M = 4;
 Rs = Rb/(Npol*log2(M));
-wn = 2*pi*0.12e9;
+wn = 2*pi*50e6;
 xi = 1/sqrt(2);
 N = 2^12;
 fs = 50e9;

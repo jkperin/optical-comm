@@ -13,8 +13,8 @@ Tx.PlaunchdBm = -38:-10;
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
-sim.Mct = 8;    % Oversampling ratio to simulate continuous time 
-sim.ros.rxDSP = 2;
+sim.Mct = 9;    % Oversampling ratio to simulate continuous time 
+sim.ros.rxDSP = 5/4;
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 1024; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
@@ -30,20 +30,20 @@ sim.RIN = true;
 sim.PMD = true;
 sim.phase_noise = true;
 sim.preAmp = false;
-sim.quantiz = false;
+sim.quantiz = true;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 sim.polSkewSamples = 0;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
 Plots('BER')                  = 1; 
-Plots('Equalizer')            = 1;
+Plots('Equalizer')            = 0;
 Plots('Eye diagram') = 0;
 Plots('DPLL phase error') = 0;
 Plots('Feedforward phase error') = 0;
-Plots('Frequency offset estimation') = 1;
+Plots('Frequency offset estimation') = 1    ;
 Plots('Channel frequency response') = 0;
-Plots('Constellations') = 1;
+Plots('Constellations') = 0;
 Plots('Diff group delay')       = 0;
 Plots('Phase tracker')         = 0;
 Plots('Frequency estimation')  = 0; 
@@ -89,7 +89,7 @@ end                                                           % optical modulato
 % deafault is att(lamb) = 0 dB/km
 % D(lamb) : function handle of dispersion (D) at wavelength (lamb) in ps/(kmnm),
 % default is D(lamb) = SSMF with lamb0 @ 1310 ps/(kmnm)
-Fiber = fiber(10e3);
+Fiber = fiber(0);
 Fiber.PMD = sim.PMD;                                                       % whether to similate PMD
 Fiber.meanDGDps = 0.1;                                                     % Mean DGD (ps)
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
@@ -140,11 +140,11 @@ Rx.N0 = (30e-12)^2;                                                        % One
 % Note: ADC filter includes all the frequecy responses from the receiver
 
 %% ================================= ADC ==================================
-Rx.ADC.ENOB = 4;                                                           % effective number of bits
+Rx.ADC.ENOB = 5;                                                           % effective number of bits
 Rx.ADC.rclip = 0;                                                          % clipping ratio: clipped intervals: [xmin, xmin + xamp*rclip) and (xmax - xamp*rclip, xmax]
 Rx.ADC.ros = sim.ros.rxDSP;                                                      % oversampling ratio with respect to symbol rate 
 Rx.ADC.fs = Rx.ADC.ros*sim.Rs;                                             % ADC sampling rate
-Rx.ADC.filt = design_filter('butter', 5, 0.7*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
+Rx.ADC.filt = design_filter('bessel', 5, 0.7*Rx.ADC.fs/(sim.fs/2));            % design_filter(type, order, normalized cutoff frequency)
 % ADC filter should include all filtering at the receiver: TIA,
 % antialiasing, etc.
 
@@ -167,7 +167,7 @@ Rx.CPR.Ntrain = 1;                                                     % Number 
 Rx.CPR.Filter = 'Averaging';                                                  % {'Wiener': Wiener filter, 'Averaging': samples are averaged rather than filtered by Wiener filter}
 Rx.CPR.FilterType = 'FIR';                                                 % Filter type: {'FIR', 'IIR'}
 Rx.CPR.structure = '2 filters';                                             % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
-Rx.CPR.Ntaps = 10;                                                          % Number of filter taps
+Rx.CPR.Ntaps = 9;                                                          % Number of filter taps
 Rx.CPR.NDAorder = 'reverse';                                               % Order of phase estimation (PE) and filtering in NDA FF:{'direct': PE followed by filtering, 'reverse': filtering followed by PE}
 % Carrier phase recovery parameters for 'DPLL'
 Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}

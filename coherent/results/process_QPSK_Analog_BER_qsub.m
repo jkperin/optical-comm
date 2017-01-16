@@ -1,5 +1,5 @@
 %% Process data saved by QPSK_BER_qsub.m
-clear, clc
+clear, clc, close all
 
 addpath ../
 addpath ../f/
@@ -14,7 +14,7 @@ Rb = 2*112e9;
 Rs = Rb/(4);
 BERtarget = 1.8e-4;
 CPR = {'costas', 'logic'};
-delay = 250;
+delay = 500;
 Modulator = 'SiPhotonics';
 ModBW = 30;
 linewidth = 200;
@@ -64,6 +64,7 @@ for n = 1:2
                     hline = plot(S.Tx.PlaunchdBm, BERcount, '-o');
                     plot(S.Tx.PlaunchdBm, f(S.Tx.PlaunchdBm), '-', 'Color', get(hline, 'Color'));
                     axis([S.Tx.PlaunchdBm([1 end]) -8 0])
+                    title(sprintf('L = %.1f km, D = %.2f', S.Fiber.L/1e3, D(l, k)*1e6))
                     if exitflag ~= 1
                         disp('Interpolation failed')
                         exitflag

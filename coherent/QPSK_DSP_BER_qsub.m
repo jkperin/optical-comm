@@ -38,7 +38,7 @@ Tx.PlaunchdBm = -38:0.5:-10;
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
-sim.Mct = 10;    % Oversampling ratio to simulate continuous time 
+sim.Mct = 9;    % Oversampling ratio to simulate continuous time 
 sim.ros.rxDSP = ros;
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 0.5e4; % number of symbols to be discarded from the begining and end of the sequence 

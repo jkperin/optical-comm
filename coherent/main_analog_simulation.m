@@ -138,7 +138,7 @@ Rx.N0 = 0*(30e-12)^2;                                                        % O
 
 %% ========================= Analog Components ============================
 %% Receiver filter
-Analog.filt = design_filter('butter', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
+Analog.filt = design_filter('bessel', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 
 %% Carrier phase recovery and components
 % Carrier Phase recovery type: either 'OPLL', 'EPLL', and 'Feedforward'
