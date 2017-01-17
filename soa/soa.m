@@ -116,7 +116,7 @@ classdef soa
             [~, Ps] = power_meter(Ein);
             
             % Calculate OSNR
-            OSNRdB = 10*log10(obj.Gain*Ps/(mean(abs(w_y).^2) + mean(abs(w_x).^2))) - 10*log10(fs/12.5e9);
+            OSNRdB = 10*log10(obj.Gain*Ps/(obj.N0*obj.BWref));
         end 
     end
 end
