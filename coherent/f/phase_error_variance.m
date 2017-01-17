@@ -1,17 +1,25 @@
-function [varphiE, nPN, nAWGN] = phase_error_variance(csi, wn, Ncpr, Delay, totalLinewidth, SNRdB, Rs, verbose)
+function [varphiE, nPN, nAWGN, nFlicker] = phase_error_variance(csi, wn, Ncpr, Delay, noiseParam, SNRdB, Rs, verbose)
 %% Calculates PLL phase error variance using small-signal approximation
 % Calculations are only valid for QPSK
 % Calculations assume that receiver is LO shot noise limited
 % Inputs:
 % - csi: loop filter damping factor
 % - wn: loop filter bandwidth
-% Ncpr: number of polarizations used in CPR
-% Delay: total loop delay
-% totalLinewidth: total linewidth i.e., transmitter laser + LO
-% SNRdB: SNR in dB
-% Rs: symbol rate
+% - Ncpr: number of polarizations used in CPR
+% - Delay: total loop delay
+% - noiseParam: [total linewidth i.e., transmitter laser + LO,
+% flickerNoise/f^3 is the one-sided phase noise PSD due to flicker noise (optional)]
+% - SNRdB: SNR in dB
+% - Rs: symbol rate
 
 warning('off', 'MATLAB:integral:MaxIntervalCountReached')
+
+totalLinewidth = noiseParam(1);
+if length(noiseParam) > 1 % Flicker noise was passed
+    flickerNoise = noiseParam(2);
+else
+    flickerNoise = 0;
+end    
 
 SNR = 10^(SNRdB/10);
 Fmax = Rs; % Maximum frequency used in integration
@@ -21,6 +29,7 @@ Fmax = Rs; % Maximum frequency used in integration
 
 nPN = zeros(size(wn));
 nAWGN = zeros(size(wn));
+nFlicker = zeros(size(wn));
 varphiE = zeros(size(wn));
 for k = 1:length(wn)
     numFs = [2*csi*wn(k) wn(k)^2];
@@ -31,12 +40,13 @@ for k = 1:length(wn)
     Hawgn = @(w) abs(Fw(w)./(1j*w + exp(-1j*w*Delay).*Fw(w))).^2;
 
     nPN(k) = totalLinewidth*integral(Hpn, -Fmax, Fmax); % phase noise contribution
+    nFlicker(k) = 2*(2*pi)^2*flickerNoise*integral(@(w) Hpn(w)./w, eps, Fmax); % flicker noise contribution. Integration is from 0+ to Fmax (ideally infinity)
     nAWGN(k) = 1/(2*pi*Ncpr*2*SNR*Rs)*integral(Hawgn, -Fmax, Fmax); % AWGN contribution
-    varphiE(k) = nPN(k) + nAWGN(k); % phase error variance
+    varphiE(k) = nPN(k) + nFlicker(k) + nAWGN(k); % phase error variance
        
     if exist('verbose', 'var') && verbose
-        fprintf('Contribution of phase noise vs AWGN on PLL phase error at SNRdB = %.2f:\nPN/AWGN = %.3f\n', SNRdB,...
-            nPN(k)/nAWGN(k));
+        fprintf('Contribution on phase error variance at SNRdB = %.2f:\nPN/AWGN = %.3f\nFlicker/AWGN = %.3f\n', SNRdB,...
+            nPN(k)/nAWGN(k), nFlicker(k)/nAWGN(k));
         
         figure(320)
         w = 2*pi*linspace(-10e9, 10e9, 2^14);

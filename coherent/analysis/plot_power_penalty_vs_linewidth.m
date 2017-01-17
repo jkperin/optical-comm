@@ -1,4 +1,4 @@
-%
+%% Plot power penalty vs linewidth
 clear, clc, close all
 
 addpath ../f/
@@ -23,7 +23,7 @@ for Ncpr = 1:2
         [wnOpt(Ncpr, k), ~, SNRdBstart] = optimizePLL(csi, Delay, totalLinewidth(k), Ncpr, sim, true);
         
         [SNRdBpen, ~, exitflag] = fzero(@(SNRdB)...
-            log10(ber_qpsk_imperfect_cpr(SNRdB, phase_error_variance(csi, wnOpt(Ncpr, k), Ncpr, Delay, totalLinewidth(k), SNRdB, Qpsk.Rs))) - log10(BERtarget), SNRdBstart);
+            log10(ber_qpsk_imperfect_cpr(SNRdB, phase_error_variance(csi, wnOpt(Ncpr, k), Ncpr, Delay, [totalLinewidth(k), 0], SNRdB, Qpsk.Rs))) - log10(BERtarget), SNRdBstart);
         
         if exitflag ~= 1
             warning('SNRdB calculation finished with exitflag = %d', exitflag);

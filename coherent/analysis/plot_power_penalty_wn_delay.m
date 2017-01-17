@@ -15,14 +15,22 @@ q = 1.60217662e-19; % electron charge
 csi = sqrt(2)/2; % damping factor or loop filter
 wnOffFactor = 1; % factor by which optimal loop filter bandwidth is multiplied
 
-totalLinewidth = 2*1e3*(100:25:1e3);
+totalLinewidth = 2*1e3*(100:100:1e3);
+
+% flickerNoise = s1/2 of equation (3) of 
+% "Differential carrier phase recovery for QPSK optical coherent systems with integrated tunable lasers"
+% DOI: 10.1364/OE.21.010166
+% flickerNoise = 0; % no flicker Noise
+% flickerNoise = 0.75e10; % DFB
+flickerNoise = 1.7e12; % Integrated tunable laser: digital supermode-distributed Bragg reflector (DS-DBR)
 
 % Power penalty assuming ideal Prx as reference
 Ppen = 0.5;
 
 for Ncpr = 1:2 % number of polarizations used in CPR 
     for k = 1:length(totalLinewidth)
-        [maxDelay(Ncpr, k), wnOpt(Ncpr, k)] = max_loop_delay(SNRdBref + Ppen, csi, totalLinewidth(k), Ncpr, sim, wnOffFactor);
+        fprintf('Ncpr = %d, Combined linewidth = %d kHz\n', Ncpr, totalLinewidth(k)/1e3);
+        [maxDelay(Ncpr, k), wnOpt(Ncpr, k)] = max_loop_delay(SNRdBref + Ppen, csi, [totalLinewidth(k), flickerNoise], Ncpr, sim, wnOffFactor);
     end
 end
 

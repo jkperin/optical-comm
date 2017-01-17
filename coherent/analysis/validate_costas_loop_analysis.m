@@ -27,7 +27,7 @@ sim.Ncpr = Ncpr;
 % Optimize EPLL parameters
 csi = sqrt(2)/2;
 % % wn = 2*pi*0.7e9; % 
-% wn = optimizePLL(csi, Delay, totalLineWidth, Ncpr, sim, true);
+wn = optimizePLL(csi, Delay, totalLineWidth, Ncpr, sim, true);
 PLL.nums = [2*csi*wn wn^2];
 PLL.dens = [1 0 0]; % descending powers of s
 [PLL.numz, PLL.denz] = impinvar(PLL.nums, PLL.dens, sim.fs);

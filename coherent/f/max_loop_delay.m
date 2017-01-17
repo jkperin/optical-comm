@@ -1,11 +1,11 @@
-function [maxDelay, wnSet] = max_loop_delay(SNRdB, csi, totalLinewidth, Ncpr, sim, wnOffFactor, optimizeWn)
+function [maxDelay, wnSet] = max_loop_delay(SNRdB, csi, noiseParam, Ncpr, sim, wnOffFactor, optimizeWn)
 %% Calculate maximum loop delay to achieve a given target BER with SNR = SNRdBpen
 % Inputs:
 % - SNRdB: SNR in dB including maximum accepted penalty due to phase
 % error
 % - csi: Loop filter damping constant
-% - totalLinewidth: total linewidth i.e., combined of transmitter laser and
-% LO
+% - noiseParam: [total linewidth i.e., transmitter laser + LO,
+% flickerNoise/f^3 is the one-sided phase noise PSD due to flicker noise (optional)]
 % - Ncpr: number of polarizations used in CPR {1, 2}
 % - sim: simulation struct containing modulation format and target BER
 % - wnOffFactor (optional): in calculating penalty wn = wnOffFactor*wnOpt
@@ -30,19 +30,19 @@ if exitflag ~= 1
     wnOpt = NaN;
 else
     maxDelay = 1e-12*abs(maxDelay);
-    wnOpt = optimizePLL(csi, maxDelay, totalLinewidth, Ncpr, sim);
+    wnOpt = optimizePLL(csi, maxDelay, noiseParam, Ncpr, sim);
 end
 
     function ber = calc_ber(delay)
         if optimizeWn
-            wnOpt = optimizePLL(csi, delay, totalLinewidth, Ncpr, sim);
+            wnOpt = optimizePLL(csi, delay, noiseParam, Ncpr, sim);
             wnSet = wnOffFactor*wnOpt;
         else
             wnSet = wnOffFactor; % in this case wnOffFactor is actually the chosen wn
         end
             
         ber = ber_qpsk_imperfect_cpr(SNRdB,...
-            phase_error_variance(csi, wnSet, Ncpr, delay, totalLinewidth, SNRdB, sim.ModFormat.Rs, false));
+            phase_error_variance(csi, wnSet, Ncpr, delay, noiseParam, SNRdB, sim.ModFormat.Rs, false));
     end
 end
 

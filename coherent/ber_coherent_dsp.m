@@ -26,6 +26,12 @@ Vout(2, :)= real(ifft(fft(real(Vin(2, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(2,
 
 % BER of ideal system with receiver filtering equal to matched filter
 [ber.theory, ~, SNRdBtheory] = ber_coherent_awgn(Tx, Fiber, Rx, sim);
+% Note: SNRdBtheory is calculated assuming that the receiver noise
+% bandwidth is Rs/2. This approximation is good for DSP-based systems,
+% since the cascade of antialiasing filter + equalizer approximately
+% matches an ideal receiver with matched filtering. However, for
+% analog-based systems this approximation may lead to 1-2 dB error in the
+% SNRdB due to imperfect receiver filtering
 
 %% Swipe launched power
 % Transmitted power swipe
@@ -46,6 +52,20 @@ for k = 1:length(Tx.PlaunchdBm)
 
     %% ========= Propagation ========== 
     Erec = Fiber.linear_propagation(Ein, sim.f, Tx.Laser.lambda);
+    
+    if isfield(sim, 'preAmp') && sim.preAmp % only included if sim.preAmp is true
+        disp('- IMPORTANT: Simulation including optical amplifier!')
+        [Erec, OSNRdBtheory] = Rx.OptAmp.amp(Erec, sim.fs);
+        fprintf('OSNR = %.2f dB\n', OSNRdBtheory)
+        
+        % Adjust power to pre-defined value
+        Att = dBm2Watt(Rx.OptAmpOutPowerdBm)/dBm2Watt(power_meter(Erec));
+        Erec = Erec*sqrt(Att);  % keep constant received power
+        
+        % check
+%         OSNRdBtheorycheck = 10*log10(dBm2Watt(Tx.PlaunchdBm(k))/(2*Rx.OptAmp.nsp*Rx.OptAmp.h*Rx.OptAmp.c/Tx.Laser.lambda*12.5e9))
+%         SNRdBtheorycheck = 10*log10(dBm2Watt(Tx.PlaunchdBm(k))/(Rx.OptAmp.nsp*Rx.OptAmp.h*Rx.OptAmp.c/Tx.Laser.lambda*sim.Rs))
+    end
     
     %% ========= Receiver =============
     ELO = Rx.LO.cw(sim); % generates continuous-wave electric field in 1 pol with intensity and phase noise

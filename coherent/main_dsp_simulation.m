@@ -5,11 +5,10 @@ addpath DSP/
 addpath f/
 addpath ../f/
 addpath ../apd/
-addpath ../soa/
 
 %% Simulation launched power swipe
 Tx.PlaunchdBm = -38:-10;
-% Tx.PlaunchdBm = -28;
+Tx.PlaunchdBm = -20;
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
@@ -29,7 +28,7 @@ sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-Q
 sim.RIN = true; 
 sim.PMD = true;
 sim.phase_noise = true;
-sim.preAmp = false;
+sim.preAmp = true;
 sim.quantiz = true;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 sim.polSkewSamples = 0;
@@ -47,6 +46,7 @@ Plots('Constellations') = 0;
 Plots('Diff group delay')       = 0;
 Plots('Phase tracker')         = 0;
 Plots('Frequency estimation')  = 0; 
+Plots('Optical Spectrum') = 1;
 sim.Plots = Plots;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
@@ -100,9 +100,12 @@ Fiber.PMD_section_length = 1e3;                                            % Con
 % NF : Noise figure in dB
 % lamb : wavelength in m
 % maxGain = maximum amplifier gain in dB, default is Inf
-Amp = soa(20, 7, Tx.Laser.lambda);
-% Note: class soa can be used for any amplifier, since it essentially 
+Rx.OptAmp = OpticalAmplifier(20, 5, Tx.Laser.lambda);
+Rx.OptAmpOutPowerdBm = 0; % output power after amplifier
+% Note 1: class soa can be used for any amplifier, since it essentially 
 % characterizes the amplifier in terms of gain and noise figure only
+% Note 2: the amplifier here operates in the constant output power mode,
+% where the output power after amplification is set to Rx.AmpOutPowerdBm
 
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
