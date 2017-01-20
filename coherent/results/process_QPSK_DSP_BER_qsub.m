@@ -9,6 +9,7 @@ addpath ../../apd/
 addpath ../../soa/
 
 % QPSK_DSP_BER_L=1.5km_lamb=1380nm_ModBW=30GHz_Ntaps=7taps_Feedforward-NDA_9taps_nu=200kHz_ros=125_ENOB=4
+folder = 'QPSK_DSP/';
 
 Rb = 2*112e9;
 Rs = Rb/(4);
@@ -37,9 +38,9 @@ Color = {[51, 105, 232]/255, [153,153,155]/255, [255,127,0]/255};
 Lspan = 0:0.5:10;
 for l = 1:length(lamb)
     for k = 1:length(Lspan)
-        filename = sprintf('QPSK_DSP_BER_L=%skm_lamb=%snm_ModBW=%sGHz_Ntaps=%staps_%s_%staps_nu=%skHz_ros=%s_ENOB=%s.mat',...
+        filename = [folder sprintf('QPSK_DSP_BER_L=%skm_lamb=%snm_ModBW=%sGHz_Ntaps=%staps_%s_%staps_nu=%skHz_ros=%s_ENOB=%s.mat',...
         num2str(Lspan(k)), num2str(lamb(l)), num2str(ModBW), num2str(EqNtaps), CPR, num2str(CPRtaps), num2str(linewidth),...
-        num2str(round(100*ros)), num2str(ENOB));  
+        num2str(round(100*ros)), num2str(ENOB))];  
         try 
             
             S = load(filename);

@@ -10,6 +10,8 @@ addpath ../../soa/
 
 % QPSK_Analog_FreqTrack_OPLL-logic_Npol=1_linewidth=200kHz_delay=250ps_freqstep=0
 
+folder = 'FreqTrack/';
+
 Rb = 2*112e9;
 Rs = Rb/(4);
 BERtarget = 1.8e-4;
@@ -35,8 +37,8 @@ tol = 1e-3;
 for n = 1
     for Ncpr = 1
         for f = 1:length(FreqStepMHz)
-            filename = sprintf('QPSK_Analog_FreqTrack_OPLL-%s_Npol=%d_linewidth=%dkHz_delay=%dps_freqstep=%d.mat',...
-                CPR{n}, Ncpr, linewidth, delay, FreqStepMHz(f));
+            filename = [folder sprintf('QPSK_Analog_FreqTrack_OPLL-%s_Npol=%d_linewidth=%dkHz_delay=%dps_freqstep=%d.mat',...
+                CPR{n}, Ncpr, linewidth, delay, FreqStepMHz(f))];
             try 
                 S = load(filename, '-mat');
                 

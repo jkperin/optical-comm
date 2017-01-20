@@ -16,7 +16,6 @@ addpath f/
 addpath analog/
 addpath ../f/
 addpath ../apd/
-addpath ../soa/
 
 %
 filename = sprintf('results/QPSK_Analog_BER_L=%skm_lamb=%snm_ModBW=%sGHz_%s-%s_Npol=%s_linewidth=%skHz_delay=%sps.mat',...
@@ -118,14 +117,15 @@ Fiber.meanDGDps = 0.1;                                                     % Mea
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
 
 %% ======================== Optical Amplifier =============================
-% Constructor: soa(GaindB, NF, lamb, maxGain (optional))
+% Constructor: OpticalAmplifier(GaindB, NF, lamb, maxGain (optional))
 % GaindB : Gain in dB
 % NF : Noise figure in dB
 % lamb : wavelength in m
 % maxGain = maximum amplifier gain in dB, default is Inf
-Amp = soa(20, 7, Tx.Laser.lambda);
-% Note: class soa can be used for any amplifier, since it essentially 
-% characterizes the amplifier in terms of gain and noise figure only
+Rx.OptAmp = OpticalAmplifier(20, 5, Tx.Laser.lambda);
+Rx.OptAmpOutPowerdBm = 0; % output power after amplifier
+% Note: the amplifier here operates in the constant output power mode,
+% where the output power after amplification is set to Rx.AmpOutPowerdBm
 
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser
