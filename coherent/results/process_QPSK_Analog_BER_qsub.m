@@ -8,7 +8,7 @@ addpath ../../f/
 addpath ../../apd/
 addpath ../../soa/
 
-% QPSK_Analog_BER_L=0.5km_lamb=1380nm_ModBW=30GHz_OPLL-costas_Npol=1_linewidth=200kHz_delay=250ps
+folder = 'QPSK_Analog/';
 
 Rb = 2*112e9;
 Rs = Rb/(4);
@@ -39,9 +39,9 @@ for n = 1:2
     for Ncpr = 1
         for l = 1:length(lamb)
             for k = 1:length(Lspan)
-                filename = sprintf('QPSK_Analog_BER_L=%skm_lamb=%snm_ModBW=%sGHz_OPLL-%s_Npol=%s_linewidth=%skHz_delay=%sps.mat',...
+                filename = [folder sprintf('QPSK_Analog_BER_L=%skm_lamb=%snm_ModBW=%sGHz_OPLL-%s_Npol=%s_linewidth=%skHz_delay=%sps.mat',...
                 num2str(Lspan(k)), num2str(lamb(l)), num2str(ModBW), CPR{n}, num2str(Ncpr), num2str(linewidth),...
-                num2str(delay));  
+                num2str(delay))];  
                 try 
                     S = load(filename, '-mat');
                     D(l, k) = Fiber.D(S.Tx.Laser.wavelength)*S.Fiber.L/1e3;
