@@ -1,11 +1,12 @@
 clear, clc, close all
 
-addpath ../../f % class fiber path
+addpath ../f % class fiber path
 
 c = 299792458;  % speed of light
 Fspacing = 100e9; % Hz
 L = 40; % km
-receiverSensitivity = -35+5; % dBm
+inputLoss = 2 + 1.5;
+receiverSensitivity = -35+inputLoss; % dBm
 maxD = 50e-6; 
 att = 0.35; % dB/km
 CDpenalty = 5;
@@ -38,6 +39,7 @@ xlabel('Wavelength (nm)', 'FontSize', 12)
 ylabel('Dispersion (ps/nm)', 'FontSize', 12)
 set(gca, 'FontSize', 12)
 
+%% 200 GHz spacing
 disp('> 200-GHz spacing')
 Nch = 10;
 Disp = 0;
