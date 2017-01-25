@@ -10,6 +10,7 @@
 \usepackage{algpseudocode}
 \usepackage{pifont}
 \usepackage{tikz}
+\usepackage{pgfplots}
 \usepackage{bm}
 
 \DeclareGraphicsExtensions{.eps,.pdf,.png,.tikz}
@@ -312,11 +313,11 @@ If all noise contributions are assumed ergodic:
 \end{equation}
 
 Since the system is linear
-\begin{align} \nonumber
+\begin{align} \label{eq:phase_error_variance} \nonumber
 \sigma_E^2 &= E\{\phi_n^2(t)\} + E\{\phi_{AWGN}(t)^2\} \\ \nonumber
 &= \frac{1}{2\pi}\int_{-\infty}^\infty S_{PN}(f)\bigg|\frac{j\omega}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega + \frac{1}{2\pi K_D^2}\int_{-\infty}^\infty S_{AWGN}(f)\bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\ \nonumber
 &= \Delta\nu_{TOT}\int_{-\infty}^\infty \bigg|\frac{1}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega + \frac{2N_0/2N_{CPR}}{2\pi K_D^2}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\
-&= \Delta\nu_{TOT}\int_{-\infty}^\infty \bigg|\frac{1}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega + \frac{1}{2\pi 2N_{CPR}\gamma_sR_s}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \nonumber
+&= \Delta\nu_{TOT}\int_{-\infty}^\infty \bigg|\frac{1}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega + \frac{1}{2\pi 2N_{CPR}\gamma_sR_s}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega 
 \end{align}
 where $S_{PN}(f) = \frac{\Delta\nu}{2\pi f^2}$, where $\Delta\nu$ is the combined laser linewidth of the transmitter laser and LO.  $\Delta\nu$ is the full-width half-maximum of the Lorentzian shape of phase noise PSD. $N_0$ is the AWG noise one-sided PSD per real dimension. $\gamma_s$ is the SNR.
 
@@ -358,7 +359,34 @@ Assuming now that only the X polarization is used in the carrier phase recovery,
 
 In this case the error due to the skew between the two polarization is $2\pi\Delta\nu\Delta t$.
 
-\subsection{Phase error variance}
+\subsection{Effect of flicker noise}
+
+Flicker noise or $1/f$ noise is a frequency noise due to fluctuations on the laser temperature. Fig.~\ref{fig:freq_noise_psd} illustrates the laser frequency noise PSD \cite{Kazovsky1986}.
+
+The one-sided PSD of the phase noise is given by
+\begin{align}
+S_{PN}(f) = \frac{\Delta\nu}{\pi f^2} \\
+S_{1/f}(f) = \frac{k_a}{f^3}
+\end{align}
+where the first term is the phase noise PSD due to the Lorentzian-shape linewidth, and the second is due to flicker noise.
+
+According to \cite{Fatadin2013}, $k_a = 1.7\times 10^{11}~\mathrm{Hz}^2$ for an integrated tunable laser with nearly 911 kHz linewidth, and $k_a = 0.75\times 10^{10}~\mathrm{Hz}^2$ for a DFB with nearly 300 kHz linewidth. Note that the variable $s_1$ defined in \cite[equation (3)]{Fatadin2013} is related to $k_a$ by $k_a = s_1/2$ because here we use double-sided PSD of the phase noise.
+
+Adding another term to \ref{eq:phase_error_variance} due to flicker noise yields
+
+\begin{align} \label{eq:phase_error_variance_flicker} \nonumber
+\sigma_E^2 &= \Delta\nu_{TOT}\int_{-\infty}^\infty \bigg|\frac{1}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\ \nonumber
+&+ 2(2\pi)^2 k_a\int_{0}^\infty \frac{1}{\omega}\bigg|\frac{1}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega \\
+&+ \frac{1}{2\pi 2N_{CPR}\gamma_sR_s}\int_{-\infty}^\infty \bigg|\frac{F(j\omega)}{j\omega + F(j\omega)e^{-j\omega\tau_d}}\bigg|^2d\omega 
+\end{align}
+
+\begin{figure} [!t]
+	\centering
+	\input{figs/laser_freq_noise_psd.tex}
+	\caption{Laser Frequency Noise PSD. Three components are illustrated: (i) low-frequency flicker noise with slope $1/f$ in the logarithmic graph due temperature fluctuations of the laser, (ii) white phase noise associated with the Lorentzian linewidth of the laser, and (iii) a peak at the laser resonance frequency $\omega_n$. This last term is negligible since this peak occurs at tens of GHz, which is much larger than the loop filter bandwidth \cite{Kazovsky1986}.} \label{fig:freq_noise_psd}
+\end{figure}
+
+\subsection{Comparison between phase noise and AWGN components of phase error variance}
 
 Both the phase noise and the AWGN component in the phase error variance have a denominator given by $|j\omega + F(j\omega)e^{-j\omega\tau_d}|$. The phase error will grow unbounded whenever this denominator goes to zero. Equating the real and complex parts of the denominator
 \begin{align}
