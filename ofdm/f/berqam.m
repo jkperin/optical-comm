@@ -16,7 +16,9 @@
 
 function ber = berqam(CS, SNR)
 
-if CS == 2
+if CS == 0
+    ber = 0;
+elseif CS == 2
     % In case the power allocation sets one constellation to 2
     ber = berawgn(SNR, 'pam', CS);
         

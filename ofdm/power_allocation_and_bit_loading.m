@@ -1,5 +1,5 @@
 %% Power allocation for a given channel
-clear, clc, close all
+clear, clc
 
 addpath ../f/
 addpath f/
@@ -48,7 +48,13 @@ bzoh = ones(1, sim.Mct)/sim.Mct;
 tx.filter.num = conv(tx.filter.num, bzoh);
 tx.filter.grpdelay = grpdelay(tx.filter.num, tx.filter.den, 1);
 tx.filter.H = @(f) freqz(tx.filter.num, tx.filter.den, 2*pi*f).*exp(1j*2*pi*f*tx.filter.grpdelay);
-tx.filter.noisebw = @(fs) noisebw(tx.filter.num, tx.filter.den, 2^15, fs); % equivalent two-sided noise bandwidth over larger number of samples (2^15) given a sampling frequency fs 
+tx.filter.noisebw = @(fs) noisebw(tx.filter.num, tx.filter.den, 2^15, fs); % equivalent two-sided noise bandwidth over larger number of samples (2^15) given a sampling frequency fs
+
+
+%% Amplifier
+% Class SOA characterizes amplifier in terms of gain and noise figure
+% soa(GaindB: amplifier gain in dB, NFdB: noise figure in dB, lambda: operationa wavelength, maxGaindB: maximum amplifier gain)
+EDFA = soa(20, 5, 1550e-9, 20); 
 
 %% Receiver parameters
 rx.R = 1;                           % responsivity
@@ -58,11 +64,16 @@ rx.Sth = rx.R^2*rx.NEP^2/2;       % two-sided psd of thermal noise at the receiv
 % Antialiasing filter
 rx.filter = design_filter('gaussian', 4, 1/(ofdm.Ms*sim.Mct));    
 
-%
-Fiber = fiber(80e3);
+%% Photodiode
+% pin(R: Responsivity (A/W), Id: Dark current (A), BW: bandwidth (Hz))
+% PIN frequency response is modeled as a first-order system
+Rx.PD = pin(1, 10e-9, Inf);
+
+%% Fiber
+Fiber = fiber(1e3);
 
 %% Calculate cyclic prefix ##!! fiber has to be included here
-ofdm.cyclic_prefix(tx, rx, sim);
+ofdm.cyclic_prefix(@(f, fs) Fiber.Himdd(f, tx.lamb), true);
 
 %% Time and frequency scales
 sim.fs = sim.Mct*ofdm.fs;                                     % sampling frequency to emulate continuous time (Hz)  
@@ -77,15 +88,40 @@ f = (-sim.fs/2:df:sim.fs/2-df).';
 sim.t = t;
 sim.f = f; 
 
-figure, 
-plot(ofdm.fc/1e9, abs(Fiber.H(ofdm.fc, tx)).^2)
+PrxdBm = -10;
+Gch = Fiber.Himdd(ofdm.fc, tx.lamb);
+% Noise bandwidth
+noiseBW = ofdm.fs/2;
+BWopt = 50e9; % optical filter noise bandwidth; Not divided by 2 because optical filter is a bandpass filter
+
+% Thermal noise
+varTherm = rx.Sth*noiseBW; % variance of thermal noise
+
+% Noise std for intensity level Plevel
+Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
+varNoise =  sqrt(varTherm + Rx.PD.varShot(dBm2Watt(PrxdBm), noiseBW)...
+    + Rx.PD.R^2*EDFA.varAWGN(dBm2Watt(PrxdBm)/EDFA.Gain, noiseBW, BWopt, Npol));
+% Note: Plevel is divided by amplifier gain to obtain power at the amplifier input
 
 %% 
-% [Pn, CS] = preemphasis(ofdm, tx, Fiber, rx, sim);
-[Pn, CS] = palloc(ofdm, tx, Fiber, rx, sim);
+[Pn, CS] = palloc(ofdm, Gch, varNoise, sim.BERtarget);
 
-figure, hold on
-stem(ofdm.fc/1e9, Pn)
+figName =sprintf('Power allocation and bit loading for L = %d km of SMF', Fiber.L/1e3);
+figure(1), clf
+subplot(211), hold on, box on
+stem(ofdm.fc/1e9, Pn/Pn(1))
+plot(ofdm.fc/1e9, abs(Fiber.Himdd(ofdm.fc, tx.lamb, tx.alpha, 'large signal')).^2, 'LineWidth', 2)
+xlabel('Subcarrier frequency (GHz)', 'FontSize', 14)
+ylabel('Normalized allocated power', 'FontSize', 14)
+title(figName)
+set(gca, 'FontSize', 14)
+grid on
 
-figure, hold on
+subplot(212), hold on, box on
 stem(ofdm.fc/1e9, CS)
+xlabel('Subcarrier frequency (GHz)', 'FontSize', 14)
+ylabel('Constellation size', 'FontSize', 14)
+set(gca, 'FontSize', 14)
+set(gca, 'ytick', [4 16 32 64])
+grid on
+saveas(gca, ['../juniper/figs/' figName], 'png')
