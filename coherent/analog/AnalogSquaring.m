@@ -8,6 +8,13 @@ classdef AnalogSquaring < AnalogOperation % inherits properties and methods from
             obj@AnalogOperation(filt, N0, fs); % calls constructor of parent class Analog Operation
         end
         
+        function varargout = copy(self)
+            %% Deep copy of Squaring. Filters states aren't copied
+            for k = 1:nargout
+                varargout{k} = AnalogSquaring(self.filt, self.N0, self.fs);
+            end
+        end
+        
         function yf = square(self, x1)
             %% Square function: Square signal and add noise. Inputs and output is filtered by filt.
             if self.ideal

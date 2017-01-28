@@ -8,6 +8,13 @@ classdef AnalogCubing < AnalogOperation % inherits properties and methods from c
             obj@AnalogOperation(filt, N0, fs); % calls constructor of parent class Analog Operation
         end
         
+        function varargout = copy(self)
+            %% Deep copy of Cubing. Filters states aren't copied
+            for k = 1:nargout
+                varargout{k} = AnalogCubing(self.filt, self.N0, self.fs);
+            end
+        end
+        
         function yf = cube(self, x1)
             %% Cube function: cube signal and add noise. Inputs and output is filtered by filt.
             if self.ideal

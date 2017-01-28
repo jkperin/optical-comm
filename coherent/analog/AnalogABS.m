@@ -8,6 +8,13 @@ classdef AnalogABS < AnalogOperation % inherits properties and methods from clas
             obj@AnalogOperation(filt, N0, fs); % calls parent class constructor
         end
         
+        function varargout = copy(self)
+            %% Deep copy of ABS. Filters states aren't copied
+            for k = 1:nargout
+                varargout{k} = AnalogABS(self.filt, self.N0, self.fs);
+            end
+        end
+        
         function yf = abs(self, x1)
             %% ABS function: output is in between -Vout and Vout. Inputs and outputs are filtered by filt.
             if self.ideal
@@ -17,7 +24,7 @@ classdef AnalogABS < AnalogOperation % inherits properties and methods from clas
             % Filter inputs
             x1f = self.filter_inputs(x1);
             
-            % Perform operation: squaring
+            % Perform operation: ABS
             y = abs(x1f);
             
             % Add noise
