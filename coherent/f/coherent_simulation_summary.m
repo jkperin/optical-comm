@@ -1,4 +1,6 @@
 function coherent_simulation_summary(sim, tx, fiber, rx)
+warning('off', 'MATLAB:table:DuplicateDimnamesVarnamesBackCompat');
+
 %% Simulation parameters
 disp('-- Simulation parameters summary:')
 

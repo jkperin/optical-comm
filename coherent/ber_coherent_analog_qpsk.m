@@ -99,7 +99,7 @@ for k = 1:length(Tx.PlaunchdBm)
                 otherwise
                     error('ber_coherent_analog_epll/invalid electric PLL type %s\nAnalog.receiver must be either Costas or Logic\n', Analog.CPRmethod)
             end
-        case 'feedforward'
+        case 'feedforward' % Not functional
             [Xs, Analog] = analog_feedforward(Ys, Analog, sim, sim.shouldPlot('Feedforward phase recovery'));
         otherwise
             error('ber_coherent_analog_epll/invalid carrier phase recovery method %s\nAnalog.CarrierPhaseRecovery must be either EPLL, or Feedforward\n',...

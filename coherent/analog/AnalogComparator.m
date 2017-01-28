@@ -18,6 +18,14 @@ classdef AnalogComparator < AnalogOperation % inherits properties and methods fr
             end
         end
         
+        function varargout = copy(self)
+            %% Deep copy of Logic. Filters states aren't copied
+            for k = 1:nargout
+                varargout{k} = AnalogComparator(self.filt, self.N0, self.fs);
+                varargout{k}.Vout = self.Vout;
+            end
+        end        
+        
         function yf = compare(self, x1, x2)
             %% Compare function: compare x1 and x2. If x1 >= x2, then outputs Vout, else it outputs -Vout. Inputs and outputs are filtered by filt.
             if self.ideal

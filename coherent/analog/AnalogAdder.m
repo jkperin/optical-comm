@@ -5,6 +5,13 @@ classdef AnalogAdder < AnalogOperation % inherits properties and methods from cl
             obj@AnalogOperation(filt, N0, fs);
         end
         
+        function varargout = copy(self)
+            %% Deep copy of Adder. Filters states aren't copied
+            for k = 1:nargout
+                varargout{k} = AnalogAdder(self.filt, self.N0, self.fs);
+            end
+        end
+        
         function yf = add(self, x1, x2)
             %% Adder function: add signals and add noise. Inputs and output is filtered by filt.
             if self.ideal
@@ -14,7 +21,7 @@ classdef AnalogAdder < AnalogOperation % inherits properties and methods from cl
             % Filter inputs
             [x1f, x2f] = self.filter_inputs(x1, x2);
             
-            % Perform operation: comparing
+            % Perform operation: Add
             y = x1f + x2f;
             
             % Add noise
