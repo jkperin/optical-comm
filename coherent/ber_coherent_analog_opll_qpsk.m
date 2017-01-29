@@ -19,52 +19,33 @@ ReceiverFilterXQ = ClassFilter(Analog.filt);
 ReceiverFilterYI = ClassFilter(Analog.filt);
 ReceiverFilterYQ = ClassFilter(Analog.filt);
 
-Comp1 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-Comp2 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-Comp3 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-Comp4 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-
-AdderXY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
+[Comp1, Comp2, Comp3, Comp4] = Analog.Comparator.copy();
+AdderXY = Analog.Adder.copy();
 
 Costas = false;
 switch lower(Analog.CPRmethod)
     case 'costas'
         Costas = true;
-        MixerIdQx = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-        MixerQdIx = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-        MixerIdQy = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-        MixerQdIy = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-
-        AdderX = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-        AdderY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
+        [MIdQx, MQdIx, MIdQy, MQdIy] = Analog.Mixer.copy();
+        [AdderX, AdderY] = Analog.Adder.copy();
         
         % Calculate group delay in s
         totalGroupDelay = LOFMgroupDelay/sim.fs... % Laser FM response delay
             + ReceiverFilterXI.groupDelay/sim.fs... % Receiver filter
-            + Comp1.groupDelay + MixerIdQx.groupDelay + AdderX.groupDelay + AdderXY.groupDelay... % phase estimation    
+            + Analog.Comparator.groupDelay + Analog.Mixer.groupDelay + Analog.CPRNpol*Analog.Adder.groupDelay... % phase estimation    
             + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
         fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));       
     case 'logic'
-        % Full wave rectifiers (absolute operation)
-        abs1 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
-        abs2 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
-        abs3 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
-        abs4 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
-
-        % Comparators
-        CompX = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-        CompY = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-
-        % xnor
-        xorX1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-        xorX2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-        xorY1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-        xorY2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
+        % Components for XOR-based phase detector
+        [abs1, abs2, abs3, abs4]  = Analog.ABS.copy();
+        [CompX, CompY] = Analog.Comparator.copy();
+        [xorX1, xorX2, xorY1, xorY2] = Analog.Logic.copy();
+        AdderXY = Analog.Adder.copy();
         
         % Calculate group delay in s
         totalGroupDelay = LOFMgroupDelay/sim.fs... % Laser FM response delay
             + ReceiverFilterXI.groupDelay/sim.fs... % Receiver filter
-            + Comp1.groupDelay + xorX1.groupDelay + xorX2.groupDelay + AdderXY.groupDelay... % phase estimation    
+            + Analog.Comparator.groupDelay + 2*Analog.Logic.groupDelay + double(Analog.CPRNpol == 2)*Analog.Adder.groupDelay... % phase estimation    
             + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
         fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
     otherwise
@@ -183,14 +164,14 @@ for k = 1:length(Tx.PlaunchdBm)
         X(:, t) = sqrt(Enorm./Px).*X(:, t);
         
         % Phase estimation
-        Xd(1, t) = Comp1.compare(X(1, t), Analog.Comparator.Vref);
-        Xd(2, t) = Comp2.compare(X(2, t), Analog.Comparator.Vref);
-        Xd(3, t) = Comp3.compare(X(3, t), Analog.Comparator.Vref);
-        Xd(4, t) = Comp4.compare(X(4, t), Analog.Comparator.Vref);
+        Xd(1, t) = Comp1.compare(X(1, t), 0);
+        Xd(2, t) = Comp2.compare(X(2, t), 0);
+        Xd(3, t) = Comp3.compare(X(3, t), 0);
+        Xd(4, t) = Comp4.compare(X(4, t), 0);
         
         if Costas % Costas loop operations
-            Sx = -AdderX.add(MixerIdQx.mix(Xd(1, t), X(2, t)), -MixerQdIx.mix(Xd(2, t), X(1, t)));
-            Sy = -AdderY.add(MixerIdQy.mix(Xd(3, t), X(4, t)), -MixerQdIy.mix(Xd(4, t), X(3, t))); 
+            Sx = -AdderX.add(MIdQx.mix(Xd(1, t), X(2, t)), -MQdIx.mix(Xd(2, t), X(1, t)));
+            Sy = -AdderY.add(MIdQy.mix(Xd(3, t), X(4, t)), -MQdIy.mix(Xd(4, t), X(3, t))); 
         else % Logic or XOR-based
             Xdabs(1) = abs1.abs(X(1, t));
             Xdabs(2) = abs2.abs(X(2, t));

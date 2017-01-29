@@ -15,42 +15,23 @@ function [Xs, Analog, S, Sf] = analog_epll_4thpower(Ys, totalLineWidth, Analog, 
 % - Analog: loop filter parameters
 
 % Create components
-% Mixers and adders for downconversion stage
-Mx1 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Mx2 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Mx3 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Mx4 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Sx1 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-Sx2 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-
-My1 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-My2 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-My3 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-My4 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Sy1 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-Sy2 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
+% Mixers and adders for single-sindeband mixer
+[Mx1, Mx2, Mx3, Mx4, My1, My2, My3, My4] = Analog.Mixer.copy();
+[Sx1, Sx2, Sy1, Sy2] = Analog.Adder.copy();
 
 % Comparators
-Cube1 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Cube2 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Cube3 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Cube4 = AnalogCubing(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
+[Cube1, Cube2, Cube3, Cube4] = Analog.Cubing.copy();
 
-MixerIdQx = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-MixerQdIx = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-MixerIdQy = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-MixerQdIy = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-
-AdderX = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-AdderY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-AdderXY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
+% Mixer and Adders for Costas phase estimator stage
+[MIdQx, MQdIx, MIdQy, MQdIy] = Analog.Mixer.copy();
+[AdderX, AdderY, AdderXY]  = Analog.Adder.copy();
 
 % Converts delay to number of samples in order to avoid interpolation
 additionalDelay = max(round(Analog.Delay*sim.fs), 1); % delay is at least one sample
 
 % Calculate group delay
-totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Remove group delay of downconversion
-    + Cube1.groupDelay + MixerIdQx.groupDelay + AdderX.groupDelay + AdderXY.groupDelay... % phase estimation    
+totalGroupDelay = Analog.Mixer.groupDelay + Analog.Adder.groupDelay... % Remove group delay of downconversion
+    + Analog.Cubing.groupDelay + Analog.Mixer.groupDelay + 2*Analog.Adder.groupDelay... % phase estimation    
     + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
 Analog.totalGroupDelay = totalGroupDelay;
@@ -90,8 +71,8 @@ for t = additionalDelay+1:length(sim.t)
 
     % Phase estimation
     % = Im{(xi + 1jxq)^4} = 4*(xi^3xq - xq^3xi)
-    Sx = 1/4*AdderX.add(MixerIdQx.mix(Cube1.cube(X(1, t)), X(2, t)), -MixerQdIx.mix(Cube2.cube(X(2, t)), X(1, t)));
-    Sy = 1/4*AdderY.add(MixerIdQy.mix(Cube3.cube(X(3, t)), X(4, t)), -MixerQdIy.mix(Cube4.cube(X(4, t)), X(3, t)));
+    Sx = 1/4*AdderX.add(MIdQx.mix(Cube1.cube(X(1, t)), X(2, t)), -MQdIx.mix(Cube2.cube(X(2, t)), X(1, t)));
+    Sy = 1/4*AdderY.add(MIdQy.mix(Cube3.cube(X(3, t)), X(4, t)), -MQdIy.mix(Cube4.cube(X(4, t)), X(3, t)));
     S(t) = AdderXY.add(Sx, Sy)/2;
 
     % Loop filter
@@ -99,7 +80,7 @@ for t = additionalDelay+1:length(sim.t)
 end
 
 % Remove group delay from signal path
-delay = (Mx1.groupDelay + Sx1.groupDelay); % Group delay in signal path
+delay = (Analog.Mixer.groupDelay + Analog.Adder.groupDelay); % Group delay in signal path
 Hdelay = ifftshift(exp(1j*2*pi*sim.f*delay));
 X(1, :) = real(ifft(fft(X(1, :)).*Hdelay ));
 X(2, :) = real(ifft(fft(X(2, :)).*Hdelay ));

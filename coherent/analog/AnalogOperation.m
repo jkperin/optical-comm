@@ -40,7 +40,7 @@ classdef AnalogOperation < handle
                 obj.outputFilter = ClassFilter(filt.num, filt.den, obj.fs);
             end 
         end
-        
+               
         function [x1f, x2f] = filter_inputs(self, x1, x2)               
             % Input 1
             x1f = self.input1Filter.filter(x1);

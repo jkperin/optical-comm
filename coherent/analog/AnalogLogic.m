@@ -16,6 +16,14 @@ classdef AnalogLogic < AnalogOperation % inherits properties and methods from cl
             end
         end
         
+        function varargout = copy(self)
+            %% Deep copy of Logic. Filters states aren't copied
+            for k = 1:nargout
+                varargout{k} = AnalogLogic(self.filt, self.N0, self.fs);
+                varargout{k}.Vout = self.Vout;
+            end
+        end
+        
         function yf = xor(self, x1, x2)
             %% XOR function: output is in between -Vout and Vout. Inputs and outputs are filtered by filt.
             if self.ideal
@@ -25,7 +33,7 @@ classdef AnalogLogic < AnalogOperation % inherits properties and methods from cl
             % Filter inputs
             [x1f, x2f] = self.filter_inputs(x1, x2);
             
-            % Perform operation: comparing
+            % Perform operation: XOR
             x1d = (x1f >= 0); 
             x2d = (x2f >= 0); 
             y = 2*xor(x1d, x2d)-1; 
@@ -55,7 +63,7 @@ classdef AnalogLogic < AnalogOperation % inherits properties and methods from cl
             % Filter inputs
             [x1f, x2f] = self.filter_inputs(x1, x2);
             
-            % Perform operation: comparing
+            % Perform operation: XNOR
             x1d = (x1f >= 0); 
             x2d = (x2f >= 0); 
             y = 2*not(xor(x1d, x2d))-1; 
@@ -85,7 +93,7 @@ classdef AnalogLogic < AnalogOperation % inherits properties and methods from cl
             % Filter inputs
             [x1f, x2f] = self.filter_inputs(x1, x2);
             
-            % Perform operation: comparing
+            % Perform operation: OR
             x1d = (x1f >= 0); 
             x2d = (x2f >= 0); 
             y = 2*or(x1d, x2d)-1; 
@@ -115,7 +123,7 @@ classdef AnalogLogic < AnalogOperation % inherits properties and methods from cl
             % Filter inputs
             [x1f, x2f] = self.filter_inputs(x1, x2);
             
-            % Perform operation: comparing
+            % Perform operation: AND
             x1d = (x1f >= 0); 
             x2d = (x2f >= 0); 
             y = 2*and(x1d, x2d)-1; 
