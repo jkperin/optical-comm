@@ -120,7 +120,7 @@ classdef laser
             end            
         end    
         
-        function Pout = modulate(self, x, sim)
+        function Eout = modulate(self, x, sim)
             %% Modulate laser output based on driving signal x
             % This generates an electric signal with average power (PdBm)
             % The laser output is filtered by the frequency response H
@@ -130,8 +130,8 @@ classdef laser
             % and whether to include intensity noise (RIN) 
             % Inputs:
             %  - x: driving signal
-            %  - f
-            Pout = self.PW*ones(size(size(x)));
+            %  - sim: simulation struct
+            Pout = self.PW*x/mean(x);
             
             Pout = real(ifft(fft(Pout).*ifftshift(self.H(sim.f))));
                                   
@@ -145,6 +145,7 @@ classdef laser
             
             % Clip
             Pout(Pout < 0) = 0;
+            Eout = sqrt(Pout);
         end          
     end
     
