@@ -15,52 +15,25 @@ function [Xs, Analog, S, Sf] = analog_epll_logic(Ys, totalLineWidth, Analog, sim
 % - Analog: loop filter parameters
 
 % Create components
-% Mixers and adders for four quadrant multiplier for X and Y
-Mx1 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Mx2 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Mx3 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Mx4 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Sx1 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-Sx2 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-
-My1 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-My2 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-My3 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-My4 = AnalogMixer(Analog.Mixer.filt, Analog.Mixer.N0, sim.fs);
-Sy1 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
-Sy2 = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
+% Mixers and adders for single-sindeband mixer
+[Mx1, Mx2, Mx3, Mx4, My1, My2, My3, My4] = Analog.Mixer.copy();
+[Sx1, Sx2, Sy1, Sy2] = Analog.Adder.copy();
 
 % Comparators
-Comp1 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-Comp2 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-Comp3 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-Comp4 = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
+[Comp1, Comp2, Comp3, Comp4] = Analog.Comparator.copy();
 
-% Full wave rectifiers (absolute operation)
-abs1 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
-abs2 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
-abs3 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
-abs4 = AnalogABS(Analog.ABS.filt, Analog.ABS.N0, sim.fs);
-
-% Comparators
-CompX = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-CompY = AnalogComparator(Analog.Comparator.filt, Analog.Comparator.N0, sim.fs, Analog.Comparator.Vcc);
-
-% xnor
-xnorX1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-xnorX2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-xnorY1 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-xnorY2 = AnalogLogic(Analog.Logic.filt, Analog.Logic.N0, sim.fs);
-
-% adder
-AdderXY = AnalogAdder(Analog.Adder.filt, Analog.Adder.N0, sim.fs);
+% Components for XOR-based phase detector
+[abs1, abs2, abs3, abs4]  = Analog.ABS.copy();
+[CompX, CompY] = Analog.Comparator.copy();
+[xorX1, xorX2, xorY1, xorY2] = Analog.Logic.copy();
+AdderXY = Analog.Adder.copy();
 
 % Converts delay to number of samples in order to avoid interpolation
 additionalDelay = max(round(Analog.Delay*sim.fs), 1); % delay is at least one sample
 
 % Calculate group delay
-totalGroupDelay = Mx1.groupDelay + Sx1.groupDelay... % Four quadrant multiplier
-    + Comp1.groupDelay + xnorX1.groupDelay + xnorX2.groupDelay + AdderXY.groupDelay... % phase estimation    
+totalGroupDelay = Analog.Mixer.groupDelay + Analog.Adder.groupDelay... % Four quadrant multiplier
+    + Analog.Comparator.groupDelay + 2*Analog.Logic.groupDelay + double(Analog.CPRNpol == 2)*Analog.Adder.groupDelay... % phase estimation    
     + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
 Analog.totalGroupDelay = totalGroupDelay;
@@ -91,7 +64,7 @@ Yyq = imag(Ys(2, :));
 for t = additionalDelay+1:length(sim.t)
     % VCO: generates VCO output
     Vcos = cos(Sf(t-additionalDelay));
-    Vsin = sin(Sf(t-additionalDelay));
+    Vsin = -sin(Sf(t-additionalDelay));
 
     % Four quadrant multiplier                  
     X(1, t) = Sx1.add(Mx1.mix(Yxi(t), Vcos), -Mx2.mix(Yxq(t), Vsin)); % pol X, I
@@ -100,18 +73,18 @@ for t = additionalDelay+1:length(sim.t)
     X(4, t) = Sy2.add(My3.mix(Yyi(t), Vsin), My4.mix(Yyq(t), Vcos)); % pol Y, Q
 
     % Phase estimation
-    Xd(1, t) = Comp1.compare(X(1, t), Analog.Comparator.Vref);
-    Xd(2, t) = Comp2.compare(X(2, t), Analog.Comparator.Vref);
-    Xd(3, t) = Comp3.compare(X(3, t), Analog.Comparator.Vref);
-    Xd(4, t) = Comp4.compare(X(4, t), Analog.Comparator.Vref);
+    Xd(1, t) = Comp1.compare(X(1, t), 0);
+    Xd(2, t) = Comp2.compare(X(2, t), 0);
+    Xd(3, t) = Comp3.compare(X(3, t), 0);
+    Xd(4, t) = Comp4.compare(X(4, t), 0);
 
     Xdabs(1) = abs1.abs(X(1, t));
     Xdabs(2) = abs2.abs(X(2, t));
     Xdabs(3) = abs3.abs(X(3, t));
     Xdabs(4) = abs4.abs(X(4, t));
 
-    Sx = xnorX2.xnor(xnorX1.xnor(Xd(1, t), Xd(2, t)), CompX.compare(Xdabs(1), Xdabs(2)));
-    Sy = xnorY2.xnor(xnorY1.xnor(Xd(3, t), Xd(4, t)), CompY.compare(Xdabs(3), Xdabs(4)));
+    Sx = xorX2.xor(xorX1.xor(Xd(1, t), Xd(2, t)), CompX.compare(Xdabs(1), Xdabs(2)));
+    Sy = xorY2.xor(xorY1.xor(Xd(3, t), Xd(4, t)), CompY.compare(Xdabs(3), Xdabs(4)));
 
     if Analog.CPRNpol == 2
         S(t) = AdderXY.add(Sx, Sy)/2; % loop filter input
@@ -124,7 +97,7 @@ for t = additionalDelay+1:length(sim.t)
 end
 
 % Remove group delay from signal path
-delay = (Mx1.groupDelay + Sx1.groupDelay); % Group delay in signal path
+delay = (Analog.Mixer.groupDelay + Analog.Adder.groupDelay); % Group delay in signal path
 Hdelay = ifftshift(exp(1j*2*pi*sim.f*delay));
 X(1, :) = real(ifft(fft(X(1, :)).*Hdelay ));
 X(2, :) = real(ifft(fft(X(2, :)).*Hdelay ));

@@ -188,30 +188,22 @@ componentN0 = 0;
 %     componentN0 = 4e-21*componentRn/pi;
 
 % Adder
-Analog.Adder.filt = componentFilter;
-Analog.Adder.N0 = componentN0;
-
-% 
-Analog.FeedforwardLPF.filt = design_filter('bessel', 5, 10e9/(sim.fs/2));
+Analog.Adder = AnalogAdder(componentFilter, componentN0, sim.fs);
 
 % Mixer
-Analog.Mixer.filt = componentFilter;
-Analog.Mixer.N0 = componentN0;
+Analog.Mixer = AnalogMixer(componentFilter, componentN0, sim.fs);
+Analog.Mixer.Vamp = 1;
 
 % ABS (full-wave rectifier)
-Analog.ABS.filt = componentFilter;
-Analog.ABS.N0 = componentN0;
+Analog.ABS = AnalogABS(componentFilter, componentN0, sim.fs);
 
 % Logic
-Analog.Logic.Vcc = 1;
-Analog.Logic.N0 = componentN0;
-Analog.Logic.filt = componentFilter;
+Analog.Logic = AnalogLogic(componentFilter, componentN0, sim.fs);
+Analog.Logic.Vout = 1;
 
 % Comparator
-Analog.Comparator.Vref = 0;
-Analog.Comparator.Vcc = 1;
-Analog.Comparator.N0 = componentN0;
-Analog.Comparator.filt = componentFilter;
+Analog.Comparator = AnalogComparator(componentFilter, componentN0, sim.fs);
+Analog.Comparator.Vout = 1;
 
 % Loop filter
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter

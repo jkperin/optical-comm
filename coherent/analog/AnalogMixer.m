@@ -1,8 +1,21 @@
 classdef AnalogMixer < AnalogOperation % inherits properties and methods from class AnalogOperation
+    properties
+        Vamp = 1 % amplitude of input signal. This is used to adjust amount of distortion. 
+        % If Vamp = 1 and input signal is in [-1, 1], there will be little
+        % distortion
+    end
     methods
         function obj = AnalogMixer(filt, N0, fs)
             %% Constructor
             obj@AnalogOperation(filt, N0, fs); % calls constructor of parent class Analog Operation
+        end
+        
+        function varargout = copy(self)
+            %% Deep copy of Mixer. Filters states aren't copied
+            for k = 1:nargout
+                varargout{k} = AnalogMixer(self.filt, self.N0, self.fs);
+                varargout{k}.Vamp = self.Vamp;
+            end
         end
         
         function yf = mix(self, x1, x2)
@@ -14,8 +27,11 @@ classdef AnalogMixer < AnalogOperation % inherits properties and methods from cl
             % Filter inputs
             [x1f, x2f] = self.filter_inputs(x1, x2);
             
-            % Perform operation: comparing
-            y = x1f.*x2f;
+            % Perform operation: mixing
+            y = tanh(2*x1f/self.Vamp).*tanh(2*x2f/self.Vamp);
+            % Note: factor of 2 adjust slope of tanh, so that there's a 1
+            % to 1 relation between input and output, when clipping is
+            % small
             
             % Add noise
             yn = self.add_noise(y);
