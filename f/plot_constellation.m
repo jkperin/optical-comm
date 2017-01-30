@@ -9,5 +9,5 @@ end
 ref = qammod(0:M-1, M);
 scatter(real(ref), imag(ref), 20, 'x')
 
-axis([-2 2 -2 2]);
+axis(sqrt(M)*[-1 1 -1 1]);
 axis square
