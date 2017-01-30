@@ -118,17 +118,17 @@ classdef ofdm < handle
                 subplot(211), hold on, box on
                 stem(this.fc/1e9, this.Pn/this.Pn(1))
                 plot(this.fc/1e9, abs(Gch).^2, 'LineWidth', 2)
-                xlabel('Subcarrier frequency (GHz)', 'FontSize', 14)
-                ylabel('Normalized allocated power', 'FontSize', 14)
+                xlabel('Subcarrier frequency (GHz)', 'FontSize', 12)
+                ylabel('Power (normalized)', 'FontSize', 12)
                 title('Power allocation and bit loading')
-                set(gca, 'FontSize', 14)
+                set(gca, 'FontSize', 12)
                 grid on
 
                 subplot(212), hold on, box on
                 stem(this.fc/1e9, this.CSn)
-                xlabel('Subcarrier frequency (GHz)', 'FontSize', 14)
-                ylabel('Constellation size', 'FontSize', 14)
-                set(gca, 'FontSize', 14)
+                xlabel('Subcarrier frequency (GHz)', 'FontSize', 12)
+                ylabel('Constellation size', 'FontSize', 12)
+                set(gca, 'FontSize', 12)
                 set(gca, 'ytick', [4 16 32 64])
                 grid on                
                 drawnow
@@ -228,12 +228,12 @@ classdef ofdm < handle
                 plot(abs(e(1, :)).^2)
                 xlabel('Iteration')
                 ylabel('MSE')
-                title('Adaptation MSE for 1st subacarrier')
+                title('Adapt. MSE for 1st subcarrier')
                 subplot(224)
                 plot(abs(e(end, :)).^2)
                 xlabel('Iteration')
                 ylabel('MSE')                
-                title('Adaptation MSE for last subacarrier')
+                title('Adapt. MSE for last subcarrier')
                 drawnow
                 
                 figure(404), clf, hold on, box on
@@ -390,8 +390,18 @@ classdef ofdm < handle
             end            
         end
         
+        function ber_theory = calc_ber(self, SNRn)
+            %% Calculate theoretical BER from SNR at each constellation
+            ber = zeros(size(SNRn));
+            for k = 1:length(SNRn)
+                ber(k) = berqam(self.CSn(k), SNRn(k));
+            end
+
+            ber_theory = sum(ber.*self.bn)/sum(self.bn);
+        end
+        
         function [ber_est, SNRn] = estimate_ber(this, xn, Gch, noiseVar, verbose)
-            %% Estimate BER from the SNR
+            %% Estimate BER from signal
             % Inputs:
             % - xn : sampled received signal
             % - Gch : channel frequency response at the subcarriers frequency
@@ -408,12 +418,7 @@ classdef ofdm < handle
             % Calculate unbiased estimated SNR
             SNRn = 10*log10(Pnadj.*abs(Gch).^2./noiseVar - (this.Pn.*abs(Gch).^2./noiseVar).*(sum(noiseVar)./sum(this.Pn.*abs(Gch).^2))); 
             
-            berest = zeros(size(SNRn));
-            for kk = 1:length(SNRn)
-                berest(kk) = berqam(this.CSn(kk), SNRn(kk));
-            end
-
-            ber_est = sum(berest.*this.bn)/sum(this.bn);
+            ber_est = this.calc_ber(SNRn);
             
             if exist('verbose', 'var') && verbose
                 figure(301), hold on, box on
@@ -428,7 +433,6 @@ classdef ofdm < handle
             end
         end
     end
-    
     
     %% Get and Set Methods
     methods 
