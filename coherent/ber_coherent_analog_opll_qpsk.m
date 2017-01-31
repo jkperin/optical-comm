@@ -26,13 +26,13 @@ Costas = false;
 switch lower(Analog.CPRmethod)
     case 'costas'
         Costas = true;
-        [MIdQx, MQdIx, MIdQy, MQdIy] = Analog.Mixer.copy();
+        [MIdQx, MQdIx, MIdQy, MQdIy] = Analog.CostasMixer.copy();
         [AdderX, AdderY] = Analog.Adder.copy();
         
         % Calculate group delay in s
         totalGroupDelay = LOFMgroupDelay/sim.fs... % Laser FM response delay
             + ReceiverFilterXI.groupDelay/sim.fs... % Receiver filter
-            + Analog.Comparator.groupDelay + Analog.Mixer.groupDelay + Analog.CPRNpol*Analog.Adder.groupDelay... % phase estimation    
+            + Analog.Comparator.groupDelay + Analog.CostasMixer.groupDelay + Analog.CPRNpol*Analog.Adder.groupDelay... % phase estimation    
             + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
         fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));       
     case 'logic'
