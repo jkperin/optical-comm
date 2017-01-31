@@ -189,8 +189,11 @@ componentN0 = 0;
 Analog.Adder = AnalogAdder(componentFilter, componentN0, sim.fs);
 
 % Mixer
-Analog.Mixer = AnalogMixer(componentFilter, componentN0, sim.fs);
-Analog.Mixer.Vamp = 1;
+Analog.SSBMixer = AnalogMixer(componentFilter, componentN0, sim.fs);
+Analog.SSBMixer.Vamp = 1.5;
+
+Analog.CostasMixer = AnalogMixer(componentFilter, componentN0, sim.fs);
+Analog.CostasMixer.Vamp = 1.5;
 
 % ABS (full-wave rectifier)
 Analog.ABS = AnalogABS(componentFilter, componentN0, sim.fs);

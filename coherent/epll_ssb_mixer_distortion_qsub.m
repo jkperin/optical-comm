@@ -1,17 +1,41 @@
-%% Simulation of analog coherent detection system
-clear, clc
+function berQAM = epll_ssb_mixer_distortion_qsub(fiberLengthKm, ModBWGHz, CPRmethod, CPRNpol, linewidthKHz, Delayps, mixerVamp)
+%% Estimate BER of a QPSK system based on EPLL-based analog receiver, where
+%% the SSB mixer adds distortion controlled by the paramter mixerVamp
+% - fiberLength: fiber length in km
+% - ModBWGHz: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
+% - CPRmethod: {'logic': based on XOR operations, 'costas': based on Costas
+% loop, which requries multipliers}
+% - CPRNpol: number of polarizations used in CPR
+% - linewidthKhz: laser linewidth in kHz
+% - Delayps: additional loop delay in ps
+% - mixerVamp: parameter that controls distortion in the mixer
 
 addpath f/
 addpath analog/
 addpath ../f/
 addpath ../apd/
 
+%
+filename = sprintf('results/EPLL_SSB_mixer_distortion_L=%skm_ModBW=%sGHz_%s_Npol=%s_linewidth=%skHz_delay=%sps_mixerVamp=%s.mat',...
+        fiberLengthKm, ModBWGHz, CPRmethod, CPRNpol, linewidthKHz, Delayps, mixerVamp);
+
+filename = check_filename(filename) % verify if already exists and rename it, if it does
+    
+% convert inputs to double (on cluster inputs are passed as strings)
+if ~all(isnumeric([fiberLengthKm, ModBWGHz, CPRNpol, linewidthKHz, Delayps, mixerVamp]))
+    fiberLength = 1e3*str2double(fiberLengthKm);
+    ModBW = 1e9*str2double(ModBWGHz);
+    CPRNpol = round(str2double(CPRNpol));
+    linewidth = 1e3*str2double(linewidthKHz);
+    Delay = 1e-12*round(str2double(Delayps));
+    mixerVamp = str2double(mixerVamp);
+end
+
 %% Simulation launched power swipe
-Tx.PlaunchdBm = -38:-28;
-Tx.PlaunchdBm = -36;
+Tx.PlaunchdBm = -38:0.5:-25;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
 sim.Mct = 4;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
@@ -24,18 +48,19 @@ sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-Q
 % sim.ModFormat = DPSK(4, sim.Rb/sim.Npol, sim.pulse_shape);                     % M-DPSK modulation format
 
 % Simulation control
-sim.RIN = ~true; 
+sim.RIN = true; 
 sim.PMD = false;
 sim.phase_noise = true;
-sim.preAmp = true;
+sim.preAmp = false;
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
+sim.save = true;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
 Plots('BER')                  = 1; 
 Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
-Plots('Constellations') = 1;
+Plots('Constellations') = 0;
 Plots('Diff group delay')       = 0;
 Plots('Phase error') = 0;
 Plots('Feedforward phase recovery') = 0;
@@ -63,7 +88,7 @@ Tx.Dely  = 0;                                                               % De
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1310e-9, 0, -150, 200e3, 0);
+Tx.Laser = laser(1310e-9, 0, -150, linewidth, 0);
 
 %% ============================= Modulator ================================
 if strcmpi(sim.Modulator, 'MZM') 
@@ -72,7 +97,7 @@ if strcmpi(sim.Modulator, 'MZM')
     Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
 elseif strcmpi(sim.Modulator, 'SiPhotonics') 
     %% Si Photonics (limited by parasitics, 2nd-order response)
-    Tx.Mod.BW = 30e9;
+    Tx.Mod.BW = ModBW;
     Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
     Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
     Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
@@ -85,7 +110,7 @@ end
 % deafault is att(lamb) = 0 dB/km
 % D(lamb) : function handle of dispersion (D) at wavelength (lamb) in ps/(kmnm),
 % default is D(lamb) = SSMF with lamb0 @ 1310 ps/(kmnm)
-Fiber = fiber(0e3);
+Fiber = fiber(fiberLength);
 Fiber.PMD = sim.PMD;                                                       % whether to similate PMD
 Fiber.meanDGDps = 0.1;                                                     % Mean DGD (ps)
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
@@ -143,15 +168,15 @@ Analog.filt = design_filter('bessel', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 
 %% Carrier phase recovery and components
 % Carrier Phase recovery type: either 'OPLL', 'EPLL', and 'Feedforward'
-Analog.CPRNpol =1; % Number of polarizations used in CPR
+Analog.CPRNpol = CPRNpol; % Number of polarizations used in CPR
 Analog.CarrierPhaseRecovery = 'EPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
 % '4th-power': based on raising signal to 4th power (only for EPLL)}
-Analog.CPRmethod = 'Logic';                                            
+Analog.CPRmethod = CPRmethod;                                            
 
 % If componentFilter is empty, simulations assume ideal devices
-componentFilter = design_filter('bessel', 3, sim.ModFormat.Rs/(sim.fs/2));
+componentFilter = design_filter('bessel', 3, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
 % Huber, A. et al (2002). Noise model of InP-InGaAs SHBTs for RF circuit design. 
 % IEEE Transactions on Microwave Theory and Techniques, 50(7), 1675–1682.
@@ -162,10 +187,10 @@ Analog.Adder = AnalogAdder(componentFilter, componentN0, sim.fs);
 
 % Mixer
 Analog.SSBMixer = AnalogMixer(componentFilter, componentN0, sim.fs);
-Analog.SSBMixer.Vamp = 1.5;
+Analog.SSBMixer.Vamp = mixerVamp;
 
 Analog.CostasMixer = AnalogMixer(componentFilter, componentN0, sim.fs);
-Analog.CostasMixer.Vamp = 1.5;
+Analog.CostasMixer.Vamp = 2;
 
 % ABS (full-wave rectifier)
 Analog.ABS = AnalogABS(componentFilter, componentN0, sim.fs);
@@ -181,59 +206,25 @@ Analog.Comparator.Vout = 1;
 %% PLL loop filter parameters.
 % Note: relaxation frequency is optimized at every iteration
 Analog.csi = 1/sqrt(2);                                                    % damping coefficient of second-order loop filter
-Analog.Delay = 200e-12;                                                          % Additional loop delay in s (not including group delay from filters)
+Analog.Delay = Delay;                                                          % Additional loop delay in s (not including group delay from filters)
 % Analog.wn = 2*pi*100e6;
-
-%% Feedforward additional components
-Analog.Feedforward.freqDivDelay = 0;                                       % delay in samples
-Analog.Feedforward.FreqDiv1.Mixer.filt = [];
-Analog.Feedforward.FreqDiv1.Mixer.N0 = 0;
-Analog.Feedforward.FreqDiv2.Mixer.filt = [];
-Analog.Feedforward.FreqDiv2.Mixer.N0 = 0;
-
-Analog.Feedforward.LPF.filt = design_filter('bessel', 5, 5e9/(sim.fs/2));
-Analog.Feedforward.FreqDiv1.filt = design_filter('bessel', 5, 2e9/(sim.fs/2));
-Analog.Feedforward.FreqDiv2.filt = design_filter('bessel', 5, 1e9/(sim.fs/2));
 
 Rx.Analog = Analog;
 
 %% ========================= Time recovery ================================
-% Two types are supported: 'spectral-line'
-% Spectral line method: nonlinearity (squarer) -> BPF or PLL
-Rx.TimeRec.type = 'spectral-line-bpf';
-Rx.TimeRec.type = 'spectral-line-pll';
 Rx.TimeRec.type = 'none';
-Rx.TimeRec.Mct = 30; % oversampling ratio of continuous time used in TimeRecovery
-Rx.TimeRec.fs = Rx.TimeRec.Mct*sim.ModFormat.Rs;
-Rx.TimeRec.squarerFilt = design_filter('fir', 32, sim.ModFormat.Rs/(Rx.TimeRec.fs/2)); 
-% Note: use FIR filter to model squarerFilt so that group delay can be
-% easily removed in order to preserve timing accuracy.
-Rx.TimeRec.N0 = componentN0; % noise PSD of circuitry
-Rx.TimeRec.Ndiscard = [2e3 512];
-
-% Additional paramters for 'spectral-line-bpf'
-BW = 1e9;
-lpf = design_filter('butter', 5, BW/(Rx.TimeRec.fs/2));
-[bpf.num, bpf.den] = iirlp2bp(lpf.num, lpf.den, BW/(Rx.TimeRec.fs/2), sim.ModFormat.Rs/(Rx.TimeRec.fs/2) + BW/(Rx.TimeRec.fs/2)*[-1 1]); % converts to BPF
-Rx.TimeRec.bpf = bpf; % this will be filtered using filtfilt (zero-phase filtering)
-
-% Additional paramters for 'spectral-line-pll'
-Rx.TimeRec.csi = sqrt(2)/2; % damping
-Rx.TimeRec.wn = 2*pi*1e9; % relaxation frequency of PLL
-Rx.TimeRec.CT2DT = 'bilinear'; % continuous-time to discrete-time conversion method 
-Rx.TimeRec.mixerFilt = []; % design_filter('butter', 5, (sim.ModFormat.Rs)/(Rx.TimeRec.fs/2)); % filtering operation performed before and after squaring
-Rx.TimeRec.loopDelay = 10; % additional loop delay
     
 %% Generate summary
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
 %% Runs simulation
-if strcmpi(sim.ModFormat.type, 'DPSK')
-    berDPSK = ber_coherent_analog_dpsk(Tx, Fiber, Rx, sim);
-else % QPSK
-    if strcmpi(Analog.CarrierPhaseRecovery, 'OPLL')
-        berQAM = ber_coherent_analog_opll_qpsk(Tx, Fiber, Rx, sim);
-    else
-        berQAM = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim);
-    end
+berQAM = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim)
+
+%% Save results
+if sim.save   
+    % delete large variables
+    sim = rmfield(sim, 'f');
+    sim = rmfield(sim, 't');
+    Tx.Mod = rmfield(Tx.Mod, 'H');    
+    save(filename)
 end

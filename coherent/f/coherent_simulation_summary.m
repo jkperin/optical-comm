@@ -70,6 +70,12 @@ Units = {'W/Hz';};
 
 rxTable = table(Variables, Values, Units, 'RowNames', rows)
 
+%% Optical amplifier
+if isfield(rx, 'OptAmp')
+    disp('-- Simulation includes optical amplifier');
+    rx.OptAmp.summary()
+end
+
 %% Local Oscillator
 rx.LO.summary()
 

@@ -16,22 +16,22 @@ function [Xs, Analog, S, Sf] = analog_epll_4thpower(Ys, totalLineWidth, Analog, 
 
 % Create components
 % Mixers and adders for single-sindeband mixer
-[Mx1, Mx2, Mx3, Mx4, My1, My2, My3, My4] = Analog.Mixer.copy();
+[Mx1, Mx2, Mx3, Mx4, My1, My2, My3, My4] = Analog.SSBMixer.copy();
 [Sx1, Sx2, Sy1, Sy2] = Analog.Adder.copy();
 
 % Comparators
 [Cube1, Cube2, Cube3, Cube4] = Analog.Cubing.copy();
 
 % Mixer and Adders for Costas phase estimator stage
-[MIdQx, MQdIx, MIdQy, MQdIy] = Analog.Mixer.copy();
+[MIdQx, MQdIx, MIdQy, MQdIy] = Analog.SSBMixer.copy();
 [AdderX, AdderY, AdderXY]  = Analog.Adder.copy();
 
 % Converts delay to number of samples in order to avoid interpolation
 additionalDelay = max(round(Analog.Delay*sim.fs), 1); % delay is at least one sample
 
 % Calculate group delay
-totalGroupDelay = Analog.Mixer.groupDelay + Analog.Adder.groupDelay... % Remove group delay of downconversion
-    + Analog.Cubing.groupDelay + Analog.Mixer.groupDelay + 2*Analog.Adder.groupDelay... % phase estimation    
+totalGroupDelay = Analog.SSBMixer.groupDelay + Analog.Adder.groupDelay... % Remove group delay of downconversion
+    + Analog.Cubing.groupDelay + Analog.SSBMixer.groupDelay + 2*Analog.Adder.groupDelay... % phase estimation    
     + additionalDelay/sim.fs; % Additional loop delay e.g., propagation delay (minimum is 1/sim.fs since simulation is done in discrete time)
 fprintf('Total loop delay: %.3f ps (%.2f bits, %d samples)\n', totalGroupDelay*1e12, totalGroupDelay*sim.Rb, ceil(totalGroupDelay*sim.fs));
 Analog.totalGroupDelay = totalGroupDelay;
@@ -80,7 +80,7 @@ for t = additionalDelay+1:length(sim.t)
 end
 
 % Remove group delay from signal path
-delay = (Analog.Mixer.groupDelay + Analog.Adder.groupDelay); % Group delay in signal path
+delay = (Analog.SSBMixer.groupDelay + Analog.Adder.groupDelay); % Group delay in signal path
 Hdelay = ifftshift(exp(1j*2*pi*sim.f*delay));
 X(1, :) = real(ifft(fft(X(1, :)).*Hdelay ));
 X(2, :) = real(ifft(fft(X(2, :)).*Hdelay ));
