@@ -57,6 +57,11 @@ where $\Delta\nu$ is the laser linewidth.
 
 The coherence time is defined as a delay difference yielding an rms value for the phase change of $\sqrt{2}$ rads.
 
+The one-sided PSD of the phase noise is given by
+\begin{equation}
+	S_{PN}(f) = \frac{\Delta\nu}{\pi f^2}, f > 0.
+\end{equation}
+
 \subsection{Modulator Bandwidth Limitations}
 
 \subsubsection{Mach-Zenhder modulator}
@@ -107,7 +112,7 @@ D(\lambda) = \frac{S_0}{4}\bigg(\lambda - \frac{\lambda_0^4}{\lambda^3}\bigg), 1
 \end{equation}
 where $\lambda_0 = 1310$ nm and $S_0 = 0.092$ ps/nm.
 
-\subsection{Polarization-Mode Dispersion}
+\subsection{Polarization Mode Dispersion}
 Following \cite{Ip2008}
 
 The output $\bm{y}(t)$ after fiber propagation is given by
@@ -278,6 +283,67 @@ $R_s$ is the symbol rate and $R_s/2$ is the one-sided noise bandwidth. Note that
 
 \section{PLL-based carrier phase recovery}
 
+\subsection{Phase Locked Loop}
+
+At instant $k$ the symbol $Y_k$ has phase components $\phi_s(k) + \phi_p(k) + \phi_n(k)$, where $\phi_s(k)$ is the signal component and  $\phi_p(k), \phi_n(k)$ are the noise components due to phase noise and additive Gaussian noise, respectively. $\phi_p(k)$ is a Weiner process whose random steps have variance $2\pi(2\nu)T_s$, where $\nu$ is the laser linewidth of both transmitter laser and local oscillator. $T_s$ is the symbol period. $\phi_n(k)$ has a von Mises also known as circular normal distribution or Tikhonov distribution.
+
+\begin{equation} \label{eq:Tikhonov-pdf}
+	\phi_n(k) \sim p(x; \mu, \kappa) = \frac{1}{2\pi I_0(\kappa)}\exp(\kappa\cos(x-\mu))
+\end{equation}
+where $\mu, 1/\kappa$ are analogous to $\mu$ $\sigma^2$ in the normal distribution. $I_0(\kappa)$ si the modified Bessel function of order 0.
+
+Assuming that the phase estimation process perfectly removes the signal component from the phase of $Y_k$, the input to the PLL filter is $\phi_p(k) + \phi_n(k)$.
+
+Note: the distribution of the ratio of two zero-mean Gaussian random variable is a Cauchy random variable.
+
+\subsection{Loop Filter}
+Second-order loop filter
+\begin{equation}
+F(s) = \frac{2\xi\omega_ns + \omega_n^2}{s},
+\end{equation}
+where $\xi$ is the damping factor, which is typically $\xi = \sqrt{2}/2$, and $\omega_n$ is the relaxation frequency, which must be optimized in order to reduce the phase error variance.
+
+Including the integrator from the VCO
+\begin{equation}
+G(s) = \frac{2\xi\omega_ns + \omega_n^2}{s^2}
+\end{equation}
+
+Hence, the impulse response $sG(s)$ in time-domain is given by
+\begin{equation}
+g(t) = 2\xi\omega_nu(t) + \omega_n^2tu(t)
+\end{equation}
+
+\subsubsection{Continuous time}
+
+The open-loop response of the PLL is given by
+\begin{equation}
+G(s) = \frac{F(s)}{s}e^{-s\Delta_T}
+\end{equation}
+where $\Delta_T$ is the loop delay, which includes group delay of the filters as well as propagation delays. $G(s)$ is the transfer function between the local oscillator phase and the phase noise, which also includes AWGN component. 
+
+When there's a frequency offset in addition to a phase error, the input to the PLL is a ramp. Hence, from the final value theorem we can determine the steady-state phase error
+\begin{equation}
+	\phi_e(t\to\infty) = \lim_{s\to 0} \frac{sR(s)}{1 + G(s)} = \lim_{s\to 0}s\frac{1}{s^2}\cdot\frac{s^2}{s^2 + 2\xi\omega_ns + \omega_n^2} = 0
+\end{equation}
+Therefore, in continuous-time, a PLL has zero error to a frequency offset.
+
+\subsubsection{Discrete time}
+
+We can obtain the open-loop transfer function by discretizing the continuous-time transfer function $G(s)$, either using a bilinear transformation or impulse invariance.
+
+From bilinear transformation
+\begin{equation}
+	G(z) = \frac{z^2(\xi\omega_nT_s + T_s^2\omega_n^2/4) + 2zT_s^2\omega_n^2/4 + T_s^2\omega_n^2/4 - \xi\omega_nT_s}{z^2 - 2z + 1} = \frac{P(z)}{(z-1)^2}
+\end{equation}
+
+Applying the final value theorem to a ramp input
+\begin{align} \nonumber
+	\phi_e(n\to\infty) &= \lim_{z\to 1} \frac{(z-1)\frac{(z)}{(z-1)^2}}{1 + G(z)} = \lim_{z\to 1} \frac{z}{(z-1)(1 + G(z))} \\
+	&= \lim_{z\to 1} \frac{z(z-1)}{(z-1)^2 + P(z)} = 0
+\end{align}
+Hence, the DPLL implementation also achieves zero error for a ramp input i.e., frequency offset. However, since the delay in the phase estimation of an actual implementation of a DPLL is at least 1, the output constellation will be rotated by at least $f_{off}/R_s$ radians.
+
+\subsection{Homodyne detection}
 After balanced detection we have in each polarization
 \begin{align}
 I_i(t) = R\frac{\sqrt{P_{rx}P_{LO}}}{p}\cos(w_{off}t + \phi_s(t) + \phi_{pn}(t)) \\
@@ -297,10 +363,10 @@ S(t) \approx R\frac{\sqrt{2P_{rx}P_{LO}}}{p}\phi_{pn}(t) + n_i(t) + n_q(t)
 
 The phase error of the OPLL $\phi_e(t)$ is related to the phase noise $\phi_{pn}(t)$ by
 
-\begin{equation}
+\begin{equation} \label{eq:phase-error-in-s}
 \phi_e(s) = N_{CPR}\frac{s}{s + F(s)e^{-s\tau_d}}\phi_{pn}(s) - \frac{F(s)e^{-s\tau_d}}{s + F(s)e^{-s\tau_d}}n(s)
 \end{equation}
-where $n(s) \sim\mathcal{N}(0, 2N_{CPR}\sigma_n^2)$, and $N_{CPR}$ is the number of polarizations used in carrier phase recovery. Note that this assumes that there's no mismatch from the phase noise estimate of the two polarizations. The mismatch case will be analyzed in the next subsection.
+where $n(s) \sim\mathcal{N}(0, 2N_{CPR}\sigma_n^2)$, $N_{CPR}$ is the number of polarizations used in carrier phase recovery, and $F(s) = 2\zeta\omega_n + \omega_n^2/s$, for a second-order loop filter. Note that \eqref{eq:phase-error-in-s} assumes that there's no mismatch from the phase noise estimate of the two polarizations. The mismatch case will be analyzed in the next subsection.
 
 Defining the phase estimation gain
 \begin{equation}
@@ -388,7 +454,7 @@ Adding another term to \ref{eq:phase_error_variance} due to flicker noise yields
 
 \subsection{Comparison between phase noise and AWGN components of phase error variance}
 
-Both the phase noise and the AWGN component in the phase error variance have a denominator given by $|j\omega + F(j\omega)e^{-j\omega\tau_d}|$. The phase error will grow unbounded whenever this denominator goes to zero. Equating the real and complex parts of the denominator
+Both the phase noise and the AWGN component in the phase error variance have a denominator given by $|j\omega + F(j\omega)e^{-j\omega\tau_d}|$, where $F(j\omega) = 2\zeta\omega_n - j\omega_n^2/\omega$. The phase error will grow unbounded whenever this denominator goes to zero. Equating the real and complex parts of the denominator
 \begin{align}
 -\omega^2 + 2\zeta\omega_n\omega\sin(\omega\tau_d) + \omega_n^2\cos(\omega\tau_d) = 0 \\
 2\zeta\omega_n\omega\cos(\omega\tau_d) - \omega_n^2\sin(\omega\tau_d) = 0
@@ -401,29 +467,31 @@ Using the small-signal approximations $\sin(x)\approx x$ and $\cos(x) \approx 1$
 
 The solution of the second equation $\omega_n = \frac{2\zeta}{\tau_d}$. In simulations, we use $\omega_{n, \max} = \frac{\zeta}{\tau_d}$.
 
-\section{DPSK}
-\subsection{Frequency offset penalty}
 
-In DPSK symbols the transmitted information is encoded as phase changes. In comparison with coherent PSK, DPSK has an inherent penalty of 2.4 dB.
+\subsection{PLL terminology}
+Sections extracted from \cite{Gardner} chapters 5 and 8. 
 
-To simplify the receiver the DPSK receiver design, we will assume that the receiver does not do any form of frequency carrier recovery. 
+\subsubsection{Hold-in range}
+Frequency range over which the loop will hold lock. In other words, the largest step in frequency over which the system will still hold lock.	
 
-The receiver decodes the signal by determining the phase transitions between consecutive symbols. Phase noise, AWGN, and frequency offset lead to phase error. While phase noise is negligible between two symbols, frequency offset between transmitter laser and LO may lead to significant error. The error probability of M-DSPK signals was studied by \cite{Pawula2001}. The bit error probability for a DPSK signal in the presence of frequency offset is given by
+\subsubsection{Lock-in range (self-acquisition range)}
 
-\begin{equation}
-P_e \approx \frac{2}{\log_2M}(F(\pi) - F(\pi/M)),
-\end{equation}
-where
-\begin{equation}
-F(\phi) = \frac{\gamma_s\sin(\Delta\Psi-\phi)}{4\pi}\int_{-\pi/2}^{\pi/2} \frac{\exp(-(\gamma_s -\gamma_s\cos(\Delta\Psi - \phi)\cos t))}{\gamma_s -\gamma_s\cos(\Delta\Psi - \phi)\cos t}dt
-\end{equation}
-and 
-\begin{equation}
-\Delta\Psi = 2\pi f_{off}T_s
-\end{equation}
-is the frequency offset.
+If signal frequency is close enough to VCO frequency, a PLL locks up with
+just a phase transient; there is no cycle slipping prior to lock. The frequency range over which the loop acquires phase without slips is called the lock-in range of the PLL. In a first-order loop, the lock-in range is equal to the hold-in range; the loop self-acquires any signal that it can hold. The same is not true of type 2 or higher loops; \textbf{the lock-in range is invariably less than the hold-in range}. Moreover, there is a frequency interval, smaller than the hold-in interval
+and larger than the lock-in interval, over which the loop will acquire lock after slipping cycles for awhile. This intermediate interval is called the pull-in range.
 
-This equation assumes that the SNR between two symbols is the same.
+\subsubsection{Frequency pull-in, or simply, pull-in}
+
+Pull-in Limits If the loop filter contains a perfect integrator, pull-in will be accomplished no matter how large the initial frequency error. (This statement neglects clipping limits; the loop clearly cannot pull in a signal that requires excessive control voltage to the VCO. Also, it is assumed that there are no unwanted DC offsets within the loop that would counteract the pull-in voltage and cause the VCO frequency to be pushed out instead.) In an analog loop filter, the integrator is imperfect and the DC gain is some finite number F(0). If vp is small enough—if the initial frequency error is large enough—the loop cannot pull in. The largest frequency for which the loop can still pull into lock is called the pull-in limit and is represented by $\Delta\omega_p$.
+
+\begin{figure}[h!]
+	\centering
+	\includegraphics[width=\textwidth]{transient_phase_error_of_2nd_order_pll.png}
+	\label{fig:transient_2nd_pll}
+	\caption{\cite{Gardner}}
+\end{figure}
+
+There is some frequency-step limit below which the loop does not slip cycles but remains in lock; denote this limit as the \textbf{pullout frequency}
 
 \section{Digital signal processing}
 
@@ -477,91 +545,6 @@ where $\Delta f$ is the frequency offset to be estimated.
 \end{equation}
 where $\mu$ is adaptation constant and $T_s$ is the symbol time. The $\mathrm{arg}\{\cdot\}$ function may require unwrapping to prevent cycle slips. Biased unwrapping, which takes into account estimated frequency was shown to have better performance \cite{Hoffmann2008}.
 
-\subsection{Phase Locked Loop}
-
-At instant $k$ the symbol $Y_k$ has phase components $\phi_s(k) + \phi_p(k) + \phi_n(k)$, where $\phi_s(k)$ is the signal component and  $\phi_p(k), \phi_n(k)$ are the noise components due to phase noise and additive Gaussian noise, respectively. $\phi_p(k)$ is a Weiner process whose random steps have variance $2\pi(2\nu)T_s$, where $\nu$ is the laser linewidth of both transmitter laser and local oscillator. $T_s$ is the symbol period. $\phi_n(k)$ has a von Mises also known as circular normal distribution or Tikhonov distribution.
-
-\begin{equation} \label{eq:Tikhonov-pdf}
-	\phi_n(k) \sim p(x; \mu, \kappa) = \frac{1}{2\pi I_0(\kappa)}\exp(\kappa\cos(x-\mu))
-\end{equation}
-where $\mu, 1/\kappa$ are analogous to $\mu$ $\sigma^2$ in the normal distribution. $I_0(\kappa)$ si the modified Bessel function of order 0.
-
-Assuming that the phase estimation process perfectly removes the signal component from the phase of $Y_k$, the input to the PLL filter is $\phi_p(k) + \phi_n(k)$.
-
-Note: the distribution of the ratio of two zero-mean Gaussian random variable is a Cauchy random variable.
-
-Given the open-loop frequency response of the digital-PLL (DPLL) loop $G(z) = \phi_{LO}(z)/\phi_s(z)$, we can express the phase error as
-\begin{equation}
-	\phi_e(z) = \frac{1}{G(z)+1}\phi_s(z) + \frac{G(z)}{G(z) + 1}\phi_n(z)
-\end{equation}
-
-
-\subsubsection{Continuous time}
-
-The second-order PLL has a loop filter given by $F(s) = 2\xi\omega_n + \omega_n^2/s$, where $\xi$ is the damping factor, which is typically $\xi = \sqrt{2}/2$, and $\omega_n$ is the relaxation frequency, which must be optimized in order to reduce the phase error variance.
-
-The open-loop response of the PLL is given by
-\begin{equation}
-G(s) = \frac{F(s)}{s}e^{-s\Delta_T}
-\end{equation}
-where $\Delta_T$ is the loop delay, which includes group delay of the filters as well as propagation delays. $G(s)$ is the transfer function between the local oscillator phase and the phase noise, which also includes AWGN component. 
-
-When there's a frequency offset in addition to a phase error, the input to the PLL is a ramp. Hence, from the final value theorem we can determine the steady-state phase error
-\begin{equation}
-\phi_e(t\to\infty) = \lim_{s\to 0} \frac{sR(s)}{1 + G(s)} = \lim_{s\to 0}s\frac{1}{s^2}\cdot\frac{s^2}{s^2 + 2\xi\omega_ns + \omega_n^2} = 0
-\end{equation}
-Therefore, in continuous-time, a PLL has zero error to a frequency offset.
-
-\subsubsection{Discrete time}
-
-We can obtain the open-loop transfer function by discretizing the continuous-time transfer function $G(s)$, either using a bilinear transformation or impulse invariance.
-
-From bilinear transformation
-\begin{equation}
-G(z) = \frac{z^2(\xi\omega_nT_s + T_s^2\omega_n^2/4) + 2zT_s^2\omega_n^2/4 + T_s^2\omega_n^2/4 - \xi\omega_nT_s}{z^2 - 2z + 1} = \frac{P(z)}{(z-1)^2}
-\end{equation}
-
-Applying the final value theorem to a ramp input
-\begin{align} \nonumber
-\phi_e(n\to\infty) &= \lim_{z\to 1} \frac{(z-1)\frac{(z)}{(z-1)^2}}{1 + G(z)} = \lim_{z\to 1} \frac{z}{(z-1)(1 + G(z))} \\
-&= \lim_{z\to 1} \frac{z(z-1)}{(z-1)^2 + P(z)} = 0
-\end{align}
-Hence, the DPLL implementation also achieves zero error for a ramp input i.e., frequency offset. However, since the delay in the phase estimation of an actual implementation of a DPLL is at least 1, the output constellation will be rotated by at least $f_{off}/R_s$ radians.
-
-\subsection{Implementations issues}
-Hardware implementation of DPLL at high rates rely heavily on parallelism and pipelining in order to reduce the complexity of the processing units. 
-
-\begin{equation}
-p = \frac{\Delta_{PE}}{T_s}
-\end{equation}
-where $p$ is the number of parallel stages and $\Delta_{PE}$ is the total time it takes to perform phase estimation.
-
-\subsection{IIR filter implementation}
-The closed-loop transfer function of the PLL loop filter is given by
-\begin{align} \nonumber
-H(z) &= \frac{\phi_{LO}(z)}{\phi_n(z)} = \frac{G(z)}{1 + G(z)} \\ \nonumber
-&= \frac{z^2(\xi\omega_nT_s + T_s^2\omega_n^2/4) + 2zT_s^2\omega_n^2/4 + T_s^2\omega_n^2/4 - \xi\omega_nT_s}{z^2(\xi\omega_nT_s + T_s^2\omega_n^2/4 + 1) + 2z(T_s^2\omega_n^2/4-1) + T_s^2\omega_n^2/4 - \xi\omega_nT_s + 1} \\
-& = \frac{b_0 + b_1z^{-1} + b_2z^{-2}}{1 + a_1z^{-1} + a_2z^{-2}}
-\end{align}
-
-\section{Loop filter}
-
-Second-order loop filter
-\begin{equation}
-F(s) = \frac{2\xi\omega_ns + \omega_n^2}{s}
-\end{equation}
-
-Including the integrator from the VCO
-\begin{equation}
-G(s) = \frac{2\xi\omega_ns + \omega_n^2}{s^2}
-\end{equation}
-
-Hence, the impulse response $sG(s)$ in time-domain is given by
-\begin{equation}
-g(t) = 2\xi\omega_nu(t) + \omega_n^2tu(t)
-\end{equation}
-
-
 \subsection{Phase Tracking}
 \cite{Phase1995}
 
@@ -571,31 +554,30 @@ Given the signal $y[k]$ after CMA equalization. The phase tracking algorithm app
 \end{equation}
 where $e^*[k] = z[k] - \hat{x}[k]$, where $\hat{x}[k]$ is a decision made based on $z[k]$.
 
-\section{Phase locking}
-Sections extracted from \cite{Gardner} chapters 5 and 8. 
 
-\subsection{Hold-in range}
-Frequency range over which the loop will hold lock. In other words, the largest step in frequency over which the system will still hold lock.	
+\section{DPSK}
+\subsection{Frequency offset penalty}
 
-\subsection{Lock-in range (self-acquisition range)}
+In DPSK symbols the transmitted information is encoded as phase changes. In comparison with coherent PSK, DPSK has an inherent penalty of 2.4 dB.
 
-If signal frequency is close enough to VCO frequency, a PLL locks up with
-just a phase transient; there is no cycle slipping prior to lock. The frequency range over which the loop acquires phase without slips is called the lock-in range of the PLL. In a first-order loop, the lock-in range is equal to the hold-in range; the loop self-acquires any signal that it can hold. The same is not true of type 2 or higher loops; \textbf{the lock-in range is invariably less than the hold-in range}. Moreover, there is a frequency interval, smaller than the hold-in interval
-and larger than the lock-in interval, over which the loop will acquire lock after slipping cycles for awhile. This intermediate interval is called the pull-in range.
+To simplify the receiver the DPSK receiver design, we will assume that the receiver does not do any form of frequency carrier recovery. 
 
-\subsection{Frequency pull-in, or simply, pull-in}
+The receiver decodes the signal by determining the phase transitions between consecutive symbols. Phase noise, AWGN, and frequency offset lead to phase error. While phase noise is negligible between two symbols, frequency offset between transmitter laser and LO may lead to significant error. The error probability of M-DSPK signals was studied by \cite{Pawula2001}. The bit error probability for a DPSK signal in the presence of frequency offset is given by
 
-Pull-in Limits If the loop filter contains a perfect integrator, pull-in will be accomplished no matter how large the initial frequency error. (This statement neglects clipping limits; the loop clearly cannot pull in a signal that requires excessive control voltage to the VCO. Also, it is assumed that there are no unwanted DC offsets within the loop that would counteract the pull-in voltage and cause the VCO frequency to be pushed out instead.) In an analog loop filter, the integrator is imperfect and the DC gain is some finite number F(0). If vp is small enough—if the initial frequency error is large enough—the loop cannot pull in. The largest frequency for which the loop can still pull into lock is called the pull-in limit and is represented by $\Delta\omega_p$.
+\begin{equation}
+P_e \approx \frac{2}{\log_2M}(F(\pi) - F(\pi/M)),
+\end{equation}
+where
+\begin{equation}
+F(\phi) = \frac{\gamma_s\sin(\Delta\Psi-\phi)}{4\pi}\int_{-\pi/2}^{\pi/2} \frac{\exp(-(\gamma_s -\gamma_s\cos(\Delta\Psi - \phi)\cos t))}{\gamma_s -\gamma_s\cos(\Delta\Psi - \phi)\cos t}dt
+\end{equation}
+and 
+\begin{equation}
+\Delta\Psi = 2\pi f_{off}T_s
+\end{equation}
+is the frequency offset.
 
-\begin{figure}[h!]
-	\centering
-	\includegraphics[width=\textwidth]{transient_phase_error_of_2nd_order_pll.png}
-	\label{fig:transient_2nd_pll}
-	\caption{\cite{Gardner}}
-\end{figure}
-
-There is some frequency-step limit below which the loop does not slip cycles but remains in lock; denote this limit as the \textbf{pullout frequency}
-
+This equation assumes that the SNR between two symbols is the same.
 
 \section{QPSK phase error with imperfect carrier phase recovery}
 Following \cite{Prabhu1976}, the bit error probability of a QPSK system with imperfect carrier phase recovery so that the residual phase error $\epsilon$ is such that $\epsilon \sim \mathcal{N}(\mu_\epsilon, \sigma_\epsilon^2)$ is given by
@@ -609,13 +591,7 @@ H_l = \frac{\rho\exp(-\rho^2/2)}{\sqrt{\pi}(2l+1)}\Big(I_l(\rho^2/2) + I_{l+1}(\
 where $rho$ denotes the SNR, and $I_l(x)$ is the modified Bessel function of first kind.
 
 
-\section{Laser requirements}
-
-Sampled-grating distributed Bragg reflector (SG-DBR) lasers probably have wide linewidths.  ``The wide linewidths observed in semiconductor lasers, typically in the megahertz range, require sufficiently wide loop bandwidths, i.e., small loop delays.'' \cite{Ristic2010}
-
-This linewidth, however, is not the true laser linewidth. Great part of it its just other sources of FM noise. In fact, after OPLL operation they speak of a linewidth reduction from several MHz to hundreds of kHz. 
-
-\subsection{Advantages of SG-DBR}
+\section{DBR lasers}
 
 According to \cite[Section III]{Ristic2010} there are at least four important characteristics that make SG-DBR attractive for its use in an OPLL.
 
