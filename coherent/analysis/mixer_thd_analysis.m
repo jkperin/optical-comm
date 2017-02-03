@@ -13,7 +13,7 @@ f0 = 0.5e9;
 df = 1/(dt*N);
 f = -fs/2:df:fs/2-df;
 
-filt = design_filter('bessel', 1, 1);
+filt = design_filter('bessel', 3, 0.7*28e9/(fs/2));
 N0 = 0;
 
 M = AnalogMixer(filt, N0, fs);
@@ -39,7 +39,7 @@ THDm = thd(y)
 
 THDp = 10^(THDm/10)
 
-Vamp = 1:0.05:2; % Controls amount of distortion in the mixer
+Vamp = 1:0.1:2; % Controls amount of distortion in the mixer
 
 for k = 1:length(Vamp)
     M.Vamp = Vamp(k);

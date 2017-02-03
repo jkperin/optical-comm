@@ -22,6 +22,11 @@ function [Xs, Analog, S, Sf] = analog_epll_costas(Ys, totalLineWidth, Analog, si
 % Comparators
 [Comp1, Comp2, Comp3, Comp4] = Analog.Comparator.copy();
 
+% Creates analog path with same properties as comparator just so that
+% signals will be sincronized at the CostasMixer input
+Analog.Path = AnalogPath(Analog.Comparator.filt, 0, sim.fs);
+[Path1, Path2, Path3, Path4] = Analog.Path.copy(); % create copies
+
 % Mixer and Adders for Costas phase estimator stage
 [MIdQx, MQdIx, MIdQy, MQdIy] = Analog.CostasMixer.copy();
 [AdderX, AdderY, AdderXY]  = Analog.Adder.copy();
@@ -76,8 +81,8 @@ for t = additionalDelay+1:length(sim.t)
     Xd(3, t) = Comp3.compare(X(3, t), 0);
     Xd(4, t) = Comp4.compare(X(4, t), 0);
 
-    Sx = AdderX.add(MIdQx.mix(Xd(1, t), X(2, t)), -MQdIx.mix(Xd(2, t), X(1, t)));
-    Sy = AdderY.add(MIdQy.mix(Xd(3, t), X(4, t)), -MQdIy.mix(Xd(4, t), X(3, t)));
+    Sx = AdderX.add(MIdQx.mix(Xd(1, t), Path2.path(X(2, t))), -MQdIx.mix(Xd(2, t), Path1.path(X(1, t))));
+    Sy = AdderY.add(MIdQy.mix(Xd(3, t), Path4.path(X(4, t))), -MQdIy.mix(Xd(4, t), Path3.path(X(3, t))));
 
     if Analog.CPRNpol == 2
         S(t) = AdderXY.add(Sx, Sy)/2; % loop filter input

@@ -7,7 +7,7 @@ addpath ../f/
 addpath ../apd/
 
 %% Simulation launched power swipe
-Tx.PlaunchdBm = -38:-28;
+Tx.PlaunchdBm = -28;
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
@@ -34,9 +34,9 @@ Plots = containers.Map();                                                   % Li
 Plots('BER')                  = 1; 
 Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
-Plots('Constellations') = 0;
+Plots('Constellations') = 1;
 Plots('Diff group delay')       = 0;
-Plots('Phase error') = 0;
+Plots('Phase error') = 1;
 Plots('Feedforward phase recovery') = 0;
 Plots('Time recovery') = 0;
 Plots('Phase error variance') = 0;
@@ -147,10 +147,10 @@ Analog.CarrierPhaseRecovery = 'EPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
 % '4th-power': based on raising signal to 4th power (only for EPLL)}
-Analog.CPRmethod = 'Logic';                                            
+Analog.CPRmethod = 'Costas';                                            
 
 % If componentFilter is empty, simulations assume ideal devices
-componentFilter = design_filter('bessel', 3, 0.5*sim.ModFormat.Rs/(sim.fs/2));
+componentFilter = design_filter('bessel', 3, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 componentRn = 60; % (Ohm) equivalent noise resistance obtained from 
 % Huber, A. et al (2002). Noise model of InP-InGaAs SHBTs for RF circuit design. 
 % IEEE Transactions on Microwave Theory and Techniques, 50(7), 1675–1682.
@@ -192,7 +192,7 @@ Rx.TimeRec.type = 'none';
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
 %% Runs simulation
-mixerVamp = 1:0.1:2;
+mixerVamp = 2;
 for k = 1:length(mixerVamp)
     Rx.Analog.SSBMixer.Vamp = mixerVamp(k);
     fprintf('-- %d. Vamp = %.1f\n', k, Rx.Analog.SSBMixer.Vamp)    

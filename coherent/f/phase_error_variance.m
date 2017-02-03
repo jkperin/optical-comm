@@ -14,6 +14,10 @@ function [varphiE, nPN, nAWGN, nFlicker] = phase_error_variance(csi, wn, Ncpr, D
 
 warning('off', 'MATLAB:integral:MaxIntervalCountReached')
 
+if not(exist('verbose', 'var')) % define verbose if not defined
+    verbose = false;
+end    
+
 totalLinewidth = noiseParam(1);
 if length(noiseParam) > 1 % Flicker noise was passed
     flickerNoise = noiseParam(2);
@@ -44,21 +48,32 @@ for k = 1:length(wn)
     nAWGN(k) = 1/(2*pi*Ncpr*2*SNR*Rs)*integral(Hawgn, -Fmax, Fmax); % AWGN contribution
     varphiE(k) = nPN(k) + nFlicker(k) + nAWGN(k); % phase error variance
        
-    if exist('verbose', 'var') && verbose
+    if verbose
         fprintf('Contribution on phase error variance at SNRdB = %.2f:\nPN/AWGN = %.3f\nFlicker/AWGN = %.3f\n', SNRdB,...
             nPN(k)/nAWGN(k), nFlicker(k)/nAWGN(k));
         
         figure(320)
         w = 2*pi*linspace(-10e9, 10e9, 2^14);
-        subplot(211)
+        subplot(211), hold on
         plot(w/(2*pi*1e9), 10*log10(Hpn(w)))
         xlabel('Frequency (GHz)')
         ylabel('Amplitude response')
         title('Phase noise component integrand')
-        subplot(212)
+        subplot(212), hold on
         plot(w/(2*pi*1e9), 10*log10(Hawgn(w)));
         xlabel('Frequency (GHz)')
         ylabel('Amplitude response')
         title('AWGN component integrand')
     end
 end
+
+if verbose
+    figure(321)
+    plot(wn/(2*pi*1e6), nPN, wn/(2*pi*1e6), nAWGN, wn/(2*pi*1e6), nFlicker)
+    xlabel('Loop natural frequency, fn (MHz)')
+    ylabel('Contributions to phase error var')
+    legend('Phase noise', 'AWGN', 'Flicker noise')
+end
+    
+
+
