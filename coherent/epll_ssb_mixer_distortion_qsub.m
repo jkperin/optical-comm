@@ -1,4 +1,4 @@
-function berQAM = epll_ssb_mixer_distortion_qsub(fiberLengthKm, ModBWGHz, CPRmethod, CPRNpol, linewidthKHz, Delayps, mixerVamp)
+function BER = epll_ssb_mixer_distortion_qsub(fiberLengthKm, ModBWGHz, CPRmethod, CPRNpol, linewidthKHz, Delayps, mixerVamp)
 %% Estimate BER of a QPSK system based on EPLL-based analog receiver, where
 %% the SSB mixer adds distortion controlled by the paramter mixerVamp
 % - fiberLength: fiber length in km
@@ -35,7 +35,7 @@ end
 Tx.PlaunchdBm = -38:0.5:-25;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
 sim.Mct = 4;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
@@ -46,6 +46,7 @@ sim.Modulator = 'SiPhotonics';                                             % Mod
 sim.pulse_shape = select_pulse_shape('rect', sim.Mct);                     % pulse shape
 sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-QAM modulation format
 % sim.ModFormat = DPSK(4, sim.Rb/sim.Npol, sim.pulse_shape);                     % M-DPSK modulation format
+sim.Realizations = 4;                   % Number of times to calculate the BER
 
 % Simulation control
 sim.RIN = true; 
@@ -57,7 +58,7 @@ sim.save = true;
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 1; 
+Plots('BER')                  = 0; 
 Plots('Eye diagram') = 0;
 Plots('Channel frequency response') = 0;
 Plots('Constellations') = 0;
@@ -190,7 +191,7 @@ Analog.SSBMixer = AnalogMixer(componentFilter, componentN0, sim.fs);
 Analog.SSBMixer.Vamp = mixerVamp;
 
 Analog.CostasMixer = AnalogMixer(componentFilter, componentN0, sim.fs);
-Analog.CostasMixer.Vamp = 2;
+Analog.CostasMixer.Vamp = mixerVamp;
 
 % ABS (full-wave rectifier)
 Analog.ABS = AnalogABS(componentFilter, componentN0, sim.fs);
@@ -218,7 +219,10 @@ Rx.TimeRec.type = 'none';
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
 %% Runs simulation
-berQAM = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim)
+parfor k = 1:sim.Realizations
+    BER(k) = ber_coherent_analog_qpsk(Tx, Fiber, Rx, sim);
+end
+
 
 %% Save results
 if sim.save   

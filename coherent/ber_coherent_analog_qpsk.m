@@ -91,11 +91,11 @@ for k = 1:length(Tx.PlaunchdBm)
         case 'epll' %% Carrier phase recovery via electric PLL (EPLL)
             switch lower(Analog.CPRmethod)
                 case 'costas' % EPLL using Costas loop for phase estimation
-                   [Xs, Analog, S, Sf] = analog_epll_costas(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim, sim.shouldPlot('EPLL phase error'));
+                   [Xs, Analog, S, Sf] = analog_epll_costas(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim, sim.shouldPlot('Phase error'));
                 case 'logic' % EPLL using logic (XOR) operations for phase estimation
-                   [Xs, Analog, S, Sf] = analog_epll_logic(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim, sim.shouldPlot('EPLL phase error'));
+                   [Xs, Analog, S, Sf] = analog_epll_logic(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim, sim.shouldPlot('Phase error'));
                 case '4th-power' % EPLL using 4th-power for phase estimation
-                    [Xs, Analog, S, Sf] = analog_epll_4thpower(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim, sim.shouldPlot('EPLL phase error'));
+                    [Xs, Analog, S, Sf] = analog_epll_4thpower(Ys, Tx.Laser.linewidth + Rx.LO.linewidth, Analog, sim, sim.shouldPlot('Phase error'));
                 otherwise
                     error('ber_coherent_analog_epll/invalid electric PLL type %s\nAnalog.receiver must be either Costas or Logic\n', Analog.CPRmethod)
             end
