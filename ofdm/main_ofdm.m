@@ -7,7 +7,7 @@ addpath ../apd/
 
 %% Transmit power swipe
 Tx.PtxdBm = -30:-22; % transmitter power range
-Tx.PtxdBm = -13:-7; % transmitter power range
+Tx.PtxdBm = -10:-5; % transmitter power range
 
 %% Simulation parameters
 sim.Rb = 56e9;    % bit rate in bits/sec
@@ -24,7 +24,7 @@ sim.preemphRange = 25e9; % preemphasis range
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
 sim.PMD = false; % whether to simulate PMD
-sim.quantiz = ~true; % whether quantization is included
+sim.quantiz = true; % whether quantization is included
 sim.stopSimWhenBERReaches0 = true; % stop simulation when counted BER reaches 0
 
 % Control what should be plotted
@@ -34,7 +34,7 @@ sim.Plots('Equalizer') = 1;
 sim.Plots('Adaptation MSE') = 0;
 sim.Plots('Constellations') = 1;
 sim.Plots('Power allocation') = 1;
-sim.Plots('Cyclic prefix') = 0;
+sim.Plots('Cyclic prefix') = 1;
 sim.Plots('Estimated SNR') = 1;
 sim.Plots('Channel frequency response') = 0;
 sim.Plots('OSNR') = 1;
@@ -48,7 +48,7 @@ sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 % Rb : bit rate (b/s)
 % power_allocation_type : {'palloc', 'preemphasis'}
 ofdm = ofdm(512, 416, 16, 56e9, 'preemphasis'); 
-ofdm.set_cyclic_prefix(5, 5); % set cyclic prefix length. Should be consistent with channel memory length
+ofdm.set_cyclic_prefix(3, 3); % set cyclic prefix length. Should be consistent with channel memory length
 
 %% Time and frequency
 sim.N = sim.Mct*(ofdm.Nc + ofdm.Npre_os)*sim.Nsymb;           % total number of points simulated in continuous time
@@ -61,9 +61,18 @@ Tx.DAC.fs = ofdm.fs; % DAC sampling rate
 Tx.DAC.ros = 1; % oversampling ratio of transmitter DSP
 Tx.DAC.resolution = 5; % DAC effective resolution in bits
 Tx.DAC.filt = design_filter('butter', 5, 25e9/(sim.fs/2)); % DAC analog frequency response
-TX.DAC.rclip = 0.05;
+% TX.DAC.rclip = 0.05;
 % juniperDACfit = [-0.0013 0.5846 0];
 % Tx.DAC.filt.H = @(f) 1./(10.^(polyval(juniperDACfit, abs(f*sim.fs/1e9))/20)); % DAC analog frequency response
+
+%% Modulator
+Tx.rexdB = -20;  % extinction ratio in dB. Defined as Pmin/Pmax
+Tx.rclip = 4; % clipping ratio
+Tx.alpha = 0; % chirp parameter
+Tx.Mod.type = sim.Modulator;    
+Tx.Mod.BW = 25e9;
+Tx.Mod.filt = design_filter('bessel', 5, Tx.Mod.BW/(sim.fs/2));
+Tx.Mod.H = Tx.Mod.filt.H(sim.f/sim.fs);
 
 %% Laser
 % Laser constructor: laser(lambda (nm), PdBm (dBm), RIN (dB/Hz), linewidth (Hz), frequency offset (Hz))
@@ -73,15 +82,7 @@ TX.DAC.rclip = 0.05;
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
 Tx.Laser = laser(1550e-9, 0, -150, 0.2e6, 0);
-
-%% Modulator
-Tx.rexdB = -20;  % extinction ratio in dB. Defined as Pmin/Pmax
-Tx.alpha = 0; % chirp parameter
-Tx.Mod.type = sim.Modulator;    
-Tx.Mod.BW = 25e9;
-Tx.rclip = 4; % clipping ratio
-Tx.Mod.filt = design_filter('bessel', 5, Tx.Mod.BW/(sim.fs/2));
-Tx.Mod.H = Tx.Mod.filt.H(sim.f/sim.fs);
+Tx.Laser.H = @(f) Tx.Mod.filt.H(f/sim.fs); % only used if Tx.Mod.type = 'DML'
 
 %% Fiber
 % fiber(Length in m, anonymous function for attenuation versus wavelength
@@ -124,7 +125,7 @@ Rx.ADC.ros = 1;
 Rx.ADC.fs = ofdm.fs;
 Rx.ADC.filt = design_filter('butter', 5, 0.5*Rx.ADC.fs/(sim.fs/2)); % Antialiasing filter
 Rx.ADC.ENOB = 5; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
-Rx.ADC.rclip = 0.05;
+% Rx.ADC.rclip = 0.05;
 
 %% Equalizer
 Rx.AdEq.mu = 1e-2;

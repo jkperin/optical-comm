@@ -167,17 +167,16 @@ if isfield(sim, 'preAmp') && sim.preAmp % amplified system: signal-spontaneous b
 
     % Noise std for intensity level Plevel
     Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
-    noiseSTD = @(Plevel) sqrt(Rx.OptAmp.varSigSpont(Att*Plevel/Rx.OptAmp.Gain, noiseBW)... % sig-spont
+    noiseSTD = @(Plevel) sqrt(Rx.OptAmp.varSigSpont(Plevel/(Rx.OptAmp.Gain), noiseBW)... % sig-spont
             + Rx.OptAmp.varSpontSpont(noiseBW, BWopt, Npol)); % spont-spont
     % Note: Plevel is divided by amplifier gain to obtain power at the amplifier input
-    
-    Prx = Prx - Npol*Rx.OptAmp.Ssp*2*sim.fs/2; % Ssp is one-sided PSD per real dimension
+
 else % unamplified system: thermal-noise dominant
     noiseSTD = Rx.PD.stdNoise(Hrx, Rx.eq.Hff(sim.f/(Rx.eq.ros*mpam.Rs)), Rx.N0, Tx.Laser.RIN, sim);
 end
 
 % AWGN approximation
-mpamRef = mpamRef.adjust_levels(Prx, -Inf); % may replace -Inf for rexdB
+mpamRef = mpamRef.adjust_levels(Prx/Att, -Inf); % may replace -Inf for rexdB
 ber_gauss = mpamRef.berAWGN(noiseSTD);
 
 %% Plots
