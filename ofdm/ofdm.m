@@ -323,16 +323,12 @@ classdef ofdm < handle
             
             % Time and frequency 
             fsamp = this.fs*Mct;
-            df = fsamp/N;
-            f = -fsamp/2:df:fsamp/2-df;
-            t = (-N/2:N/2-1)/fsamp;
+            [f, t] = freq_time(N, fsamp);
+            t = t - 0.5*N/fsamp;
             
+            % Channel frequency response
             Hch = Hch(f, fsamp);
-            
-            % Calculate and remove group delay
-            phiDelay = -diff(unwrap(angle(Hch)))/(2*pi*df);
-            grpDelay = interp1(f(2:end), phiDelay, 0);
-            Hch = Hch.*exp(1j*2*pi*f/fsamp*grpDelay);
+            Hch = Hgrpdelay(Hch, f); % Calculate and remove group delay
             
             % Time domain
             ht = fftshift(real(ifft(ifftshift(Hch))));
@@ -347,7 +343,7 @@ classdef ofdm < handle
                 fs_temp = this.Rs*(this.Nc + k)/Nd;
                 
                 tn = n/fs_temp;
-                hn = interp1(t, ht, tn);
+                hn = interp1(t, ht, tn); % retime
 
                 % CP based on energy
                 en_frac = cumsum(hn.^2)/sum(hn.^2);
@@ -468,7 +464,11 @@ classdef ofdm < handle
         
         function Npre_os = get.Npre_os(this)
             %% Cyclic prefix length
-            Npre_os = this.Npos + this.Nneg;
+            if any(isempty([this.Npos this.Nneg]))
+                Npre_os = 0;
+            else
+                Npre_os = this.Npos + this.Nneg;
+            end
         end
         
         function Pqam = get.Pqam(this)

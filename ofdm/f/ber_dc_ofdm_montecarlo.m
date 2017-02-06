@@ -16,7 +16,9 @@ Vbias = ofdm.dc_bias(Pnnorm, Tx.rclip, Tx.Mod.Hdac, Tx.rexdB);
 xd = xd + Vbias;
 
 %% ================================ DAC ===================================
-Tx.DAC.excursion = [0 Vbias+Tx.rclip*sqrt(ofdm.var(Pnnorm))];
+if isfield(sim, 'quantiz') && sim.quantiz
+    Tx.DAC.excursion = [0 Vbias+Tx.rclip*sqrt(ofdm.var(Pnnorm))];
+end
 xt = dac(xd, Tx.DAC, sim);
 
 % % Discard first and last symbols

@@ -51,7 +51,11 @@ Hrx = @(f, fs) Rx.ADC.filt.H(f/fs);
 
 %% Calculate cyclic prefix
 Hch = @(f, fs) Hdac(f, fs).*Hmod(f, fs).*Hfiber(f).*Hrx(f, fs);
-% ofdm.cyclic_prefix(Hch, sim.shouldPlot('Cyclic prefix'));
+
+if isempty(ofdm.Nneg) % calculate cyclic prefix if not yet calculated
+    ofdm.cyclic_prefix(Hch, sim.shouldPlot('Cyclic prefix'));
+    fprintf('> Cyclic prefix:\nNneg = %d\nNpos = %d\n', ofdm.Nneg, ofdm.Npos);
+end
 
 Tx.Mod.Hdac = Hdac(ofdm.fc, sim.fs); % used in DC-bias calculation
 Hch = Hch(ofdm.fc, sim.fs); % channel frequency response at the subcarriers frequency
@@ -65,6 +69,24 @@ varTherm = Rx.N0*noiseBW; % variance of thermal noise
 % Check if power is at reasonable levels
 assert(sqrt(ofdm.var) < 1e-3, 'Power is too high: %.2G (mW)\nCannot improve performance by increasing power.\n', 1e3*sqrt(2*sum(ofdm.Pn)))
 
+% Quantization
+
+if isfield(sim, 'quantiz') && sim.quantiz
+    % At the receiver Prx = sigmatx*rclip, where sigmatx = sqrt(2*sum(Pn));
+    % This ensures that quantization noise is normalized to the
+    % received power, which is what the noise calculations assume.
+    varQuantizTx = @(Psig) (1 - 2*qfunc(Tx.rclip))*(2*Psig/(2^Tx.DAC.resolution-1))^2/12; % quantization at the transmitter
+    varQuantizRx = @(Psig) (1 - 2*qfunc(Tx.rclip))*(2*Psig/(2^Rx.ADC.ENOB-1))^2/12; % quantization at the transmitter
+    % Note: this assumes that quantization noise from the transmitter
+    % has the same effect as the quantization noise from the receiver.
+    % This is not true, however, since the quantization noise from the
+    % transmitter is also filtered by the channel.
+else
+    varQuantizTx = @(Psig) 0;
+    varQuantizRx = @(Psig) 0;
+end
+    
+
 %% Calculate BER
 Ptx = dBm2Watt(Tx.PtxdBm); % Transmitted power
 
@@ -74,7 +96,7 @@ SNRdB = zeros(size(Ptx));
 OSNRdB = zeros(size(Ptx));
 for k = 1:length(Ptx)
     Tx.Ptx = Ptx(k);
-       
+           
     % Estimate noise to perform power allocation
     if isfield(sim, 'preAmp') && sim.preAmp % amplified system: signal-spontaneous beat noise dominant
         Prx = dBm2Watt(Rx.OptAmpOutPowerdBm);
@@ -85,11 +107,14 @@ for k = 1:length(Ptx)
         Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
         varNoise = 1/ofdm.Nc*ones(1, ofdm.Nu/2)*(varTherm + Rx.PD.varShot(Prx, noiseBW)... % thermal + shot
                 + Rx.PD.R^2*(Rx.OptAmp.varSigSpont(Prx/Rx.OptAmp.Gain, noiseBW)... % sig-spont
-                    + Rx.OptAmp.varSpontSpont(noiseBW, BWopt, Npol))); % spont-spont
+                    + Rx.OptAmp.varSpontSpont(noiseBW, BWopt, Npol))... % spont-spont
+                    + varQuantizTx(Prx) + varQuantizRx(Prx)); % quantization noise 
         % Note: Prx is divided by amplifier gain to obtain power at the amplifier input
     else % unamplified system: thermal-noise dominant
         Prx = Tx.Ptx*linkAtt;
-        varNoise = 1/ofdm.Nc*ones(1, ofdm.Nu/2)*(varTherm + Rx.PD.varShot(Prx, noiseBW));
+        varNoise = 1/ofdm.Nc*ones(1, ofdm.Nu/2)*(varTherm... % thermal noise 
+            + Rx.PD.varShot(Prx, noiseBW)... % shot noise 
+            + varQuantizTx(Prx) + varQuantizRx(Prx)); % quantization noise 
     end    
     
     % Power allocation
