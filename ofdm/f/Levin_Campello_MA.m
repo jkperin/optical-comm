@@ -109,7 +109,7 @@ function dEn = dEvector(bn, gn, beta, Gamma)
 
     dEn = zeros(size(bn));
     for k = 1:length(bn)
-        if bn(k) == 0
+        if bn(k) == 0 || gn(k) == 0
             dEn(k) = Inf;
         elseif bn(k) == 1
             dEn(k) = E(bn(k), gn(k));

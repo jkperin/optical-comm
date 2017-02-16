@@ -1,15 +1,17 @@
-classdef OpticalAmplifier
+classdef OpticalAmplifier < handle
     %% Semiconductor Optical Amplifier
     properties
         Gain % Gain in linear units (same gain is assumed for both polarizations)
         Fn   % noise figure (dB)
-        lamb % wavelength of operation (m)
-        maxGaindB % maximum gain (dB)
+        Wavelength % Wavelength of operation (m)
+        Operation = 'ConstantOutputPower' % Amplifier operation mode = {'ConstantOutputPower', 'ConstantGain'}
+        outputPower % output power in dBm. Must be set if Operation = 'ConstantOutputPower'
+        maxGaindB = 30 % maximum gain (dB)
     end
     properties (Dependent)
-        GaindB
+        GaindB % Gain in dB
         Ssp % ASE one-sided PSD per real dimension
-        nsp % 
+        nsp % spontaneous emission factor
     end
     properties (Constant, Hidden)
         BWref = 12.5e9; % reference bandwidth for measuring OSNR
@@ -19,27 +21,26 @@ classdef OpticalAmplifier
     end
     
     methods
-        function obj = OpticalAmplifier(GaindB, Fn, lamb, maxGaindB)
+        function obj = OpticalAmplifier(Operation, param, Fn, Wavelength)
             %% Class constructor
-            % maxGaindB is optional
-            obj.Gain = 10^(GaindB/10);
+            % Inputs:
+            % - Opertation: either 'ConstantOutputPower' or 'ConstantGain'
+            % - param: GaindB if Operation = 'ConstantGain', or outputPower
+            % if Operation = 'ConstantOutputPower'
+            % - Fn:  noise figure in dB
+            % - Wavelength: operationl wavelength in m
+            obj.set_amplifier_operation(Operation, param);
             obj.Fn = Fn;
-            obj.lamb = lamb;
-                        
-            if exist('maxGaindB', 'var')
-                obj.maxGaindB = maxGaindB;
-            else
-                obj.maxGaindB = Inf;
-            end
+            obj.Wavelength = Wavelength;
         end
         
         function Amptable = summary(self)
-            %% Generate table summarizing class values
-            disp('SOA class parameters summary:')
-            rows = {'Gain'; 'Noise Figure'; 'Operational wavelength'};
-            Variables = {'GaindB'; 'Fn'; 'lamb'};
-            Values = {self.GaindB; self.Fn; self.lamb*1e9};
-            Units = {'dB'; 'dB'; 'nm'};
+            %% Generate table summarizing class parameters
+            disp('Optical amplifier class parameters summary:')
+            rows = {'Operation'; 'Gain'; 'Output Power'; 'Noise Figure'; 'Operational Wavelength'};
+            Variables = {'Operation'; 'GaindB'; 'outputPower'; 'Fn'; 'Wavelength'};
+            Values = {self.Operation; self.GaindB; self.outputPower; self.Fn; self.Wavelength*1e9};
+            Units = {''; 'dB'; 'dBm'; 'dB'; 'nm'};
 
             Amptable = table(Variables, Values, Units, 'RowNames', rows);
         end
@@ -48,7 +49,7 @@ classdef OpticalAmplifier
         function Ssp = get.Ssp(obj)
             %% ASE one-sided power spectrum density per polarization
             % assumming Gain >> 1
-            Ssp = (obj.Gain - 1)*10^(obj.Fn/10)/2*(obj.h*obj.c/obj.lamb); % Agrawal 6.1.15 3rd edition
+            Ssp = (obj.Gain - 1)*10^(obj.Fn/10)/2*(obj.h*obj.c/obj.Wavelength); % Agrawal 6.1.15 3rd edition
         end
         
         function GaindB = get.GaindB(obj)
@@ -59,43 +60,76 @@ classdef OpticalAmplifier
         function nsp = get.nsp(obj)
             %% Spontaneous emission factor
             nsp = 1/2*10^(obj.Fn/10);
-        end            
-        
+        end 
+               
         %% Set methods
-        function this = set.GaindB(this, GdB)
+        function set.GaindB(this, GdB)
+            %% Gain in dB
             this.Gain = 10^(GdB/10); % set Gain, since GaindB is dependent
+        end
+        
+        function set.outputPower(self, PoutdBm)
+            %% Output in dBm. Can only be set if Operation = 'ConstantOutputPower'
+            if strcmpi(self.Operation, 'ConstantOutputPower')
+                self.outputPower = PoutdBm;
+            else
+                warning('OpticalAmplifier: Output power can only be set if amplifier operation is set to ConstantOutputPower')
+            end
+        end
+        
+        function self = set_amplifier_operation(self, operation, param)
+            %% Set amplifier operation and specify Gain or output Power
+            if strcmpi(operation, 'ConstantOutputPower')
+                self.Operation = 'ConstantOutputPower';
+                self.outputPower = param; % output power in dBm
+                self.Gain = [];
+            elseif strcmpi(operation, 'ConstantGain')
+                self.Operation = 'ConstantGain';
+                self.GaindB = param; % Gain in dB
+            else
+                error('OpticalAmplifier: invalid amplifier operation. Operation must be either ConstantOutputPower or ConstantGain')
+            end
         end
     end
     
     %% Main Methods
     methods        
-        function sig2 = varSigSpont(this, Plevel, Deltaf)
-            %% Noise variance of signal-ASE beat noise
-            % - Plevel = power before amplifier
-            % - Deltaf = Noise bandwidth of electric filter
-
-            % Signal-ASE beat noise Agrawal 6.5.7 and 6.5.8 -- 3rd edition
-            sig2 = 4*this.Gain*Plevel*this.Ssp*Deltaf;
-            % Note: Responsivity is assumed to be 1. For different
-            % responsivity make sig2 = R^2*sig2
-        end
-        
-        function sig2 = varSpontSpont(this, Deltaf, Deltafopt, Npol)
-            %% Noise variance of ASE-ASE beat noise
-            % - Deltaf = Noise bandwidth of electric filter
-            % - Deltafopt = Noise bandwidth of optical filter (!! bandpass filter)
-            % - Npol = Number of noise polarizations. Default Npol = 2
-
+        function [varNoise, varSigSpont, varSpontSpont] = varNoiseDD(self, Pmean, Deltafele, Deltafopt, Npol)
+            %% Noise variance due to ASE after direct detection. This includes signal-ASE beat noise and ASE-ASE beat noise
+            % Inputs:
+            % - Pmean: average signal power before amplification
+            % - Deltafele: electrical noise bandwidth
+            % - Deltafopt: optical noise bandwidth
+            % - Npol(optical, default Npol = 2): number of noise polarizations
+            
             if not(exist('Npol', 'var'))
                 Npol = 2;
             end
             
-            % ASE-ASE beat noise Agrawal 6.5.7 and 6.5.8 -- 3rd edition
-            sig2 = 2*Npol*this.Ssp^2*Deltafopt*Deltaf;
+            self.adjust_gain(Watt2dBm(Pmean)); % Adjusts gain to keep desire output power if amplifier is operation in constant output power mode
+
+            % Signal-ASE beat noise
+            varSigSpont = 4*self.Gain*Pmean*self.Ssp*Deltafele;
+            % ASE-ASE beat noise
+            varSpontSpont = 2*Npol*self.Ssp^2*Deltafopt*Deltafele;
+            
+            varNoise = varSigSpont + varSpontSpont;
             % Note: Responsivity is assumed to be 1. For different
             % responsivity make sig2 = R^2*sig2
         end
         
+        function adjust_gain(self, PindBm)
+            %% Adjust gain to keep desire output power if amplifier is operation in constant output power mode
+            if strcmpi(self.Operation, 'ConstantOutputPower')
+                PoutdBm = self.outputPower;
+                self.GaindB = PoutdBm - PindBm;
+                if self.GaindB < 7
+                    warning('OpticalAmplifier: Amplifier gain is %.2f dB. This may lead to innacuraceis since (G-1)/G is no longer approximately 1.', self.GaindB)
+                elseif self.GaindB > self.maxGaindB
+                    warning('OpticalAmplifier: Amplifier gain is %.2f dB. This is higher than property maxGaindB', self.GaindB)
+                end
+            end
+        end
         
         function [Eout, OSNRdB] = amp(obj, Ein, fs)
             %% Amplification
@@ -112,6 +146,8 @@ classdef OpticalAmplifier
             
             N = length(Ein);
             
+            obj.adjust_gain(power_meter(Ein))
+            
             % Ssp is the psd per polarization
             W = sqrt(obj.Ssp*fs/2)*(randn(2, N) + 1j*randn(2, N));
             % Note 1: Ssp is one-sided ASE PSD. Thus we multiply by sim.fs/2
@@ -121,8 +157,11 @@ classdef OpticalAmplifier
             
             [~, Ps] = power_meter(Ein);
             
-            % Estimate OSNR
+            % Unbiased OSNR estimate
             OSNRdB = 10*log10(obj.Gain*Ps/(2*obj.Ssp*obj.BWref));
+            
+            fprintf('Optical amplifier: output power = %.2f dBm | OSNR = %.2f dB\n',...
+                power_meter(Eout), OSNRdB);
         end      
     end
 end

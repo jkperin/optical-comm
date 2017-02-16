@@ -10,7 +10,7 @@ addpath ../apd % for PIN photodetectors
 
 %% Transmit power swipe
 Tx.PtxdBm = -30:-22; % transmitter power range
-Tx.PtxdBm = -15:-8; % transmitter power range
+% Tx.PtxdBm = -15:-8; % transmitter power range
 
 %% Simulation parameters
 sim.Rb = 56e9;    % bit rate in bits/sec
@@ -25,7 +25,7 @@ sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Modulator = 'DML'; % 'MZM' or 'DML'
  
 %% Simulation control
-sim.preAmp = ~true;
+sim.preAmp = true;
 sim.preemphasis = false; % preemphasis to compensate for transmitter bandwidth limitation
 sim.preemphRange = 25e9; % preemphasis range
 sim.mzm_predistortion = 'none'; % predistortion to compensate MZM nonlinearity {'none': no predistortion, 'levels': only PAM levels are predistorted, 'analog': analog waveform is predistorted (DEPRECATED)}
@@ -108,13 +108,15 @@ linkAttdB = SMF.att(Tx.Laser.wavelength)*SMF.L/1e3...
     + DCF.att(Tx.Laser.wavelength)*DCF.L/1e3;
 
 %% ========================== Amplifier ===================================
-% Constructor: OpticalAmplifier(GaindB, NF, lamb, maxGain (optional))
-% GaindB : Gain in dB
-% NF : Noise figure in dB
-% lamb : wavelength in m
-% maxGain = maximum amplifier gain in dB, default is Inf
-Rx.OptAmp = OpticalAmplifier(30, 5, Tx.Laser.lambda);
-Rx.OptAmpOutPowerdBm = 0; % output power after amplifier
+% Constructor: OpticalAmplifier(Operation, param, Fn, Wavelength)
+% - Opertation: either 'ConstantOutputPower' or 'ConstantGain'
+% - param: GaindB if Operation = 'ConstantGain', or outputPower
+% if Operation = 'ConstantOutputPower'
+% - Fn:  noise figure in dB
+% - Wavelength: operationl wavelength in m
+% Rx.OptAmp = OpticalAmplifier('ConstantOutputPower', 0, 5,
+% Tx.Laser.wavelength); % not possible due to level optimization
+Rx.OptAmp = OpticalAmplifier('ConstantGain', 20, 5, Tx.Laser.wavelength);
 % Note: the amplifier here operates in the constant output power mode,
 % where the output power after amplification is set to Rx.AmpOutPowerdBm
 

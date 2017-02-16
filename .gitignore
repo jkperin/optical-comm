@@ -14,6 +14,7 @@
 *.gz
 *.log
 ofdm/trash/
+ofdm/f/trash/
 soa/trash/
 apd/trash/
 mpam/trash/
@@ -25,3 +26,5 @@ coherent/trash/
 *.xlsx
 coherent/results/
 !coherent/results/*.m
+*.md5
+*.dpth

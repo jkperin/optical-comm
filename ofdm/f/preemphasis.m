@@ -12,7 +12,6 @@ function [Pn, CS] = preemphasis(ofdm, Gch, varNoise, BERtarget)
 % - CS: constellation size at each subcarrier
 
 % Definitions
-Nc = ofdm.Nc; 
 Nu = ofdm.Nu;
 CS = ofdm.CS*ones(1,Nu/2);
 
@@ -24,7 +23,10 @@ end
 snrdB = fzero(@(x) berqam(ofdm.CS, x) - BERtarget, 20);
 snrl = 10^(snrdB/10);
 
-Pnrx = snrl*(varNoise)/Nc;                                               
+Pnrx = snrl*(varNoise);                                               
 
-Pn = Pnrx./(abs(Gch).^2);       
+Pn = Pnrx./(abs(ofdm.K*Gch).^2);       
 
+% Discard carriers which requrie infinite energy
+CS(isinf(Pn)) = 0;
+Pn(isinf(Pn)) = 0;
