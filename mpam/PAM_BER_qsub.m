@@ -50,7 +50,7 @@ sim.Ndiscard = 512; % number of symbols to be discarded from the begning and end
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Modulator = 'DML'; % 'MZM' or 'DML'
 sim.save = true;
-sim.Realizations = 1;
+sim.Realizations = 4;
  
 %% Simulation control
 sim.preAmp = amplified;
@@ -65,13 +65,12 @@ sim.stopSimWhenBERReaches0 = true; % stop simulation when counted BER reaches 0
 
 % Control what should be plotted
 sim.Plots = containers.Map();
-sim.Plots('BER') = 1;
+sim.Plots('BER') = 0;
 sim.Plots('DAC output') = 0;
 sim.Plots('Optical eye diagram') = 0;
 sim.Plots('Received signal eye diagram') = 0;
 sim.Plots('Signal after equalization') = 0;
 sim.Plots('Equalizer') = 0;
-sim.Plots('Electronic predistortion') = 1;
 sim.Plots('Adaptation MSE') = 0;
 sim.Plots('Channel frequency response') = 0;
 sim.Plots('OSNR') = 0;

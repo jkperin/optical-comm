@@ -366,6 +366,33 @@ classdef PAM
             BER = 1/log2(self.M)*2*(self.M-1)/self.M*qfunc(sqrt(log2(self.M)/((self.M-1)^2)*Preq^2/(self.Rb*N0/2))) 
         end
         
+        function PrxdBm = sensitivity(self, noiseSTD, rexdB, BERtarget)
+            %% Calculate receiver sensitivity. That is, received power to achieve target BER
+            % Inputs:
+            % - noiseSTD: anonymous function for the noise standard deviation as a funciton of the PAM levels
+            % - rexdB: extinction ratio in dB
+            % - BERtarget: target BER
+            
+            mpamRef = self;
+            logBERtarget = log10(BERtarget);
+            
+            [PrxdBm, ~, exitflag] = fzero(@(PdBm) log10(objective(mpamRef, PdBm, noiseSTD)) - logBERtarget, -10);
+            
+            if exitflag ~= 1
+                warning('PAM/sensitivity: receiver sensitivity calculation did not converge. Optimization finished with exitflag = %d.', exitflag)                
+            end
+            
+            function ber = objective(mpamRef, PdBm, noiseSTD)
+                Pw = dBm2Watt(PdBm);
+                if mpamRef.optimize_level_spacing
+                    mpamRef = mpamRef.optimize_level_spacing_gauss_approx(BERtarget, rexdB, noiseSTD, false);
+                end
+                
+                mpamRef = mpamRef.adjust_levels(Pw, rexdB); % may replace -Inf for rexdB
+                ber = mpamRef.berAWGN(noiseSTD);
+            end
+        end
+        
         function self = optimize_level_spacing_gauss_approx(self, BERtarget, rexdB, noise_std, verbose)
             %% Level spacing (a) and decision threshold (b) optmization
             % Assumes infinite extinction ratio at first, then corrects power and

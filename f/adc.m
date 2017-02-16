@@ -50,7 +50,10 @@ xa = real(ifft(fft(x).*Hrx.*Hshift));
 if isfield(ADC, 'timeRefSignal')
     [c, lags] = xcorr(ADC.timeRefSignal, xa);
     [~, idx] = max(abs(c));
-    xa = circshift(xa, [0 lags(idx)]);
+    if lags(idx) ~= 0
+        xa = circshift(xa, [0 lags(idx)]);
+        fprintf('ADC: input signal was delayed by %d samples (%.2f ps) to match time reference signal\n', lags(idx), 1e12*lags(idx)/sim.fs);
+    end
 end
 
 % Downsample
@@ -58,7 +61,7 @@ if isInteger(sim.Mct/ADC.ros) % resampling is not required
     xs = xa(1:sim.Mct/ADC.ros:end);
 else
     [N, D] = rat(ADC.ros/sim.Mct);
-    fprintf('adc: sim.Mct/ADC.ros is not interger, so signal was resampled by %d/%d.\n', N, D);
+    fprintf('ADC: sim.Mct/ADC.ros is not interger, so signal was resampled by %d/%d.\n', N, D);
     xs = resample(xa, N, D);
 end
 

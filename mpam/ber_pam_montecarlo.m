@@ -89,14 +89,11 @@ end
 
 %% ========================= Preamplifier =================================
 OSNRdB = Inf; % only meaningful when there's a pre-amplifier
+Att = 1;
 if isfield(sim, 'preAmp') && sim.preAmp % only included if sim.preAmp is true
     disp('- IMPORTANT: Simulation including optical amplifier!')
     [Erx, OSNRdBtheory] = Rx.OptAmp.amp(Erx, sim.fs);
-   
-    % Adjust power to pre-defined value
-    Att = dBm2Watt(Rx.OptAmpOutPowerdBm)/dBm2Watt(power_meter(Erx));
-    Erx = Erx*sqrt(Att);  % keep constant received power
-
+  
     % Measure OSNR
     Osa = OSA(0.1); % optical spectrum analyser with resolution 0.1nm
     OSNRdBmeasured = Osa.estimate_osnr(Erx, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
@@ -167,8 +164,9 @@ if isfield(sim, 'preAmp') && sim.preAmp % amplified system: signal-spontaneous b
 
     % Noise std for intensity level Plevel
     Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
-    noiseSTD = @(Plevel) sqrt(Rx.OptAmp.varSigSpont(Plevel/(Rx.OptAmp.Gain), noiseBW)... % sig-spont
-            + Rx.OptAmp.varSpontSpont(noiseBW, BWopt, Npol)); % spont-spont
+    
+    noiseSTD = @(Plevel) sqrt(noiseBW*Rx.N0 + Rx.PD.varShot(Plevel, noiseBW)... % thermal + shot
+                    + Rx.PD.R^2*(Rx.OptAmp.varNoiseDD(Plevel/(Rx.OptAmp.Gain), noiseBW, BWopt, Npol))); % sig-spont + spont-spont    
     % Note: Plevel is divided by amplifier gain to obtain power at the amplifier input
 
 else % unamplified system: thermal-noise dominant
@@ -176,7 +174,7 @@ else % unamplified system: thermal-noise dominant
 end
 
 % AWGN approximation
-mpamRef = mpamRef.adjust_levels(Prx/Att, -Inf); % may replace -Inf for rexdB
+mpamRef = mpamRef.adjust_levels(Prx, -Inf); % may replace -Inf for rexdB
 ber_gauss = mpamRef.berAWGN(noiseSTD);
 
 %% Plots

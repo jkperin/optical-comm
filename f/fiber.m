@@ -174,6 +174,17 @@ classdef fiber < handle
             Dw = -1j*1/2*beta2*(w.^2);
             Hele = exp(this.L*Dw);
         end
+        
+        function h = hdisp(self, t, lambda)
+            %% Dispersion impulse response inverseFourier(Hdisp(f))
+            % Inputs: 
+            % - f = frequency vector (Hz)
+            % - lambda = wavelength (m)
+
+            b = 1/2*self.beta2(lambda)*self.L;
+            h = sqrt(-pi*1j/b)/(2*pi)*exp(1j*t.^2/(4*b));
+            % h = sqrt(1/(4*pi*b))*(cos(t.^2/(4*b) - pi/4) + 1j*sin(t.^2/(4*b) - pi/4));
+        end
                
         function Hf = Himdd(self, f, wavelength, alpha, type)
             %% Fiber frequency response for an IM-DD system with transient chirp dominant
@@ -196,9 +207,9 @@ classdef fiber < handle
             
             if exist('type', 'var') && strcmpi(type, 'large signal')
                 %% Large signal
-                mIM = 0.7; % assumes worst case i.e., signal fully modulated
+                mIM = 0.7; % modulation index is set to 70%
                 Dphi = pi/2; % i.e., transient chirp dominant
-                mFM = alpha/2*mIM;
+                mFM = alpha/2*mIM; 
                 u = 2*mFM*sin(theta);
                 Hf = cos(theta).*(besselj(0, u) - besselj(2, u)*exp(1j*Dphi)) - 2*exp(1j*Dphi)/(1j*mIM)*besselj(1, u);  % fiber large-signal frequency response                 
             elseif not(exist('type', 'var')) || strcmpi(type, 'small signal')
@@ -207,7 +218,6 @@ classdef fiber < handle
             else
                 error('fiber/Hf: undefined type of fiber frequency response')
             end
-            
         end
         
         function tau = calcDGD(self, omega)
@@ -236,7 +246,7 @@ classdef fiber < handle
 
     methods(Access=private)
         function V = enforceDimConvention(~, V)
-            %% Make sure that vector are in the form [1 x N] for 1 pol or [2 x N] for two pols
+            %% Ensures that V is in the form [1 x N] for 1 pol or [2 x N] for 2 pols
             if size(V, 1) > size(V, 2)
                 V = V.';
             end

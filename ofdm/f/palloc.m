@@ -16,7 +16,7 @@ if strcmpi(class(varNoise), 'function_handle')
 end
 
 % Gain-to-noise ratio
-GNR = abs(Gch).^2./varNoise; 
+GNR = abs(ofdm.K*Gch).^2./varNoise; 
 
 % Run Levin-Campello algorithm to determine optimal power allocation
 [~, CS, Pn] = Levin_Campello_MA(ofdm.B, 1, BERtarget, GNR); 
