@@ -16,7 +16,7 @@ function [ber_count, ber_gauss, SNRndB, OSNRdB] = ber_ofdm_montecarlo(ofdm, Tx, 
 if isfield(sim, 'quantiz') && sim.quantiz && not(isinf(Tx.DAC.resolution))
     sig = sqrt(ofdm.var(ofdm.Pn.*abs(Tx.Hdac).^2));
     if ofdm.ACO % ACO-OFDM
-        Tx.DAC.excursion = [0 (1/sqrt(2*pi) + Tx.rclip)*sig];
+        Tx.DAC.excursion = [0 Tx.rclip*sig];
     else % DC-OFDM
         Tx.DAC.excursion = [-1 1]*Tx.rclip*sig;
     end
@@ -24,10 +24,9 @@ end
 xt = dac(xd, Tx.DAC, sim); % digital-to-analog conversion 
 
 %% ============================= Driver ===================================
-[Padj, dc] = ofdm.adjust_power_allocation(ofdm.Pn.*abs(Tx.Hdac).^2, Tx.Ptx, Tx.rclip, Tx.rexdB); % scale subcarriers power to match desired launch power
+[Padj, dc] = ofdm.adjust_power_allocation(ofdm.Pn.*abs(Tx.Hdac).^2, Tx.Ptx, Tx.rclip, Tx.rexdB); % Factor to refer subcarriers powers to the transmitter
 xt = xt*sqrt(Padj) + dc;
 ofdm.Pn = ofdm.Pn*Padj;
-Padj
 xt(xt < 0) = 0; % Clip negative excursion
 
 % % Discard first and last symbols
@@ -94,12 +93,11 @@ linkGain = linkGain*Rx.PD.R;
 % For an ideal ADC, ADC.ENOB = Inf
 if isfield(sim, 'quantiz') && sim.quantiz && not(isinf(Rx.ADC.ENOB))
     if ofdm.ACO % ACO-OFDM
-        Pmean = mean(yt);
         sig = sqrt(ofdm.var(ofdm.Pn*linkGain^2.*abs(sim.Hch).^2));
-        Rx.ADC.excursion = [0, Pmean + Tx.rclip*sig];
+        Rx.ADC.excursion = [0, Tx.rclip*sig];
     else % DC-OFDM
         sig = std(yt);
-        Rx.AC.excursion = [-1 1]*Tx.rclip*sig;
+        Rx.ADC.excursion = [0, 2*Tx.rclip*sig];
     end
 end
 
@@ -113,10 +111,17 @@ yk = adc(yt, Rx.ADC, sim);
 [ber_count, ~] = ofdm.count_ber([Rx.AdEq.Ntrain+sim.Ndiscard sim.Ndiscard], sim.shouldPlot('Decision errors'));
 
 %% Gaussian approximation
-Pnrx = mean(abs(Xn).^2, 2)./abs(AGCn.*W).^2; % received power at each subcarrier
+valid_window = Rx.AdEq.Ntrain+sim.Ndiscard:sim.Nsymb-sim.Ndiscard; % valid window for measurements (discard adapation transients)
+Xnvalid = Xn(:, valid_window);
+Pnrx = mean(abs(Xnvalid).^2, 2)./abs(AGCn.*W).^2; % received power at each subcarrier
 ofdm.Pn = ofdm.Pn*linkGain^2; % refer subcarrier powers to the receiver
 % Note: the linkGain is an optical power gain. Following from the Gausssian
 % approximation of the OFDM signal, the subcarriers powers are scaled by
 % linkGain^2.
-[ber_gauss, SNRndB] =  ofdm.estimate_ber(Pnrx.', sim.Hch, sim.varNoise, sim.shouldPlot('Estimated SNR'));
-1;
+noise = Xnvalid - Rx.AdEq.trainSeq(:, valid_window);
+Pnoise = mean(abs(noise).^2, 2);
+Pnoise = Pnoise./abs(AGCn.*W).^2;
+
+[ber_gauss, SNRndB] =  ofdm.estimate_ber(Pnrx.', Pnoise, sim.Hch, sim.varNoise, sim.shouldPlot('Estimated SNR'));
+% Note: estimated noise variance in each subcarrier sim.varNoise does not
+% incluse noise enhancement

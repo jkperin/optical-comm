@@ -9,9 +9,9 @@ sim.OFDM = 'ACO-OFDM'; % either 'DC-OFDM' or 'ACO-OFDM'
 sim.Rb = 112e9; % Bit rate
 sim.BERtarget = 1.8e-4; % target BER
 sim.Mct = 5; % Oversampling ratio to emulate continuous time
-Lkm = 0:20; % Fiber length in km
+Lkm = 0:15; % Fiber length in km
 
-wavelength = 1250e-9; % Transmission wavelength
+wavelength = 1380e-9; % Transmission wavelength
 RIN = -150; % dB/Hz. 
 alpha = 0; % chirp parameter of the modulator
 modBW = 30e9; % modulator bandwidth
@@ -19,10 +19,8 @@ rexdB = -15; % modulator extinction ratio
 
 N0 = (30e-12)^2; % thermal noise PSD
 
-rclip = 3.5; % clipping ratio (controls the DC-bias of the DC-OFDM signal)
 powerAllocation = 'palloc'; % power allocation method
 quantiz = true; % whether quantization is assumed
-ENOB = 5;
 
 %% OFDM 
 % OFDM constructor: ofdm(Nc, Nu, CS, Rb, power_allocation_type (optional, default = 'palloc')
@@ -33,9 +31,13 @@ ENOB = 5;
 % power_allocation_type : {'palloc', 'preemphasis'}
 if strcmpi(sim.OFDM, 'DC-OFDM')
     ofdm = ofdm(256, 208, 16, 112e9, powerAllocation); 
+    ENOB = 5;
+    rclip = 3.5; % clipping ratio (controls the DC-bias of the DC-OFDM signal)
 elseif strcmpi(sim.OFDM, 'ACO-OFDM')
     ofdm = ofdm(256, 208, 64, 112e9, powerAllocation); 
     ofdm.aco_ofdm_config();
+    ENOB = 6;
+    rclip = 4;
 end
 
 ofdm.set_cyclic_prefix(5, 5); % set cyclic prefix length. Should be consistent with channel memory length
@@ -74,7 +76,7 @@ Hadc = filt.H(ofdm.fc/sim.fs);
 
 %% Build ananonymous function for the quantization noise generated at the transmitter and receiver
 % Quantization
-if isfield(sim, 'quantiz') && sim.quantiz
+if quantiz
     varQuantizTx = ofdm.quantization_noise_var(ENOB, rclip); % quantization at the transmitter
     varQuantizRx = ofdm.quantization_noise_var(ENOB, rclip); % quantization at the transmitter
 else
@@ -91,9 +93,10 @@ warning('on');
 for k = 1:length(Lkm)
     fprintf('L = %d\n', Lkm(k));
     Fiber.L = 1e3*Lkm(k);
+    D(k) = 1e6*Fiber.D(wavelength)*Lkm(k);
     
     % Channel frequency response
-    Hch = Hdac.*Hmod.*Fiber.Himdd(ofdm.fc, wavelength, alpha, 'large signal').*Hadc;
+    Hch = Hdac.*Hmod.*Fiber.Himdd(ofdm.fc, wavelength, alpha, 'small signal').*Hadc;
     
     % Generate new copies of OFDM class for un- and amplified simulations
     [ofdmUnamp, ofdmAmp] = ofdm.copy();   
@@ -174,17 +177,17 @@ for k = 1:length(Lkm)
 end
 
 figure(1), hold on, box on
-hplot(1) = plot(Lkm, PrecUnamp, '-', 'LineWidth', 2, 'DisplayName', 'DC-OFDM unamplified');
-hplot(2) = plot(Lkm, PrecAmp, '--', 'Color', get(hplot(1), 'Color'), 'LineWidth', 2, 'DisplayName', 'DC-OFDM amplified');
+hplot(1) = plot(D, PrecUnamp, '-', 'LineWidth', 2, 'DisplayName', [sim.OFDM ' unamplified']);
+hplot(2) = plot(D, PrecAmp, '--', 'Color', get(hplot(1), 'Color'), 'LineWidth', 2, 'DisplayName', [sim.OFDM ' amplified']);
 legend('-dynamiclegend')
-xlabel('Fiber length (km)', 'FontSize', 12)
+xlabel('Dispersion (ps/nm)', 'FontSize', 12)
 ylabel('Receiver sensitivity (dBm)', 'FontSize', 12)
 set(gca, 'FontSize', 12)
 
 figure(2), hold on, box on
-plot(Lkm, OSNRdB, '-', 'Color', get(hplot(2), 'Color'), 'LineWidth', 2, 'DisplayName', 'DC-OFDM')
+plot(D, OSNRdB, '-', 'Color', get(hplot(2), 'Color'), 'LineWidth', 2, 'DisplayName', sim.OFDM)
 legend('-dynamiclegend')
-xlabel('Fiber length (km)', 'FontSize', 12)
+xlabel('Dispersion (ps/nm)', 'FontSize', 12)
 ylabel('OSNR required (dB)', 'FontSize', 12)
 set(gca, 'FontSize', 12)
 

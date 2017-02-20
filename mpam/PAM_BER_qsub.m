@@ -32,15 +32,16 @@ if ~all(isnumeric([fiberLengthKm wavelengthnm ModBWGHz Ntaps, ENOB amplified]))
 end
 
 %% Transmit power swipe
+dPower = 0.5; % dBm
 if amplified
-    Tx.PtxdBm = -25:0.5:-10; % transmitter power range
+    Tx.PtxdBm = -23:dPower:-8; % transmitter power range
 else
-    Tx.PtxdBm = -15:0.5:-2; % transmitter power range
+    Tx.PtxdBm = -12:dPower:0; % transmitter power range
 end
 
 %% Simulation parameters
 sim.Rb = 112e9;    % bit rate in bits/sec
-sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
 sim.ros.txDSP = 1; % oversampling ratio transmitter DSP (must be integer). DAC samping rate is sim.ros.txDSP*mpam.Rs
 % For DACless simulation must make Tx.dsp.ros = sim.Mct and DAC.resolution = Inf
 sim.ros.rxDSP = ros; % oversampling ratio of receiver DSP. If equalization type is fixed time-domain equalizer, then ros = 1
@@ -102,14 +103,15 @@ Tx.DAC.filt = design_filter('bessel', 5, 0.7*mpam.Rs/(sim.fs/2)); % DAC analog f
 % Tx.DAC.filt.H = @(f) 1./(10.^(polyval(juniperDACfit, abs(f*sim.fs/1e9))/20)); % DAC analog frequency response
 
 %% Modulator
-Tx.rexdB = -20;  % extinction ratio in dB. Defined as Pmin/Pmax
+Tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
 Tx.Mod.type = sim.Modulator; 
 Tx.Vgain = 1; % Gain of driving signal
 Tx.VbiasAdj = 1; % adjusts modulator bias
 Tx.Mod.Vbias = 0.5; % bias voltage normalized by Vpi
 Tx.Mod.Vswing = 1;  % normalized voltage swing. 1 means that modulator is driven at full scale
 Tx.Mod.BW = ModBW; % DAC frequency response includes DAC + Driver + Modulator
-Tx.Mod.filt = design_filter('bessel', 5, 0.7*mpam.Rs/(sim.fs/2));
+Tx.Mod.filt = design_filter('two-pole', Tx.Mod.BW, sim.fs);
+% Tx.Mod.filt = design_filter('bessel', 5, Tx.Mod.BW/(sim.fs/2)); 
 Tx.Mod.H = Tx.Mod.filt.H(sim.f/sim.fs);
 Tx.Mod.alpha = 0;
 
@@ -127,24 +129,19 @@ Tx.Laser.H = @(f) Tx.Mod.filt.H(f/sim.fs); % only used if sim.Modulator = 'DML'
 % fiber(Length in m, anonymous function for attenuation versus wavelength
 % (default: att(lamb) = 0 i.e., no attenuation), anonymous function for 
 % dispersion versus wavelength (default: SMF28 with lamb0 = 1310nm, S0 = 0.092 s/(nm^2.km))
-SMF = fiber(fiberLength); 
-DCF = fiber(0, @(lamb) 0, @(lamb) -0.1*(lamb-1550e-9)*1e3 - 40e-6); 
+Fiber = fiber(fiberLength); 
 
-Fibers = [SMF DCF];
-
-linkAttdB = SMF.att(Tx.Laser.wavelength)*SMF.L/1e3...
-    + DCF.att(Tx.Laser.wavelength)*DCF.L/1e3;
+linkAttdB = Fiber.att(Tx.Laser.wavelength)*Fiber.L/1e3;
 
 %% ========================== Amplifier ===================================
-% Constructor: OpticalAmplifier(GaindB, NF, lamb, maxGain (optional))
-% GaindB : Gain in dB
-% NF : Noise figure in dB
-% lamb : wavelength in m
-% maxGain = maximum amplifier gain in dB, default is Inf
-Rx.OptAmp = OpticalAmplifier(20, 5, Tx.Laser.lambda);
-Rx.OptAmpOutPowerdBm = 0; % output power after amplifier
-% Note: the amplifier here operates in the constant output power mode,
-% where the output power after amplification is set to Rx.AmpOutPowerdBm
+% Constructor: OpticalAmplifier(Operation, param, Fn, Wavelength)
+% - Opertation: either 'ConstantOutputPower' or 'ConstantGain'
+% - param: GaindB if Operation = 'ConstantGain', or outputPower
+% if Operation = 'ConstantOutputPower'
+% - Fn:  noise figure in dB
+% - Wavelength: operationl wavelength in m
+Rx.OptAmp = OpticalAmplifier('ConstantOutputPower', 0, 5, Tx.Laser.wavelength); 
+% Rx.OptAmp = OpticalAmplifier('ConstantGain', 20, 5, Tx.Laser.wavelength);
 
 %% ============================ Receiver ==================================
 %% Photodiodes
@@ -171,12 +168,16 @@ Rx.ADC.rclip = 0;
 Rx.eq.ros = sim.ros.rxDSP;
 Rx.eq.type = 'Adaptive TD-LE';
 Rx.eq.Ntaps = Ntaps; % number of taps
-Rx.eq.mu = 1e-3; % adaptation ratio
-Rx.eq.Ntrain = 1e4; % Number of symbols used in training (if Inf all symbols are used)
-Rx.eq.Ndiscard = [1.2e4 1024]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
+Rx.eq.mu = 1e-2; % adaptation ratio
+Rx.eq.Ntrain = 1.7e4; % Number of symbols used in training (if Inf all symbols are used)
+Rx.eq.Ndiscard = [2e4 128]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
+% Note: Ntrain must be at least 4 times larger for ros = 5/4 than for ros
+% = 2. Ntrain = 1.5e4 seems sufficient for ros = 5/4
 
-%% Generate summary
-% generate_summary(mpam, Tx, Fibers, Rx.OptAmp, Rx, sim);
+% check if there are enough symbols to perform simulation
+Ndiscarded = sum(Rx.eq.Ndiscard) + 2*sim.Ndiscard;
+assert(Ndiscarded < sim.Nsymb, 'There arent enough symbols to perform simulation. Nsymb must be increased or Ndiscard must be reduced')
+fprintf('%d (2^%.2f) symbols will be used to calculated the BER\n', sim.Nsymb - Ndiscarded, log2(sim.Nsymb - Ndiscarded));
 
 %% Run simulation
 %% Calculate BER
@@ -190,7 +191,7 @@ for k = 1:length(Ptx)
          
     % Montecarlo simulation
     parfor kk = 1:sim.Realizations
-        [BERcount(kk), BERgauss(kk), OSNRdBk(kk)] = ber_pam_montecarlo(mpam, Tx, Fibers, Rx, sim);
+        [BERcount(kk), BERgauss(kk), OSNRdBk(kk)] = ber_pam_montecarlo(mpam, Tx, Fiber, Rx, sim);
     end
     
     BER.count(k) = mean(BERcount);

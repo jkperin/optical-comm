@@ -10,18 +10,18 @@ Lkm = 0:20;
 sim.N = 2^14;
 sim.Rb = 112e9;
 sim.Mct = 10;
-wavelength = 1250e-9;
+wavelength = 1380e-9;
 alpha = 0; % chirp parameter
 RIN = -150; % dB/Hz
 modBW = 30e9;
 N0 = (30e-12)^2;
 eq.type ='fixed td-sr-le';
-eq.Ntaps = 7;
+eq.Ntaps = 9;
 
 %% M-PAM
 % PAM(M, bit rate, leve spacing : {'equally-spaced', 'optimized'}, pulse
 % shape: struct containing properties of pulse shape 
-mpam = PAM(4, sim.Rb, 'optimized', select_pulse_shape('rect', 1));
+mpam = PAM(4, sim.Rb, 'equally-spaced', select_pulse_shape('rect', 1));
 
 sim.fs = mpam.Rs*sim.Mct;
 [f, t] = freq_time(sim.N, sim.fs); 
@@ -29,11 +29,20 @@ sim.f = f;
 
 Fiber = fiber(0);
 
+% DAC
+% Nhold = sim.Mct;
+% hZOH = 1/Nhold*ones(1, Nhold);
+filt = design_filter('bessel', 5, 0.7*mpam.Rs/(sim.fs/2));
+% Hdac = filt.H(sim.f/sim.fs).*freqz(hZOH, 1, sim.f, sim.fs).*exp(1j*2*pi*sim.f/sim.fs*(Nhold-1)/2);
+Hdac = filt.H(sim.f/sim.fs);
+
 % Modulator
 modfc = modBW/sqrt(sqrt(2)-1); % converts to relaxation frequency
 Hmod = 1./(1 + 2*1j*f/modfc - (f/modfc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
 Hrxfilt = design_filter('butter', 5, 0.7*mpam.Rs/(sim.fs/2));
 Hrx = Hrxfilt.H(sim.f/sim.fs);
+
+varRIN = @(Plevel, noiseBW) 10^(RIN/10)*Plevel.^2*noiseBW;
 
 % Photodiode
 PD = pin(1, 10e-9);
@@ -51,15 +60,16 @@ for k = 1:length(Lkm)
     
     Fiber.L = 1e3*Lkm(k);
     
-    Hch = Hmod.*Fiber.Himdd(f, wavelength, alpha, 'large signal').*Hrx;
+    Hch = Hdac.*Hmod.*Fiber.Himdd(f, wavelength, alpha, 'small signal').*Hrx;
     
     [~, eq] = equalize(eq, [], Hch, mpam, sim, ~false);
     
-    noiseBW = 1/2*trapz(f, abs(Hrx.*eq.Hff(sim.f/(mpam.Rs))).^2); % filter noise BW (includes noise enhancement penalty)
+    Htot = Hrx.*eq.Hrx.*eq.Hff(sim.f/(mpam.Rs)); % antialiasing + matched + linear equalizer filters
+    noiseBW = 1/2*trapz(f, abs(Htot).^2); % filter noise BW (includes noise enhancement penalty)
     
-    noiseSTDUnamp = PD.stdNoise(Hrx, eq.Hff(sim.f/(mpam.Rs)), N0, RIN, sim);
+    noiseSTDUnamp = PD.stdNoise(Hrx.*eq.Hrx, eq.Hff(sim.f/(mpam.Rs)), N0, RIN, sim); % thermal + shot + RIN
     
-    noiseSTDAmp = @(Plevel) sqrt(noiseBW*N0 + PD.varShot(Plevel, noiseBW)... % thermal + shot
+    noiseSTDAmp = @(Plevel) sqrt(noiseBW*N0 + PD.varShot(Plevel, noiseBW) + varRIN(Plevel, noiseBW)... % thermal + shot + RIN
                     + PD.R^2*(OptAmp.varNoiseDD(Plevel/(OptAmp.Gain), noiseBW, BWopt, Npol))); % sig-spont + spont-spont
 
     PrecUnamp(k) = mpam.sensitivity(noiseSTDUnamp, sim.rexdB, sim.BERtarget);
@@ -68,19 +78,20 @@ for k = 1:length(Lkm)
 end
 
 PrecAmp = PrecAmp - OptAmp.GaindB; % Refer required power to before the optical amplifier
+D = 1e6*abs(Fiber.D(wavelength)*Lkm);
 
 figure(1), hold on, box on
-hplot(1) = plot(Lkm, PrecUnamp, '-', 'LineWidth', 2, 'DisplayName', '4-PAM unamplified');
-hplot(2) = plot(Lkm, PrecAmp, '--', 'Color', get(hplot(1), 'Color'), 'LineWidth', 2, 'DisplayName', '4-PAM amplified');
+hplot(1) = plot(D, PrecUnamp, '-', 'LineWidth', 2, 'DisplayName', '4-PAM unamplified');
+hplot(2) = plot(D, PrecAmp, '--', 'Color', get(hplot(1), 'Color'), 'LineWidth', 2, 'DisplayName', '4-PAM amplified');
 legend('-dynamiclegend')
-xlabel('Fiber length (km)', 'FontSize', 12)
+xlabel('Dispersion (ps/nm)', 'FontSize', 12)
 ylabel('Receiver sensitivity (dBm)', 'FontSize', 12)
 set(gca, 'FontSize', 12)
 
 figure(2), hold on, box on
-plot(Lkm, OSNRdB, 'Color', get(hplot(2), 'Color'), 'LineWidth', 2, 'DisplayName', '4-PAM')
+plot(D, OSNRdB, 'Color', get(hplot(2), 'Color'), 'LineWidth', 2, 'DisplayName', '4-PAM')
 legend('-dynamiclegend')
-xlabel('Fiber length (km)', 'FontSize', 12)
+xlabel('Dispersion (ps/nm)', 'FontSize', 12)
 ylabel('OSNR required (dB)', 'FontSize', 12)
 set(gca, 'FontSize', 12)
 

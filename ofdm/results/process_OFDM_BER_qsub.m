@@ -1,4 +1,4 @@
-%% Process data saved by QPSK_BER_qsub.m
+%% Process data saved by OFDM_BER_qsub.m
 clear, clc, close all
 
 addpath ../
@@ -11,6 +11,7 @@ BERtarget = 1.8e-4;
 OFDMtype = {'DC-OFDM'};
 Amplified = {0};
 ModBWGHz = 30;
+ENOB = 5;
 
 LineStyle = {'-', '--'};
 Marker = {'o', 's', 'v'};
@@ -23,12 +24,10 @@ PrxdBm = zeros(length(OFDMtype), length(Amplified), length(Lkm));
 for n = 1:length(OFDMtype)
     for a = 1:length(Amplified)
         for k = 1:length(Lkm)
-            filename = [folder sprintf('%s_BER_Amplified=%d_L=%dkm_ModBW=%dGHz.mat',...
-                OFDMtype{n}, Amplified{a}, Lkm(k), ModBWGHz)];  
+            filename = [folder sprintf('%s_BER_Amplified=%d_L=%dkm_ModBW=%dGHz_ENOB=%d.mat',...
+                OFDMtype{n}, Amplified{a}, Lkm(k), ModBWGHz, ENOB)];  
             try 
                 S = load(filename, '-mat');
-                S.OFDM.clear;
-                save(filename, '-struct', 'S');
                 D(k) = Fiber.D(S.Tx.Laser.wavelength)*S.Fiber.L/1e3;
 
                 BERcount = 0;
@@ -74,6 +73,6 @@ for n = 1:length(OFDMtype)
         'MarkerFaceColor', 'w', 'DisplayName', sprintf('%s, %d', OFDMtype{n}, Amplified{a}));
 end
 
-xlabel('Dispersion ps/nm')
+xlabel('Dispersion (ps/nm)')
 ylabel('Receiver sensitivity (dBm)')
 

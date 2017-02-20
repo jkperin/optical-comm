@@ -1,34 +1,38 @@
 %% Evaluation of OFDM in IM-DD system, which may be amplified or not
-function BER = OFDM_BER_qsub(OFDMtype, Amplified, fiberLengthKm, ModBWGHz)
+function BER = OFDM_BER_qsub(OFDMtype, Amplified, fiberLengthKm, ModBWGHz, ENOB)
 
 addpath f/
 addpath ../f/
 addpath ../apd/
 
-filename = sprintf('results/%s_BER_Amplified=%s_L=%skm_ModBW=%sGHz.mat',...
-        OFDMtype, Amplified, fiberLengthKm, ModBWGHz);
+filename = sprintf('results/%s_BER_Amplified=%s_L=%skm_ModBW=%sGHz_ENOB=%s.mat',...
+        OFDMtype, Amplified, fiberLengthKm, ModBWGHz, ENOB);
 
 filename = check_filename(filename)
 
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([fiberLengthKm Amplified ModBWGHz]))
+if ~all(isnumeric([fiberLengthKm Amplified ModBWGHz ENOB]))
     Amplified = logical(str2double(Amplified));
     fiberLength = 1e3*str2double(fiberLengthKm);
     ModBW = 1e9*str2double(ModBWGHz);
+    ENOB = round(str2double(ENOB));
 end
 
 %% Transmit power swipe
+dPower = 0.5;
 if strcmpi(OFDMtype, 'DC-OFDM')
+    rclip = 3.5;
     if Amplified
-        Tx.PtxdBm = -14:0.5:0; 
+        Tx.PtxdBm = -14:dPower:0; 
     else
-        Tx.PtxdBm = -7:0.5:0; 
+        Tx.PtxdBm = -7:dPower:0; 
     end
 else % ACO-OFDM
+    rclip = 4;
     if Amplified
-        Tx.PtxdBm = -25:0.5:-10; 
+        Tx.PtxdBm = -22:dPower:-12; 
     else
-        Tx.PtxdBm = -15:0.5:0; 
+        Tx.PtxdBm = -12:dPower:3; 
     end    
 end
 
@@ -37,7 +41,7 @@ sim.Rb = 112e9;    % bit rate in bits/sec
 sim.Nsymb = 2^12; % Number of symbols in montecarlo simulation
 sim.Mct = 5;      % Oversampling ratio to simulate continuous time. Must be integer multiple of sim.ros.txDSP and numerator of sim.ros.rxDSP
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence
+sim.Ndiscard = 128; % number of symbols to be discarded from the begining and end of the sequence
 sim.Modulator = 'DML'; % 'MZM' or 'DML'
 sim.OFDM = OFDMtype; % {'DC-OFDM', 'ACO-OFDM'}
 sim.Realizations = 4;
@@ -48,7 +52,7 @@ sim.preAmp = Amplified;
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
 sim.PMD = false; % whether to simulate PMD
-sim.quantiz = true; % whether quantization is included
+sim.quantiz = not(isinf(ENOB)); % whether quantization is included
 sim.stopSimWhenBERReaches0 = true; % stop simulation when counted BER reaches 0
 
 % Control what should be plotted
@@ -93,12 +97,12 @@ sim.fs = OFDM.fs*sim.Mct;
 %% DAC
 Tx.DAC.fs = OFDM.fs; % DAC sampling rate
 Tx.DAC.ros = 1; % oversampling ratio of transmitter DSP
-Tx.DAC.resolution = 5; % DAC effective resolution in bits
+Tx.DAC.resolution = ENOB; % DAC effective resolution in bits
 Tx.DAC.filt = design_filter('butter', 5, 0.5*OFDM.fs/(sim.fs/2)); % DAC analog frequency response
 
 %% Modulator
 Tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
-Tx.rclip = 3.5; % clipping ratio
+Tx.rclip = rclip; % clipping ratio
 Tx.alpha = 0; % chirp parameter
 Tx.RIN = -150; % dB/Hz
 Tx.Mod.type = sim.Modulator;   
@@ -151,7 +155,7 @@ Rx.N0 = (30e-12).^2;
 Rx.ADC.ros = 1;
 Rx.ADC.fs = OFDM.fs;
 Rx.ADC.filt = design_filter('butter', 5, 0.5*OFDM.fs/(sim.fs/2)); % Antialiasing filter
-Rx.ADC.ENOB = 5; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
+Rx.ADC.ENOB = ENOB; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
 
 %% Equalizer
 Rx.AdEq.mu = 1e-3;
@@ -164,7 +168,7 @@ ofdm_simulation_summary(sim, OFDM, Tx, Fiber, Rx);
 
 %% Run simulation
 parfor k = 1:sim.Realizations
-    [BER(k), ~, SNRdB, OSNRdB] = ber_ofdm(OFDM, Tx, Fiber, Rx, sim);
+    [BER(k), ~, OSNRdB] = ber_ofdm(OFDM, Tx, Fiber, Rx, sim);
 end
 
 %% Save results
@@ -173,7 +177,7 @@ if sim.save
     sim = rmfield(sim, 'f');
     sim = rmfield(sim, 't');
     Tx.Mod = rmfield(Tx.Mod, 'H');    
-    ofdm.clear; % clear heavy variables before saving to file
+    OFDM.clear; % clear heavy variables before saving to file
     save(filename)
 end
 

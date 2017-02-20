@@ -52,10 +52,15 @@ if isfield(sim, 'quantiz') && sim.quantiz && ~isinf(DAC.resolution)
     xamp = xmax - xmin;
     
     dx = xamp/(2^(enob)-1);
+    Pc = mean(x > xmax | x < xmin);
+    if Pc ~= 0
+        fprintf('DAC: clipping probability = %G\n', Pc) 
+    end
     
     codebook = xmin:dx:xmax;
     partition = codebook(1:end-1) + dx/2;
     [~, xq, varQ] = quantiz(x, partition, codebook); 
+    fprintf('DAC: quantization noise variance = %G | Signal-to-quantization noise ratio = %.2f dB\n', varQ, 10*log10(var(x)/varQ));
 else
     xq = x;
     varQ = 0;
