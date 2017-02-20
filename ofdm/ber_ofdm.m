@@ -1,4 +1,4 @@
-function [ber, ofdm, SNRdB, OSNRdB] = ber_ofdm(ofdm, Tx, Fibers, Rx, sim)
+function [ber, ofdm, OSNRdB] = ber_ofdm(ofdm, Tx, Fibers, Rx, sim)
 %% Calculate BER of IM-DD system
 % This function calculates appropriate cyclic prefix length given the
 % channel memory length. It calls ber_dc_ofdm_montecarlo, which performs
@@ -15,7 +15,6 @@ function [ber, ofdm, SNRdB, OSNRdB] = ber_ofdm(ofdm, Tx, Fibers, Rx, sim)
 % Outputs:
 % - ber: BER using Montecarlo simulation and Gaussian approximation
 % - ofdm: class ofdm after power allocation
-% - SNRdB: average SNRdB
 % - OSNRdB: OSNR. Only meaninful if simulation includes optical amplifier
 
 %% Calculate components frequency response in order to estimate cyclic prefix length
@@ -31,7 +30,7 @@ fprintf('Total dispersion at %.2f nm: %.3f ps/nm\n', Tx.Laser.lambda*1e9, 1e3*Dt
 
 % Create fiber object with equivalent dispersion.
 equivFiber = fiber(1, @(lamb) 0, @(lamb) Dtotal);
-Hfiber = @(f) equivFiber.Himdd(f, Tx.Laser.wavelength, Tx.alpha, 'large signal'); % frequency response of the channel (used in designing the equalizer)
+Hfiber = @(f) equivFiber.Himdd(f, Tx.Laser.wavelength, Tx.alpha, 'small signal'); % frequency response of the channel (used in designing the equalizer)
 
 % ZOH and DAC frequency responses
 Nhold = sim.Mct/Tx.DAC.ros;
@@ -93,7 +92,12 @@ for k = 1:length(Ptx)
            
     % Estimate noise to perform power allocation
     if isfield(sim, 'preAmp') && sim.preAmp % amplified system: signal-spontaneous beat noise dominant
-        Prx = dBm2Watt(Rx.OptAmp.outputPower); % Received power is constant at the amplifier output
+        if strcmpi(Rx.OptAmp.Operation, 'ConstantOutputPower')
+            Prx = dBm2Watt(Rx.OptAmp.outputPower); % Received power is constant at the amplifier output
+            Rx.OptAmp.Gain = Prx/Tx.Ptx;
+        else
+            Prx = Rx.OptAmp.Gain*Tx.Ptx;
+        end
         BWopt = sim.fs; % optical filter (OF) noise bandwidth = sampling rate, since OF is not included 
         % Not divided by 2 because optical filter is a bandpass filter
 
@@ -116,7 +120,7 @@ for k = 1:length(Ptx)
     assert(sqrt(ofdm.var) < 1, 'ber_ofdm: Power is too high: %.2G (mW)\nCannot improve performance by increasing power.\n', 1e3*sqrt(2*sum(ofdm.Pn)))
     
     % Theoretical BER
-    Padj = ofdm.adjust_power_allocation(ofdm.Pn.*abs(Tx.Hdac).^2, Prx, Tx.rclip, Tx.rexdB);
+    Padj = ofdm.adjust_power_allocation(ofdm.Pn.*abs(Tx.Hdac).^2, Prx, Tx.rclip, Tx.rexdB); % Factor to refer subcarriers powers to the receiver
     ber.theory(k) = ofdm.calc_ber(10*log10(abs(ofdm.K*Hch).^2.*ofdm.Pn*Padj./varNoise));
     % Note: The scaling factor (Prx/Pmean) is squared because the average
     % power is proportional to sqrt(ofdm.var) = sqrt(2*sum(Pn))
@@ -124,8 +128,7 @@ for k = 1:length(Ptx)
     % Montecarlo simulation
     sim.Hch = Hch; % frequency response of the channel at each subcarrier
     sim.varNoise = varNoise; % noise variance in each subcarrier
-    [ber.count(k), ber.gauss(k), SNRndB, OSNRdB(k)] = ber_ofdm_montecarlo(ofdm, Tx, Fibers, Rx, sim);
-    SNRdB(k) = sum(SNRndB.*log2(ofdm.CS))/sum(log2(ofdm.CSn));
+    [ber.count(k), ber.gauss(k), ~, OSNRdB(k)] = ber_ofdm_montecarlo(ofdm, Tx, Fibers, Rx, sim);
     
     fprintf('Ptx = %.2f dBm\n- BER(theory) = %g\n- BER(Gauss) = %g\n- BER(count) = %g\n',...
         Tx.PtxdBm(k), ber.theory(k), ber.gauss(k), ber.count(k));

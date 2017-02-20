@@ -126,11 +126,13 @@ switch lower(eq.type)
         if exist('verbose', 'var') && verbose       
             figure(400), clf
             subplot(221), hold on, box on
-            plot(abs(e).^2)
+            MSE = abs(e).^2;
+            plot(MSE);
+            plot(smooth(MSE, 201), 'r', 'Linewidth', 2);
             a = axis;
             plot(eq.Ndiscard(1)*[1 1], a(3:4), ':k')
             plot((sim.Nsymb-eq.Ndiscard(2))*[1 1], a(3:4), ':k')
-            legend('MSE', 'Valid window')
+            legend('MSE', 'Smooth MSE', 'Valid window')
             xlabel('Iteration')
             ylabel('MSE')
             title('Equalizer MSE')

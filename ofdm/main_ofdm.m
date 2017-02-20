@@ -1,25 +1,25 @@
 %% Evaluation of OFDM in IM-DD system, which may be amplified or not
-clear, clc
+clear, clc, close all
 
 addpath f/
 addpath ../f/
 addpath ../apd/
 
 %% Transmit power swipe
-Tx.PtxdBm = -15:-8; % transmitter power range
-% Tx.PtxdBm = -18:-12; % transmitter power range
+% Tx.PtxdBm = -10:-5; % transmitter power range
+Tx.PtxdBm = -12:-7; % transmitter power range
 
 %% Simulation parameters
 sim.Rb = 112e9;    % bit rate in bits/sec
 sim.Nsymb = 2^11; % Number of symbols in montecarlo simulation
 sim.Mct = 5;      % Oversampling ratio to simulate continuous time. Must be integer multiple of sim.ros.txDSP and numerator of sim.ros.rxDSP
 sim.BERtarget = 1.8e-4; 
-sim.Ndiscard = 256; % number of symbols to be discarded from the begining and end of the sequence
+sim.Ndiscard = 128; % number of symbols to be discarded from the begining and end of the sequence
 sim.Modulator = 'DML'; % 'MZM' or 'DML'
-sim.OFDM = 'DC-OFDM'; % {'DC-OFDM', 'ACO-OFDM'}
+sim.OFDM = 'ACO-OFDM'; % {'DC-OFDM', 'ACO-OFDM'}
  
 %% Simulation control
-sim.preAmp = true;
+sim.preAmp = ~true;
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
 sim.PMD = false; % whether to simulate PMD
@@ -34,7 +34,7 @@ sim.Plots('Adaptation MSE') = 0;
 sim.Plots('Constellations') = 0;
 sim.Plots('Power allocation') = 0;
 sim.Plots('Cyclic prefix') = 0;
-sim.Plots('Estimated SNR') = 1;
+sim.Plots('Estimated SNR') = 0;
 sim.Plots('Decision errors') = 0;
 sim.Plots('Channel frequency response') = 0;
 sim.Plots('OSNR') = 0;
@@ -51,9 +51,11 @@ if strcmpi(sim.OFDM, 'ACO-OFDM')
     disp('-- ACO-OFDM simulation')
     ofdm = ofdm(256, 208, 64, sim.Rb, 'palloc'); 
     ofdm.aco_ofdm_config();
+    ENOB = 6;
 elseif strcmpi(sim.OFDM, 'DC-OFDM')
     disp('-- DC-OFDM simulation')
-    ofdm = ofdm(256, 208, 16, sim.Rb, 'palloc'); 
+    ofdm = ofdm(256, 208, 16, sim.Rb, 'palloc');
+    ENOB = 5;
 else
     error('sim.OFDM must be either DC-OFDM or ACO-OFDM')
 end
@@ -68,17 +70,17 @@ sim.fs = ofdm.fs*sim.Mct;
 %% DAC
 Tx.DAC.fs = ofdm.fs; % DAC sampling rate
 Tx.DAC.ros = 1; % oversampling ratio of transmitter DSP
-Tx.DAC.resolution = 5; % DAC effective resolution in bits
+Tx.DAC.resolution = ENOB; % DAC effective resolution in bits
 Tx.DAC.filt = design_filter('butter', 5, 0.5*ofdm.fs/(sim.fs/2)); % DAC analog frequency response
 
 %% Modulator
 Tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
-Tx.rclip = 3.5; % clipping ratio
+Tx.rclip = 4.5; % clipping ratio
 Tx.alpha = 0; % chirp parameter
 Tx.RIN = -150; % dB/Hz
 Tx.Mod.type = sim.Modulator;   
 Tx.Mod.Vswing = 1; % voltage swing in MZM modulator. Thi is normalized by Vpi. Vswing = 1 corresponds to swing from 0 to Vpi.
-Tx.Mod.BW = 30e9; % moduator bandwidth
+Tx.Mod.BW = 50e9; % moduator bandwidth
 Tx.Mod.filt = design_filter('two-pole', Tx.Mod.BW, sim.fs);
 % Tx.Mod.filt = design_filter('butter', 5, Tx.Mod.BW/(sim.fs/2));
 Tx.Mod.H = Tx.Mod.filt.H(sim.f/sim.fs);
@@ -112,8 +114,8 @@ linkAttdB = SMF.att(Tx.Laser.wavelength)*SMF.L/1e3...
 % if Operation = 'ConstantOutputPower'
 % - Fn:  noise figure in dB
 % - Wavelength: operationl wavelength in m
-Rx.OptAmp = OpticalAmplifier('ConstantOutputPower', 0, 5, Tx.Laser.wavelength);
-% Rx.OptAmp = OpticalAmplifier('ConstantGain', 20, 5, Tx.Laser.wavelength);
+% Rx.OptAmp = OpticalAmplifier('ConstantOutputPower', 0, 5, Tx.Laser.wavelength);
+Rx.OptAmp = OpticalAmplifier('ConstantGain', 20, 5, Tx.Laser.wavelength);
 % Note: the amplifier here operates in the constant output power mode,
 % where the output power after amplification is set to Rx.AmpOutPowerdBm
 
@@ -132,12 +134,12 @@ Rx.N0 = (30e-12).^2;
 Rx.ADC.ros = 1;
 Rx.ADC.fs = ofdm.fs;
 Rx.ADC.filt = design_filter('butter', 5, 0.5*ofdm.fs/(sim.fs/2)); % Antialiasing filter
-Rx.ADC.ENOB = 5; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
+Rx.ADC.ENOB = ENOB; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
 % Rx.ADC.rclip = 0.05;
 
 %% Equalizer
 Rx.AdEq.mu = 1e-3;
-Rx.AdEq.Ntrain = 768; % Number of frames used in training (if Inf all symbols are used)
+Rx.AdEq.Ntrain = 1224; % Number of frames used in training (if Inf all symbols are used)
 % Note: training symbols are not used to compute the BER. Hence sim.Nsymb -
 % Rx.AdEq.Ntrain must be large to obtain accurate BER estimate
 
@@ -145,4 +147,4 @@ Rx.AdEq.Ntrain = 768; % Number of frames used in training (if Inf all symbols ar
 ofdm_simulation_summary(sim, ofdm, Tx, Fibers, Rx);
 
 %% Run simulation
-[berOFDM, ofdm, SNRdB, OSNRdB] = ber_ofdm(ofdm, Tx, Fibers, Rx, sim)
+[berOFDM, ofdm, OSNRdB] = ber_ofdm(ofdm, Tx, Fibers, Rx, sim)

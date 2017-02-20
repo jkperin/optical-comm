@@ -18,4 +18,4 @@
 # 
 module load matlab
 
-matlab -nodesktop -singleCompThread -r "OFDM_BER_qsub $OFDMtype $Amplified $fiberLengthKm $ModBWGHz"
+matlab -nodesktop -singleCompThread -r "OFDM_BER_qsub $OFDMtype $Amplified $fiberLengthKm $ModBWGHz $ENOB"

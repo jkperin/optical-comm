@@ -424,7 +424,7 @@ classdef ofdm < handle
             ber_theory = sum(ber.*self.bn)/sum(self.bn);
         end
         
-        function [ber_est, SNRn] = estimate_ber(this, Pnmeasured, Gch, noiseVar, verbose)
+        function [ber_est, SNRn] = estimate_ber(this, Pnmeasured, Pnoise, Gch, noiseVar, verbose)
             %% Estimate BER from signal
             % Inputs:
             % - Pnmeasured: estimate of the power levels in each subcarrier.
@@ -437,9 +437,10 @@ classdef ofdm < handle
             Pnest = this.Pn.*abs(Gch).^2; % power at subcarriers at the receiver
             
             % Calculate unbiased SNR estimate
-            SNRn = 10*log10(Pnmeasured./noiseVar - 1); 
+            SNRn.measured = 10*log10(Pnmeasured./Pnoise - 1); 
+            SNRn.estimated = 10*log10(Pnest./noiseVar - 1); 
             
-            ber_est = this.calc_ber(SNRn);
+            ber_est = this.calc_ber(SNRn.estimated);
             
             if exist('verbose', 'var') && verbose
                 idx = find(this.CSn ~= 0);
@@ -452,11 +453,17 @@ classdef ofdm < handle
                 ylabel('Received subcarrier power')
                 legend('Measured (signal + noise)', 'Estimated (signal)');
                 subplot(212), hold on, box on
-                stem(fcGHz, SNRn(idx), 'fill')
-                stem(fcGHz, SNRn(idx) - 10*log10(this.bn(idx)))
+                stem(fcGHz, Pnoise(idx), 'fill')
+                stem(fcGHz, noiseVar(idx))
                 xlabel('Frequency (GHz)')
-                ylabel('Measured SNR, EbN0 (dB)')    
-                legend('SNR', 'EbN0')
+                ylabel('Noise variance')
+                legend('Measured', 'Estimated')
+                figure(302), clf, hold on, box on
+                stem(fcGHz, SNRn.measured(idx), 'fill')
+                stem(fcGHz, SNRn.estimated(idx))
+                xlabel('Frequency (GHz)')
+                ylabel('Unbiased SNR (dB)')    
+                legend('Measured', 'Estimated')
                 drawnow
             end
         end
@@ -466,19 +473,17 @@ classdef ofdm < handle
             if isinf(ENOB)
                 varQ = @(Psig) 0;
             else
+                % The general expression for quantization noise is
+                % varQ = (1-Pc)/12*(DeltaX/(2^ENOB-1))^2;
+                % This assumes that there's no quantization error at the
+                % clipping levels.
                 if self.ACO % ACO-OFDM
-                    % At the receiver Prx = sigmatx*rclip, where sigmatx = sqrt(2*sum(Pn));
-                    % This ensures that quantization noise is normalized to the
-                    % received power, which is what the noise calculations assume.
-                    varQ = @(Psig) 1/2*(sqrt(2*pi)*rclip*Psig/(2^ENOB-1))^2/12; % quantization at the transmitter
-                    % Note: this assumes that quantization noise from the transmitter
-                    % has the same effect as the quantization noise from the receiver.
-                    % The frequency response of the channel will be applied to
-                    % varQuantizTx later
+                    Pc = 1/2 + qfunc(rclip); % clipping probability
+                    varQ = @(Psig) (1-Pc)/12*(Psig*sqrt(2*pi)*rclip/(2^ENOB-1))^2; % signal goes from 0 to rclip*sig
                 else % DC-OFDM
                     Pc = 2*qfunc(rclip); % clipping probability
-                    varQ = @(Psig) (1 - Pc)*(2*Psig/(2^ENOB-1))^2/12; % quantization at the transmitter
-                end
+                    varQ = @(Psig) (1-Pc)/12*(2*Psig/(2^ENOB-1))^2; % signal goes from 0 to 2Psig (two times the average power, since clipping in DC-OFDM is symmetric)
+                end                
             end
         end
         

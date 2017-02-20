@@ -67,16 +67,7 @@ classdef OpticalAmplifier < handle
             %% Gain in dB
             this.Gain = 10^(GdB/10); % set Gain, since GaindB is dependent
         end
-        
-        function set.outputPower(self, PoutdBm)
-            %% Output in dBm. Can only be set if Operation = 'ConstantOutputPower'
-            if strcmpi(self.Operation, 'ConstantOutputPower')
-                self.outputPower = PoutdBm;
-            else
-                warning('OpticalAmplifier: Output power can only be set if amplifier operation is set to ConstantOutputPower')
-            end
-        end
-        
+                
         function self = set_amplifier_operation(self, operation, param)
             %% Set amplifier operation and specify Gain or output Power
             if strcmpi(operation, 'ConstantOutputPower')
@@ -96,6 +87,8 @@ classdef OpticalAmplifier < handle
     methods        
         function [varNoise, varSigSpont, varSpontSpont] = varNoiseDD(self, Pmean, Deltafele, Deltafopt, Npol)
             %% Noise variance due to ASE after direct detection. This includes signal-ASE beat noise and ASE-ASE beat noise
+            % Note: this function assumes that the amplifier Gain is set,  
+            % even when amplifier is operating in the constant output power mode
             % Inputs:
             % - Pmean: average signal power before amplification
             % - Deltafele: electrical noise bandwidth
@@ -106,8 +99,6 @@ classdef OpticalAmplifier < handle
                 Npol = 2;
             end
             
-            self.adjust_gain(Watt2dBm(Pmean)); % Adjusts gain to keep desire output power if amplifier is operation in constant output power mode
-
             % Signal-ASE beat noise
             varSigSpont = 4*self.Gain*Pmean*self.Ssp*Deltafele;
             % ASE-ASE beat noise
@@ -121,6 +112,9 @@ classdef OpticalAmplifier < handle
         function adjust_gain(self, PindBm)
             %% Adjust gain to keep desire output power if amplifier is operation in constant output power mode
             if strcmpi(self.Operation, 'ConstantOutputPower')
+                if isempty(self.outputPower)
+                    error('OpticalAmplifier: output power must be set when amplifier Operation is ConstantOutputPower')
+                end
                 PoutdBm = self.outputPower;
                 self.GaindB = PoutdBm - PindBm;
                 if self.GaindB < 7
@@ -156,12 +150,13 @@ classdef OpticalAmplifier < handle
             Eout = sqrt(obj.Gain)*Ein + W;
             
             [~, Ps] = power_meter(Ein);
+            obj.outputPower = power_meter(Eout);
             
             % Unbiased OSNR estimate
             OSNRdB = 10*log10(obj.Gain*Ps/(2*obj.Ssp*obj.BWref));
             
             fprintf('Optical amplifier: output power = %.2f dBm | OSNR = %.2f dB\n',...
-                power_meter(Eout), OSNRdB);
+                obj.outputPower, OSNRdB);
         end      
     end
 end

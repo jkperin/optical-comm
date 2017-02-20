@@ -88,8 +88,8 @@ Group delay:
 
 \section{Fiber Propagation}
 \subsection{Chromatic Dispersion}
-\begin{equation}
-H(f; L) = \frac{E(f; L)}{E(f, 0)} = e^{-1/2\beta_2(2\pi f)^2L}
+\begin{equation} \label{eq:Hdisp}
+H(f; L) = \frac{E(f; L)}{E(f, 0)} = e^{-1/2j\beta_2(2\pi f)^2L}
 \end{equation}
 where $H(f; L)$ is fiber frequency response due to dispersion after $L$ meters, and $\beta_2 = -\frac{D(\lambda)\lambda^2}{2\pi c}$. 
 
@@ -113,7 +113,7 @@ Given a certain bit rate $R_b$, the spacing between each subcarrier is given by
 \begin{equation} \label{eq:ofdm-subcarrier-spacing}
 \Delta f = p\frac{R_b}{N_u\log_2 CS},
 \end{equation}
-where $CS$ is the nominal or average constellation size, and $p$ is the factor that accounts fro the loss of spectral efficiency. For instance, $p = 2$ when Hermitian symmetry is enforced or when the negative subcarriers are set to zero in the case of SSB-OFDM. In the case of ACO-OFDM, $p = 4$ since in addition to Hermitian symmetry, all the even subcarriers are set to zero. 
+where $CS$ is the nominal or average constellation size, and $p$ is the factor that accounts for the loss of spectral efficiency. For instance, $p = 2$ when Hermitian symmetry is enforced or when the negative subcarriers are set to zero in the case of SSB-OFDM. In the case of ACO-OFDM, $p = 4$ since in addition to Hermitian symmetry, all the even subcarriers are set to zero. 
 
 Fig.~\ref{fig:ofdm-spectra} illustrates the OFDM spectra for DC- and ACO-OFDM.
 
@@ -142,10 +142,10 @@ T_s^{\prime} = \frac{1}{N_c\Delta f},
 
 In practice, the sampling rate must be increased to account for the insertion of a cyclic prefix of length $N_{CP}$, hence the sampling time is reduce
 \begin{equation}
-T = \frac{N_c}{N_c + N_{CP}}T^{\prime} = \frac{1}{(N_c + N_{CP})\Delta f}
+T = \frac{N_c}{N_c + N_{CP}}T^{\prime} = \frac{1}{(N_c + N_{CP})\Delta f}.
 \end{equation}
 
-Hence the OFDM sampling rate is given by
+The increased OFDM sampling rate is given by
 \begin{align} \nonumber
 f_s &= (N_c + N_{CP})\Delta f = p\frac{N_c + N_{CP}}{N_u}\frac{R_b}{\log_2 CS} \\
 &= p\frac{N_c + N_{CP}}{N_c}r_{os}\frac{R_b}{\log_2 CS}.
@@ -186,13 +186,13 @@ Comparing to DC-OFDM, the penalty due to finite extinction rate will be higher f
 	\centering
 	\begin{subfigure}[h!]{\textwidth}
 		\centering
-		\resizebox{\linewidth}{!}{\input{figs/dc-ofdm-waveform.tikz}}
+		\resizebox{\linewidth}{!}{\input{figs/dc-ofdm-waveform.tex}}
 		\caption{DC-OFDM}
 	\end{subfigure}%
 
 	\begin{subfigure}[h!]{\textwidth}
 		\centering
-		\resizebox{\linewidth}{!}{\input{figs/aco-ofdm-waveform.tikz}}
+		\resizebox{\linewidth}{!}{\input{figs/aco-ofdm-waveform.tex}}
 		\caption{ACO-OFDM}
 	\end{subfigure}
 	\caption{(a) DC-OFDM and (b) ACO-OFDM waveforms.}
@@ -774,18 +774,64 @@ BER &= \frac{4}{\log_2M}\bigg(1 - \frac{1}{\sqrt{M}}\bigg)Q\bigg(\sqrt{\frac{3}{
 \end{cases}
 \end{align}
 
+\section{Single-side band OFDM}
 
-\section{Clipping noise shaping}
+Given a double-side band OFDM signal with Hermitian symmetry $s(t)$, we can obtain the single-side band signal $x(t)$ through the Hilbert transform
+\begin{equation}
+x(t) = s(t) + j\mathcal{H}\{s(t)\},
+\end{equation}
+where
+\begin{equation}
+\mathcal{F}\big\{\mathcal{H}\{s(t)\}\big\} = \begin{cases}
+jS(f), & f > 0 \\
+0, & f = 0 \\
+-jS(f), & f < 0
+\end{cases}.
+\end{equation}
 
-Defining $H(z)$ as the filter in the forward path and $G(z)$ the filter in the feedback path, the signal and noise effective transfer functions are given by
-\begin{align}
-F_s(z) = \frac{H(z)}{1 + H(z)G(z)} \\
-F_n(z) = \frac{1}{1 + H(z)G(z)}.
+The complex signal $p(t) = x(t) + c^\prime$ is transmitted through the optical channel, where $c^\prime$ denotes the carrier. The dispersive channel has impulse response given by $h(t)$. Hence, at the receiver we have
+
+\begin{equation}
+r(t) = h(t)\ast x(t) + \sqrt{\frac{\pi}{2a}}(1-j)c^\prime 
+\end{equation}
+since$\int h(t)dt = \sqrt{\frac{\pi}{2a}}(1 - j)$. Let $c = \sqrt{\frac{\pi}{2a}}(1-j)c^\prime$.
+
+After square law detection
+\begin{align} \label{eq:ssb-ofdm-rx-signal}
+|r(t)|^2 &= |h(t)\ast x(t)|^2 + 2\mathrm{Re}\{c\}\mathrm{Re}\{h(t)\ast x(t)\} + 2\mathrm{Im}\{c\}\mathrm{Im}\{h(t)\ast x(t)\} \\
+&= |h(t)\ast x(t)|^2 + 2\mathrm{Re}\{c\}\Big(h_I(t)\ast s(t) - h_Q(t)\ast \mathcal{H}\{s(t)\}\Big) + 2\mathrm{Im}\{c\}\Big(h_I(t)\ast\mathcal{H}\{s(t)\} + h_Q(t)\ast s(t)\Big)
 \end{align}
 
-Hence, it is desirable that $F_s(z)$ does not affect the data-carrying subcarriers (ideally be an all-pass filter), and $F_n(z)$ be a high-pass filter in order to shape clipping noise to fall on the unmodulated subcarriers. This is accomplished, for instance, when $H(z) = \frac{1}{1-z^{-1}}$ and $G(z) = z^{-1}$, resulting in $F_s(z) = 1$ and $F_n(z) = 1 + z^{-1}$.
+In frequency domain we have
+\begin{align}
+\mathcal{F}\{h_I(t)\ast s(t) - h_Q(t)\ast \mathcal{H}\{s(t)\}\} &= H_I(f)S(f) - H_Q(f)H_{hilb}(f)S(f) \\ &= S(f)(H_I(f) - H_Q(f)H_{hilb}(f)) \\
+\mathcal{F}\{h_I(t)\ast\mathcal{H}\{s(t)\} + h_Q(t)\ast s(t)\} &= H_I(f)H_{hilb}(f)S(f) + H_Q(f)S(f) \\ &= S(f)(H_I(f)H_{hilb}(f) + H_Q(f))
+\end{align}
 
-To facilitate implementation, $H(z)G(z)$ should be an FIR filter. Moreover, to be feasible $H(z)G(z) = b_1z^{-1} + \ldots + b_nz^{-n}$, so that the feedback path does not depend on the current output, but only on the previous ones. 
+If the two terms added perfectly
+\begin{equation}
+\begin{cases}
+S(f)((H_I(f) -jH_Q(f)) + j(H_I(f) -jH_Q(f)), &f > 0 \\
+0, &f = 0 \\
+S(f)(H_I(f) + jH_Q(f) - j(H_I(f) + jH_Q(f)), &f < 0 
+\end{cases}
+\end{equation}
+
+Note from \eqref{eq:Hdisp}, $H_I(f)$ and $H_Q(f)$ are real valued and have even symmetry i.e., $H_I(f) = H_I(-f)$ and $H_Q(f) = H_Q(-f)$. Moreover, $H_I(f) -jH_Q(f) = H(f)^*$.
+
+Therefore, 
+\begin{equation}
+\begin{cases}
+S(f)(H(f)^* + jH(f)^*), &f > 0 \\
+0, &f = 0 \\
+S(f)(H(f) - jH(f)), &f < 0 
+\end{cases}
+\end{equation}
+
+Hence we can rewrite \eqref{eq:ssb-ofdm-rx-signal} as
+\begin{align} 
+|r(t)|^2 = |h(t)\ast x(t)|^2 + 2\mathrm{Re}\{c\}\Big(s(t)\ast s(t) - h_Q(t)\ast \mathcal{H}\{s(t)\}\Big) + 2\mathrm{Im}\{c\}\Big(h_I(t)\ast\mathcal{H}\{s(t)\} + h_Q(t)\ast s(t)\Big)
+\end{align}
 
 
 \bibliographystyle{plain}
