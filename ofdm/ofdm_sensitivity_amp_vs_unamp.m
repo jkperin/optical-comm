@@ -5,7 +5,7 @@ addpath f/
 addpath ../f/
 addpath ../apd/
 
-sim.OFDM = 'ACO-OFDM'; % either 'DC-OFDM' or 'ACO-OFDM'
+sim.OFDM = 'DC-OFDM'; % either 'DC-OFDM' or 'ACO-OFDM'
 sim.Rb = 112e9; % Bit rate
 sim.BERtarget = 1.8e-4; % target BER
 sim.Mct = 5; % Oversampling ratio to emulate continuous time

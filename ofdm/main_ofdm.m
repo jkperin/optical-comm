@@ -1,13 +1,12 @@
 %% Evaluation of OFDM in IM-DD system, which may be amplified or not
-clear, clc, close all
+clear, clc
 
 addpath f/
 addpath ../f/
 addpath ../apd/
 
 %% Transmit power swipe
-% Tx.PtxdBm = -10:-5; % transmitter power range
-Tx.PtxdBm = -12:-7; % transmitter power range
+Tx.PtxdBm = -10:-5; % transmitter power range
 
 %% Simulation parameters
 sim.Rb = 112e9;    % bit rate in bits/sec
@@ -16,9 +15,10 @@ sim.Mct = 5;      % Oversampling ratio to simulate continuous time. Must be inte
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 128; % number of symbols to be discarded from the begining and end of the sequence
 sim.Modulator = 'DML'; % 'MZM' or 'DML'
-sim.OFDM = 'ACO-OFDM'; % {'DC-OFDM', 'ACO-OFDM'}
+sim.OFDM = 'DC-OFDM'; % {'DC-OFDM', 'ACO-OFDM'}
  
 %% Simulation control
+sim.clipping_compensation = false;
 sim.preAmp = ~true;
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
@@ -75,7 +75,7 @@ Tx.DAC.filt = design_filter('butter', 5, 0.5*ofdm.fs/(sim.fs/2)); % DAC analog f
 
 %% Modulator
 Tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
-Tx.rclip = 4.5; % clipping ratio
+Tx.rclip = 2.5; % clipping ratio
 Tx.alpha = 0; % chirp parameter
 Tx.RIN = -150; % dB/Hz
 Tx.Mod.type = sim.Modulator;   

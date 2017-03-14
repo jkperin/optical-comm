@@ -6,14 +6,14 @@ addpath ../apd/
 
 sim.BERtarget = 1.8e-4;
 sim.rexdB = -15;
-Lkm = 0:20;
+Lkm = 0:30;
 sim.N = 2^14;
-sim.Rb = 112e9;
+sim.Rb = 25e9; % 112e9;
 sim.Mct = 10;
-wavelength = 1380e-9;
-alpha = 0; % chirp parameter
+wavelength = 1550e-9;  %1380e-9;
+alpha = 1; % chirp parameter
 RIN = -150; % dB/Hz
-modBW = 30e9;
+modBW = 15e9; % 30e9;
 N0 = (30e-12)^2;
 eq.type ='fixed td-sr-le';
 eq.Ntaps = 9;
