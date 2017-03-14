@@ -188,8 +188,8 @@ classdef ofdm < handle
             if exist('verbose', 'var') && verbose
                 figure(402), clf
                 subplot(211), hold on, box on
-                stem(this.fc/1e9, this.Pn/this.Pn(1))
-                plot(this.fc/1e9, abs(Gch).^2, 'LineWidth', 2)
+                stem(this.fc/1e9, this.Pn/this.Pn(1), 'b', 'fill')
+                plot(this.fc/1e9, abs(Gch).^2, 'r', 'LineWidth', 2)
                 xlabel('Subcarrier frequency (GHz)', 'FontSize', 12)
                 ylabel('Power (normalized)', 'FontSize', 12)
                 title('Power allocation and bit loading')
@@ -197,7 +197,7 @@ classdef ofdm < handle
                 grid on
 
                 subplot(212), hold on, box on
-                stem(this.fc/1e9, this.CSn)
+                stem(this.fc/1e9, this.CSn, 'b', 'fill')
                 xlabel('Subcarrier frequency (GHz)', 'FontSize', 12)
                 ylabel('Constellation size', 'FontSize', 12)
                 set(gca, 'FontSize', 12)

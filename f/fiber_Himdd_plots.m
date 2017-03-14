@@ -2,7 +2,7 @@
 clear, clc, close all
 
 f = linspace(0, 112, 1e3)*1e9;
-lambda = 1250e-9;
+lambda = 1380e-9;
 
 Fiber = fiber(10e3);
 %% Large signal, fixed length, variable chirp
@@ -39,15 +39,15 @@ set(gca, 'FontSize', 12)
 figure, hold on, box on
 alpha = 0;
 Fiber.L = 1e3;
-plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('L = %d km', Fiber.L/1e3))
+plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('%.2f ps/nm', 1e6*abs(Fiber.D(lambda))*Fiber.L/1e3))
 Fiber.L = 5e3;
-plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('L = %d km', Fiber.L/1e3))
+plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('%.2f ps/nm', 1e6*abs(Fiber.D(lambda))*Fiber.L/1e3))
 Fiber.L = 10e3;
-plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('L = %d km', Fiber.L/1e3))
+plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('%.2f ps/nm', 1e6*abs(Fiber.D(lambda))*Fiber.L/1e3))
 Fiber.L = 15e3;
-plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('L = %d km', Fiber.L/1e3))
+plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('%.2f ps/nm', 1e6*abs(Fiber.D(lambda))*Fiber.L/1e3))
 Fiber.L = 20e3;
-plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('L = %d km', Fiber.L/1e3))
+plot(f/1e9, abs(Fiber.Himdd(f, lambda, alpha, 'large signal')).^2, 'LineWidth', 2, 'DisplayName', sprintf('%.2f ps/nm', 1e6*abs(Fiber.D(lambda))*Fiber.L/1e3))
 xlabel('Frequency (GHz)', 'FontSize', 12)
 ylabel('|H_{IM-DD}(f)|^2', 'FontSize', 12)
 legend('-DynamicLegend')
@@ -58,7 +58,7 @@ set(gca, 'FontSize', 12)
 
 %% First notch location
 Lkm = 0:30;
-Alpha = 0:1:3;
+Alpha = 0:-1:-3;
 fpos = f(f >= 0);
 figure, hold on, box on
 D = zeros(size(Lkm));
@@ -78,16 +78,18 @@ for kk = 1:length(Alpha)
         end
         D(k) = 1e6*Fiber.D(lambda)*Fiber.L/1e3;
     end
-    plot(abs(D), fnotch/1e9, 'LineWidth', 2, 'DisplayName', ['\alpha = ' num2str(alpha)])
+    leg(k) = plot(abs(D), fnotch/1e9, 'LineWidth', 2, 'DisplayName', ['\alpha = ' num2str(alpha)]);
 end
 plot(abs(D([1 end])), 112/2*[1 1], ':k', 'DisplayName', '56 GHz','LineWidth', 2)
 plot(abs(D([1 end])), 56/2*[1 1], ':k', 'DisplayName', '28 GHz', 'LineWidth', 2)
 xlabel('Dispersion (ps/nm)', 'FontSize', 12)
-ylabel('First notch location (GHz)', 'FontSize', 12)
+ylabel('First notch frequency (GHz)', 'FontSize', 12)
 legend('-DynamicLegend')
 set(gca, 'FontSize', 12) 
 % title('Location of first notch in fiber frequency response')
 axis([0 180 20 80])
+m = matlab2tikz(gca);
+m.write('first-notch-freq.tex')
 
 %% Impulse response
 Fiber = fiber((20/17)*1e3);
@@ -97,7 +99,9 @@ plot(t*1e9, real(Fiber.hdisp(t, lambda)), 'LineWidth', 2)
 plot(t*1e9, -imag(Fiber.hdisp(t, lambda)), 'LineWidth', 2)
 xlabel('Time (ns)', 'FontSize', 12)
 ylabel('Impulse response')
-legend('Filter 1', 'Filter 2')
+legend('Filter I', 'Filter Q')
 set(gca, 'ytick', []);
 set(gca, 'FontSize', 12)
+a = axis;
+axis([-0.02 0.02 a(3:4)]);
 grid on
