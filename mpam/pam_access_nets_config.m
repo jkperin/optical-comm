@@ -9,8 +9,8 @@ addpath ../f % general functions
 addpath ../apd % for PIN photodetectors
 
 %% Transmit power swipe
-Tx.PtxdBm = -33:-25; % transmitter power range
-% Tx.PtxdBm = -15:8; % transmitter power range
+% Tx.PtxdBm = -33:-25; % transmitter power range
+Tx.PtxdBm = -25:-10; % transmitter power range
 
 %% Simulation parameters
 sim.Rb = 25e9;    % bit rate in bits/sec
@@ -25,13 +25,13 @@ sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Modulator = 'DML'; % 'MZM' or 'DML'
  
 %% Simulation control
-sim.preAmp = true;
+sim.preAmp = false;        % optical amplifier
 sim.preemphasis = false; % preemphasis to compensate for transmitter bandwidth limitation
 sim.preemphRange = 25e9; % preemphasis range
 sim.mzm_predistortion = 'none'; % predistortion to compensate MZM nonlinearity {'none': no predistortion, 'levels': only PAM levels are predistorted, 'analog': analog waveform is predistorted (DEPRECATED)}
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
-sim.PMD = true; % whether to simulate PMD
+sim.PMD = false; % whether to simulate PMD
 sim.quantiz = true; % whether quantization is included
 sim.stopSimWhenBERReaches0 = true; % stop simulation when counted BER reaches 0
 
@@ -41,8 +41,8 @@ sim.Plots('BER') = 1;
 sim.Plots('DAC output') = 0;
 sim.Plots('Optical eye diagram') = 0;
 sim.Plots('Received signal eye diagram') = 0;
-sim.Plots('Signal after equalization') = 0;
-sim.Plots('Equalizer') =0;
+sim.Plots('Signal after equalization') = 1;
+sim.Plots('Equalizer') = 1;
 sim.Plots('Electronic predistortion') = 0;
 sim.Plots('Adaptation MSE') = 0;
 sim.Plots('Channel frequency response') = 0;
@@ -82,8 +82,8 @@ Tx.DAC.filt = design_filter('bessel', 5, 0.7*mpam.Rs/(sim.fs/2)); % DAC analog f
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1550e-9, 0, -150, 0.2e6, 0);
-Tx.Laser.alpha = -1;
+Tx.Laser = laser(1550e-9, 0, -130, 0.2e6, 0);
+Tx.Laser.alpha = 0;
 
 %% Modulator
 Tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
@@ -92,7 +92,7 @@ Tx.Vgain = 1; % Gain of driving signal
 Tx.VbiasAdj = 1; % adjusts modulator bias
 Tx.Mod.Vbias = 0.5; % bias voltage normalized by Vpi
 Tx.Mod.Vswing = 1;  % normalized voltage swing. 1 means that modulator is driven at full scale
-Tx.Mod.BW = 20e9; % DAC frequency response includes DAC + Driver + Modulator
+Tx.Mod.BW = 10e9; % DAC frequency response includes DAC + Driver + Modulator
 Tx.Mod.filt = design_filter('two-pole', Tx.Mod.BW, sim.fs);
 Tx.Mod.H = Tx.Mod.filt.H(sim.f/sim.fs);
 Tx.Mod.alpha = 0;
@@ -121,9 +121,8 @@ Rx.OptAmp = OpticalAmplifier('ConstantOutputPower', 0, 5, Tx.Laser.wavelength);
 
 %% ============================ Receiver ==================================
 %% Photodiodes
-% pin(R: Responsivity (A/W), Id: Dark current (A), BW: bandwidth (Hz))
-% PIN frequency response is modeled as a first-order system
-Rx.PD = pin(1, 10e-9, Inf);
+% apd(GaindB, ka, BW, R, Id)
+Rx.PD = apd(10, 0.5, Inf, 1, 10e-9);
 
 %% TIA-AGC
 % One-sided thermal noise PSD
@@ -133,7 +132,7 @@ Rx.N0 = (30e-12).^2;
 Rx.filtering = 'antialiasing'; % {'antialiasing' or 'matched'}
 
 %% ADC for direct detection case
-Rx.ADC.fs = mpam.Rs*sim.ros.rxDSP;
+Rx.ADC.fs = 10e9;
 Rx.ADC.ros = sim.ros.rxDSP;
 Rx.ADC.filt = design_filter('butter', 5, (Rx.ADC.fs/2)/(sim.fs/2)); % Antialiasing filter
 Rx.ADC.ENOB = 5; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
@@ -143,7 +142,7 @@ Rx.ADC.rclip = 0;
 % Terminology: TD = time domain, SR = symbol-rate, LE = linear equalizer
 Rx.eq.ros = sim.ros.rxDSP;
 Rx.eq.type = 'Adaptive TD-LE';
-Rx.eq.Ntaps = 9; % number of taps
+Rx.eq.Ntaps = 15; % number of taps
 Rx.eq.mu = 1e-3; % adaptation ratio
 Rx.eq.Ntrain = 1e4; % Number of symbols used in training (if Inf all symbols are used)
 Rx.eq.Ndiscard = [1.2e4 128]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
