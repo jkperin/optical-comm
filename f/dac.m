@@ -15,6 +15,8 @@ function [xa, xqzoh, xq] = dac(x, DAC, sim, verbose)
 %    - rclip (optional, default = 0): clipping ratio. Clipping ratio is 
 %    defined as the percentage of the signal amplitude that is clipped in 
 %    both extremes (see code).
+%    - excursion (optional, default = []): excursion limits of DAC. Specify
+%    as a [xmin, xmax]. 
 % - sim : simulation parameters
 %     - f : frequency vector
 %     - fs : sampling frequency to emulate continuous time
@@ -33,8 +35,13 @@ if isfield(sim, 'quantiz') && sim.quantiz && ~isinf(DAC.resolution)
         rclip = 0;
     end
     
-    xmax = max(x);
-    xmin = min(x);
+    if isfield(DAC, 'excursion') && not(isempty(DAC.excursion))
+        xmax = DAC.excursion(2);
+        xmin = DAC.excursion(1);
+    else
+        xmax = max(x);
+        xmin = min(x);
+    end
     xamp = xmax - xmin;    
     
     % Clipping
@@ -45,10 +52,15 @@ if isfield(sim, 'quantiz') && sim.quantiz && ~isinf(DAC.resolution)
     xamp = xmax - xmin;
     
     dx = xamp/(2^(enob)-1);
+    Pc = mean(x > xmax | x < xmin);
+    if Pc ~= 0
+        fprintf('DAC: clipping probability = %G\n', Pc) 
+    end
     
     codebook = xmin:dx:xmax;
     partition = codebook(1:end-1) + dx/2;
     [~, xq, varQ] = quantiz(x, partition, codebook); 
+    fprintf('DAC: quantization noise variance = %G | Signal-to-quantization noise ratio = %.2f dB\n', varQ, 10*log10(var(x)/varQ));
 else
     xq = x;
     varQ = 0;

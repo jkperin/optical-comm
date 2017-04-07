@@ -1,0 +1,40 @@
+%% ACO-OFDM
+\begin{tikzpicture} 
+\begin{axis}[
+width=4.52in,
+height=3.54in,
+  no markers, domain = 0:520, samples = 400,
+  xlabel=$f$,
+  every axis y label/.style={at=(current axis.above origin),anchor=south},
+  every axis x label/.style={at=(current axis.right of origin),anchor=west},
+  height=5cm, width=7cm,
+  ymax=1.5,
+  xtick={360}, 
+  xticklabels={$2\frac{R_b}{\log_2M}$},
+  ytick=\empty,
+  enlargelimits=false, clip=false, axis on top,
+  grid = major
+  ]
+  	\foreach \i in {1, 3, 5, 7, 9}
+    {
+    \addplot [domain = 0.1:520, samples = 400]
+            	{abs(((\i/15)^2+1)*sin(5*(x-\i*36))/ ((x-\i*36)*pi/36)};  
+    }
+    %\addplot [very thick, color=blue, domain = 0.1:324, samples = 400]
+%     	{1};  
+    %\addplot [very thick, color=blue, domain = 324.1:360, samples = 400]
+%     	{abs(sin(5*(x-9*36))/ ((x-9*36)*pi/36)};
+    
+    \draw[-] (287,100) -- (287,100) node[above] {$\ldots$};
+    
+    %\addplot [very thick, color = blue, domain = 0.1:520, samples = 400]
+%     	{abs(sin(5*(x-9*36))/ ((x-9*36)*pi/36) 
+%         + sin(5*(x-7*36))/ ((x-7*36)*pi/36) 
+%         + sin(5*(x-5*36))/ ((x-5*36)*pi/36)
+%         + sin(5*(x-3*36))/ ((x-3*36)*pi/36)
+%         + sin(5*(x-1*36))/ ((x-1*36)*pi/36)
+%         + sin(5*(x-0*36))/ ((x-0*36)*pi/36)
+%         + sin(5*(x+1*36))/ ((x+1*36)*pi/36)
+%         + sin(5*(x+3*36))/ ((x+3*36)*pi/36))};
+\end{axis}
+\end{tikzpicture}

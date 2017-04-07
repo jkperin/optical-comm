@@ -1,0 +1,15 @@
+\def\Vpi{1}
+\begin{tikzpicture}
+\begin{axis}[domain=-\Vpi/2:\Vpi/2, samples=100, no markers,
+axis lines*=center,
+legend pos=south east,
+xtick={-0.5, 0.5},
+xticklabels={$-\frac{V_{\pi}}{2}$, $\frac{V_{\pi}}{2}$},
+ytick={-1, 1},
+xlabel={$V_{in}$}
+]
+	\addplot [very thick,black!50] {sin(deg(pi*x/\Vpi))}; 
+	\addplot [very thick,black] {(sin(deg(pi*x/\Vpi)))^2};
+	\legend{$\frac{E_{out}}{E_{in}}$, $\big|\frac{E_{out}}{E_{in}}\big|^2$}
+\end{axis}
+\end{tikzpicture}

@@ -111,14 +111,16 @@ Fiber.meanDGDps = 0.1;                                                     % Mea
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
 
 %% ======================== Optical Amplifier =============================
-% Constructor: soa(GaindB, NF, lamb, maxGain (optional))
-% GaindB : Gain in dB
-% NF : Noise figure in dB
-% lamb : wavelength in m
-% maxGain = maximum amplifier gain in dB, default is Inf
-Amp = soa(20, 7, Tx.Laser.lambda);
-% Note: class soa can be used for any amplifier, since it essentially 
-% characterizes the amplifier in terms of gain and noise figure only
+% Constructor: OpticalAmplifier(Operation, param, Fn, Wavelength)
+% - Opertation: either 'ConstantOutputPower' or 'ConstantGain'
+% - param: GaindB if Operation = 'ConstantGain', or outputPower
+% if Operation = 'ConstantOutputPower'
+% - Fn:  noise figure in dB
+% - Wavelength: operationl wavelength in m
+Amp = OpticalAmplifier('ConstantOutputPower', 0, 5, Tx.Laser.wavelength);
+% Rx.OptAmp = OpticalAmplifier('ConstantGain', 20, 5, Tx.Laser.wavelength);
+% Note: the amplifier here operates in the constant output power mode,
+% where the output power after amplification is set to Rx.AmpOutPowerdBm
 
 %% ======================= Local Oscilator ================================
 Rx.LO = Tx.Laser;                                                          % Copy parameters from TX laser

@@ -4,7 +4,9 @@
 *.eps
 *.emf
 *.mat
+*.dvi
 *.tikz
+*.auxlock
 !apd/results/apd_awgn_results_Ptx_vs_ka.mat
 !soa/results/soa_awgn_results_req_Ptx_vs_Fn.mat
 *.asv
@@ -14,6 +16,7 @@
 *.gz
 *.log
 ofdm/trash/
+ofdm/f/trash/
 soa/trash/
 apd/trash/
 mpam/trash/
@@ -25,3 +28,5 @@ coherent/trash/
 *.xlsx
 coherent/results/
 !coherent/results/*.m
+*.md5
+*.dpth

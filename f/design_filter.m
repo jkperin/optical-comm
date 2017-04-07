@@ -1,4 +1,4 @@
-%% Design filters
+%% Design filters. See validate_design_filter.m
 % Continuous-time filters are designed in continuous time and then
 % converted to discrete time using bilinear transformation with frequency
 % prewarping. If oversampling ratio of 'continuous time' (Mct) is high enough
@@ -24,7 +24,11 @@
 % noisebw : anonymous function of equivalent two-sided noise bandwidth over
 % larger number of samples 2^15 (large number) given a sampling frequency fs 
 
-function filt = design_filter(type, order, fcnorm)
+function filt = design_filter(type, order, fcnorm, verbose)
+
+if not(exist('verbose', 'var'))
+    verbose = false;
+end
 
 % Variables used when calculating impulse response
 maxMemoryLength = 2^10; % maximum memory length
@@ -35,7 +39,7 @@ switch type
     case 'butter'
         % Butterworth filter
         [num, den] = butter(order, fcnorm);
-        
+            
     case 'cheby1'
         % Chebyshev 1 filter
         ripple = 0.5;
@@ -49,6 +53,29 @@ switch type
         
         [num, den] = ellip(order, ripple, stopband_att, fcnorm);
         
+    case 'two-pole'
+        % 2nd-order filter with unit damping
+        % The continuous-time transfer function is converted to
+        % discrete-time using the bilinear transformation with frequency
+        % prewarping
+        bw = order; % the argument order is used as bandwidth
+        fs = fcnorm; % the argument fcnorm is used as sampling frequency
+        order = 2;
+        fcnorm = bw/(fs/2);
+        
+        wc = 2*pi*bw/sqrt(sqrt(2)-1); % converts BW into fc
+        bs = 1;
+        as = [(1/wc).^2, 2/wc, 1];
+        [num, den] = bilinear(bs, as, fs, bw);
+ 
+        if verbose
+            verbose = false;
+            f = linspace(0, fs/2);
+            Hs = freqs(bs, as, 2*pi*f);
+            Hz = freqz(num, den, f, fs);
+            plot_transform(Hs, Hz, f/fs, bw/fs);
+        end
+
     case 'matched'
         % order = pulse shape function
         % fcnorm = 1 / oversampling factor
@@ -71,7 +98,7 @@ switch type
         % Noise bandwidth
         nbw = @(fs) sum(abs(num).^2)*fs; % requires unit gain at DC
         
-    case 'fir'
+    case 'fir1'
         % FIR
         imp_length = order;
                 
@@ -94,6 +121,14 @@ switch type
         
         % Noise bandwidth
         nbw = @(fs) sum(abs(num).^2)*fs; % requires unit gain at DC
+        
+        if verbose
+            verbose = false;
+            f = linspace(0, 1/2);
+            Hs = exp(-0.5*(f/f0).^(2*order));
+            Hz = freqz(num, den, f, 1);
+            plot_approx(Hs, Hz, f, fcnorm/2)
+        end
                 
     case 'bessel'       
         % Generates CT Bessel filter prototype and convert it to DT using
@@ -118,21 +153,31 @@ switch type
         % fzero(@(x) calc_besself_fcnorm(5, 1, x) - 0.5, 1.65)
         % The value of x doens't depend on f3dB
 
-        wow = wc2wo*(2*pi*fcnorm);
-        [nums, dens] = besself(order, wow); % design prototype in CT with frequency prewarped   
-%         [h, w]= freqs(num, den, 2^10);
-%         plot(w/(2*pi), abs(h).^2)
-        
-        [num, den] = bilinear(nums, dens, 2, fcnorm);
-%         [h, w] = freqz(num, den);
-%         hold on, 
-%         plot(w/(2*pi), abs(h).^2);
-%         1;
+        wow = wc2wo*(2*pi*fcnorm/2);
+        [nums, dens] = besself(order, wow); % design prototype in CT with frequency prewarped           
+%         [num, den] = bilinear(nums, dens, 1, fcnorm/2);
+        [num, den] = impinvar(nums, dens, 1);
+
+        if verbose
+            verbose = false;
+            f = linspace(0, 1/2);
+            Hs = freqs(nums, dens, 2*pi*f);
+            Hz = freqz(num, den, f, 1);
+            plot_transform(Hs, Hz, f, fcnorm/2)
+        end
 
     case 'lorentzian'
-        den = [2/(2*pi*2*fcnorm) 1];
-        num = 1;
-        [num, den] = bilinear(num, den, 2, fcnorm);
+        dens = [2/(2*pi*2*fcnorm/2) 1];
+        nums = 1;
+        [num, den] = bilinear(nums, dens, 1, fcnorm/2);
+        
+        if verbose
+            verbose = false;
+            f = linspace(0, 1/2);
+            Hs = freqs(nums, dens, 2*pi*f);
+            Hz = freqz(num, den, f, 1);
+            plot_transform(Hs, Hz, f, fcnorm/2)
+        end
         
     case 'fbg' % fiber Bragg grating
         % Values based on http://ee.stanford.edu/~jmk/pubs/dpsk.cd.pmd.pdf
@@ -150,16 +195,24 @@ switch type
         
         N = 2^8;
         df = 1/N;
-        f = -0.5:df:0.5-df; 
+        f = -1/2:df:1/2-df;
                
         den = 1;
         num = fftshift(ifft(ifftshift(Hf(f, vg)))); 
         
         % Noise bandwidth
         nbw = @(fs) sum(abs(num).^2)*fs; % requires unit gain at DC
+        
+        if verbose
+            verbose = false;
+            f = linspace(0, 1/2);
+            Hs = Hf(f, vg);
+            Hz = freqz(num, den, f, 1);
+            plot_approx(Hs, Hz, f, fcnorm/2)
+        end
            
     otherwise
-        assert(false, 'Unknown option!')
+        error('Unknown filter type = %s!', type)
 end
 filt.type = type;
 filt.order = order;
@@ -185,10 +238,72 @@ else
     y = y/abs(sum(y)); % normalize to have unit gain at DC
     filt.h = y;
 end
-    
 
-% figure, 
-% subplot(211)
-% plot(f, abs(filt.H(f).^2))
-% subplot(212)
-% plot(f, unwrap(angle(filt.H(f))))
+if verbose
+    plot_filter(filt)
+end
+end
+
+function plot_filter(filt)
+    f = linspace(0, 0.5);
+    Hz = filt.H(f);
+    figure(111)
+    subplot(211), hold on, box on
+    plot(f, 20*log10(abs(Hz)), 'DisplayName', filt.type)
+    aa = axis;
+    h = plot([0 filt.fcnorm/2], [-3 -3], ':k');
+    hasbehavior(h, 'legend', false);   % line will not be in legend
+    h = plot(filt.fcnorm/2*[1 1], [aa(3) -3], ':k');
+    hasbehavior(h, 'legend', false);   % line will not be in legend
+    xlabel('Normalized frequency f/f_s')
+    ylabel('Magnitude (dB)')
+    legend('-DynamicLegend')
+    axis([0 0.5 -50 10])
+        
+    subplot(212), hold on, box on
+    plot(f, rad2deg(unwrap(angle(Hz))), 'DisplayName', filt.type)
+    xlabel('Normalized frequency f/f_s')
+    ylabel('Phase (deg)')
+    legend('-DynamicLegend')
+    axis([0 0.5 -360 360])
+end
+
+function plot_approx(Hs, Hz, f, fc)
+    figure(112)
+    subplot(211), hold on, box on
+    plot(f, 20*log10(abs(Hs)), f, 20*log10(abs(Hz)), '--')
+    aa = axis;
+    plot([0 fc], [-3 -3], ':k')
+    plot(fc*[1 1], [aa(3) -3], ':k')
+    xlabel('Normalized frequency f/f_s')
+    ylabel('Magnitude (dB)')
+    legend('Analog filter', 'Approximation')
+    axis([0 0.5 -50 10])
+
+    subplot(212), hold on, box on
+    plot(f, rad2deg(unwrap(angle(Hs))), f, rad2deg(unwrap(angle(Hz))), '--')
+    xlabel('Normalized frequency f/f_s')
+    ylabel('Phase (deg)')
+    legend('Analog filter', 'FIR approximation')
+    axis([0 0.5 -360 360])
+end
+
+function plot_transform(Hs, Hz, f, fc)
+    figure(113)
+    subplot(211), hold on, box on
+    plot(f, 20*log10(abs(Hs)), f, 20*log10(abs(Hz)))
+    aa = axis;
+    plot([0 fc], [-3 -3], ':k')
+    plot(fc*[1 1], [aa(3) -3], ':k')
+    xlabel('Normalized frequency f/f_s')
+    ylabel('Magnitude (dB)')
+    legend('Analog filter', 'Bilinear transform')
+    axis([0 0.5 -50 10])
+    
+    subplot(212), hold on, box on
+    plot(f, rad2deg(unwrap(angle(Hs))), f, rad2deg(unwrap(angle(Hz))))
+    xlabel('Normalized frequency f/f_s')
+    ylabel('Phase (deg)')
+    legend('Analog filter', 'Bilinear transform')
+    axis([0 0.5 -360 360])
+end

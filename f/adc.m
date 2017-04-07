@@ -15,6 +15,8 @@ function [ys, varQ, xa] = adc(x, ADC, sim, Hrx)
 %    - rclip (optional, default = 0): clipping ratio. Clipping ratio is 
 %    defined as the percentage of the signal amplitude that is clipped in 
 %    both extremes (see code).
+%    - excursion (optional, default = []): excursion limits of DAC. Specify
+%    as a [xmin, xmax]. 
 % - sim : simulation parameters
 %     - f : frequency vector
 %     - fs : sampling frequency to emulate continuous time
@@ -48,7 +50,10 @@ xa = real(ifft(fft(x).*Hrx.*Hshift));
 if isfield(ADC, 'timeRefSignal')
     [c, lags] = xcorr(ADC.timeRefSignal, xa);
     [~, idx] = max(abs(c));
-    xa = circshift(xa, [0 lags(idx)]);
+    if lags(idx) ~= 0
+        xa = circshift(xa, [0 lags(idx)]);
+        fprintf('ADC: input signal was delayed by %d samples (%.2f ps) to match time reference signal\n', lags(idx), 1e12*lags(idx)/sim.fs);
+    end
 end
 
 % Downsample
@@ -56,7 +61,7 @@ if isInteger(sim.Mct/ADC.ros) % resampling is not required
     xs = xa(1:sim.Mct/ADC.ros:end);
 else
     [N, D] = rat(ADC.ros/sim.Mct);
-    fprintf('adc: sim.Mct/ADC.ros is not interger, so signal was resampled by %d/%d.\n', N, D);
+    fprintf('ADC: sim.Mct/ADC.ros is not interger, so signal was resampled by %d/%d.\n', N, D);
     xs = resample(xa, N, D);
 end
 
@@ -69,8 +74,13 @@ if isfield(sim, 'quantiz') && sim.quantiz && ~isinf(ADC.ENOB)
         rclip = 0;
     end
     
-    xmax = max(xs);
-    xmin = min(xs);
+    if isfield(ADC, 'excursion') && not(isempty(ADC.excursion))
+        xmax = ADC.excursion(2);
+        xmin = ADC.excursion(1);
+    else
+        xmax = max(xs);
+        xmin = min(xs);
+    end
     xamp = xmax - xmin;    
     
     % Clipping
@@ -81,10 +91,15 @@ if isfield(sim, 'quantiz') && sim.quantiz && ~isinf(ADC.ENOB)
     xamp = xmax - xmin;
     
     dx = xamp/(2^(enob)-1);
+    Pc = mean(xs > xmax | xs < xmin);
+    if Pc ~= 0
+        fprintf('ADC: clipping probability = %G\n', Pc) 
+    end
     
     codebook = xmin:dx:xmax;
     partition = codebook(1:end-1) + dx/2;
     [~, ys, varQ] = quantiz(xs, partition, codebook); 
+    fprintf('ADC: quantization noise variance = %G | Signal-to-quantization noise ratio = %.2f dB\n', varQ, 10*log10(var(xs)/varQ));
 else
     ys = xs;
     varQ = 0;

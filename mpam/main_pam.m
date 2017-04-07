@@ -9,44 +9,45 @@ addpath ../f % general functions
 addpath ../apd % for PIN photodetectors
 
 %% Transmit power swipe
-Tx.PtxdBm = -30:-22; % transmitter power range
-% Tx.PtxdBm = -13; % transmitter power range
+Tx.PtxdBm = -27:-18; % transmitter power range
+% Tx.PtxdBm = -15:8; % transmitter power range
 
 %% Simulation parameters
-sim.Rb = 56e9;    % bit rate in bits/sec
-sim.Nsymb = 2^14; % Number of symbols in montecarlo simulation
-sim.ros.txDSP = 2; % oversampling ratio transmitter DSP (must be integer). DAC samping rate is sim.ros.txDSP*mpam.Rs
+sim.Rb = 112e9;    % bit rate in bits/sec
+sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
+sim.ros.txDSP = 1; % oversampling ratio transmitter DSP (must be integer). DAC samping rate is sim.ros.txDSP*mpam.Rs
 % For DACless simulation must make Tx.dsp.ros = sim.Mct and DAC.resolution = Inf
-sim.ros.rxDSP = 2; % oversampling ratio of receiver DSP. If equalization type is fixed time-domain equalizer, then ros = 1
-sim.Mct = 2*6;      % Oversampling ratio to simulate continuous time. Must be integer multiple of sim.ros.txDSP and numerator of sim.ros.rxDSP
-sim.BERtarget = 1e-4; 
-sim.Ndiscard = 1024; % number of symbols to be discarded from the begning and end of the sequence
+sim.ros.rxDSP = 5/4; % oversampling ratio of receiver DSP. If equalization type is fixed time-domain equalizer, then ros = 1
+sim.Mct = 2*5;      % Oversampling ratio to simulate continuous time. Must be integer multiple of sim.ros.txDSP and numerator of sim.ros.rxDSP
+sim.BERtarget = 1.8e-4; 
+sim.Ndiscard = 512; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
-sim.Modulator = 'MZM'; % 'MZM' or 'DML'
+sim.Modulator = 'DML'; % 'MZM' or 'DML'
  
 %% Simulation control
 sim.preAmp = true;
 sim.preemphasis = false; % preemphasis to compensate for transmitter bandwidth limitation
 sim.preemphRange = 25e9; % preemphasis range
-sim.mzm_predistortion = 'levels'; % predistortion to compensate MZM nonlinearity {'none': no predistortion, 'levels': only PAM levels are predistorted, 'analog': analog waveform is predistorted (DEPRECATED)}
+sim.mzm_predistortion = 'none'; % predistortion to compensate MZM nonlinearity {'none': no predistortion, 'levels': only PAM levels are predistorted, 'analog': analog waveform is predistorted (DEPRECATED)}
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
-sim.PMD = false; % whether to simulate PMD
-sim.quantiz = ~true; % whether quantization is included
+sim.PMD = true; % whether to simulate PMD
+sim.quantiz = true; % whether quantization is included
 sim.stopSimWhenBERReaches0 = true; % stop simulation when counted BER reaches 0
 
 % Control what should be plotted
 sim.Plots = containers.Map();
 sim.Plots('BER') = 1;
 sim.Plots('DAC output') = 0;
-sim.Plots('Optical eye diagram') = 1;
+sim.Plots('Optical eye diagram') = 0;
 sim.Plots('Received signal eye diagram') = 0;
-sim.Plots('Signal after equalization') = 1;
-sim.Plots('Equalizer') = 1;
-sim.Plots('Electronic predistortion') = 1;
+sim.Plots('Signal after equalization') = 0;
+sim.Plots('Equalizer') =0;
+sim.Plots('Electronic predistortion') = 0;
 sim.Plots('Adaptation MSE') = 0;
 sim.Plots('Channel frequency response') = 0;
-sim.Plots('OSNR') = 1;
+sim.Plots('OSNR') = 0;
+sim.Plots('Decision errors') = 0;
 sim.Plots('Received signal optical spectrum') = 0;
 sim.Plots('PAM levels MZM predistortion') = 0;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
@@ -68,9 +69,9 @@ sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
 %% DAC
 Tx.DAC.fs = sim.ros.txDSP*mpam.Rs; % DAC sampling rate
 Tx.DAC.ros = sim.ros.txDSP; % oversampling ratio of transmitter DSP
-Tx.DAC.resolution = 6; % DAC effective resolution in bits
+Tx.DAC.resolution = 5; % DAC effective resolution in bits
 Tx.DAC.rclip = 0;
-Tx.DAC.filt = design_filter('bessel', 5, 30e9/(sim.fs/2)); % DAC analog frequency response
+Tx.DAC.filt = design_filter('bessel', 5, 0.7*mpam.Rs/(sim.fs/2)); % DAC analog frequency response
 % juniperDACfit = [-0.0013 0.5846 0];
 % Tx.DAC.filt.H = @(f) 1./(10.^(polyval(juniperDACfit, abs(f*sim.fs/1e9))/20)); % DAC analog frequency response
 
@@ -84,14 +85,14 @@ Tx.DAC.filt = design_filter('bessel', 5, 30e9/(sim.fs/2)); % DAC analog frequenc
 Tx.Laser = laser(1550e-9, 0, -150, 0.2e6, 0);
 
 %% Modulator
-Tx.rexdB = -20;  % extinction ratio in dB. Defined as Pmin/Pmax
+Tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
 Tx.Mod.type = sim.Modulator; 
 Tx.Vgain = 1; % Gain of driving signal
 Tx.VbiasAdj = 1; % adjusts modulator bias
 Tx.Mod.Vbias = 0.5; % bias voltage normalized by Vpi
 Tx.Mod.Vswing = 1;  % normalized voltage swing. 1 means that modulator is driven at full scale
-Tx.Mod.BW = 20e9; % DAC frequency response includes DAC + Driver + Modulator
-Tx.Mod.filt = design_filter('bessel', 5, Tx.Mod.BW/(sim.fs/2));
+Tx.Mod.BW = 30e9; % DAC frequency response includes DAC + Driver + Modulator
+Tx.Mod.filt = design_filter('two-pole', Tx.Mod.BW, sim.fs);
 Tx.Mod.H = Tx.Mod.filt.H(sim.f/sim.fs);
 Tx.Mod.alpha = 0;
 
@@ -99,7 +100,7 @@ Tx.Mod.alpha = 0;
 % fiber(Length in m, anonymous function for attenuation versus wavelength
 % (default: att(lamb) = 0 i.e., no attenuation), anonymous function for 
 % dispersion versus wavelength (default: SMF28 with lamb0 = 1310nm, S0 = 0.092 s/(nm^2.km))
-SMF = fiber(0e3); 
+SMF = fiber(20e3); 
 DCF = fiber(0, @(lamb) 0, @(lamb) -0.1*(lamb-1550e-9)*1e3 - 40e-6); 
 
 Fibers = [SMF DCF];
@@ -108,15 +109,14 @@ linkAttdB = SMF.att(Tx.Laser.wavelength)*SMF.L/1e3...
     + DCF.att(Tx.Laser.wavelength)*DCF.L/1e3;
 
 %% ========================== Amplifier ===================================
-% Constructor: OpticalAmplifier(GaindB, NF, lamb, maxGain (optional))
-% GaindB : Gain in dB
-% NF : Noise figure in dB
-% lamb : wavelength in m
-% maxGain = maximum amplifier gain in dB, default is Inf
-Rx.OptAmp = OpticalAmplifier(30, 5, Tx.Laser.lambda);
-Rx.OptAmpOutPowerdBm = 0; % output power after amplifier
-% Note: the amplifier here operates in the constant output power mode,
-% where the output power after amplification is set to Rx.AmpOutPowerdBm
+% Constructor: OpticalAmplifier(Operation, param, Fn, Wavelength)
+% - Opertation: either 'ConstantOutputPower' or 'ConstantGain'
+% - param: GaindB if Operation = 'ConstantGain', or outputPower
+% if Operation = 'ConstantOutputPower'
+% - Fn:  noise figure in dB
+% - Wavelength: operationl wavelength in m
+Rx.OptAmp = OpticalAmplifier('ConstantOutputPower', 0, 5, Tx.Laser.wavelength); 
+% Rx.OptAmp = OpticalAmplifier('ConstantGain', 20, 5, Tx.Laser.wavelength);
 
 %% ============================ Receiver ==================================
 %% Photodiodes
@@ -144,11 +144,16 @@ Rx.eq.ros = sim.ros.rxDSP;
 Rx.eq.type = 'Adaptive TD-LE';
 Rx.eq.Ntaps = 9; % number of taps
 Rx.eq.mu = 1e-3; % adaptation ratio
-Rx.eq.Ntrain = 4e3; % Number of symbols used in training (if Inf all symbols are used)
-Rx.eq.Ndiscard = [5e3 1024]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
+Rx.eq.Ntrain = 1e4; % Number of symbols used in training (if Inf all symbols are used)
+Rx.eq.Ndiscard = [1.2e4 128]; % symbols to be discard from begining and end of sequence due to adaptation, filter length, etc
 
 %% Generate summary
 % generate_summary(mpam, Tx, Fibers, Rx.OptAmp, Rx, sim);
+
+% check if there are enough symbols to perform simulation
+Ndiscarded = sum(Rx.eq.Ndiscard) + 2*sim.Ndiscard;
+assert(Ndiscarded < sim.Nsymb, 'There arent enough symbols to perform simulation. Nsymb must be increased or Ndiscard must be reduced')
+fprintf('%d (2^%.2f) symbols will be used to calculated the BER\n', sim.Nsymb - Ndiscarded, log2(sim.Nsymb - Ndiscarded));
 
 %% Run simulation
 %% Calculate BER
@@ -162,6 +167,7 @@ for k = 1:length(Ptx)
          
     % Montecarlo simulation
     [ber.count(k), ber.gauss(k), OSNRdB(k), Rx] = ber_pam_montecarlo(mpam, Tx, Fibers, Rx, sim);
+    % only equalizer and noiseBW fields are changed in struct Rx
     
     if sim.stopSimWhenBERReaches0 && ber.count(k) == 0
         break;
@@ -173,7 +179,7 @@ if sim.shouldPlot('BER') && length(ber.count) > 1
     figure(1), hold on, box on
     if sim.preAmp
         hline(1) = plot(OSNRdB, log10(ber.count), '-o', 'LineWidth', 2, 'DisplayName', 'Counted');
-        hline(2) = plot(OSNRdB, log10(ber.gauss), '-', 'Color', get(hline(1), 'Color'), 'LineWidth', 2, 'DisplayName', 'Gaussian Approximation');
+        hline(2) = plot(OSNRdB, log10(ber.gauss), '-', 'Color', get(hline(1), 'Color'), 'LineWidth', 2, 'DisplayName', 'Gaussian Approx.');
         hline(3) = plot(OSNRdB(OSNRdB ~= 0), log10(pam_ber_from_osnr(mpam.M, OSNRdB(OSNRdB ~= 0), Rx.noiseBW)), '--k', 'LineWidth', 2, 'DisplayName', 'Sig-spont & noise enhancement');
         hline(3) = plot(OSNRdB(OSNRdB ~= 0), log10(pam_ber_from_osnr(mpam.M, OSNRdB(OSNRdB ~= 0), mpam.Rs/2)), ':k', 'LineWidth', 2, 'DisplayName', 'Sig-spont limit');
         legend('-DynamicLegend')

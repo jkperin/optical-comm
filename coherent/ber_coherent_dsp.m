@@ -56,12 +56,13 @@ for k = 1:length(Tx.PlaunchdBm)
     if isfield(sim, 'preAmp') && sim.preAmp % only included if sim.preAmp is true
         disp('- IMPORTANT: Simulation including optical amplifier!')
         [Erec, OSNRdBtheory] = Rx.OptAmp.amp(Erec, sim.fs);
-        fprintf('OSNR = %.2f dB\n', OSNRdBtheory)
-        
-        % Adjust power to pre-defined value
-        Att = dBm2Watt(Rx.OptAmpOutPowerdBm)/dBm2Watt(power_meter(Erec));
-        Erec = Erec*sqrt(Att);  % keep constant received power
-        
+
+        % Measure OSNR
+        Osa = OSA(0.1); % optical spectrum analyser with resolution 0.1nm
+        OSNRdBmeasured = Osa.estimate_osnr(Erec, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
+
+        fprintf('OSNR = %.2f dB (theory)\nOSNR = %.2f dB (measured)\n', OSNRdBtheory, OSNRdBmeasured)
+               
         % check
 %         OSNRdBtheorycheck = 10*log10(dBm2Watt(Tx.PlaunchdBm(k))/(2*Rx.OptAmp.nsp*Rx.OptAmp.h*Rx.OptAmp.c/Tx.Laser.lambda*12.5e9))
 %         SNRdBtheorycheck = 10*log10(dBm2Watt(Tx.PlaunchdBm(k))/(Rx.OptAmp.nsp*Rx.OptAmp.h*Rx.OptAmp.c/Tx.Laser.lambda*sim.Rs))
