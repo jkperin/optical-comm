@@ -15,12 +15,16 @@
 \usepackage{bm}
 \usepackage{placeins}
 \usetikzlibrary{arrows}
-\usetikzlibrary{external}\tikzexternalize[prefix=figs/]
+%\usetikzlibrary{external}\tikzexternalize[prefix=figs/]
 
 \DeclareGraphicsExtensions{.eps,.pdf,.png,.tikz}
 \graphicspath{{figs/}}
 
-\title{Coherent Detection Systems for Data Centers}
+\pgfmathdeclarefunction{gauss}{2}{%
+	\pgfmathparse{1/(#2*sqrt(2*pi))*exp(-((x-#1)^2)/(2*#2^2))}%
+}
+
+\title{OFDM}
 
 \author{JKP}
 
@@ -85,6 +89,31 @@ Group delay:
 \begin{equation}
 \Delta\tau_g = \frac{2}{2\pi f_c}
 \end{equation}
+
+\subsection{MZM modulator model}
+
+The MZM modulator realized by the function \texttt{f/mzm.m} operates as an intensity modulator or a IQ modulator depending on whether the driving signal is real or complex, respectively. 
+
+If the driving signal is real, the modulator will generate the following output:
+\begin{equation}
+E_{out}(t) = E_{in}(t)\sin\Big(\frac{\pi}{2}V_{in}(t)\Big)
+\end{equation}
+Hence, it assumes that the driving signal $V_{in}(t)$ is normalized by $V_{\pi}/2$.
+
+If the driving signal is imaginary, the modulator will behave as an I-Q modulator:
+\begin{equation}
+E_{out}(t) = E_{in}(t)\Big[\sin\Big(\frac{\pi}{2}\mathrm{Re}\{V_{in}(t)\}\Big) + j\sin\Big(\frac{\pi}{2}\mathrm{Im}\{V_{in}(t)\}\Big)\Big]
+\end{equation}
+
+$E_{out}(t)$ is then normalized so that $\mathrm{E}(E_{out}(t)) = \mathrm{E}(E_{in}(t))$.
+
+\FloatBarrier
+\begin{figure}[h!]
+	\centering
+	\resizebox{\linewidth}{!}{\input{figs/mzm_transfer_function.tex}}
+	\caption{MZM modulator transfer function.}
+\end{figure}
+\FloatBarrier
 
 \section{Fiber Propagation}
 \subsection{Chromatic Dispersion}
@@ -774,7 +803,7 @@ BER &= \frac{4}{\log_2M}\bigg(1 - \frac{1}{\sqrt{M}}\bigg)Q\bigg(\sqrt{\frac{3}{
 \end{cases}
 \end{align}
 
-\section{Single-side band OFDM}
+\section{Single-sideband OFDM}
 
 Given a double-side band OFDM signal with Hermitian symmetry $s(t)$, we can obtain the single-side band signal $x(t)$ through the Hilbert transform
 \begin{equation}
@@ -789,46 +818,64 @@ jS(f), & f > 0 \\
 \end{cases}.
 \end{equation}
 
-The complex signal $p(t) = x(t) + c^\prime$ is transmitted through the optical channel, where $c^\prime$ denotes the carrier. The dispersive channel has impulse response given by $h(t)$. Hence, at the receiver we have
+The complex signal $p(t) = x(t) + C$ is transmitted through the optical channel, where $C$ denotes the carrier component. The dispersive channel has impulse response given by $h(t)$. Hence, at the receiver we have
 
 \begin{equation}
-r(t) = h(t)\ast x(t) + \sqrt{\frac{\pi}{2a}}(1-j)c^\prime 
+r(t) = \sqrt{G_{AMP}} h(t)\ast x(t) + \sqrt{G_{AMP}}C + n(t)
 \end{equation}
-since$\int h(t)dt = \sqrt{\frac{\pi}{2a}}(1 - j)$. Let $c = \sqrt{\frac{\pi}{2a}}(1-j)c^\prime$.
+since $H(0) = 1$.
 
 After square law detection
-\begin{align} \label{eq:ssb-ofdm-rx-signal}
-|r(t)|^2 &= |h(t)\ast x(t)|^2 + 2\mathrm{Re}\{c\}\mathrm{Re}\{h(t)\ast x(t)\} + 2\mathrm{Im}\{c\}\mathrm{Im}\{h(t)\ast x(t)\} \\
-&= |h(t)\ast x(t)|^2 + 2\mathrm{Re}\{c\}\Big(h_I(t)\ast s(t) - h_Q(t)\ast \mathcal{H}\{s(t)\}\Big) + 2\mathrm{Im}\{c\}\Big(h_I(t)\ast\mathcal{H}\{s(t)\} + h_Q(t)\ast s(t)\Big)
+\begin{align} \label{eq:ssb-ofdm-rx-signal} \nonumber
+|r(t)|^2 &= RG_{AMP}|h(t)\ast x(t)|^2 + RG_{AMP}|C|^2 + R|n(t)|^2 \\ \nonumber
+& + RG_{AMP}((x\ast h)C^* + (x\ast h)^*C)\\ \nonumber
+& + R\sqrt{G_{AMP}}((x\ast h)n^*(t) + (x\ast h)^*n(t)) \\ 
+& + R\sqrt{G_{AMP}}(n(t)C^* + n^*(t)C) 
 \end{align}
 
-In frequency domain we have
+The dominant noise has two components: the signal-ASE beat noise and the carrier-ASE beat noise. Each of these have variances given by
 \begin{align}
-\mathcal{F}\{h_I(t)\ast s(t) - h_Q(t)\ast \mathcal{H}\{s(t)\}\} &= H_I(f)S(f) - H_Q(f)H_{hilb}(f)S(f) \\ &= S(f)(H_I(f) - H_Q(f)H_{hilb}(f)) \\
-\mathcal{F}\{h_I(t)\ast\mathcal{H}\{s(t)\} + h_Q(t)\ast s(t)\} &= H_I(f)H_{hilb}(f)S(f) + H_Q(f)S(f) \\ &= S(f)(H_I(f)H_{hilb}(f) + H_Q(f))
+\sigma^2_{sig-ASE} = 4R^2G_{AMP}\sigma^2P_s \\
+\sigma^2_{carrier-ASE} = 4R^2G_{AMP}\sigma^2|C|^2,
 \end{align}
+where $\sigma^2$ is the ASE noise variance per real dimension. Hence, we can write the noise component as $2R\sqrt{G_{AMP}(P_s + |C|^2)}n(t)$, where $n(t)\sim\mathcal{N}(0, \sigma^2)$.
 
-If the two terms added perfectly
+The signal-carrier beat signal $(x\ast h)C^* + (x\ast h)^*C$ corresponds to the desired component. In the frequency domain
+\begin{align}
+C^*X(f)H(f) + CX^*(-f)H^*(-f) = 2|C|S(f)G(f),
+\end{align}
+where 
 \begin{equation}
-\begin{cases}
-S(f)((H_I(f) -jH_Q(f)) + j(H_I(f) -jH_Q(f)), &f > 0 \\
-0, &f = 0 \\
-S(f)(H_I(f) + jH_Q(f) - j(H_I(f) + jH_Q(f)), &f < 0 
+G(f) = \begin{cases}
+H(f)e^{-j\phi_C}, &f >0 \\
+2\cos(\phi_C),& f = 0 \\
+H^*(-f)e^{j\phi_C}, &f < 0
 \end{cases}
 \end{equation}
 
-Note from \eqref{eq:Hdisp}, $H_I(f)$ and $H_Q(f)$ are real valued and have even symmetry i.e., $H_I(f) = H_I(-f)$ and $H_Q(f) = H_Q(-f)$. Moreover, $H_I(f) -jH_Q(f) = H(f)^*$.
+Rewriting \eqref{eq:ssb-ofdm-rx-signal} with the results above yields:
+\begin{align}
+|r(t)|^2 &= RG_{AMP}|h(t)\ast x(t)|^2 \\ \nonumber
+& + 2RG_{AMP}|C|s(t)\ast g(t) \\
+& + 2R\sqrt{G_{AMP}(P_s + |C|^2)}n(t) 
+\end{align}
+The constant term $|C|^2$ and the ASE-ASE beat noise term were neglected.
 
-Therefore, 
+Hence, the SNR at the $n$th subcarrier after quantization and FFT operation is given by
+
+\begin{align}
+SNR_n = \frac{N_{FFT}(4R^2G_{AMP}^2|C|^2)P_n/4}{2R^2G_{AMP}(P_s + |C|^2)S_{sp}f_s + \sigma_{Q,rx}^2 + \gamma R^2G_{AMP}^2P_s}
+\end{align}
+where $\sigma_{Q,rx}^2 = 2/3r^2(2R^2G_{AMP}^2|C|^2P_s)2^{-2ENOB}$. Therefore,
+
+\begin{align}
+SNR_n = \frac{N_{FFT}\cdot CSPR\cdot P_n}{2G_{AMP}^{-1}(1 + CSPR)S_{sp}f_s + 2/3r^2(2P_sCSPR)2^{-2ENOB} + \gamma}
+\end{align}
+where $P_n$ is referred to the input of the optical amplifier. Hence, the OSNR is given by
 \begin{equation}
-\begin{cases}
-S(f)(H(f)^* + jH(f)^*), &f > 0 \\
-0, &f = 0 \\
-S(f)(H(f) - jH(f)), &f < 0 
-\end{cases}
+OSNR = \frac{G_{AMP}P_s}{2S_{sp}B_{ref}}
 \end{equation}
-
-
+Note that the carrier power is not included in the OSNR calculation.
 
 \bibliographystyle{plain}
 \bibliography{bib}

@@ -1,5 +1,5 @@
-function [ber, ofdm, OSNRdB] = ber_ofdm(ofdm, Tx, Fibers, Rx, sim)
-%% Calculate BER of DC or ACO-OFDM in IM-DD system
+function [ber, ofdm, OSNRdB] = ber_ssb_ofdm(ofdm, Tx, Fibers, Rx, sim)
+%% Calculate BER of SSB-OFDM in IM-DD system
 % This function calculates appropriate cyclic prefix length given the
 % channel memory length. It calls ber_dc_ofdm_montecarlo, which performs
 % Montecarlo simulation to obtain the BER at each transmitted power levels.
@@ -87,6 +87,7 @@ end
 
 %% Calculate BER
 Ptx = dBm2Watt(Tx.PtxdBm); % Transmitted power
+CSPR = 10^(Tx.CSPRdB/10);
 
 ber.gauss = zeros(size(Ptx));
 ber.count = zeros(size(Ptx));
@@ -96,45 +97,23 @@ for k = 1:length(Ptx)
     Tx.Ptx = Ptx(k);
            
     % Estimate noise to perform power allocation
-    if isfield(sim, 'preAmp') && sim.preAmp % amplified system: signal-spontaneous beat noise dominant
-        % Prx = signal power referred to the photodiode's input
-        if strcmpi(Rx.OptAmp.Operation, 'ConstantOutputPower')
-            Prx = dBm2Watt(Rx.OptAmp.outputPower); % Received power is constant at the amplifier output
-            Rx.OptAmp.Gain = Prx/(linkAtt*Tx.Ptx);
-        else
-            Prx = linkAtt*Rx.OptAmp.Gain*Tx.Ptx;
-        end
-        BWopt = sim.fs; % optical filter (OF) noise bandwidth = sampling rate, since OF is not included 
-        % Not divided by 2 because optical filter is a bandpass filter
-
-        Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
-        varNoise = 1/ofdm.Nc*(abs(Hadc).^2*varTherm... % thermal 
-                           + abs(Hadc.*Hpd).^2*Rx.PD.varShot(Prx, noiseBW)... % shot
-                           + abs(Rx.PD.R*Hch).^2*varRIN(Prx)... % intensity noise
-                           + abs(Rx.PD.R*Hpd.*Hadc).^2*(Rx.OptAmp.varNoiseDD(Prx/Rx.OptAmp.Gain, noiseBW, BWopt, Npol))... % sig-spont + spont-spont
-                           + abs(Hch).^2*varQuantizTx(Rx.PD.R*Prx) + abs(Hadc).^2*varQuantizRx(Rx.PD.R*Prx)); % quantization noise 
-        % Note: Prx is divided by amplifier gain to obtain power at the amplifier input
-    else % unamplified system: photodiode is either PIN or APD
-        Prx = Tx.Ptx*linkAtt; % power referred to the photodiode's input
-        
-        % if PD == APD, perform gain optimization
-        if strcmpi(class(Rx.PD), 'APD') && isfield(sim, 'optimizeAPDGain') && sim.optimizeAPDGain
-            disp('Optimizing APD gain...')
-            [optGain, ~, exitflag] = fminbnd(@(Gain) iterate(Gain, Tx, ofdm, Rx, sim), 1, 30); % limit gain search between 1 and 30
-            
-            if exitflag ~= 1
-                warning('APD gain optimization exited with exitflag = %d', exitflag)
-            end
-            fprintf('Optimal APD gain = %.2f\n', optGain);
-            Rx.PD.Gain = optGain;
-            Hch = Hch_pd.*Rx.PD.H(ofdm.fc);
-        end
-        
-        varNoise = 1/ofdm.Nc*(abs(Hadc).^2*varTherm... % thermal noise 
-                            + abs(Hadc.*Hpd).^2*Rx.PD.varShot(Prx, noiseBW)... % shot
-                            + abs(Hch).^2*varRIN(Rx.PD.Geff*Prx)... % intensity noise
-                            + abs(Hch).^2*varQuantizTx(Rx.PD.Geff*Prx) + abs(Hadc).^2*varQuantizRx(Rx.PD.Geff*Prx)); % quantization noise                   
-    end    
+    % Prx = signal power referred to the photodiode's input
+    if strcmpi(Rx.OptAmp.Operation, 'ConstantOutputPower')
+        Prx = dBm2Watt(Rx.OptAmp.outputPower); % Received power is constant at the amplifier output
+        Rx.OptAmp.Gain = Prx/(linkAtt*Tx.Ptx);
+    else
+        Prx = linkAtt*Rx.OptAmp.Gain*Tx.Ptx;
+    end
+    
+    Ps = (Prx/Rx.OptAmp.Gain)/(1 + CSPR);
+    Pc = CSPR*Ps;
+    
+    varNoise = 1/(ofdm.Nc)*(abs(Hadc).^2*varTherm... % thermal 
+                       + abs(Hadc.*Hpd).^2*Rx.PD.varShot(Prx, noiseBW)... % shot
+                       + abs(Rx.PD.R*Hch).^2*varRIN(Prx)... % intensity noise
+                       + abs(Rx.PD.R*Hpd.*Hadc).^2*(4*Rx.OptAmp.Gain*(Ps + Pc)*Rx.OptAmp.Ssp*noiseBW)... % sig-spont + spont-spont
+                       + varQuantizRx(Rx.PD.R*Rx.OptAmp.Gain*sqrt(2*Pc*Ps))); % quantization noise 
+    % Note: Prx is divided by amplifier gain to obtain power at the amplifier input 
     
     % Power allocation
     ofdm.power_allocation(Hch, varNoise, sim.BERtarget, sim.shouldPlot('Power allocation'));
@@ -148,13 +127,13 @@ for k = 1:length(Ptx)
     assert(sqrt(ofdm.var) < 1, 'ber_ofdm: Power is too high: %.2G (mW)\nCannot improve performance by increasing power.\n', 1e3*sqrt(2*sum(ofdm.Pn)))
     
     % Theoretical BER
-    Padj = ofdm.adjust_power_allocation(ofdm.Pn.*abs(Tx.Hdac).^2, Prx*Rx.PD.Geff, Tx.rclip, Tx.rexdB); % Factor to refer subcarriers powers to the receiver
-    ber.theory(k) = ofdm.calc_ber(10*log10(abs(ofdm.K*Hch).^2.*ofdm.Pn*Padj./varNoise));
+    Pnnorm = ofdm.Pn*Ps/sum(ofdm.Pn); % adjust for desired power 
+    ber.theory(k) = ofdm.calc_ber(10*log10(abs(Hch).^2.*Pnnorm./varNoise));
     
     % Montecarlo simulation
     sim.Hch = Hch; % frequency response of the channel at each subcarrier
     sim.varNoise = varNoise; % noise variance in each subcarrier
-    [ber.count(k), ber.gauss(k), ~, OSNRdB(k)] = ber_ofdm_montecarlo(ofdm, Tx, Fibers, Rx, sim);
+    [ber.count(k), ber.gauss(k), ~, OSNRdB(k)] = ber_ssb_ofdm_montecarlo(ofdm, Tx, Fibers, Rx, sim);
     
     fprintf('Ptx = %.2f dBm\n- BER(theory) = %g\n- BER(Gauss) = %g\n- BER(count) = %g\n',...
         Tx.PtxdBm(k), ber.theory(k), ber.gauss(k), ber.count(k));
@@ -177,38 +156,4 @@ if sim.shouldPlot('BER') && length(ber.count) > 1
     ylabel('log_{10}(BER)', 'FontSize', 12)
     set(gca, 'FontSize', 12)
     drawnow
-end
-
-function Psens = iterate(Gain, Tx, ofdm, Rx, sim)
-%% Function used in APD gain optimization
-% For each value of gain, calculate new noise variance, do power
-% allocaiton, and determine new average optical power
-    Rx.PD.Gain = Gain;
-    Hpd = Rx.PD.H(ofdm.fc); % photodiode's frequency response at the ofdm subcarriers frequency
-    Hch_new = Hch_pd.*Hpd;
-    
-    tol = Inf; % tolerance
-    Prec = 1e-6; % starting received power
-    n = 0; % number of iterations
-    maxTol = 1e-3; % max tolerance for power convergence
-    maxIterations = 50; % max number of iterations
-    while tol > maxTol && n < maxIterations
-        % Note: the same iterative method described for amplified systems
-        % is applied here.
-
-        varNoiseAPD = 1/ofdm.Nc*(abs(Hadc).^2*varTherm... % thermal noise 
-                               + abs(Hpd.*Hadc).^2*Rx.PD.varShot(Prec, noiseBW)... % shot
-                               + abs(Hch_new).^2*varRIN(Rx.PD.Geff*Prec)... % intensity noise
-                               + abs(Hch_new).^2*varQuantizTx(Rx.PD.Geff*Prec) + abs(Hadc).^2*varQuantizRx(Rx.PD.Geff*Prec)); % quantization noise
-
-        ofdm.power_allocation(Hch_new, varNoiseAPD, sim.BERtarget, false);
-        [~, Prxnew] = ofdm.dc_bias(ofdm.Pn, Tx.rclip, Tx.Hdac, Tx.rexdB);
-        Prxnew = Prxnew/Rx.PD.Geff;
-        tol = abs(Prec - Prxnew)/Prxnew;
-        Prec = Prxnew;
-        n = n + 1;
-    end
-    
-    Psens = Watt2dBm(Prec);
-end
 end

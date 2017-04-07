@@ -1,5 +1,6 @@
 classdef ofdm < handle
     properties
+        prefix = 'DSB' % type of OFDM: {'DSB' (default): double sideband, 'SSB': single sideband, 'DC': DC-biased, 'ACO': asymmetrically clipped}
         Nc % # of subcarriers
         Nu % # of used subcarriers. Nu is only used to determine the oversampling ratio. In ACO-OFDM, Nu also includes the subcarriers used to trasmit 0. 
         CS % nominal constellation size
@@ -8,9 +9,9 @@ classdef ofdm < handle
         Nneg % negative cyclic prefix length after oversampling
         Pn   % power allocation
         CSn  % bit loading
-        powerAllocationType = 'palloc' % power allocation and bit loading type {'preemphasis': channel inversion and uniform bit loading, 'palloc' (default): optimized power allocation and bit loading}
+        powerAllocationType = 'Levin-Campello-MA' % power allocation and bit loading type {'preemphasis': channel inversion and uniform bit loading, 'Levin-Campello-MA' (default): optimized power allocation and bit loading}
         HermitianSymmetry = true; % whether hermitian symmetry is enforced. % NOT YET USED
-        ACO = false; % whether OFDM should operate as ACO-OFDM
+%         ACO = false; % whether OFDM should operate as ACO-OFDM
     end
 
     properties (Dependent)
@@ -42,7 +43,7 @@ classdef ofdm < handle
     end
     
     methods
-        function obj = ofdm(Nc, Nu, CS, Rb, powerAllocationType, HermitianSymmetry)
+        function obj = ofdm(Nc, Nu, CS, Rb, prefix, powerAllocationType)
             %% Constructor
             obj.Nc = Nc;
             obj.Nu = Nu;
@@ -51,13 +52,16 @@ classdef ofdm < handle
             if exist('powerAllocationType', 'var')
                 obj.powerAllocationType = powerAllocationType;
             else
-                obj.powerAllocationType = 'palloc';
+                obj.powerAllocationType = 'Levin-Campello-MA';
             end
             
-            if exist('HermitianSymmetry', 'var')
-                obj.HermitianSymmetry = HermitianSymmetry;
+            if exist('prefix', 'var')
+                obj.prefix = prefix;
+                if strcmpi(obj.prefix, 'ACO') % set ACO-OFDM configuration
+                    obj.aco_ofdm_config(); 
+                end
             else
-                obj.HermitianSymmetry = true;
+                obj.HermitianSymmetry = 'DSB';
             end
         end
         
@@ -65,17 +69,17 @@ classdef ofdm < handle
             %% Generate table summarizing class values
             disp('OFDM class parameters summary:')
             
-            rows = {'Number of subcarriers'; 'Used subcarriers'; 'Nominal constellation size';...
+            rows = {'Prefix'; 'Number of subcarriers'; 'Used subcarriers'; 'Nominal constellation size';...
                 'Bit rate'; 'Cyclic prefix positive length'; 'Cyclic prefix negative length';...
-                'Power allocation type'; 'Sampling rate'; 'Symbol rate'; 'Hermitian symmetry?'; 'ACO-OFDM?'};
+                'Power allocation type'; 'Sampling rate'; 'Symbol rate'; 'Hermitian symmetry?'};
 
-            Variables = {'Nc'; 'Nu'; 'CS';...
+            Variables = {'prefix'; 'Nc'; 'Nu'; 'CS';...
                 'Rb'; 'Npos'; 'Nneg';...
-                'powerAllocationType'; 'fs'; 'Rs'; 'HermitianSymmetry'; 'ACO'};
-            Values = {self.Nc; self.Nu; self.CS;...
+                'powerAllocationType'; 'fs'; 'Rs'; 'HermitianSymmetry'};
+            Values = {self.prefix; self.Nc; self.Nu; self.CS;...
                 self.Rb/1e9; self.Npos; self.Nneg;...
-                self.powerAllocationType; self.fs/1e9; self.Rs/1e9; self.HermitianSymmetry; self.ACO};
-            Units = {''; ''; ''; 'Gbit/s'; ''; ''; ''; 'GHz'; 'Gbaud'; ''; ''};
+                self.powerAllocationType; self.fs/1e9; self.Rs/1e9; self.HermitianSymmetry};
+            Units = {''; ''; ''; ''; 'Gbit/s'; ''; ''; ''; 'GHz'; 'Gbaud'; ''};
 
             ofdmTable = table(Variables, Values, Units, 'RowNames', rows);
         end
@@ -83,22 +87,27 @@ classdef ofdm < handle
         function varargout = copy(self)
             %% Deep copy of OFDM
             for k = 1:nargout
-                varargout{k} = ofdm(self.Nc, self.Nu, self.CS, self.Rb, self.powerAllocationType);
+                varargout{k} = ofdm(self.Nc, self.Nu, self.CS, self.Rb, self.prefix);
                 varargout{k}.Npos = self.Npos;
                 varargout{k}.Nneg = self.Nneg;
                 varargout{k}.Pn = self.Pn;
                 varargout{k}.CSn = self.CSn;
                 varargout{k}.HermitianSymmetry = self.HermitianSymmetry;
-                varargout{k}.ACO = self.ACO;
             end
         end
         
         function s = var(self, P)
             %% OFDM signal variance under Gaussian approximation 
+            if strcmpi(self.prefix, 'SSB')
+                p = 1;
+            else 
+                p = 2;
+            end
+            
             if exist('P', 'var')
-                s = 2*sum(P);
+                s = p*sum(P);
             else
-                s = 2*sum(self.Pn);
+                s = p*sum(self.Pn);
             end
         end
         
@@ -122,7 +131,7 @@ classdef ofdm < handle
             end
             
             % DC bias and average value of each OFDM type
-            if self.ACO % ACO-OFDM
+            if strcmpi(self.prefix, 'ACO') % ACO-OFDM
                 dc = 0; 
                 Pmean = sig/sqrt(2*pi);
                 Pmax = Pmean + rclip*sig;
@@ -169,20 +178,20 @@ classdef ofdm < handle
 
         function power_allocation(this, Gch, varNoise, BERtarget, verbose)
             %% Power allocation and bit loading
-            if this.ACO % even subcarriers are not used in ACO-OFDM
+            if strcmpi(this.prefix, 'ACO') % even subcarriers are not used in ACO-OFDM
                 Gch(2:2:end) = 0; 
             end
             
-            switch this.powerAllocationType
+            switch lower(this.powerAllocationType)
                 case 'preemphasis' % channel inversion with uniform bit loading
                     [this.Pn, this.CSn] = preemphasis(this, Gch, varNoise, BERtarget);   
-                case 'palloc' % Optimal power allocation and bit loading
+                case 'levin-campello-ma' % Optimal power allocation and bit loading
                     [this.Pn, this.CSn] = palloc(this, Gch, varNoise, BERtarget);
                 case 'none'
                     this.Pn = ones(size(this.fc));
                     this.CSn = this.CS*ones(size(this.fc));
                 otherwise 
-                    error('power_allocation: invalid option') 
+                    error('OFDM/power_allocation: invalid option') 
             end
             
             if exist('verbose', 'var') && verbose
@@ -219,10 +228,16 @@ classdef ofdm < handle
             % Adjust power according to power allocation defined by Pn
             dataTXm = bsxfun(@times, symbsTXm, sqrt(this.Pn./this.Pqam).'); % Row k: sqrt(this.Pn(k)/Pqam(k))*symbsTXm(k,:)               
             
+            if strcmpi(this.prefix, 'SSB') % Single sideband OFDM
+                negativeSideband = zeros(size(dataTXm));
+            else                
+                negativeSideband = flipud(conj(dataTXm));
+            end
+
             % zero-pad and ensure Hermitian symmetry
             % -f(N) ... -f(1) f(0) f(1) ... f(N-1) => (0 ... 0, X(-n)*, 0, X(n), 0 ... 0)
             Xn = ifftshift([zeros((this.Nc-this.Nu)/2, Nsymb); ...     % zero-pad neg. frequencies
-                          flipud(conj(dataTXm));...            % data*(-n) (Nu) 
+                          negativeSideband;...                % data*(-n) or 0 (Nu) 
                           zeros(1, Nsymb); ...                % 0 at f == 0 (1)
                           dataTXm; ...                         % data(n)  (Nu)
                           zeros((this.Nc-this.Nu)/2 - 1, Nsymb)], 1);   % zero-pad pos. frequencies
@@ -236,7 +251,7 @@ classdef ofdm < handle
             % Parallel to serial
             xncp = reshape(xncp, 1, (this.Nc + this.Ncp)*Nsymb); % time-domain ofdm signal w/ cyclic prefix
             
-            if this.ACO % hard clip at zero
+            if strcmpi(this.prefix, 'ACO') % hard clip at zero
                 xncp(xncp < 0) = 0;
             end 
         end
@@ -268,7 +283,7 @@ classdef ofdm < handle
             Yn = bsxfun(@times, Yn, AGCn);
             
             if not(isempty(eq))
-                disp('OFDM: performing frequency domain equalization...')
+                disp('OFDM: performing frequency-domain equalization...')
                 % Adaptive frequency domain equalization
                 if isfield(eq, 'W0') % initial guess for the weights was provided
                     if size(eq.W0, 1) < size(eq.W0, 2) % make sure this is a column vector
@@ -412,12 +427,12 @@ classdef ofdm < handle
             end
         end
                
-        function ber_theory = calc_ber(self, SNRn)
-            %% Calculate theoretical BER from SNR at each constellation
-            ber = zeros(1, length(SNRn));
-            for k = 1:length(SNRn)
+        function ber_theory = calc_ber(self, SNRdBn)
+            %% Calculate theoretical BER from SNR in dB at each subcarrier
+            ber = zeros(1, length(SNRdBn));
+            for k = 1:length(SNRdBn)
                 if self.CSn(k) ~= 0
-                    ber(k) = berqam(self.CSn(k), SNRn(k));
+                    ber(k) = berqam(self.CSn(k), SNRdBn(k));
                 end
             end
 
@@ -477,12 +492,12 @@ classdef ofdm < handle
                 % varQ = (1-Pc)/12*(DeltaX/(2^ENOB-1))^2;
                 % This assumes that there's no quantization error at the
                 % clipping levels.
-                if self.ACO % ACO-OFDM
+                if strcmpi(self.prefix, 'ACO') % ACO-OFDM
                     Pc = 1/2 + qfunc(rclip); % clipping probability
-                    varQ = @(Psig) (1-Pc)/12*(Psig*sqrt(2*pi)*rclip/(2^ENOB-1))^2; % signal goes from 0 to rclip*sig
+                    varQ = @(Psig) (1-Pc)/12*(Psig*sqrt(2*pi)*rclip/(2^ENOB))^2; % signal goes from 0 to rclip*sig
                 else % DC-OFDM
                     Pc = 2*qfunc(rclip); % clipping probability
-                    varQ = @(Psig) (1-Pc)/12*(2*Psig/(2^ENOB-1))^2; % signal goes from 0 to 2Psig (two times the average power, since clipping in DC-OFDM is symmetric)
+                    varQ = @(Psig) (1-Pc)/12*(2*Psig/(2^ENOB))^2; % signal goes from 0 to 2Psig (two times the average power, since clipping in DC-OFDM is symmetric)
                 end                
             end
         end
@@ -599,7 +614,7 @@ classdef ofdm < handle
         
         function BW = get.BW(self)
             %% One-sided bandwidth of OFDM signal
-            if self.ACO % ACO-OFDM
+            if strcmpi(self.prefix, 'ACO') % ACO-OFDM
                 BW = 2*self.Rb/log2(self.CS);
             else
                 BW = self.Rb/log2(self.CS);
@@ -609,7 +624,7 @@ classdef ofdm < handle
         function Rs = get.Rs(this)
             %% Symbol rate
             p = 1;
-            if this.ACO % ACO-OFDM requires twice the symbol rate
+            if strcmpi(this.prefix, 'ACO') % ACO-OFDM requires twice the symbol rate
                 p = 2;              
             end
             Rs = 2*p*this.Rb/log2(this.CS);
@@ -636,7 +651,7 @@ classdef ofdm < handle
         
         function aco_ofdm_config(self)
             %% Puts OFDM class in ACO-OFDM configure, whereby zero subcarriers are set to 0
-            self.ACO = true;
+            self.prefix = 'ACO';
             self.CSn = zeros(1, self.Nu/2);
             self.CSn(1:2:end) = self.CS; % even subcarriers are not used.
         end
@@ -661,10 +676,10 @@ classdef ofdm < handle
         
         function set.powerAllocationType(self, type)
             %% Power allocation type
-            if strcmpi(type, 'preemphasis') || strcmpi(type, 'palloc') || strcmpi(type, 'none')
+            if strcmpi(type, 'preemphasis') || strcmpi(type, 'Levin-Campello-MA') || strcmpi(type, 'none')
                 self.powerAllocationType = lower(type);
             else
-                error('ofdm/powerAllocationType: Invalid power allocation type. It must be either preemphasis, palloc, or none.')
+                error('ofdm/powerAllocationType: Invalid power allocation type. It must be either preemphasis, Levin-Campello-MA, or none.')
             end
         end
         
@@ -672,7 +687,7 @@ classdef ofdm < handle
             %% Get Pn
             if isempty(self.Pn)
                 Pn = ones(1, self.Nu/2);
-                if self.ACO
+                if strcmpi(self.prefix, 'ACO')
                     Pn(2:2:end) = 0;
                 end
             else
@@ -684,7 +699,7 @@ classdef ofdm < handle
             %% Get CSn
             if isempty(self.CSn)
                 CSn = self.CS*ones(1, self.Nu/2);
-                if self.ACO
+                if strcmpi(self.prefix, 'ACO')
                     CSn(2:2:end) = 0;
                 end
             else
@@ -700,7 +715,7 @@ classdef ofdm < handle
             % signals
             % K = 1 - Q(r+) - Q(r-), where Q() is qfunc, and r+ and r-
             % denote the positive and negative clipping ratios
-            if self.ACO
+            if strcmpi(self.prefix, 'ACO')
                 K = 0.5;
             else
                 K = 1;

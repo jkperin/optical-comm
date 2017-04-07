@@ -1,46 +1,43 @@
 %% Evaluation of OFDM in IM-DD system, which may be amplified or not
-clear, clc
+clear, clc, close all
 
 addpath f/
 addpath ../f/
 addpath ../apd/
 
 %% Transmit power swipe
-Tx.PtxdBm = -10:-5; % transmitter power range
-Tx.PtxdBm = -15:-9; % transmitter power range
-% Tx.PtxdBm = -8; % transmitter power range
+% Tx.PtxdBm = -10:-5; % transmitter power range
+% Tx.PtxdBm = -12:-7; % transmitter power range
+Tx.PtxdBm = -10; % transmitter power range
 
 %% Simulation parameters
 sim.Rb = 112e9;    % bit rate in bits/sec
 sim.Nsymb = 2^11; % Number of symbols in montecarlo simulation
-sim.Mct = 5;      % Oversampling ratio to simulate continuous time. Must be integer multiple of sim.ros.txDSP and numerator of sim.ros.rxDSP
+sim.Mct = 3;      % Oversampling ratio to simulate continuous time. Must be integer multiple of sim.ros.txDSP and numerator of sim.ros.rxDSP
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 128; % number of symbols to be discarded from the begining and end of the sequence
-sim.Modulator = 'DML'; % 'MZM' or 'DML'
-sim.OFDM = 'DC-OFDM'; % {'DC-OFDM', 'ACO-OFDM'}
+sim.OFDM = 'SSB-OFDM'; 
  
 %% Simulation control
-sim.clipping_compensation = false;
-sim.preAmp = ~true;
 sim.RIN = true; % include RIN noise in montecarlo simulation
-sim.phase_noise = true; % whether to simulate laser phase noise
+sim.phase_noise = false; % whether to simulate laser phase noise
 sim.PMD = false; % whether to simulate PMD
 sim.quantiz = true; % whether quantization is included
-sim.optimizeAPDGain = true; % whether to optimize APD gain if PD is an APD
+sim.SSBIcancellation = true;
 sim.stopSimWhenBERReaches0 = true; % stop simulation when counted BER reaches 0
 
 % Control what should be plotted
 sim.Plots = containers.Map();
 sim.Plots('BER') = 1;
-sim.Plots('Equalizer') = 0;
+sim.Plots('Equalizer') = 1;
 sim.Plots('Adaptation MSE') = 0;
-sim.Plots('Constellations') = 0;
-sim.Plots('Power allocation') = 0;
+sim.Plots('Constellations') = 1;
+sim.Plots('Power allocation') = 1;
 sim.Plots('Cyclic prefix') = 0;
 sim.Plots('Estimated SNR') = 0;
-sim.Plots('Decision errors') = 0;
+sim.Plots('Decision errors') = 1;
 sim.Plots('Channel frequency response') = 0;
-sim.Plots('OSNR') = 0;
+sim.Plots('OSNR') = 1;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
 %% OFDM 
@@ -51,17 +48,10 @@ sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 % Rb : bit rate (b/s)
 % prefix : OFDM type {'SSB', 'DC', 'ACO'}
 % power_allocation_type : {'Levin-Campello-MA', 'preemphasis'}
-if strcmpi(sim.OFDM, 'ACO-OFDM')
-    disp('-- ACO-OFDM simulation')
-    ofdm = ofdm(256, 208, 64, sim.Rb, 'ACO', 'Levin-Campello-MA'); 
-    ENOB = 6;
-elseif strcmpi(sim.OFDM, 'DC-OFDM')
-    disp('-- DC-OFDM simulation')
-    ofdm = ofdm(256, 208, 16, sim.Rb, 'DC', 'Levin-Campello-MA'); 
-    ENOB = 5;
-else
-    error('sim.OFDM must be either DC-OFDM or ACO-OFDM')
-end
+disp('-- SSB-OFDM simulation')
+ofdm = ofdm(256, 208, 16, sim.Rb, 'SSB', 'Levin-Campello-MA');
+ENOB = 5;
+
 ofdm.set_cyclic_prefix(5, 5); % set cyclic prefix length. Should be consistent with channel memory length
 
 %% Time and frequency
@@ -79,10 +69,13 @@ Tx.DAC.filt = design_filter('butter', 5, 0.5*ofdm.fs/(sim.fs/2)); % DAC analog f
 %% Modulator
 Tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
 Tx.rclip = 3; % clipping ratio
-Tx.alpha = 0; % chirp parameter
 Tx.RIN = -150; % dB/Hz
-Tx.Mod.type = sim.Modulator;   
-Tx.Mod.Vswing = 1; % voltage swing in MZM modulator. Thi is normalized by Vpi. Vswing = 1 corresponds to swing from 0 to Vpi.
+Tx.alpha = 0;
+Tx.CSPRdB = 15;
+
+Tx.Mod.type = 'MZM';
+Tx.Mod.Vswing = 0.6; % Voltage swing in MZM modulator normalized by Vpi/2
+Tx.Mod.Vbias = 0.5; % Bias voltage normalized by Vpi/2
 Tx.Mod.BW = 30e9; % moduator bandwidth
 Tx.Mod.filt = design_filter('two-pole', Tx.Mod.BW, sim.fs);
 % Tx.Mod.filt = design_filter('butter', 5, Tx.Mod.BW/(sim.fs/2));
@@ -126,12 +119,7 @@ Rx.OptAmp = OpticalAmplifier('ConstantGain', 20, 5, Tx.Laser.wavelength);
 %% Photodiode
 % pin(R: Responsivity (A/W), Id: Dark current (A), BW: bandwidth (Hz))
 % PIN frequency response is modeled as a first-order system
-% Rx.PD = pin(1, 10e-9, Inf);
-
-% APD
-% constructor: apd(GaindB, ka, BW, R, Id)
-Rx.PD = apd(10, 0.18, [24e9 290e9], 0.74, 40e-9);
-% Rx.PD = apd(10, 0.18, Inf, 0.74, 40e-9);
+Rx.PD = pin(1, 10e-9, Inf);
 
 %% TIA-AGC
 % One-sided thermal noise PSD
@@ -146,7 +134,7 @@ Rx.ADC.ENOB = ENOB; % effective number of bits. Quantization is only included if
 % Rx.ADC.rclip = 0.05;
 
 %% Equalizer
-Rx.AdEq.mu = 1e-3;
+Rx.AdEq.mu = 2e-3;
 Rx.AdEq.Ntrain = 1224; % Number of frames used in training (if Inf all symbols are used)
 % Note: training symbols are not used to compute the BER. Hence sim.Nsymb -
 % Rx.AdEq.Ntrain must be large to obtain accurate BER estimate
@@ -155,4 +143,4 @@ Rx.AdEq.Ntrain = 1224; % Number of frames used in training (if Inf all symbols a
 ofdm_simulation_summary(sim, ofdm, Tx, Fibers, Rx);
 
 %% Run simulation
-[berOFDM, ofdm, OSNRdB] = ber_ofdm(ofdm, Tx, Fibers, Rx, sim)
+[berOFDM, ofdm, OSNRdB] = ber_ssb_ofdm(ofdm, Tx, Fibers, Rx, sim)

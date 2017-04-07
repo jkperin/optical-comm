@@ -125,7 +125,7 @@ classdef OpticalAmplifier < handle
             end
         end
         
-        function [Eout, OSNRdB] = amp(obj, Ein, fs)
+        function [Eout, OSNRdB, W] = amp(obj, Ein, fs)
             %% Amplification
             % - Ein = received electric field (must be a N x 1 or 2 matrix
             % depending on number of polarizations)
