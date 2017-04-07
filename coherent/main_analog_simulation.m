@@ -8,11 +8,11 @@ addpath ../apd/
 
 %% Simulation launched power swipe
 Tx.PlaunchdBm = -38:-28;
-Tx.PlaunchdBm = -36;
+Tx.PlaunchdBm = -33;
 
 %% ======================== Simulation parameters =========================
 sim.Nsymb = 2^13; % Number of symbols in montecarlo simulation
-sim.Mct = 4;    % Oversampling ratio to simulate continuous time 
+sim.Mct = 9;    % Oversampling ratio to simulate continuous time 
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
@@ -24,7 +24,7 @@ sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-Q
 % sim.ModFormat = DPSK(4, sim.Rb/sim.Npol, sim.pulse_shape);                     % M-DPSK modulation format
 
 % Simulation control
-sim.RIN = ~true; 
+sim.RIN = true; 
 sim.PMD = false;
 sim.phase_noise = true;
 sim.preAmp = true;
@@ -43,6 +43,7 @@ Plots('Time recovery') = 0;
 Plots('Phase error variance') = 0;
 Plots('Symbol errors') = 0;
 Plots('Optical Spectrum') = 0;
+Plots('OSNR') = 1;
 sim.Plots = Plots;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
@@ -91,13 +92,14 @@ Fiber.meanDGDps = 0.1;                                                     % Mea
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
 
 %% ======================== Optical Amplifier =============================
-% Constructor: OpticalAmplifier(GaindB, NF, lamb, maxGain (optional))
-% GaindB : Gain in dB
-% NF : Noise figure in dB
-% lamb : wavelength in m
-% maxGain = maximum amplifier gain in dB, default is Inf
-Rx.OptAmp = OpticalAmplifier(20, 5, Tx.Laser.lambda);
-Rx.OptAmpOutPowerdBm = 0; % output power after amplifier
+% Constructor: OpticalAmplifier(Operation, param, Fn, Wavelength)
+% - Opertation: either 'ConstantOutputPower' or 'ConstantGain'
+% - param: GaindB if Operation = 'ConstantGain', or outputPower
+% if Operation = 'ConstantOutputPower'
+% - Fn:  noise figure in dB
+% - Wavelength: operationl wavelength in m
+Rx.OptAmp = OpticalAmplifier('ConstantOutputPower', 0, 5, Tx.Laser.wavelength);
+% Rx.OptAmp = OpticalAmplifier('ConstantGain', 20, 5, Tx.Laser.wavelength);
 % Note: the amplifier here operates in the constant output power mode,
 % where the output power after amplification is set to Rx.AmpOutPowerdBm
 
@@ -144,7 +146,7 @@ Analog.filt = design_filter('bessel', 5, 0.7*sim.ModFormat.Rs/(sim.fs/2));
 %% Carrier phase recovery and components
 % Carrier Phase recovery type: either 'OPLL', 'EPLL', and 'Feedforward'
 Analog.CPRNpol =1; % Number of polarizations used in CPR
-Analog.CarrierPhaseRecovery = 'EPLL';
+Analog.CarrierPhaseRecovery = 'OPLL';
 % CPRmethod: {'Costas': electric PLL based on Costas loop, which
 % requires multiplications, 'logic': EPLL based on XOR operations, 
 % '4th-power': based on raising signal to 4th power (only for EPLL)}
@@ -198,32 +200,8 @@ Analog.Feedforward.FreqDiv2.filt = design_filter('bessel', 5, 1e9/(sim.fs/2));
 Rx.Analog = Analog;
 
 %% ========================= Time recovery ================================
-% Two types are supported: 'spectral-line'
-% Spectral line method: nonlinearity (squarer) -> BPF or PLL
-Rx.TimeRec.type = 'spectral-line-bpf';
-Rx.TimeRec.type = 'spectral-line-pll';
-Rx.TimeRec.type = 'none';
-Rx.TimeRec.Mct = 30; % oversampling ratio of continuous time used in TimeRecovery
-Rx.TimeRec.fs = Rx.TimeRec.Mct*sim.ModFormat.Rs;
-Rx.TimeRec.squarerFilt = design_filter('fir', 32, sim.ModFormat.Rs/(Rx.TimeRec.fs/2)); 
-% Note: use FIR filter to model squarerFilt so that group delay can be
-% easily removed in order to preserve timing accuracy.
-Rx.TimeRec.N0 = componentN0; % noise PSD of circuitry
-Rx.TimeRec.Ndiscard = [2e3 512];
+Rx.TimeRec.type = 'none'; % To be developed
 
-% Additional paramters for 'spectral-line-bpf'
-BW = 1e9;
-lpf = design_filter('butter', 5, BW/(Rx.TimeRec.fs/2));
-[bpf.num, bpf.den] = iirlp2bp(lpf.num, lpf.den, BW/(Rx.TimeRec.fs/2), sim.ModFormat.Rs/(Rx.TimeRec.fs/2) + BW/(Rx.TimeRec.fs/2)*[-1 1]); % converts to BPF
-Rx.TimeRec.bpf = bpf; % this will be filtered using filtfilt (zero-phase filtering)
-
-% Additional paramters for 'spectral-line-pll'
-Rx.TimeRec.csi = sqrt(2)/2; % damping
-Rx.TimeRec.wn = 2*pi*1e9; % relaxation frequency of PLL
-Rx.TimeRec.CT2DT = 'bilinear'; % continuous-time to discrete-time conversion method 
-Rx.TimeRec.mixerFilt = []; % design_filter('butter', 5, (sim.ModFormat.Rs)/(Rx.TimeRec.fs/2)); % filtering operation performed before and after squaring
-Rx.TimeRec.loopDelay = 10; % additional loop delay
-    
 %% Generate summary
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 

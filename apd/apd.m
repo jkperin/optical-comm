@@ -228,7 +228,7 @@ classdef apd
               
         function noise_std = stdNoise(this, Hrx, Hff, N0, RIN, sim)
             %% Returns function handle noise_std, which calculates the noise standard deviation for a given power level P. 
-            % !! The power level P is assumed to be after the APD.
+            % !! The power level P is assumed to be referred to after the APD.
             % Thermal, shot and RIN are assumed to be white AWGN.
             % Inputs:
             % - Hrx = receiver filter evaluated at sim.f e.g., whitening filter and matched filter 

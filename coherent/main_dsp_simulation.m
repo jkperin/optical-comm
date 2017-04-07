@@ -40,13 +40,14 @@ Plots('Equalizer')            = 0;
 Plots('Eye diagram') = 0;
 Plots('DPLL phase error') = 0;
 Plots('Feedforward phase error') = 0;
-Plots('Frequency offset estimation') = 1    ;
+Plots('Frequency offset estimation') = 1;
 Plots('Channel frequency response') = 0;
 Plots('Constellations') = 0;
 Plots('Diff group delay')       = 0;
 Plots('Phase tracker')         = 0;
 Plots('Frequency estimation')  = 0; 
 Plots('Optical Spectrum') = 1;
+Plots('OSNR') = 1;
 sim.Plots = Plots;
 sim.shouldPlot = @(x) sim.Plots.isKey(x) && sim.Plots(x);
 
@@ -95,16 +96,15 @@ Fiber.meanDGDps = 0.1;                                                     % Mea
 Fiber.PMD_section_length = 1e3;                                            % Controls number of sections to simulate PMD (m)
 
 %% ======================== Optical Amplifier =============================
-% Constructor: soa(GaindB, NF, lamb, maxGain (optional))
-% GaindB : Gain in dB
-% NF : Noise figure in dB
-% lamb : wavelength in m
-% maxGain = maximum amplifier gain in dB, default is Inf
-Rx.OptAmp = OpticalAmplifier(20, 5, Tx.Laser.lambda);
-Rx.OptAmpOutPowerdBm = 0; % output power after amplifier
-% Note 1: class soa can be used for any amplifier, since it essentially 
-% characterizes the amplifier in terms of gain and noise figure only
-% Note 2: the amplifier here operates in the constant output power mode,
+% Constructor: OpticalAmplifier(Operation, param, Fn, Wavelength)
+% - Opertation: either 'ConstantOutputPower' or 'ConstantGain'
+% - param: GaindB if Operation = 'ConstantGain', or outputPower
+% if Operation = 'ConstantOutputPower'
+% - Fn:  noise figure in dB
+% - Wavelength: operationl wavelength in m
+Rx.OptAmp = OpticalAmplifier('ConstantOutputPower', 0, 5, Tx.Laser.wavelength);
+% Rx.OptAmp = OpticalAmplifier('ConstantGain', 20, 5, Tx.Laser.wavelength);
+% Note: the amplifier here operates in the constant output power mode,
 % where the output power after amplification is set to Rx.AmpOutPowerdBm
 
 %% ======================= Local Oscilator ================================

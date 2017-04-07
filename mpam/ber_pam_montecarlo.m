@@ -12,8 +12,7 @@ mpamRef = mpam;
 mpam = mpam.unbias;
 
 dataTX = randi([0 mpam.M-1], 1, sim.Nsymb); % Random sequence 
-Nzero = 10;
-dataTX([1:Nzero end-Nzero+1:end]) = 0; % set first and last Nzero symbols to 0 to make sequence periodic
+dataTX([1 end]) = 0; % set first and last to zero to ensure periodicity
 
 if isfield(sim, 'mzm_predistortion') && strcmpi(sim.mzm_predistortion, 'levels') %% Ordinary PAM with predistorted levels
     % Ajust levels to desired transmitted power and extinction ratio
@@ -65,17 +64,26 @@ else
 end
 
 % Adjust power to ensure that desired power is transmitted
-Etx = Etx*sqrt(Tx.Ptx/mean(abs(Etx).^2));
+Padj = sqrt(Tx.Ptx/mean(abs(Etx).^2));
+if abs(Padj-1) > 0.01
+    Etx = Etx*Padj;
+    fprintf('Laser output power was adjusted by %.2f to meet target launched power\n', Padj);
+end
+fprintf('> Launched power: %.2f dBm\n', power_meter(Etx));
 
 % Calculate extinction ratio and intensity levels position
 P = abs(Etx).^2;
 Psamp = P(1:sim.Mct:end);
+Pl = zeros(1, mpam.M);
 for k = 1:mpam.M
     Pl(k) = mean(Psamp(dataTX == k-1));
 end
 Pl = sort(Pl, 'ascend');
 rexdB = 10*log10(min(Pl)/max(Pl));
-fprintf('> Estimated extinction ratio = %.2f dB\n', rexdB)
+fprintf('Estimated extinction ratio = %.2f dB\n', rexdB)
+Pl = Pl - Pl(1);
+Pl = (mpam.M-1)*Pl/Pl(end);
+fprintf('Normalized optical levels: %s\n', sprintf('%.3f\t', Pl));
 
 %% ========================= Fiber propagation ============================
 Erx = Etx;
@@ -90,22 +98,15 @@ end
 %% ========================= Preamplifier =================================
 OSNRdB = Inf; % only meaningful when there's a pre-amplifier
 if isfield(sim, 'preAmp') && sim.preAmp % only included if sim.preAmp is true
-    disp('- IMPORTANT: Simulation including optical amplifier!')
+    disp('- IMPORTANT: Simulation includes optical amplifier!')
     [Erx, OSNRdBtheory] = Rx.OptAmp.amp(Erx, sim.fs);
-   
-    % Adjust power to pre-defined value
-    Att = dBm2Watt(Rx.OptAmpOutPowerdBm)/dBm2Watt(power_meter(Erx));
-    Erx = Erx*sqrt(Att);  % keep constant received power
-
+  
     % Measure OSNR
     Osa = OSA(0.1); % optical spectrum analyser with resolution 0.1nm
     OSNRdBmeasured = Osa.estimate_osnr(Erx, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
     
     fprintf('OSNR = %.2f dB (theory)\nOSNR = %.2f dB (measured)\n', OSNRdBtheory, OSNRdBmeasured)
     OSNRdB = OSNRdBtheory;
-    % check
-%         OSNRdBtheorycheck = 10*log10(dBm2Watt(Tx.PlaunchdBm(k))/(2*Rx.OptAmp.nsp*Rx.OptAmp.h*Rx.OptAmp.c/Tx.Laser.lambda*12.5e9))
-%         SNRdBtheorycheck = 10*log10(dBm2Watt(Tx.PlaunchdBm(k))/(Rx.OptAmp.nsp*Rx.OptAmp.h*Rx.OptAmp.c/Tx.Laser.lambda*sim.Rs))
 end
 
 %% ========================== Receiver ====================================
@@ -128,6 +129,7 @@ yt = yt*sqrt(mean(abs(mpam.a).^2)/(sqrt(2)*mean(abs(yt).^2)));
 % For an ideal ADC, ADC.ENOB = Inf
 % Rx.ADC.offset = -1; % time offset when sampling      
 Hrx = Rx.ADC.filt.H(sim.f/sim.fs);
+Rx.ADC.timeRefSignal = xt;
 [yk, ~, ytf] = adc(yt, Rx.ADC, sim);
 
 %% =========================== Equalization ===============================
@@ -167,11 +169,14 @@ if isfield(sim, 'preAmp') && sim.preAmp % amplified system: signal-spontaneous b
 
     % Noise std for intensity level Plevel
     Npol = 2; % number of polarizations. Npol = 1, if polarizer is present, Npol = 2 otherwise.
-    noiseSTD = @(Plevel) sqrt(Rx.OptAmp.varSigSpont(Att*Plevel/Rx.OptAmp.Gain, noiseBW)... % sig-spont
-            + Rx.OptAmp.varSpontSpont(noiseBW, BWopt, Npol)); % spont-spont
-    % Note: Plevel is divided by amplifier gain to obtain power at the amplifier input
     
-    Prx = Prx - Npol*Rx.OptAmp.Ssp*2*sim.fs/2; % Ssp is one-sided PSD per real dimension
+    noiseSTD = @(Plevel) sqrt(noiseBW*Rx.N0 + Rx.PD.varShot(Plevel, noiseBW)... % thermal + shot
+                    + Rx.PD.R^2*(Rx.OptAmp.varNoiseDD(Plevel/(Rx.OptAmp.Gain), noiseBW, BWopt, Npol))); % sig-spont + spont-spont    
+    % Note 1: Plevel is divided by amplifier gain to obtain power at the amplifier input
+    % Note 2: if the amplifier is operating in the constant output power 
+    % mode, the appropriate amplifier gain was already set in montecarlo
+    % simulation. The BER estimation function will assume the same amplifier gain.
+
 else % unamplified system: thermal-noise dominant
     noiseSTD = Rx.PD.stdNoise(Hrx, Rx.eq.Hff(sim.f/(Rx.eq.ros*mpam.Rs)), Rx.N0, Tx.Laser.RIN, sim);
 end
@@ -226,5 +231,14 @@ if sim.shouldPlot('Heuristic noise pdf')
     [nn, xx] = hist(yd(dataTX == 2), 50);
     nn = nn/trapz(xx, nn);
     bar(xx, nn)
+    drawnow
+end
+
+if sim.shouldPlot('Decision errors')
+    figure(107)
+    stem(dataRX ~= dataTX)
+    ylabel('Errors')
+    xlabel('Symbol')
+    title('Decision errors')
     drawnow
 end
