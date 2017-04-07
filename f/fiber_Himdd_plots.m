@@ -57,7 +57,7 @@ set(gca, 'FontSize', 12)
 % saveas(gca, sprintf('Hfiber_large_signal_alpha=%dkm.png', alpha))
 
 %% First notch location
-Lkm = 0:30;
+Lkm = 0:50;
 Alpha = 0:-1:-3;
 fpos = f(f >= 0);
 figure, hold on, box on
@@ -87,7 +87,7 @@ ylabel('First notch frequency (GHz)', 'FontSize', 12)
 legend('-DynamicLegend')
 set(gca, 'FontSize', 12) 
 % title('Location of first notch in fiber frequency response')
-axis([0 180 20 80])
+% axis([0 180 20 80])
 m = matlab2tikz(gca);
 m.write('first-notch-freq.tex')
 

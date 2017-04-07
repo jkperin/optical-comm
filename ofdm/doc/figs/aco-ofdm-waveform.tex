@@ -8,11 +8,10 @@
 % where you can also make suggestions and rate matlab2tikz.
 % 
 \begin{tikzpicture}
-
 \begin{axis}[%
 width=4.52in,
 height=3.54in,
-xlabel=Time,
+xlabel=\Huge Time,
 scale only axis,
 %separate axis lines,
 % every outer x axis line/.append style={white!15!black},
@@ -23,10 +22,10 @@ every axis y label/.style={at=(current axis.above origin),anchor=south},
 %every axis x label/.style={at=(current axis.right of origin),anchor=west},
 ymin=-1.5,
 ymax=1.5,
-ytick={0.01, 1}, 
-yticklabels={0, $P_{max}$},
+ytick={0.01, 0.35, 1}, 
+yticklabels={\Huge 0, \Huge $\bar{P} = \frac{\sigma}{\sqrt{2\pi}}$, \Huge $P_{max}$},
 xtick={1050},
-xticklabels={$T_s$},
+xticklabels={\Huge $T_s$},
 grid=major,
 ]
 \addplot [line width=1.5pt, color=black,dotted]
@@ -1082,7 +1081,7 @@ grid=major,
 1049	0.722856415525642\\
 1050	0.748862315446572\\
 };
-\addlegendentry{Clipped}
+\addlegendentry{\Huge Clipped}
 \addplot [line width=1.5pt, color=black,solid]
   table[row sep=crcr]{%
 1	0\\
@@ -2146,5 +2145,31 @@ grid=major,
 % 1	1\\
 % 1050	1\\
 % };
+\end{axis}
+\begin{axis}[
+anchor=origin,
+at={(1250,303)}, 
+no markers, domain=-5:5, samples=100,
+rotate around={-90:(current axis.origin)}, % Rotate around the origin
+axis lines*=center,
+every axis y label/.style={at=(current axis.above origin),anchor=south},
+every axis x label/.style={at=(current axis.right of origin),anchor=west},
+%height=5cm, width=8cm,
+width=4.3in,
+height=2in,
+xtick={-3.2,0}, 
+xmin=-5,
+xmax=5,
+ymin=0,
+xticklabels={},
+ytick=\empty,
+enlargelimits=false, clip=false, axis on top,
+grid = major
+]
+\addplot [fill=gray!40, draw=none, domain=-5:-3.2] {gauss(0,1.7)} \closedcycle;
+\addplot [fill=gray!40, draw=none, domain=0:5] {gauss(0,1.7)} \closedcycle;
+\addplot [very thick,black] {gauss(0,1.7)}; % node [pos=0.5,pin={80:{$\displaystyle\sigma^2 = 2\sum_{n = 1}^{N_u/2} P_n$}},inner sep=0pt] {};
+\node (r1) at (axis cs: -3.7, 0.1) {\Huge $r\sigma$};
+\node (nothing) at (axis cs: 3.7, 0.25) {};
 \end{axis}
 \end{tikzpicture}%

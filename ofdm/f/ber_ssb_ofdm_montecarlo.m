@@ -1,4 +1,4 @@
-function [ber_count, ber_gauss, SNRndB, OSNRdB] = ber_ofdm_montecarlo(ofdm, Tx, Fibers, Rx, sim)     
+function [ber_count, ber_gauss, SNRndB, OSNRdB] = ber_ssb_ofdm_montecarlo(ofdm, Tx, Fibers, Rx, sim)     
 %% Calculate BER of pre-amplified IM-DD system through montecarlo simulation
 % Inputs:
 % - ofdm: OFDM class
@@ -11,59 +11,32 @@ function [ber_count, ber_gauss, SNRndB, OSNRdB] = ber_ofdm_montecarlo(ofdm, Tx, 
 %% Generate OFDM signal
 [xd, Rx.AdEq.trainSeq] = ofdm.signal(sim.Nsymb); 
 
-if isfield(sim, 'clipping_compensation') && sim.clipping_compensation
-    rclip = Tx.rclip;
-    K = 1 - 2*qfunc(rclip);
-    sig = std(xd); %sqrt(ofdm.var(ofdm.Pn.*abs(Tx.Hdac).^2));
-    xc = xd;
-    xc(xd > rclip*sig) = rclip*sig;
-    xc(xd < -rclip*sig) = -rclip*sig;
-    d = xc - K*xd;
-    xd = xd - d/K;
-%     xd = xd/K;
-end
-
 %% ================================ DAC ===================================
 % Define excursion limits of the DAC
+sig = sqrt(0.5*ofdm.var(ofdm.Pn.*abs(Tx.Hdac).^2)); % factor of 0.5 is to account for real and imag parts
 if isfield(sim, 'quantiz') && sim.quantiz && not(isinf(Tx.DAC.resolution))
-    sig = sqrt(ofdm.var(ofdm.Pn.*abs(Tx.Hdac).^2));
-    if strcmpi(ofdm.prefix, 'ACO') % ACO-OFDM
-        Tx.DAC.excursion = [0 Tx.rclip*sig];
-    else % DC-OFDM
-        Tx.DAC.excursion = [-1 1]*Tx.rclip*sig;
-    end
+    Tx.DAC.excursion = [-1 1]*Tx.rclip*sig;
 end
-xt = dac(xd, Tx.DAC, sim); % digital-to-analog conversion 
+xt = dac(real(xd), Tx.DAC, sim)... % I
+     + 1j*dac(imag(xd), Tx.DAC, sim); % Q
 
 %% ============================= Driver ===================================
-[Padj, dc] = ofdm.adjust_power_allocation(ofdm.Pn.*abs(Tx.Hdac).^2, Tx.Ptx, Tx.rclip, Tx.rexdB); % Factor to refer subcarriers powers to the transmitter
-xt = xt*sqrt(Padj) + dc;
-ofdm.Pn = ofdm.Pn*Padj;
-xt(xt < 0) = 0; % Clip negative excursion
-
-% % Discard first and last symbols
-% xt(1:sim.Mct*sim.Ndiscard) = 0; % zero sim.Ndiscard first symbols
-% xt(end-sim.Mct*sim.Ndiscard+1:end) = 0; % zero sim.Ndiscard last symbols
+xt = xt/(Tx.rclip*sig); % approximately -1 < Re{xt} < 1, -1 < Im{xt} < 1
+xt = Tx.Mod.Vswing/2*xt + Tx.Mod.Vbias*(1 + 1j);
 
 %% ============================= Modulator ================================
 Tx.Laser.PdBm = Watt2dBm(Tx.Ptx);
-Tx.Laser.H = @(f) Tx.Mod.filt.H(f/sim.fs);
-if strcmp(Tx.Mod.type, 'MZM')
-    xt = Tx.Mod.Vswing*xt/(Vbias + Tx.rclip*sqrt(ofdm.var(Pnnorm))); 
-    % Note: Driving signal xd must be normalized by Vpi
-    
-    Ecw = Tx.Laser.cw(sim);
-    Etx = mzm(Ecw, xt, Tx.Mod); % transmitted electric field
-elseif strcmp(Tx.Mod.type, 'DML')
-    Etx = Tx.Laser.modulate(xt, sim);
-    % Note: xt does not need to be normalized here. Normalization is
-    % performed later to ensure that desired transmit power is reached
-else
-    error('ber_pam_montecarlo: Invalid modulator type. Expecting Tx.Mod.type to be either MZM or DML')
-end
+Ecw = Tx.Laser.cw(sim);
+Etx = mzm(Ecw, xt, Tx.Mod); % transmitted electric field
+% Note: Driving signal xt must be normalized by Vpi
 
 % Adjust power to make sure desired power is transmitted
 Etx = Etx*sqrt(Tx.Ptx/mean(abs(Etx).^2));
+
+% Carrier-to-signal power ratio
+CSPRdB = 10*log10(abs(mean(Etx)).^2/var(Etx))
+
+power_meter(Etx)
 
 %% ========================= Fiber propagation ============================
 Erx = Etx;
@@ -78,18 +51,20 @@ end
 
 %% ========================= Preamplifier =================================
 OSNRdB = Inf; % only meaningful when there's a pre-amplifier
-if isfield(sim, 'preAmp') && sim.preAmp % only included if sim.preAmp is true
-    disp('- IMPORTANT: Simulation including optical amplifier!')
-    [Erx, OSNRdBtheory] = Rx.OptAmp.amp(Erx, sim.fs);
-    linkGain = linkGain*Rx.OptAmp.Gain;
-   
-    % Measure OSNR
-    Osa = OSA(0.1); % optical spectrum analyser with resolution 0.1nm
-    OSNRdBmeasured = Osa.estimate_osnr(Erx, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
-    
-    fprintf('OSNR = %.2f dB (theory)\nOSNR = %.2f dB (measured)\n', OSNRdBtheory, OSNRdBmeasured)
-    OSNRdB = OSNRdBtheory;
-end
+disp('- IMPORTANT: Simulation including optical amplifier!')
+[Erx, OSNRdBtheory, Nase] = Rx.OptAmp.amp(Erx, sim.fs);
+linkGain = linkGain*Rx.OptAmp.Gain;
+
+10*log10(mean(abs(Erx(1, :) - mean(Erx(1, :))).^2)/(2*Rx.OptAmp.Ssp*12.5e9))
+
+% Measure OSNR
+Osa = OSA(0.1); % optical spectrum analyser with resolution 0.1nm
+OSNRdBmeasured = Osa.estimate_osnr([Erx(1, :) - mean(Erx(1, :)); Erx(2, :) - mean(Erx(2, :))],...
+    Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
+% Note: carrier is removed before measurement
+
+fprintf('OSNR = %.2f dB (theory)\nOSNR = %.2f dB (measured)\n', OSNRdBtheory, OSNRdBmeasured)
+OSNRdB = OSNRdBtheory;
 
 %% ========================== Receiver ====================================
 %% Direct detection and add thermal noise
@@ -97,23 +72,29 @@ end
 % noise statistics {'gaussian', 'no noise'}, N0: one-sided PSD of thermal
 % noise)
 fprintf('Photodiode: received power = %.2f dBm\n', power_meter(Erx));
-yt = Rx.PD.detect(Erx, sim.fs, 'gaussian', Rx.N0);
+if sim.SSBIcancellation
+    % Detection ignoring constant terms, noise-noise beating, and
+    % signal-signal beating
+    C = mean(Erx(1, :));
+    Nase = Nase(1, :);
+    S = Erx(1, :) - C - Nase;
+    yt = Rx.PD.R*(S.*conj(C + Nase) + C.*conj(S + Nase) + Nase.*conj(S + C)) + sqrt(Rx.N0*sim.fs/2 + Rx.PD.varShot(mean(abs(Erx(1, :)).^2), sim.fs/2))*randn(size(S));
+    yt = real(yt);
+else
+    yt = Rx.PD.detect(Erx, sim.fs, 'gaussian', Rx.N0);
+end 
+
 linkGain = linkGain*Rx.PD.Geff;
 
 %% ADC
 % ADC performs filtering, quantization, and downsampling
 % For an ideal ADC, ADC.ENOB = Inf
 if isfield(sim, 'quantiz') && sim.quantiz && not(isinf(Rx.ADC.ENOB))
-    if strcmpi(ofdm.prefix, 'ACO') % ACO-OFDM
-        sig = sqrt(ofdm.var(ofdm.Pn*linkGain^2.*abs(sim.Hch).^2));
-        Rx.ADC.excursion = [0, Tx.rclip*sig];
-    else % DC-OFDM
-        sig = std(yt);
-        Rx.ADC.excursion = [0, 2*Tx.rclip*sig];
-    end
+    sig = std(yt); % = Rx.PD.R*Rx.OptAmp.Gain*sqrt(2*Pc*Ps)
+    Rx.ADC.excursion = [-Tx.rclip*sig Tx.rclip*sig];
 end
 
-Rx.ADC.timeRefSignal = xt;
+% Rx.ADC.timeRefSignal = abs(xt).^2;
 yk = adc(yt, Rx.ADC, sim);
 
 %% OFDM detection
