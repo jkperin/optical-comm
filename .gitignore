@@ -30,3 +30,5 @@ coherent/results/
 !coherent/results/*.m
 *.md5
 *.dpth
+*.bbl
+*.blg

@@ -1,6 +1,8 @@
 %% Fiber IM-DD frequency response
 clear, clc, close all
 
+addpath ../f/
+
 f = linspace(0, 112, 1e3)*1e9;
 lambda = 1380e-9;
 
