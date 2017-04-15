@@ -32,3 +32,4 @@ coherent/results/
 *.dpth
 *.bbl
 *.blg
+figs/*.tex

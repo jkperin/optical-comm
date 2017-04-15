@@ -1,0 +1,152 @@
+\documentclass[a4paper]{article}
+
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+
+%% Sets page size and margins
+\usepackage[a4paper,top=3cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+%% Useful packages
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+
+\DeclareMathOperator{\E}{\mathbb{E}}
+
+\title{Stokes Vector Receiver}
+\author{JKP}
+
+\begin{document}
+\maketitle
+
+The electric field at the output of a single-mode fiber is related to the input electric field by the Jones matrix:
+\begin{equation}
+\begin{bmatrix}
+E_X\\
+E_Y
+\end{bmatrix} =\begin{bmatrix}
+a & -b \\
+b^* & a^*
+\end{bmatrix}
+\begin{bmatrix}
+E_X\\
+E_Y
+\end{bmatrix}
+\end{equation}
+
+For the Stokes vector receiver, it is more convinient to write the input and output vectors in a 4-dimensional space.
+\begin{equation}
+\begin{bmatrix}
+|E_X|^2 \\
+|E_Y|^2 \\
+\mathrm{Re}\{E_XE_Y^*\} \\
+\mathrm{Im}\{E_XE_Y^*\} 
+\end{bmatrix} = M\begin{bmatrix}
+|E_X|^2 \\
+|E_Y|^2 \\
+\mathrm{Re}\{E_XE_Y^*\} \\
+\mathrm{Im}\{E_XE_Y^*\} 
+\end{bmatrix},
+\end{equation}
+where $M$ is given by
+\begin{equation}
+M = \begin{bmatrix}
+|a|^2 & |b|^2 & -2\mathrm{Re}\{ab^*\} & 2\mathrm{Im}\{ab^*\} \\
+|b|^2 & |a|^2 & 2\mathrm{Re}\{ab^*\} & -2\mathrm{Im}\{ab^*\} \\
+\mathrm{Re}\{ab\} & -\mathrm{Re}\{ab\} & \mathrm{Re}\{a^2\}-\mathrm{Re}\{b^2\} & -\mathrm{Im}\{a^2\}-\mathrm{Im}\{b^2\} \\
+\mathrm{Im}\{ab\} & -\mathrm{Im}\{ab\} & \mathrm{Im}\{a^2\}-\mathrm{Im}\{b^2\} & \mathrm{Re}\{a^2\}+\mathrm{Re}\{b^2\}
+\end{bmatrix}.
+\end{equation}
+Note that $M$ is no longer an unitary matrix, and hence the noises will scale differently.
+
+%     M = [abs(a)^2, abs(b)^2, -2*real(a*b'), 2*imag(a*b');...
+%         abs(b)^2, abs(a)^2,  2*real(a*b'), -2*imag(a*b');...
+%         real(a*b), -real(a*b),  real(a^2) - real(b^2), -imag(a^2) - imag(b^2);...
+%         imag(a*b), -imag(a*b), imag(a^2) - imag(b^2), real(a^2) + real(b^2)];
+
+Due to the splitters in the receiver, the detected vector $Y$ is
+\begin{equation}
+Y= \begin{bmatrix}
+|E_X|^2 \\
+|E_Y|^2 \\
+\mathrm{Re}\{E_XE_Y^*\} \\
+\mathrm{Im}\{E_XE_Y^*\}
+\end{bmatrix} + \bf{n}
+\end{equation}
+where $\bf{n}$ is a random vector whose correlation matrix is
+\begin{equation}
+\E\{{\bf nn^H}\} = 4\sigma^2I,
+\end{equation}
+for a thermal-noise limited receiver, and 
+\begin{equation}
+\E\{{\bf nn^H}\} = P_s\sigma^2\mathrm{diag}([2, 2, 1, 1]), 
+\end{equation}
+where $P_s$ is the total received power, and $P_s = 1/2\E(|E_X|^2) = 1/2\E(|E_Y|^2)$. For an amplified system, $\sigma^2 = S_{sp}\Delta f$ is the ASE variance per real dimension.
+
+To recover the transmitted state, the MIMO signal processing at the receiver will find a matrix $M^{\dagger}$ to invert the channel. 
+
+
+\section{Polarization intensity signals}
+
+The signal detected by the first PD is given by
+\begin{equation}
+I_1 = \Big|\frac{E_X}{\sqrt{2}}\Big|^2 = \frac{1}{2}|E_X|^2
+\end{equation}
+Assuming amplified noise, and ignoring spont-spont noise:
+\begin{align} \nonumber
+I_1 &= \frac{1}{2}|E_X + n_X|^2 = \frac{1}{2}\Big(|E_X|^2 + |n_X|^2 + E_Xn_X^* + E_X^*n_X\Big) \\ \nonumber
+&\approx\frac{1}{2}\Big(|E_X|^2 + 2\mathrm{Re}(E_Xn_X^*)\Big)  \\
+&=\frac{1}{2}\Big(|E_X|^2 + \sqrt{4P_X}n_1\Big)
+\end{align}
+where $n_1 \sim\mathcal{N}(0, \sigma^2)$, where $\sigma^2$ is the ASE variance per real dimension.
+
+Similarly, for the $Y$ polarization:
+\begin{align} \nonumber
+I_2 \approx \frac{1}{2}\Big(|E_Y|^2 + \sqrt{4P_Y}n_2\Big)
+\end{align}
+where $n_2 \sim\mathcal{N}(0, \sigma^2)$, where $\sigma^2$ is the ASE variance per real dimension. $n_1$ is independent of $n_2$, since each noise derives from the noise in the X, and Y polarizations respectively.
+
+\section{Polarization beating signals}
+
+The 90-degree hybrid has the following transfer matrix:
+\begin{equation}
+\begin{bmatrix}
+E_1 \\
+E_2 \\
+E_3 \\
+E_4 
+\end{bmatrix} = \frac{1}{2\sqrt{2}}\begin{bmatrix}
+1 & 1 \\
+j & -j \\
+j & -1 \\
+-1 & j 
+\end{bmatrix}\begin{bmatrix}
+E_X \\
+E_Y
+\end{bmatrix}
+\end{equation}
+
+Hence the detected current of the first balanced photodiodes is given by
+\begin{align}
+I_3 = |E_1|^2 - |E_2|^2 = \frac{1}{2}\mathrm{Re}\{E_XE_Y^*\}
+\end{align}
+
+Including amplified noise:
+\begin{align} \nonumber
+I_2 &= \frac{1}{2}\mathrm{Re}\{(E_X + n_X)(E_Y + n_Y)^*\} \\ \nonumber
+&\approx \frac{1}{2}\mathrm{Re}\{E_XE_Y^*\} + \frac{1}{2}\mathrm{Re}\{E_Xn_Y^* + E_Y^*n_X\} \\
+&\approx \frac{1}{2}\mathrm{Re}\{E_XE_Y^*\} + \frac{1}{2}\sqrt{P_X + P_Y}n_2
+\end{align}
+where the noise approximation follows from
+\begin{align}
+\E(\mathrm{Re}\{E_Xn_Y^* + E_Y^*n_X\}^2) = \frac{1}{2}\E(|E_Xn_Y^* + E_Y^*n_X|^2) = (P_X + P_Y)\sigma^2
+\end{align}
+since $\E(|n_Y|^2) = \E(|n_X|^2) = 2\sigma^2$, since $n_X$ and $n_Y$ are circularly Gaussian random variables.
+
+\end{document}

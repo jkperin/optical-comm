@@ -149,13 +149,13 @@ classdef OpticalAmplifier < handle
             Eout = sqrt(obj.Gain)*Ein + W;
             
             [~, Ps] = power_meter(Ein);
-            obj.outputPower = power_meter(Eout);
+            PoutdBm = power_meter(Eout);
             
             % Unbiased OSNR estimate
             OSNRdB = 10*log10(obj.Gain*Ps/(2*obj.Ssp*obj.BWref));
             
             fprintf('Optical amplifier: output power = %.2f dBm | OSNR = %.2f dB\n',...
-                obj.outputPower, OSNRdB);
+                PoutdBm, OSNRdB);
         end 
         
         function BW = BWref(self)
