@@ -14,7 +14,7 @@ Dpsk = DPSK(4, Rb, pulse_shape);
 fs = Dpsk.Rs*ros;
 [f, t] = freq_time(N, fs);
 
-foff = 0.7e9;
+foff = 2e9;
 
 SNRdB = 5:20;
 SNR = 10.^(SNRdB/10);
@@ -23,7 +23,7 @@ dataTX = randi([0 Dpsk.M-1], [1 Nsymb]);
 
 for k = 1:length(SNRdB)
     x = Dpsk.signal(dataTX);
-    Es = mean(abs(x).^2);
+    Ps = mean(abs(x).^2);
     Pn = Ps/SNR(k);
     n = sqrt(Pn/2)*(randn(size(x)) + 1j*randn(size(x)));
     
@@ -42,6 +42,7 @@ plot(SNRdB, log10(berawgn(SNRdB - 10*log10(log2(Dpsk.M)), 'dpsk', Dpsk.M)));
 plot(SNRdB, log10(bertheory), '--k');
 xlabel('SNR (dB)')
 ylabel('log_{10} (BER)')
+legend('Counted', 'AWGN', 'Theory freq offset')
 axis([SNRdB([1 end]) -8 0])
 
     
