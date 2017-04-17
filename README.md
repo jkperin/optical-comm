@@ -10,27 +10,27 @@ This project contains codes for analyses and simulations of optical communicatio
 
 ## Folders description
 - apd/: analysis and simulations of intensity-modulated direct-detected (IM-DD) optical systems using avalanche photodiodes  
--- apd/doc/: documentation. Latex file containing some of the theoretical derivations and analyses
--- apd/f/: auxiliary functions used in apd/
--- apd/results/: folder reserved for saving files of simulations on cluster and posterior processing.
+  - apd/doc/: documentation. Latex file containing some of the theoretical derivations and analyses
+  - apd/f/: auxiliary functions used in apd/
+  - apd/results/: folder reserved for saving files of simulations on cluster and posterior processing.
 
 - coherent/: analysis and simulations of coherent and differentially coherent receivers. This includes DSP-based systems as well as systems based on analog signal processing
--- coherent/analog/: functions and classes for modeling building blocks in the coherent receiver based on analog signal process
--- coherent/analysis/: analysis scripts. These are typically oversimplified simulations to better understand some concepts
--- coherent/doc/: documentation. Latex file containing some of the results and analysis
--- coherent/DSP/: functions and classes for modeling building blocks in the coherent receiver based on digital signal process
--- coherent/f/: auxiliary functions and classes used in coherent/
--- coherent/results/: folder reserved for saving files of simulations on cluster and posterior processing.
--- coherent/validate/: scripts reserved for validation
+  - coherent/analog/: functions and classes for modeling building blocks in the coherent receiver based on analog signal process
+  - coherent/analysis/: analysis scripts. These are typically oversimplified simulations to better understand some concepts 
+  - coherent/doc/: documentation. Latex file containing some of the results and analysis
+  - coherent/DSP/: functions and classes for modeling building blocks in the coherent receiver based on digital signal process
+  - coherent/f/: auxiliary functions and classes used in coherent/
+  - coherent/results/: folder reserved for saving files of simulations on cluster and posterior processing.
+  - coherent/validate/: scripts reserved for validation
 
-- f/: folder of auxiliary functions and classes 
+- f/: folder of auxiliary functions and classes.
 
 - gui/: graphic user interface developed during the internship at Maxim Integrated. No longer updated
 
-- mpam/: class M-PAM and auxiliary functions for level spacing optimization.
+- mpam/: M-PAM system simulation. Includes class M-PAM
 
-- ofdm/: analysis and simulations of intensity-modulated direct-detected (IM-DD) optical systems using OFDM
+- ofdm/: OFDM system simulation. Includes class OFDM, which supports DC-OFDM, ACO-OFDM, and SSB-OFDM.
 
 - figs/: folder containig relevant figures and scripts to generate figures.
 
-- soa/: analysis and simulations of intensity-modulated direct-detected (IM-DD) optical systems using semiconductor optical amplifiers. Class "SOA" is no longer used, and has been replaced by class "OpticalAmplifier" in f/.
+- soa/: analysis and simulations of intensity-modulated direct-detected (IM-DD) optical systems using semiconductor optical amplifiers. Class "SOA" is no longer used and has been replaced by class "OpticalAmplifier" in f/.
