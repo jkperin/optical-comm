@@ -4,9 +4,9 @@
 This project contains codes for analyses and simulations of optical communications systems for data center applications. They were used for the generation of most of the results in the following publications:
 
 1. J. K. Perin, A. Shastri, J. M. Kahn, “Design of Low-Power DSP-Free Coherent Receiver for Data Center Links,” subm. to J. of Lightwave Technol., 2016.
-2. J. K. Perin, M. Sharif, J.M. Kahn, "Sensitivity Improvement in 100 Gbit/s-per- Wavelength Links using Semiconductor Optical Amplifiers or Avalanche Photodiodes,” J. Lightw. Technol., vol. 34, no. 33, pp. 5542–5553, 2016. [PDF] (http://ee.stanford.edu/~jmk/pubs/100G.single.laser.SOA.APD.JLT.12-16.pdf)
-3. J. K. Perin, M. Sharif, J. M. Kahn, “Modulation Schemes for Single-Wavelength 100 Gbits/s Links: Multicarrier,” J. of Lightwave Technol., vol.33, no. 24, pp.5122-5132, Dec. 15, 2015. [PDF] (http://ee.stanford.edu/~jmk/pubs/100.G.single-laser.multicarrier.JLT.15.pdf)
-4. M. Sharif, J. K. Perin, and J. M. Kahn, “Modulation Schemes for Single-Wavelength 100 Gbits/s Links: Single-Carrier,” J. of Lightwave Technol., vol.33, no.20, pp.4268-4277, Oct. 15, 2015. [PDF] (http://ee.stanford.edu/~jmk/pubs/100.G.single-laser.single-carrier.JLT.15.pdf)
+2. J. K. Perin, M. Sharif, J.M. Kahn, "Sensitivity Improvement in 100 Gbit/s-per- Wavelength Links using Semiconductor Optical Amplifiers or Avalanche Photodiodes,” J. Lightw. Technol., vol. 34, no. 33, pp. 5542–5553, 2016. [PDF](http://ee.stanford.edu/~jmk/pubs/100G.single.laser.SOA.APD.JLT.12-16.pdf)
+3. J. K. Perin, M. Sharif, J. M. Kahn, “Modulation Schemes for Single-Wavelength 100 Gbits/s Links: Multicarrier,” J. of Lightwave Technol., vol.33, no. 24, pp.5122-5132, Dec. 15, 2015. [PDF](http://ee.stanford.edu/~jmk/pubs/100.G.single-laser.multicarrier.JLT.15.pdf)
+4. M. Sharif, J. K. Perin, and J. M. Kahn, “Modulation Schemes for Single-Wavelength 100 Gbits/s Links: Single-Carrier,” J. of Lightwave Technol., vol.33, no.20, pp.4268-4277, Oct. 15, 2015. [PDF](http://ee.stanford.edu/~jmk/pubs/100.G.single-laser.single-carrier.JLT.15.pdf)
 
 ## Folders description
 - coherent/: analysis and simulations of coherent and differentially coherent receivers. This includes DSP-based systems as well as systems based on analog signal processing
