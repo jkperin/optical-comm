@@ -31,6 +31,8 @@ This project contains codes for analyses and simulations of optical communicatio
 
 - figs/: folder containig relevant figures and scripts to generate figures.
 
+- docs/: foler containing documentation and github.io files.
+
 - stokes/: scripts and functions for simulation of Stokes vector receivers.
 
 - soa/: analysis and simulations of intensity-modulated direct-detected (IM-DD) optical systems using semiconductor optical amplifiers. Class "SOA" is no longer used and has been replaced by class "OpticalAmplifier" in f/.
