@@ -3,6 +3,7 @@
 \usepackage[english]{babel}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
+\usepackage{amsfonts}
 \usepackage{graphicx}
 \usepackage{subcaption}
 \usepackage[numbered]{bookmark}
@@ -17,12 +18,18 @@
 \usetikzlibrary{arrows}
 %\usetikzlibrary{external}\tikzexternalize[prefix=figs/]
 
-\DeclareGraphicsExtensions{.eps,.pdf,.png,.tikz}
+\DeclareGraphicsExtensions{.eps,.pdf,.png}
 \graphicspath{{figs/}}
 
 \pgfmathdeclarefunction{gauss}{2}{%
 	\pgfmathparse{1/(#2*sqrt(2*pi))*exp(-((x-#1)^2)/(2*#2^2))}%
 }
+
+% Expectation 
+\DeclareMathOperator{\E}{\mathbb{E}} 
+	
+% Convolution 
+\newcommand{\Conv}{\mathop{\scalebox{1.5}{\raisebox{-0.2ex}{$\ast$}}}}%
 
 \title{OFDM}
 
@@ -35,14 +42,14 @@
 
 \section{Transmitter}
 \subsection{Intensity Noise}
-Intensity noise is modeled as an AWGN added to the optical power at the transmitter.
+Intensity noise is modeled as an additive white Gaussian noise (AWGN) added to the optical power at the transmitter.
 
-The value of the relative intensity noise (RIN) is defined as the ratio between the noise power divide by the noise bandwidth and the signal power \cite{agilent-RIN-measurement}: 
+The value of the relative intensity noise (RIN) is defined as the ratio between the noise power divided by the noise bandwidth and the signal power \cite{agilent-RIN-measurement}: 
 \begin{equation}
 RIN = \frac{P_{noise}}{B_{noise}P_{signal}}
 \end{equation}
 
-Hence, the \textbf{one-sided RIN PSD} and \textbf{RIN variance} at a certain instant are given by
+Hence, the \textbf{one-sided RIN PSD} and \textbf{RIN variance} at time $t$ are given by
 \begin{align}
 & S_{RIN}(t) = RIN\cdot P(t)^2 \\
 & \sigma^2_{RIN}(t) = S_{RIN}(t)\frac{f_{s, sim}}{2}
@@ -105,7 +112,7 @@ If the driving signal is imaginary, the modulator will behave as an I-Q modulato
 E_{out}(t) = E_{in}(t)\Big[\sin\Big(\frac{\pi}{2}\mathrm{Re}\{V_{in}(t)\}\Big) + j\sin\Big(\frac{\pi}{2}\mathrm{Im}\{V_{in}(t)\}\Big)\Big]
 \end{equation}
 
-$E_{out}(t)$ is then normalized so that $\mathrm{E}(E_{out}(t)) = \mathrm{E}(E_{in}(t))$.
+$E_{out}(t)$ is then normalized so that $E(|E_{out}(t)|^2) = E(|E_{in}(t)|^2)$.
 
 \FloatBarrier
 \begin{figure}[h!]
@@ -118,7 +125,7 @@ $E_{out}(t)$ is then normalized so that $\mathrm{E}(E_{out}(t)) = \mathrm{E}(E_{
 \section{Fiber Propagation}
 \subsection{Chromatic Dispersion}
 \begin{equation} \label{eq:Hdisp}
-H(f; L) = \frac{E(f; L)}{E(f, 0)} = e^{-1/2j\beta_2(2\pi f)^2L}
+H(f; L) = \frac{E(f; L)}{E(f, 0)} = \exp\Big(-1/2j\beta_2(2\pi f)^2L\Big)
 \end{equation}
 where $H(f; L)$ is fiber frequency response due to dispersion after $L$ meters, and $\beta_2 = -\frac{D(\lambda)\lambda^2}{2\pi c}$. 
 
@@ -134,7 +141,11 @@ where $\lambda_0 = 1310$ nm and $S_0 = 0.092$ ps/nm.
 
 \subsection{Symbol Rate and Sampling Rate}
 
-We define an OFDM signal with $N_c$ orthogonal subcarriers, from which $N_c - N_u$ subcarriers are used for oversampling, leaving $N_u$ subcarriers to transmit date. Hence, the oversampling rate is defined as $r_{os} = \frac{N_c}{N_u}$. 
+We define an OFDM signal with $N_c$ orthogonal subcarriers, from which $N_c - N_u$ subcarriers are used for oversampling, leaving $N_u$ data-bearing subcarriers. Hence, the oversampling rate is defined as
+
+\begin{equation}
+r_{os} = \frac{N_c}{N_u}
+\end{equation}
 
 Different variations of OFDM may not use all the $N_u$ subcarriers available. A few examples are the case of when Hermitian symmetry is enforced to produce a real signal, or when half of the subcarriers are set to zero to produce a single-side band (SSB) signal, or when all the even subcarriers are not modulated to allow asymmetric clipping in asymmetrically clipped (ACO)-OFDM. This loss in spectral efficiency will be characterized by a factor $p$. Note that the definition of $N_u$ is different from the one used in the ``Multicarrier'' paper, where $N_u$ denoted the number of ``used'' subcarriers i.e., subcarriers not set to zero. 
 
@@ -183,13 +194,11 @@ The factors $p$, $\frac{N_c + N_{CP}}{N_c}$, and $r_{os}$ account for the penalt
 
 \subsection{Gaussian approximation}
 
-Due to the central limit theorem, an OFDM signal with large enough number of subcarriers is approximately Gaussian distributed with variance given by
+By the central limit theorem, an OFDM signal with large enough number of subcarriers is approximately Gaussian distributed with variance given by
 \begin{equation}
 \sigma^2 = \sum_{N_u} P_n = 2\sum_{n=1}^{N_u/2} P_n,
 \end{equation}
 where the second equality assumes Hermitian symmetry, hence $P_n = P_{-n}$. 
-
-
 
 \subsection{Extinction ratio}
 \subsubsection{DC-OFDM}
@@ -298,108 +307,6 @@ For a more realistic filter the factor $f_s/2$ should be replaced by the corresp
 %\end{equation}
 %The factor $M_{ct}$ divides the PSD (i.e., the power) because autocorrelation function is also downsampled i.e., $R_w[n] = \tilde{R}_w[nM_{ct}]$.
 
-\section{Quantization noise}
-
-The quantization noise variance is given by
-\begin{equation}
-\sigma^2_Q = \frac{\Delta^2}{12}
-\end{equation}
-
-However, when there is clipping we don't have quantization error at the clipping levels. Therefore the noise variance is reduced:
-\begin{equation}
-\sigma^2_Q = (1-P_c)\frac{\Delta^2}{12}
-\end{equation}
-where $P_c$ is the clipping probability.
-
-At the transmitter, we have clipping at the negative rail (with clipping ratio $r$) and at the positive rail (with clipping ratio $r_{Q,tx}$. At the receiver, we assume that the signal only suffers from clipping at the positive rail (with clipping ratio of $r_{Q,rx}$). Therefore, we can write
-
-\begin{equation}
-\sigma^2_Q = \begin{cases}
-(1-Q(r)-Q(r_{Q,tx}))\frac{\Delta_{tx}^2}{12}, & transmitter \\
-(1-2Q(r_{Q,rx}))\frac{\Delta_{rx}^2}{12}, & receiver \\
-\end{cases}
-\end{equation}
-
-Moreover, 
-\begin{equation}
-\Delta_{tx} = \frac{(r + r_{Q,tx})\sigma}{2^{ENOB}}
-\end{equation}
-
-
-At the receiver the mean value is the same because the filters have unit gain at zero frequency; however, the signal variance does change:
-\begin{equation}
-\sigma_{rx}^2 = \begin{cases}
-2\sum_{n = 1}^{N_u/2-1}P_n(1-Q(r))^2|G_{tot}(f_n)|^2, & DC-OFDM \\
-\sum_{n = 1, n odd}^{N_u/2-1}P_n|G_{tot}(f_n)|^2, & ACO-OFDM
-\end{cases}
-\end{equation}
-The variance of the ACO-OFDM is double because after clipping the even subcarriers also carry power.
-
-We must adopt different strategies for quantizing the ACO-OFDM and DC-OFDM at the receiver. The approximation made above assumes that the filtering effect is sufficiently high to make the signal Gaussian-distributed after clipping. While this is a good approximation for DC-OFDM, it does not apply very well to ACO-OFDM due to its asymetric characteristic. In fact, we can think of that approximation only for the positive rail of ACO-OFDM. The negative rail remains considerably asymetric, since we are not considering cases of very severe filtering. Thus the clipping before quantization for ACO-OFDM will be made at 0 and at $\mu + r_{Q,r}\sigma_{rx} = \sigma/\sqrt{2\pi} + r_{Q,r}\sigma_{rx}$. On the other hand, for DC-OFDM, we will clip the signal equally around the mean value i.e., $[\mu - _{Q,rx}\sigma_{rx}, \mu + r_{Q,rx}\sigma_{rx}$, which leads us to
-\begin{equation}
-\Delta_{rx} = \begin{cases}
-\frac{\sigma/\sqrt{2\pi} + r_{Q,rx}\sigma_{rx}}{2^{ENOB}}, & ACO-OFDM \\
-\frac{2r_{Q,rx}\sigma_{rx}}{2^{ENOB}}, & DC-OFDM 
-\end{cases}
-\end{equation}
-
-Therefore, the quantization noise variance at the transmitter is given by
-\begin{align} \nonumber
-\sigma^2_{Q, tx} = & (1-Q(r)-Q(r_{Q,tx}))\frac{(\frac{(r + r_{Q,tx})\sigma}{2^{ENOB}})^2}{12} \\ \nonumber
-= & (1-Q(r)-Q(r_{Q,tx}))\frac{(r + r_{Q,tx})^2\sigma^2}{12\cdot 2^{2ENOB}} \\ 
-\approx & (1-Q(r))\frac{(r + r_{Q,tx})^2\sigma^2}{12\cdot 2^{2ENOB}}
-\end{align}
-where the approximation follows from the fact that we are considering relatively large values of clipping raito in order to make clipping small.
-
-At the receiver the noise variance is given by
-\begin{align} \nonumber
-\sigma^2_{Q,rx} & = \begin{cases}
-(1-Q(r_{Q,rx}))\frac{(\frac{\sigma/\sqrt{2\pi} + r_{Q,rx}\sigma_{rx}}{2^{ENOB}})^2}{12}, & ACO-OFDM \\
-(1-2Q(r_{Q,rx}))\frac{(\frac{2r_{Q,rx}\sigma_{rx}}{2^{ENOB}})^2}{12}, & DC-OFDM
-\end{cases} \\ \nonumber
-& = \begin{cases}
-(1-Q(r_{Q,rx}))\frac{(\sigma/\sqrt{2\pi} + r_{Q,rx}\sigma_{rx})^2}{12\cdot 2^{2ENOB}}, & DC-OFDM \\
-(1-2Q(r_{Q,rx}))\frac{4r_{Q,rx}^2\sigma_{rx}^2}{12\cdot 2^{2ENOB}}, & DC-OFDM
-\end{cases} \\
-& \approx \begin{cases}
-\frac{(\sigma/\sqrt{2\pi} + r_{Q,rx}\sigma_{rx})^2}{12\cdot 2^{2ENOB}}, & ACO-OFDM \\
-\frac{4r_{Q,rx}^2\sigma_{rx}^2}{12\cdot 2^{2ENOB}}, & DC-OFDM
-\end{cases}
-\end{align}
-where the approximation follows from the fact that we are considering relatively large values of clipping ratio in order to make clipping small.
-
-Therefore, we can calculate the SNR at the receiver
-\begin{equation}
-SNR_n = \frac{NK^2|G_{tot}(f_n)|^2P_n}{\frac{N_0}{2}f_s|G_{ADC}(f_n)|^2 + \sigma_{Q,tx}^2|G_{tot}(f_n)|^2 + \sigma_{Q,rx}^2}
-\end{equation}
-where the $N$ (number of subcarriers) appear due to the calculation of the noise in the frequency domain. 
-
-Note that the signal power also affects the noise, which suggests that the SNR is bounded. Ih the case that SNR becomes bounded the noise due to quantization is dominant. Thus, for ACO-OFDM, ignoring the frequency response of the channel
-\begin{align} \nonumber
-SNR_n & = \frac{NP_n/4}{1/2\frac{r_{Q,tx}^2\sigma^2}{12\cdot 2^{2ENOB}} + \frac{(\sigma/\sqrt{2\pi} + r_{Q,rx}\sigma/2)^2}{12\cdot 2^{2ENOB}}} \\ \nonumber
-& = \frac{NP_n/4}{1/2\frac{r_{Q,tx}^2N_uP_n}{12\cdot 2^{2ENOB}} + \frac{(1/\sqrt{2\pi} + r_{Q,rx}/2)^2N_uP_n}{12\cdot 2^{2ENOB}}} \\ \nonumber
-& = \frac{r_{os}/4}{1/2\frac{r_{Q,tx}^2}{12\cdot 2^{2ENOB}} + \frac{(1/\sqrt{2\pi} + r_{Q,rx}/2)^2}{12\cdot 2^{2ENOB}}} \\
-& = \frac{12\cdot 2^{2ENOB}r_{os}/4}{1/2r_{Q,tx}^2 + (1/\sqrt{2\pi} + r_{Q,rx}/2)^2}
-\end{align}
-Noting that $\sigma^2 = 2\sum P_n$, and $\sigma_{rx}^2 = \sigma^2/2$; and also $\sigma^2 = \sum P_n = N_uP_n$.
-
-Therefore, we can express the ENOB as a function of the required SNR per subcarrier:
-\begin{equation}
-ENOB = \frac{1}{2}\log_2\bigg(\frac{(r_{Q,tx}^2/2 + (1/\sqrt{2\pi} + r_{Q,rx}/2)^2)}{3r_{os}}SNR_n\bigg)
-\end{equation}
-\textbf{DC-OFDM}
-\begin{align} \nonumber
-SNR_n & =  \frac{NK^2|G_{tot}(f_n)|^2P_n}{\frac{N_0}{2}f_s|G_{ADC}(f_n)|^2 + \sigma_{Q,tx}^2|G_{tot}(f_n)|^2 + \sigma_{Q,rx}^2} \\
-& = \frac{NK^2P_n}{ \sigma_{Q,tx}^2 + \sigma_{Q,rx}^2} \\
-&= \frac{NK^2P_n}{ \frac{4r_{Q,tx}^2\sigma_{tx}^2}{12\cdot 2^{2ENOB}} + \frac{4r_{Q,rx}^2\sigma_{rx}^2}{12\cdot 2^{2ENOB}}} \\
-&= \frac{3r_{os}K^2 \cdot 2^{2ENOB}}{2r_{Q,tx}^2} \\
-\end{align}
-
-Writing the ENOB as a function of the target SNR. We also have considered $K^2 \approx 1$
-\begin{align} \nonumber
-ENOB > \frac{1}{2}\log_2\frac{2r_{Q,tx}^2SNR_n}{3r_{os}}  \\
-\end{align}
-
 \section{Including thermal noise}
 
 Disregarding all the frequencies responses of the filters and assuming that quanitzation noise is the same at the transmitter and receiver, the $SNR_n$ would reduce to
@@ -426,137 +333,7 @@ SNR_n\bigg(\frac{1}{SNR_{th}} + \frac{2}{3}\frac{r^2}{r_{os}\cdot 2^{2ENOB}}\big
 ENOB= \frac{1}{2}\log_2\bigg[\frac{2}{3}\frac{r^2}{r_{os}}\bigg(\frac{SNR_nSNR_{th}}{SNR_{th} - SNR_n}\bigg)\bigg]  \\
 \end{align}
 
-\section{Clipping twice}
-
-The quantization noise variance is given by
-\begin{equation}
-\sigma^2_Q = \frac{\Delta^2}{12}
-\end{equation}
-
-However, when there is clipping we don't have quantization error at the clipping levels. Therefore the noise variance is reduced:
-\begin{equation}
-\sigma^2_Q = (1-P_c)\frac{\Delta^2}{12}
-\end{equation}
-where $P_c$ is the clipping probability.
-
-At the transmitter we have both clipping at the negative rail (with clipping ratio $r$) and at the positive rail (with clipping ratio $r_{Q,tx}$. At the receiver, we assume that the signal only suffers from clipping at the positive rail (with clipping ratio of $r_{Q,rx}$). Therefore, we can write
-
-\begin{equation}
-\sigma^2_Q = \begin{cases}
-(1-Q(r)-Q(r_{Q,tx}))\frac{\Delta_{tx}^2}{12}, & transmitter \\
-(1-2Q(r_{Q,rx}))\frac{\Delta_{rx}^2}{12}, & receiver \\
-\end{cases}
-\end{equation}
-
-Moreover $\Delta = X/2^{ENOB}$, where $X$ is the total excursion of the signal.  
-
-At the receiver the mean value is the same because the filters have unit gain at zero frequency; however the signal variance does change:
-\begin{equation}
-\sigma_{rx}^2 = 2\sum_{n = 1}^{N_u/2-1}P_n|G_{tot}(f_n)|^2
-\end{equation}
-Note that for ACO-OFDM this does not correspond to the variance of the signal. Rather, it is just an estimate of the right tail of the signal.
-
-We must adopt different strategies for quantizing the ACO-OFDM and DC-OFDM at the receiver. The approximation made above assumes that the filtering effect is sufficiently high to make the signal Gaussian-distributed after clipping. While this is a good approximation for DC-OFDM, it does not apply very well to ACO-OFDM due to its asymetric characteristic. In fact, we can think of that approximation only for the positive rail of ACO-OFDM. The negative rail remains considerably asymetric, since we are not considering cases of very severe filtering. Thus the clipping before quantization for ACO-OFDM will be made at 0 and at $\mu + r_{Q,r}\sigma_{rx} = \sigma/\sqrt{2\pi} + r_{Q,r}\sigma_{rx}$. On the other hand, for DC-OFDM, we will clip the signal equally around the mean value i.e., $[\mu - r_{Q,rx}\sigma_{rx}, \mu + r_{Q,rx}\sigma_{rx}]$, which leads us to
-
-ACO-OFDM
-Transmitter: $[0, r_{Q,tx}\sigma]$, Range = $X = r_{Q,tx}\sigma$
-Receiver: $[0, \frac{\sigma}{\sqrt{2\pi}}+ r_{Q,rx}\sigma_{rx}]$, Range = $X =  \frac{\sigma}{\sqrt{2\pi}}+ r_{Q,rx}\sigma_{rx}$
-
-
-DC-OFDM
-Transmitter: $[-r_{Q,tx}\sigma, r_{Q,tx}\sigma]$, Range = $2r_{Q,tx}\sigma$
-Receiver: $[-r_{Q,rx}\sigma_{rx}, r_{Q,rx}\sigma_{rx}]$, Range = $2r_{Q,rx}\sigma_{rx}$
-
-
-\begin{equation}
-\Delta_{rx} = \begin{cases}
-\frac{\sigma/\sqrt{2\pi} + r_{Q,rx}\sigma_{rx}}{2^{ENOB}}, & ACO-OFDM \\
-\frac{2r_{Q,rx}\sigma_{rx}}{2^{ENOB}}, & DC-OFDM 
-\end{cases}
-\end{equation}
-
-Therefore, the quantization noise variance at the transmitter assuming that clipping is small is given by
-\begin{align} \nonumber
-\sigma^2_{Q, tx} &= \begin{cases}
-\frac{1}{2}\frac{(\frac{r_{Q,tx}\sigma}{2^{ENOB}})^2}{12}, & ACO-OFDM \\
-\frac{(\frac{2r_{Q,tx}\sigma}{2^{ENOB}})^2}{12}, & DC-OFDM 
-\end{cases} \\ \nonumber 
-& = \begin{cases}
-\frac{r_{Q,tx}^2\sigma^2}{24\cdot 2^{2ENOB}}, & ACO-OFDM \\
-\frac{r_{Q,tx}^2\sigma^2}{3\cdot 2^{2ENOB}}, & DC-OFDM 
-\end{cases}\\ \nonumber 
-\end{align}At the receiver the noise variance is given by
-\begin{align} \nonumber
-\sigma^2_{Q,rx} & \approx \begin{cases}
-\frac{(\frac{\sigma/\sqrt{2\pi} + r_{Q,rx}\sigma_{rx}}{2^{ENOB}})^2}{12}, & \text{ACO-OFDM} \\
-\frac{(\frac{2r_{Q,rx}\sigma_{rx}}{2^{ENOB}})^2}{12}, & \text{DC-OFDM}
-\end{cases} \\ \nonumber
-& = \begin{cases}
-\frac{(\sigma/\sqrt{2\pi} + r_{Q,rx}\sigma_{rx})^2}{12\cdot 2^{2ENOB}}, & \text{ACO-OFDM} \\
-\frac{r_{Q,rx}^2\sigma_{rx}^2}{3\cdot 2^{2ENOB}}, & \text{DC-OFDM}
-\end{cases} \\
-\end{align}
-where the approximation follows from the fact that we are considering relatively large values of clipping ratio in order to make clipping small.
-
-Therefore, we can calculate the SNR at the receiver
-\begin{equation}
-SNR_n = \frac{NK^2|G_{tot}(f_n)|^2P_n}{\frac{N_0}{2}f_s|G_{ADC}(f_n)|^2 + \sigma_{Q,tx}^2|G_{tot}(f_n)|^2 + \sigma_{Q,rx}^2}
-\end{equation}
-where the $N$ (number of subcarriers) appear due to the calculation of the noise in the frequency domain. 
-
-Note that the signal power also affects the noise, which suggests that the SNR is bounded. Ih the case that SNR becomes bounded the noise due to quantization is dominant. Thus, 
-\begin{align} \nonumber
-SNR_n & = \begin{cases}
-\frac{N1/4P_n}{\sigma_{Q,tx}^2 + \sigma_{Q,rx}^2}, & \text{ACO-OFDM} \\
-\frac{NP_n}{\sigma_{Q,tx}^2 + \sigma_{Q,rx}^2}, & \text{DC-OFDM}
-\end{cases} \\
-& = \begin{cases}
-\frac{N1/4P_n}{\frac{r_{Q,tx}^2\sigma^2}{24\cdot 2^{2ENOB}} + \frac{\sigma^2(1/\sqrt{2\pi} + r_{Q,rx})^2}{12\cdot 2^{2ENOB}}}, & \text{ACO-OFDM} \\
-\frac{NP_n}{2\frac{r_{Q,rx}^2\sigma_{rx}^2}{3\cdot 2^{2ENOB}}}, & \text{DC-OFDM}
-\end{cases} \\
-& = \begin{cases}
-\frac{6r_{os}2^{2ENOB}}{r^2 + 2(1/\sqrt{2\pi} + r)^2}, & \text{ACO-OFDM} \\
-\frac{3r_{os}2^{2ENOB}}{2r^2}, & \text{DC-OFDM}
-\end{cases}
-\end{align}
-
-For ACO-OFDM $\sigma^2_{Q,tx} = \frac{r_{Q,tx}^2\sigma^2}{24\cdot 2^{2ENOB}}$, and $\sigma^2_{Q,rx} = \frac{\sigma^2(1/\sqrt{2\pi} + r_{Q,rx})^2}{12\cdot 2^{2ENOB}}$
-
-For DC-OFDM $\sigma^2_{Q,tx} = \sigma^2_{Q,rx} = \frac{r_{Q,rx}^2\sigma_{rx}^2}{3\cdot 2^{2ENOB}}$
-
-Ignoring frequency response $\sigma^2_{rx} = \sigma^2$ (recalling that for ACO-OFDM $\sigma^2_{rx}$  is not the variance of the signal at the receiver).
-
-$\sigma^2 = \sum P_n = N_uP_n$.
-
-Assuming same clipping ratio $r_{Q,tx} = r_{Q,rx} = r$
-
-Let's define $K_r  = r^2 + 2(1/\sqrt{2\pi} + r)^2 \approx 3r^2$
-
-Therefore, we can express the ENOB as a function of the required SNR per subcarrier:
-\begin{equation}
-ENOB = \begin{cases}
-\frac{1}{2}\log_2\bigg(\frac{K_r}{6r_{os}}SNR_n\bigg) \approx \frac{1}{2}\log_2\bigg(\frac{r^2}{2r_{os}}SNR_n\bigg) , & \text{ACO-OFDM} \\
-\frac{1}{2}\log_2\bigg(\frac{2r^2}{3r_{os}}SNR_n\bigg), & \text{DC-OFDM}
-\end{cases}
-\end{equation}
-\textbf{DC-OFDM}
-\begin{align} \nonumber
-SNR_n & =  \frac{NK^2|G_{tot}(f_n)|^2P_n}{\frac{N_0}{2}f_s|G_{ADC}(f_n)|^2 + \sigma_{Q,tx}^2|G_{tot}(f_n)|^2 + \sigma_{Q,rx}^2} \\
-& = \frac{NK^2P_n}{ \sigma_{Q,tx}^2 + \sigma_{Q,rx}^2} \\
-&= \frac{NK^2P_n}{ \frac{4r_{Q,tx}^2\sigma_{tx}^2}{12\cdot 2^{2ENOB}} + \frac{4r_{Q,rx}^2\sigma_{rx}^2}{12\cdot 2^{2ENOB}}} \\
-&= \frac{3r_{os}K^2 \cdot 2^{2ENOB}}{2r_{Q,tx}^2} \\
-\end{align}
-
-Writing the ENOB as a function of the target SNR. We also have considered $K^2 \approx 1$
-\begin{align} \nonumber
-ENOB > \frac{1}{2}\log_2\frac{2r_{Q,tx}^2SNR_n}{3r_{os}}  \\
-\end{align}
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\section{Clipping noise}
+\section{Clipping distortion}
 If we clip the signal at two levels $-r_-\sigma$ and $r_+\sigma$ it can be shown that 
 \begin{equation}
 K = 1 -Q(r_-) - Q(r_+)

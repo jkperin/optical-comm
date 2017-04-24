@@ -5,7 +5,6 @@ classdef OSA
     end
     
     properties(Dependent, Hidden)
-        resHz % resolution in Hz (around 1550nm)
         resm % resolution in m
     end
     
@@ -20,11 +19,7 @@ classdef OSA
             obj.resolution = resolution;            
         end
         
-        %% Get methods
-        function resHz = get.resHz(self)
-            resHz = self.c/(1550e-9 - self.resm/2) - self.c/(1550e-9 + self.resm/2);
-        end
-        
+        %% Get methods       
         function resm = get.resm(self)
             resm = self.resolution*1e-9;
         end
@@ -48,11 +43,12 @@ classdef OSA
                 P = abs(fftshift(fft(E(1, :)))).^2 + abs(fftshift(fft(E(2, :)))).^2;
             end
 
+            resolutionHz = self.resHz(lambda);
             fs = 2*max(abs(f)); % sampling rate
-            P = P/(fs*length(P)/(self.resHz)); 
+            P = P/(fs*length(P)/resolutionHz); 
 
             df = abs(f(2) - f(1));
-            windowLength = round(self.resHz/df);
+            windowLength = round(resolutionHz/df);
             if mod(windowLength, 2) == 0 % if even
                 windowLength = windowLength + 1;
             end
@@ -61,7 +57,7 @@ classdef OSA
             Pfilt = circshift(Pfilt, [0 -(windowLength-1)/2]); % remove delay due to filter
 
             fc = self.c/lambda;
-            fy = fc + [fliplr(0:-self.resHz:min(f)) self.resHz:self.resHz:max(f)];
+            fy = fc + [fliplr(0:-resolutionHz:min(f)) resolutionHz:resolutionHz:max(f)];
             Y = interp1(f, Pfilt, fy-fc);
             ly = self.c./fy;
             YdBm = 10*log10(Y/1e-3);
@@ -75,12 +71,18 @@ classdef OSA
             end
         end
         
-        function OSNRdB = estimate_osnr(self, E, lambda, f, verbose)
+        function [OSNRdB, OSNRdB01nm] = estimate_osnr(self, E, lambda, f, verbose)
             %% Estimate OSNR from optical spectrum
             % OSNR is measured assuming resolution defined in
             % self.resolution
-            % IMPORTANT: accurate estimates are only possible if the sampling rate is
-            % much larger than the symbol rate
+            % IMPORTANT: measured OSNR will only match theoretical OSNR
+            % when the signal bandwidth is smaller than OSA.resHz. Since,
+            % this is typically not the case, the OSA should be set to a
+            % course resolution (e.g., 0.3nm) so that all the signal power
+            % is measured. Then, the OSNR can be converted to 0.1nm
+            % resolution using the function OSA.convert_OSNR(OSNRdB, lambda)
+            % IMPORTANT: this function only works correctly if the sampling 
+            % rate is much larger than the symbol rate
             % Inputs:
             % - E: electric field
             % - lambda: wavelength in m
@@ -117,14 +119,27 @@ classdef OSA
             N = 10^(NdB/10);
 
             OSNRdB = 10*log10(SN/N - 1); % unbias OSNR estimate
+            OSNRdB01nm = self.convert_OSNR(OSNRdB, lambda);
 
             if exist('verbose', 'var') && verbose
                 figure(132), hold on
                 h1 = plot(1e9*ly(idx), SandN, 'ok');
                 plot(1e9*[ly(idx1(1)) ly(idx2(1))], [YdBm(idx1(1)), YdBm(idx2(1))], 'x-k')
                 plot(1e9*ly(idx), NdB, 'ok')
-                legend(h1, sprintf('OSNR = %.2f dB', OSNRdB));
+                legend(h1, sprintf('OSNR = %.2f dB (%.2f dB @ 0.1 nm)', OSNRdB, OSNRdB01nm));
             end
         end
+        
+        %% Auxiliary methods
+        function OSNRdB = convert_OSNR(self, OSNRdBres, lambda)
+            %% Convert OSNRdB from a given resolution, to OSNRdBAdj in 0.1 nm near lambda
+            OSNRdB = OSNRdBres + 10*log10(self.resHz(lambda)/12.5e9);
+        end
+        
+        function df = resHz(self, lambda)
+            %% Convert OSA resolution to Hz for wavelength = lambda
+            df = self.c/(lambda - self.resm/2) - self.c/(lambda + self.resm/2);
+        end            
+            
     end
 end

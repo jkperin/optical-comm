@@ -102,8 +102,10 @@ if isfield(sim, 'preAmp') && sim.preAmp % only included if sim.preAmp is true
     [Erx, OSNRdBtheory] = Rx.OptAmp.amp(Erx, sim.fs);
   
     % Measure OSNR
-    Osa = OSA(0.1); % optical spectrum analyser with resolution 0.1nm
-    OSNRdBmeasured = Osa.estimate_osnr(Erx, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
+    Osa = OSA(0.3); % optical spectrum analyser with course enough resolution to measure most of signal power
+    [~, OSNRdBmeasured] = Osa.estimate_osnr(Erx, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
+    % Note: second parameter of Osa.estimate_osnr is OSNR in 0.1 nm
+    % resolution
     
     fprintf('OSNR = %.2f dB (theory)\nOSNR = %.2f dB (measured)\n', OSNRdBtheory, OSNRdBmeasured)
     OSNRdB = OSNRdBtheory;

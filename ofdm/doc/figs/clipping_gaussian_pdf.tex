@@ -8,14 +8,14 @@
   every axis x label/.style={at=(current axis.right of origin),anchor=west},
   height=5cm, width=12cm,
   xtick={-2, 2}, 
-  xticklabels={$-r\sigma$, $r\sigma$},
+  xticklabels={\Large $-r\sigma$, \Large $r\sigma$},
   ytick=\empty,
   enlargelimits=false, clip=false, axis on top,
   grid = major
   ]
   \addplot [fill=white!50!black, draw=none, domain=-5:-2] {gauss(0,1)} \closedcycle;
   \addplot [fill=white!50!black, draw=none, domain=2:5] {gauss(0,1)} \closedcycle;
-  \addplot [very thick,black] {gauss(0,1)} node [pos=0.5,pin={80:{$\displaystyle\sigma^2 = 2\sum_{n = 1}^{N_u/2} P_n$}},inner sep=0pt] {};
+  \addplot [very thick,black] {gauss(0,1)} node [pos=0.5,pin={80:{\Large $\displaystyle\sigma^2 = 2\sum_{n = 1}^{N_u/2} P_n$}},inner sep=0pt] {};
 \end{axis}
 \end{tikzpicture}
 
@@ -27,13 +27,13 @@
   every axis x label/.style={at=(current axis.right of origin),anchor=west},
   height=5cm, width=12cm,
   xtick={-1.4, 1.4}, 
-  xticklabels={$-r\sigma^{\prime}$, $r\sigma^{\prime}$},
+  xticklabels={\Large $-r\sigma^{\prime}$, \Large $r\sigma^{\prime}$},
   ytick=\empty,
   enlargelimits=false, clip=false, axis on top,
   grid = major
   ]
   \addplot [fill=white!50!black, draw=none, domain=-5:-1.4] {gauss(0,0.7)} \closedcycle;
   \addplot [fill=white!50!black, draw=none, domain=1.4:5] {gauss(0,0.7)} \closedcycle;
-  \addplot [very thick,black] {gauss(0,0.7)} node [pos=0.5,pin={80:{$\displaystyle\sigma^{\prime 2} = 2\sum_{n = 1}^{N_u/2} P_n|G_{DAC}(f_n)|^2$}},inner sep=0pt] {};
+  \addplot [very thick,black] {gauss(0,0.7)} node [pos=0.5,pin={80:{\Large $\displaystyle\sigma^{\prime 2} = 2\sum_{n = 1}^{N_u/2} P_n|G_{DAC}(f_n)|^2$}},inner sep=0pt] {};
 \end{axis}
 \end{tikzpicture}

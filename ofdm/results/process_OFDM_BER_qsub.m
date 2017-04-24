@@ -11,7 +11,7 @@ BERtarget = 1.8e-4;
 OFDMtype = {'DC-OFDM'};
 Amplified = {0};
 ModBWGHz = 30;
-ENOB = 5;
+ENOB = [5];
 
 LineStyle = {'-', '--'};
 Marker = {'o', 's', 'v'};
@@ -25,7 +25,7 @@ for n = 1:length(OFDMtype)
     for a = 1:length(Amplified)
         for k = 1:length(Lkm)
             filename = [folder sprintf('%s_BER_Amplified=%d_L=%dkm_ModBW=%dGHz_ENOB=%d.mat',...
-                OFDMtype{n}, Amplified{a}, Lkm(k), ModBWGHz, ENOB)];  
+                OFDMtype{n}, Amplified{a}, Lkm(k), ModBWGHz, ENOB(n))];  
             try 
                 S = load(filename, '-mat');
                 D(k) = Fiber.D(S.Tx.Laser.wavelength)*S.Fiber.L/1e3;
@@ -40,27 +40,25 @@ for n = 1:length(OFDMtype)
                     BERgauss = BERgauss + S.BER(i).gauss;
                     counter = counter + 1;
                 end
-                BERcount = log10(BERcount/counter);
-                BERtheory = log10(BERtheory/counter);
-                BERgauss = log10(BERgauss/counter);
+                BERcount = BERcount/counter;
+                BERtheory = BERtheory/counter;
+                BERgauss = BERgauss/counter;
 
-                idx = find(BERcount <= -2 & BERcount >= -5.5);
-                f = fit(S.Tx.PtxdBm(idx).', BERcount(idx).', 'linearinterp');
-                [PrxdBm(n, a, k), ~, exitflag] = fzero(@(x) f(x) - log10(BERtarget), -28);
+                BERcountlog = log10(BERcount);
+                
+                
+                idx = find(BERcountlog <= -2 & BERcountlog >= -5.5);
+                [PrxdBm(n, a, k), f] = fit_ber(S.Tx.PtxdBm(idx), BERcount(idx), BERtarget);
+                
+                % Plot
                 figure(2), clf, hold on, box on
-                hline = plot(S.Tx.PtxdBm, BERcount, '-o');
+                hline = plot(S.Tx.PtxdBm, BERcountlog, '-o');
                 plot(S.Tx.PtxdBm, f(S.Tx.PtxdBm), '-', 'Color', get(hline, 'Color'));
-                plot(S.Tx.PtxdBm, BERgauss, '--', 'Color', get(hline, 'Color'));
-                plot(S.Tx.PtxdBm, BERtheory, ':k');
+                plot(S.Tx.PtxdBm, log10(BERgauss), '--', 'Color', get(hline, 'Color'));
+                plot(S.Tx.PtxdBm, log10(BERtheory), ':k');
                 axis([S.Tx.PtxdBm([1 end]) -8 0])
                 title(sprintf('L = %.1f km, D = %.2f', S.Fiber.L/1e3, D(k)*1e6))
-                if exitflag ~= 1
-                    disp('Interpolation failed')
-                    exitflag
-                    PrxdBm(n, a, k) = NaN;
-                end
                 drawnow   
-                1;
             catch e
                 filename
                 warning(e.message)

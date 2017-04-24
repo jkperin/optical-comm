@@ -37,22 +37,17 @@ for a = 1:length(Amplified)
             BERcount = log10(S.BER.count);
             BERgauss = log10(S.BER.gauss);
 
-            idx = find(BERcount <= -2 & BERcount >= -5.5);
-            f = fit(S.Tx.PtxdBm(idx).', BERcount(idx).', 'linearinterp');
-            [PrxdBm(a, k), ~, exitflag] = fzero(@(x) f(x) - log10(BERtarget), -28);
+            idx = find(BERcount <= -2 & BERcount >= -5);
+            [PrxdBm(a, k), f] = fit_ber(S.Tx.PtxdBm(idx), S.BER.count(idx), BERtarget);
+            
+            % Plot
             figure(2), clf, hold on, box on
             hline = plot(S.Tx.PtxdBm, BERcount, '-o');
             plot(S.Tx.PtxdBm, f(S.Tx.PtxdBm), '-', 'Color', get(hline, 'Color'));
             plot(S.Tx.PtxdBm, BERgauss, '--', 'Color', get(hline, 'Color'));
             axis([S.Tx.PtxdBm([1 end]) -8 0])
             title(sprintf('L = %.1f km, D = %.2f', S.Fiber.L/1e3, D(k)))
-            if exitflag ~= 1
-                disp('Interpolation failed')
-                exitflag
-                PrxdBm(n, a, k) = NaN;
-            end
             drawnow   
-            1;
         catch e
             filename
             warning(e.message)
@@ -60,9 +55,11 @@ for a = 1:length(Amplified)
         end
     end
     figure(1), hold on, box on
-    plot(D, PrxdBm(a, :), '-or', 'LineWidth', 2,...
+    plot(D, PrxdBm(a, :), '-o', 'Color', Color{a}, 'LineWidth', 2,...
         'MarkerFaceColor', 'w', 'DisplayName', sprintf('Amplified = %d', Amplified{a}));
-    xlabel('Dispersion (ps/nm)')
-    ylabel('Receiver sensitivity (dBm)')
 end
 
+figure(1)
+xlabel('Dispersion (ps/nm)')
+ylabel('Receiver sensitivity (dBm)')
+legend('-dynamiclegend')

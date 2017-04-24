@@ -1,4 +1,4 @@
-%% Calculate BER of IM-DD system using M-PAM
+%% Calculate BER of M-PAM IM-DD system
 % - Equalization is done using a fractionally spaced linear equalizer
 % Simulations include modulator, fiber, optical amplifier (optional) characterized 
 % only by gain and noise figure, optical bandpass filter, antialiasing 
@@ -82,7 +82,7 @@ Tx.DAC.filt = design_filter('bessel', 5, 0.7*mpam.Rs/(sim.fs/2)); % DAC analog f
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1550e-9, 0, -150, 0.2e6, 0);
+Tx.Laser = laser(1380e-9, 0, -150, 0.2e6, 0);
 
 %% Modulator
 Tx.rexdB = -15;  % extinction ratio in dB. Defined as Pmin/Pmax
@@ -100,7 +100,7 @@ Tx.Mod.alpha = 0;
 % fiber(Length in m, anonymous function for attenuation versus wavelength
 % (default: att(lamb) = 0 i.e., no attenuation), anonymous function for 
 % dispersion versus wavelength (default: SMF28 with lamb0 = 1310nm, S0 = 0.092 s/(nm^2.km))
-SMF = fiber(20e3); 
+SMF = fiber(0e3); 
 DCF = fiber(0, @(lamb) 0, @(lamb) -0.1*(lamb-1550e-9)*1e3 - 40e-6); 
 
 Fibers = [SMF DCF];
