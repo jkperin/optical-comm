@@ -1,12 +1,12 @@
-%% Estimate BER
-clear, clc, close all
+%% Estimate receiver sensitivity of M-PAM system in amplified and unamplified (PIN or APD) IM-DD links 
+clear, clc
 
 addpath ../f/
 addpath ../apd/
 
-sim.BERtarget = 1.8e-4;
+sim.BERtarget =3.8e-3;
 sim.rexdB = -15;
-Lkm = 0:20;
+Lkm = 0:10;
 sim.N = 2^14;
 sim.Rb = 112e9; 
 sim.Mct = 10;
@@ -14,14 +14,14 @@ wavelength = 1380e-9;
 alpha = 0; % chirp parameter
 RIN = -150; % dB/Hz
 modBW = 30e9; % 30e9;
-N0 = (30e-12)^2;
+N0 = (20e-12)^2;
 eq.type ='fixed td-sr-le';
 eq.Ntaps = 9;
 
 %% M-PAM
 % PAM(M, bit rate, leve spacing : {'equally-spaced', 'optimized'}, pulse
 % shape: struct containing properties of pulse shape 
-mpam = PAM(4, sim.Rb, 'optimized', select_pulse_shape('rect', 1));
+mpam = PAM(4, sim.Rb, 'equally-spaced', select_pulse_shape('rect', 1));
 
 sim.fs = mpam.Rs*sim.Mct;
 [f, t] = freq_time(sim.N, sim.fs); 

@@ -58,8 +58,8 @@ linkGain = linkGain*Rx.OptAmp.Gain;
 10*log10(mean(abs(Erx(1, :) - mean(Erx(1, :))).^2)/(2*Rx.OptAmp.Ssp*12.5e9))
 
 % Measure OSNR
-Osa = OSA(0.1); % optical spectrum analyser with resolution 0.1nm
-OSNRdBmeasured = Osa.estimate_osnr([Erx(1, :) - mean(Erx(1, :)); Erx(2, :) - mean(Erx(2, :))],...
+Osa = OSA(0.3); % optical spectrum analyser with resolution 0.1nm
+[~, OSNRdBmeasured] = Osa.estimate_osnr([Erx(1, :) - mean(Erx(1, :)); Erx(2, :) - mean(Erx(2, :))],...
     Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
 % Note: carrier is removed before measurement
 
