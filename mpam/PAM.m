@@ -376,7 +376,7 @@ classdef PAM
             mpamRef = self;
             logBERtarget = log10(BERtarget);
             
-            [PrxdBm, ~, exitflag] = fzero(@(PdBm) log10(objective(mpamRef, PdBm, noiseSTD)) - logBERtarget, -10);
+            [PrxdBm, ~, exitflag] = fzero(@(PdBm) log10(objective(mpamRef, PdBm, noiseSTD)) - logBERtarget, -30);
             
             if exitflag ~= 1
                 warning('PAM/sensitivity: receiver sensitivity calculation did not converge. Optimization finished with exitflag = %d.', exitflag)                

@@ -9,15 +9,15 @@ addpath ../f % general functions
 addpath ../apd % for PIN photodetectors
 
 %% Transmit power swipe
-Tx.PtxdBm = -27:-18; % transmitter power range
+Tx.PtxdBm = -30:-25; % transmitter power range
 % Tx.PtxdBm = -15:8; % transmitter power range
 
 %% Simulation parameters
-sim.Rb = 112e9;    % bit rate in bits/sec
+sim.Rb = 56e9;    % bit rate in bits/sec
 sim.Nsymb = 2^15; % Number of symbols in montecarlo simulation
 sim.ros.txDSP = 1; % oversampling ratio transmitter DSP (must be integer). DAC samping rate is sim.ros.txDSP*mpam.Rs
 % For DACless simulation must make Tx.dsp.ros = sim.Mct and DAC.resolution = Inf
-sim.ros.rxDSP = 5/4; % oversampling ratio of receiver DSP. If equalization type is fixed time-domain equalizer, then ros = 1
+sim.ros.rxDSP = 1; % oversampling ratio of receiver DSP. If equalization type is fixed time-domain equalizer, then ros = 1
 sim.Mct = 2*5;      % Oversampling ratio to simulate continuous time. Must be integer multiple of sim.ros.txDSP and numerator of sim.ros.rxDSP
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begning and end of the sequence
@@ -59,7 +59,7 @@ Tx.pulse_shape = select_pulse_shape('rect', sim.ros.txDSP);
 %% M-PAM
 % PAM(M, bit rate, leve spacing : {'equally-spaced', 'optimized'}, pulse
 % shape: struct containing properties of pulse shape 
-mpam = PAM(4, sim.Rb, 'equally-spaced', Tx.pulse_shape);
+mpam = PAM(2, sim.Rb, 'equally-spaced', Tx.pulse_shape);
 
 %% Time and frequency
 sim.fs = mpam.Rs*sim.Mct;  % sampling frequency in 'continuous-time'
@@ -91,7 +91,7 @@ Tx.Vgain = 1; % Gain of driving signal
 Tx.VbiasAdj = 1; % adjusts modulator bias
 Tx.Mod.Vbias = 0.5; % bias voltage normalized by Vpi
 Tx.Mod.Vswing = 1;  % normalized voltage swing. 1 means that modulator is driven at full scale
-Tx.Mod.BW = 30e9; % DAC frequency response includes DAC + Driver + Modulator
+Tx.Mod.BW = 20e9; % DAC frequency response includes DAC + Driver + Modulator
 Tx.Mod.filt = design_filter('two-pole', Tx.Mod.BW, sim.fs);
 Tx.Mod.H = Tx.Mod.filt.H(sim.f/sim.fs);
 Tx.Mod.alpha = 0;
@@ -141,7 +141,7 @@ Rx.ADC.rclip = 0;
 %% Equalizer
 % Terminology: TD = time domain, SR = symbol-rate, LE = linear equalizer
 Rx.eq.ros = sim.ros.rxDSP;
-Rx.eq.type = 'Adaptive TD-LE';
+Rx.eq.type = 'None'; %'Adaptive TD-LE';
 Rx.eq.Ntaps = 9; % number of taps
 Rx.eq.mu = 1e-3; % adaptation ratio
 Rx.eq.Ntrain = 1e4; % Number of symbols used in training (if Inf all symbols are used)
