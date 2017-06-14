@@ -1,0 +1,72 @@
+\documentclass[a4paper]{article}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[numbered]{bookmark}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{pifont}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{bm}
+
+\DeclareGraphicsExtensions{.eps,.pdf,.png,.tikz}
+\graphicspath{{figs/}}
+
+\title{Modeling of Erbium Doped Fiber Amplifiers}
+
+\author{JKP}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Numerical Modeling of Spectral Properties}
+
+Following the development of \cite{Giles1991} for a two-level model, the spectral properties of an EDFA are governed by the differential equation
+\begin{align}
+\frac{dP_k}{dz} = u_k(\alpha_k + g_k)\frac{\bar{n}_2}{\bar{n}_t}P_k(z) + u_kg_k\frac{\bar{n}_2}{\bar{n}_t}mh\nu_k\Delta\nu_k - u_k(\alpha_k + l_k)P_k
+\end{align}
+where
+\begin{equation}
+\frac{\bar{n}_2}{\bar{n}_t} = \frac{\sum_k \frac{P_k(z)\alpha_k}{h\nu_k\xi}}{1 + \sum_k \frac{P_k(z)(\alpha_k + g_k)}{h\nu_k\xi}}
+\end{equation}
+
+\begin{table}[h]
+	\caption{Parameters definition.}
+	\label{tab:param}
+	\centering
+	\begin{tabular}{r|l}
+		\hline
+		$P_k(z)$ & power of the $k$th pump/signal at position $z$ \\
+		$u_k$ & direction of $k$th pump/signal. $u_k = 1$, for forward, and $u_k = -1$ for backward \\
+		$\alpha_k$ & absorption coefficient \\
+		$g_k$ & gain coefficient \\
+		$l_k$ & excess loss accounts for additional fiber loss \\
+		$\xi$ & saturation power parameter $\mathrm{m}^{-1}$ \\
+		$\nu_k$ & wavelength of the $k$ pump/signal \\
+		$m$ & number of supported modes (m = 2 for SMF)\\
+		$b_{eff}$ & equivalent radius of doped region \\
+		$\bar{n}_t$ & average density of the metastable state \\
+		$\Delta\nu_k$ & resolution of ASE spectrum \\
+		$\tau$ & metastable lifetime (10 ms) \\
+		$h$ & Planck's constant \\
+		\hline
+	\end{tabular}
+\end{table}
+
+The parameter $\xi$ is defined as $\xi = \pi b_{eff}^2\bar{n}_t/\tau$ i.e., the ratio of the linear density (m$^{-1}$) of ions to the metastable lifetime. It can be determined from measurement of the fiber saturation power 
+\begin{equation}
+\xi = P^{sat}_k\frac{\alpha_k+g_k}{h\nu_k}
+\end{equation}
+
+In \cite{Giles1991}, $\xi = 1.5\times10^{15}~\mathrm{m}^{-1}$ or  $\xi = 4.2\times10^{15}~\mathrm{m}^{-1}$.
+
+\bibliographystyle{plain}
+\bibliography{bib}
+
+\end{document}
