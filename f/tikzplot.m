@@ -84,6 +84,13 @@ classdef tikzplot
         
         function str = addplot(self)
             %% Generate tikz table to be used in generating plots in latex
+            if strcmpi(self.label, '__zeros__')
+                str = addzeros(self);
+                return;
+            elseif strcmpi(self.label, '__poles__')
+                str = addpoles(self);
+                return;
+            end
           
             % Color
 %             str = ['\addplot [color=' self.color];
@@ -131,6 +138,30 @@ classdef tikzplot
             else
                 str = [str '};', self.bl];
             end
+        end
+        
+        function str = addzeros(self)
+            str = '\addplot [line width=1pt,mark=*, only marks, mark size = 3pt, mark options={fill=white}]';
+            str = [str self.bl];
+            
+            % Add data table
+            str = [str, 'table[row sep=crcr]{', self.bl];
+            for k = 1:length(self.x)
+                str = [str self.tab num2str(self.x(k)) ' ' num2str(self.y(k)) ' \\', self.bl];
+            end
+            str = [str '};', self.bl];
+        end
+        
+        function str = addpoles(self)
+            str = '\addplot [line width=1pt,mark=x, only marks, mark size = 3pt]';
+            str = [str self.bl];
+            
+            % Add data table
+            str = [str, 'table[row sep=crcr]{', self.bl];
+            for k = 1:length(self.x)
+                str = [str self.tab num2str(self.x(k)) ' ' num2str(self.y(k)) ' \\', self.bl];
+            end
+            str = [str '};', self.bl];
         end
     end
 end

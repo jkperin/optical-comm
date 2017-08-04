@@ -9,6 +9,7 @@ classdef matlab2tikz < handle
         legendLocation
         legendPosition = [];
         autoColorSelection = false;
+        zplot = false
     end
     
     properties(GetAccess=private, Hidden)
@@ -24,21 +25,26 @@ classdef matlab2tikz < handle
         tab = 9; % tab character = \t
         size = [4.52, 3.56]; % in  
         colorPalletNames = {'blue2', 'red2', 'green2', 'orange2',...
-            'purple2', 'brown2', 'gray2', 'green3', 'black2'}
+            'purple2', 'brown2', 'gray2', 'green3', 'black'}
         colorPalletValues = [51, 105, 232; 228,26,28; 0,153,37; 255,127,0;...
             152,78,163; 166,86,40; 153,153,153; 77,175,74; 0,0,0];  
     end
     
     properties (GetAccess=private)
         plots = [];
+        annot = {};
     end
     
     methods
-        function obj = matlab2tikz(h)
+        function obj = matlab2tikz(h, zplot)
             %% Constructor
+            if exist('zplot', 'var')
+                obj.zplot = zplot;
+            end
+            
             if exist('h', 'var')
                 obj = obj.extract(h);
-            end
+            end 
         end
         
         function incColorCount(self)
@@ -46,26 +52,52 @@ classdef matlab2tikz < handle
         end
         
         function addheader(self, fileID)
-            axisHeader = {'\begin{axis}[',...
-                sprintf('width=%.2fin,', self.size(1)),...
-                sprintf('height=%.2fin,', self.size(2)),...
-                'scale only axis,', 'separate axis lines,',...
-                'every outer x axis line/.append style={white!15!black},',...
-                'every x tick label/.append style={font=\color{white!15!black}},',...
-                sprintf('xmin=%.2f,', self.xmin),...
-                sprintf('xmax=%.2f,', self.xmax),...
-                sprintf('ymin=%.2f,', self.ymin),...
-                sprintf('ymax=%.2f,', self.ymax),...
-                ['xlabel={' self.xlabel '},'],...
-                ['ylabel={' self.ylabel '},'],...
-                'xmajorgrids,','ymajorgrids,',...
-                'every outer y axis line/.append style={white!15!black},',...
-                'every y tick label/.append style={font=\color{white!15!black}},',...                
-                'legend style={draw=white!15!black,fill=white,legend cell align=left}]'};
+            if self.zplot
+                axisHeader = {'\begin{axis}[',...
+                    'axis equal,',...
+                    'axis lines*=middle,',...
+                    'enlargelimits = false, clip=true,',...
+                    sprintf('xmin=%.2f,', self.xmin),...
+                    sprintf('xmax=%.2f,', self.xmax),...
+                    sprintf('ymin=%.2f,', self.ymin),...
+                    sprintf('ymax=%.2f,', self.ymax),...
+                    'axis line style={->,>=stealth},',...
+                    'xlabel={$\mathrm{Re}\{z\}$},',...
+                    'ylabel={$\mathrm{Im}\{z\}$},',...
+                    'every axis x label/.style={',...
+                        'at={(ticklabel* cs:1)},',...
+                        'anchor=north,',...
+                    '},',...
+                    'every axis y label/.style={',...
+                        'at={(ticklabel* cs:1)},',...
+                        'anchor=south,',...
+                    '},',...
+                    'xmajorgrids,','ymajorgrids,',...
+                    'every outer y axis line/.append style={white!15!black},',...
+                    'every y tick label/.append style={font=\color{white!15!black}},',...
+                    'legend style={draw=white!15!black,fill=white,legend cell align=left}]'};
+            else
+                axisHeader = {'\begin{axis}[',...
+                    sprintf('width=%.2fin,', self.size(1)),...
+                    sprintf('height=%.2fin,', self.size(2)),...
+                    'scale only axis,', 'separate axis lines,',...
+                    'every outer x axis line/.append style={white!15!black},',...
+                    'every x tick label/.append style={font=\color{white!15!black}},',...
+                    sprintf('xmin=%.2f,', self.xmin),...
+                    sprintf('xmax=%.2f,', self.xmax),...
+                    sprintf('ymin=%.2f,', self.ymin),...
+                    sprintf('ymax=%.2f,', self.ymax),...
+                    ['xlabel={' self.xlabel '},'],...
+                    ['ylabel={' self.ylabel '},'],...
+                    'xmajorgrids,','ymajorgrids,',...
+                    'every outer y axis line/.append style={white!15!black},',...
+                    'every y tick label/.append style={font=\color{white!15!black}},',...                
+                    'legend style={draw=white!15!black,fill=white,legend cell align=left}]'};
 
-            if ~isempty(self.legendPosition)
-                axisHeader{end} = ['legend style={draw=white!15!black,fill=white,legend cell align=left, at={(',...
-                sprintf('%f,%f', self.legendPosition(1), self.legendPosition(2)), ')},anchor=', 'south west', '}]']; % matlab seems to always anchor legend with south west
+                    if ~isempty(self.legendPosition)
+                        axisHeader{end} = ['legend style={draw=white!15!black,fill=white,legend cell align=left, at={(',...
+                        sprintf('%f,%f', self.legendPosition(1), self.legendPosition(2)), ')},anchor=', 'south west', '}]']; % matlab seems to always anchor legend with south west
+                    end
             end
 
             
@@ -74,6 +106,7 @@ classdef matlab2tikz < handle
                 fprintf(fileID, '%s\n', axisHeader{k});
             end
         end
+              
         
         function self = setAxis(self, a)
             self.xmin = a(1);
@@ -136,7 +169,16 @@ classdef matlab2tikz < handle
                 children = get(h, 'Children');
                 for k = 1:length(children)
                     if strcmp(get(children(k), 'type'), 'line')
+                        if self.zplot && strcmpi(get(children(k), 'LineStyle'), ':')
+                            continue % ignore unit circle
+                        end
                         p = tikzplot(children(k));
+                        if self.zplot && strcmpi(get(children(k), 'Marker'), 'x')
+                            p.label = '__poles__';
+                        elseif self.zplot && strcmpi(get(children(k), 'Marker'), 'o')
+                            p.label = '__zeros__';
+                        end
+                        
                         if self.autoColorSelection % select colors automatically
                             p.color = self.colorPalletValues(self.colorCount+1, :)/255;
                             p.colorName = self.colorPalletNames{self.colorCount+1};
@@ -146,6 +188,9 @@ classdef matlab2tikz < handle
                             p.colorName = ['matlabColor' num2str(k)];                            
                         end
                         self.plots = [self.plots; p];                    
+                    elseif strcmpi(get(children(k), 'type'), 'text')
+                        a = self.extract_annot(children(k));
+                        self.annot = [self.annot, a];
                     end
                 end  
             end
@@ -166,15 +211,38 @@ classdef matlab2tikz < handle
             self.legendPosition = get(legend(h), 'Position');
         end
         
+        function a = extract_annot(~, h)
+            a = sprintf('\\node[align=%s, anchor=south] at(axis cs: %s, %s) {\\scriptsize $%s$};',...
+                h.HorizontalAlignment,...
+                num2str(h.Position(1)),...
+                num2str(h.Position(2)),...
+                h.String);            
+        end
+        
         function clearPlots(self)
             self.plots = [];
             self.colorCount = 0;
         end            
         
         function writeplots(self, fileID)
+            if self.zplot
+                fprintf(fileID, '\\draw (axis cs:0,0) circle [black!50, dashed, line width=2pt, radius=1];\n');
+            end
+            
             for n = 1:length(self.plots)
                 p = self.plots(n);
                 fprintf(fileID, '%s\n', p.addplot());
+            end
+        end
+        
+        function writeannot(self, fileID)
+            if isempty(self.annot)
+                return;
+            end
+            
+            fprintf(fileID, '%% Annotations\n');
+            for n = 1:length(self.annot)
+                fprintf(fileID, '%s\n', self.annot{n});
             end
         end
         
@@ -197,10 +265,40 @@ classdef matlab2tikz < handle
 
             self.addheader(fileID)
             self.writeplots(fileID);
+            self.writeannot(fileID);
             
             fprintf(fileID, '\\end{axis}\n\\end{tikzpicture}');
             fclose(fileID);
         end
         
+        function write_tables(self, filename) % filename without extension
+            for n = 1:length(self.plots)
+                try
+                    if strcmpi(self.plots(n).label, '')
+                        filename_complete = [filename '.dat'];
+                    else
+                        lab = strrep(self.plots(n).label, ' ',''); % remove spaces
+                        lab = strrep(lab, '-',''); % remove hyphens
+                        lab = strrep(lab, '.',''); % remove periods
+                        filename_complete = [filename '_' lower(lab) '.dat'];
+                    end
+                    fileID = fopen(filename_complete, 'w');
+
+                    p = self.plots(n);
+
+                    % Add data table
+                    str = '';
+                    for k = 1:length(p.x)
+                        str = [str self.tab num2str(p.x(k)) self.tab num2str(p.y(k)) self.bl];
+                    end
+                    fprintf(fileID, '%s', str);
+                    fclose(fileID);
+                catch e
+                    warning('matlab2tikz/write_table: Error opening the file %f:\n%s\n', filename, e.message)
+                    fclose(fileID)
+                    return
+                end
+            end
+        end
     end
 end
