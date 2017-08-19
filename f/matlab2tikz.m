@@ -271,7 +271,37 @@ classdef matlab2tikz < handle
             fclose(fileID);
         end
         
-        function write_tables(self, filename) % filename without extension
+        function write_tables(self, filename, param) % filename without extension
+            if exist('param', 'var') && strcmpi(param, 'same x')
+                try
+                   filename_complete = [filename '.dat'];
+                   fileID = fopen(filename_complete, 'w');
+               catch e
+                    warning('matlab2tikz/write_table: Error opening the file %f:\n%s\n', filename, e.message)
+                    fclose(fileID)
+                    return
+                end
+                
+                x = self.plots(1).x;
+                str = 'x';
+                for n = 1:length(self.plots)
+                    str = [str self.tab self.plots(n).label];
+                end
+                str = [str self.bl];
+                
+                for k = 1:length(x)
+                    str = [str num2str(x(k))];
+                    for n = 1:length(self.plots)
+                        str = [str self.tab num2str(self.plots(n).y(k))];
+                    end
+                    str = [str self.bl];
+                end 
+                
+                fprintf(fileID, '%s', str);
+                fclose(fileID);
+                return
+            end
+            
             for n = 1:length(self.plots)
                 try
                     if strcmpi(self.plots(n).label, '')
