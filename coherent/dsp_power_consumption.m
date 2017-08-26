@@ -1,8 +1,10 @@
 %% Calculate power consumption
 clear, clc, close all
 
+addpath f
+
 Rb = 224e9; % bit rate
-process = 7e-9; % CMOS process
+process = 28e-9; % CMOS process
 nb = 6; % resolution used in DSP
 V = 0.8; % CMOS voltage
 M = 4; % QAM order
