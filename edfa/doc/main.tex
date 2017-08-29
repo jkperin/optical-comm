@@ -25,15 +25,147 @@
 \begin{document}
 \maketitle
 
-\section{Numerical Modeling of Spectral Properties}
 
+\section{Conclusions}
+\begin{itemize}
+	\item Increasing the pump power does not increase the relative medium inversion (D) uniformly over all wavelengths. Hence, the gain is not improved uniformly. As a result, pump power may be wasted by using very large bandwidth.
+\end{itemize}
+
+
+\section{Notes}
+
+\begin{itemize}
+	\item Er-doped fibers can be pumped either as a two-level or a three-level  laser system
+	\item Three-level system: level 1 is the ground level, level 2 is the metastable level characterized by the long lifetime $\tau$. Level 3 is the pump level.
+	\item The spontaneous decay from level 3 to level 2 is assumed to be predominantly nonradiative.
+	\item The spontaneous decay from level 2 to level 1 is assumed to be predominantly radiative
+	\item Assuming that the nonradiative decay $A_{32}$ dominates over the pumping rates $R_{13}$ and $R_{31}$, the pump level population $N_3$ is negligible due to the predominant nonradiative decay toward the metastable level 2 ($A_{32}$).
+	\item The charge distribution in the host glass causes a permanent electric field called ligand field. A ligand field induces a \textbf{Stark effect}, which results in the splitting of the energy levels.
+	\item Given the multiplicity of the levels split by the Stark effect, it may seem that the three-level model is an oversimplification. However, the effect of \textbf{intramanifold thermalization} makes this model accurate. Thermalization maintains a constant population distribution within the manifolds (Boltzmann's distribution), which eventually makes it possible to consider each of them as single energy level.
+	\item Because of the assumption of thermal equilibrium distributions of populations within each Stark manifold, the Stark-split laser system is equivalent to a three-level system.
+	\item There's significant population difference between the sublevels.
+	\item The fact that the main energy levels are split with uneven internal populations distributions also make it possible to pump Er$^{3+}$ glass directly in level 2 and to achieve overall population inversion between levels 1 and 2. This quasi-two-level pump would not be possible without if the levels were not split by the Stark effect.
+	\item Assumption that all ions in the laser medium are characterized by identical cross-sections. This is equivalent to assuming \textbf{homogeneous broadening} i.e., all ions occupy identical atomic sites in the glass host. This implies that the Stark effect induces identical energy level splitting. However, this is not a realistic assumption since the location of the ions is random. To model \textbf{inhomogeneous broadening} the cross-sections must be averaged at a macroscopic scale. 
+	\item Two-level pumping means that the pump is on the signal band
+	\item The differential equation for the ASE gives the spectrum over a narrow band of width $\delta\nu$ centered around $\lambda_k$. However, ASE is generated over a continuum of wavelengths spanning the entire glass gain spectrum. Therefore, to obtain the ASE over a bandwidth $\Delta\nu$, one must solve the differential equations $k = \Delta\nu/\delta\nu$. Accounting for the co- and counter-propagating ASE, the equations must be solved $2k$ times.
+	\item The set of differential equations is coupled and nonlinear, as each band is subject to saturation from all other spectral components due to the homogeneous characteristic of the gain medium. 
+	
+\end{itemize}
+
+\begin{equation}
+	\dfrac{dI_s}{dz} = gI_s,
+\end{equation}
+where 
+\begin{align}
+g &= \sigma_a(\lambda_s)(\eta(\lambda_s)N_2 - N_1) \tag{signal gain coefficient}\\
+g &= \rho(\sigma_e(\lambda_s)(D+1) -  \sigma_a(\lambda_s)(1-D))\tag{signal gain coefficient as a function of the relative inversion}
+\end{align}
+where the relative inversion $D \equiv (N_2 - N_1)/\rho$. $D = -1$ for all the population on level 1, and $D = 1$ for total inversion. The relative inversion $D$ and the absorption and emission cross-sections determine the gain coefficient shape (\textit{Principles, Fig. 1.3}).
+
+\begin{equation}
+	\eta(\lambda_s) = \frac{\sigma_e(\lambda_s)}{\sigma_a(\lambda_s)} \tag{cross-secion ratio}
+\end{equation}
+
+\begin{center}
+	\begin{tabular}{c|c|c}
+	Parameter & Meaning & Units \\
+	\hline
+	$I_s$ & signal intensity & W/m$^2$ \\
+	$\lambda_s$ & Signal wavelength & m \\
+	$z$ & Position & $m$ \\
+	$\sigma_e(\lambda_s)$ & emission cross-section area & m$^2$ \\
+	$\sigma_a(\lambda_s)$ & absorption cross-section area & m$^2$ \\
+	$N_2$ & population of level 2 & \\
+	$N_1$ & population of level 1 & \\
+	\hline
+\end{tabular}
+\end{center}
+
+The general rate equations (1.66) -- (1.68) of \textit{Principles} for three- and two-level pumping scheme assume the following:
+\begin{enumerate}
+	\item Pump, signal, and ASE propagate in the fiber fundamental mode 
+	\item The gain medium is homogeneously broadened 
+	\item ASE is generated in both polarizations
+\end{enumerate}
+
+\section{Amplifier noise}
+\begin{itemize}
+	\item Noise is caused by spontaneous emission to the amplifier
+	\item It can be show that the minimum noise of the amplifier is linked to Heizenberg's uncertainty principle (\textit{Principles}, section 2.1) 
+	\item Background loss coefficients for both signal and power are negligible. This is due to the fact that the Er-doped fiber is typically short.
+	\item In EDFAs, the optical \textbf{noise figure} is higher when the pump is counter-propagating than when the pump is co-propagating. (\textit{Principles}, page 109).
+	\item Backward pumping yields the highest power conversion efficiency (Fig. 5.16, \textit{Principles})
+\end{itemize}
+
+\newpage
+\section{EDFA modeling}
+
+\subsection{Standard confined-doping model}
+
+The \textbf{standard confined-doping (SCD) model} makes the following assumptions:
+
+\begin{enumerate}
+	\item Pump, signal, and ASE propagate in the fiber fundamental mode 
+	\item The gain medium is homogeneously broadened 
+	\item ASE is generated in both polarizations
+	\item Er-doping is confined, but no assumption is made about the Er-doping profile. This assumption makes the overlap integrals between the doping and the optical mode power independent \cite{Giles1991, edfa_device}.
+\end{enumerate}
+
+For simulations, these additional assumptions are made
+\begin{enumerate}
+	\item The Er-doping profile $\rho(r)$ is approximately a step-like profile
+	\begin{equation}
+		\rho(r) \approx \begin{cases}
+		\rho_0,  & r \leq a_0\\
+		0, & \text{otherwise}
+		\end{cases},
+	\end{equation}
+	where $a_0$ is the doping radius.
+	\item The intensity distribution of the optical mode $\psi_\lambda(r)$ at wavelength $\lambda$ is approximated by a Gaussian envelope \cite[eq. (1.80)]{principles}
+	\begin{equation}
+		\psi_\lambda(r) \approx \exp\Big(-\frac{r^2}{\omega_s^2}\Big), 
+	\end{equation}
+	where $\omega_\lambda$ is the power mode size at wavelength $\lambda$ corresponding to that of the exact Bessel solution, according to equations (1.31) and (1.32) from \cite{principles}. 
+	The equations are sometimes written using the normalized intensity distribution  $\bar{\psi}_\lambda(r)  = \psi_\lambda(r)/(\pi\omega_\lambda^2)$.
+	\item The Er-doping distribution is confined in the core i.e., $a_0 << \omega_k$
+\end{enumerate}
+
+From these approximations it follows that the mode-doping region overlap integral is given by
+\begin{align} 
+	\Gamma_\lambda^\prime &= 2\pi\int_0^{\infty} r\bar{\psi}_\lambda(r)\rho(r)/\rho_0dr \tag{\cite[eq. (1.220)]{edfa_device}} \\
+	&\approx 1 - \exp\Big(-\frac{a_0^2}{\omega_\lambda^2}\Big)
+\end{align}
+
+The ratio $\epsilon_\lambda\equiv \frac{a_0}{\omega_\lambda}$ is called the \textbf{confinement factor}. A confinement factor of at least 25\% ($\epsilon_\lambda \leq 0.25$) is sufficient to make $\epsilon^2_\lambda/\Gamma_\lambda\approx 1$. 
+
+Saturation power at frequency $\nu$
+\begin{equation}
+	P_{sat}(\nu) = \frac{h\nu\pi\omega_\lambda^2}{(\sigma_a(\nu) + \sigma_e(\nu))\tau},
+\end{equation}
+where $\tau$ is the spontaneous emission lifetime. The power mode size is related to the effective area $A_{eff}(\lambda) = \pi\omega^2_\lambda$
+
+
+Chapter 6 and page 156 \cite{edfa_becker}
+\begin{align}
+	a_0 &= 1.05~\mu\mathrm{m} \\
+	\Delta n &= 0.026 \\
+	\text{core radius} &= 1.4~\mu\mathrm{m} \\
+	\Gamma(\lambda = 1530 nm) = \Gamma(\lambda = 1550 nm) &= 0.4 \\
+	\Gamma(\lambda = 1480 nm) &= 0.43 \\
+	\Gamma(\lambda = 980 nm) &= 0.64 \\
+	\rho_o &= 0.7\times 10^{-19}\text{cm}^{-3}
+\end{align}
+
+
+\newpage
+\subsection{Two-level laser system}
 Following the development of \cite{Giles1991} for a two-level model, the spectral properties of an EDFA are governed by the differential equation
 \begin{align}
-\frac{dP_k}{dz} = u_k(\alpha_k + g_k)\frac{\bar{n}_2}{\bar{n}_t}P_k(z) + u_kg_k\frac{\bar{n}_2}{\bar{n}_t}mh\nu_k\Delta\nu_k - u_k(\alpha_k + l_k)P_k
+	\frac{dP_k}{dz} = u_k(\alpha_k + g_k)\frac{\bar{n}_2}{\bar{n}_t}P_k(z) + u_kg_k\frac{\bar{n}_2}{\bar{n}_t}mh\nu_k\Delta\nu_k - u_k(\alpha_k + l_k)P_k
 \end{align}
 where
 \begin{equation}
-\frac{\bar{n}_2}{\bar{n}_t} = \frac{\sum_k \frac{P_k(z)\alpha_k}{h\nu_k\xi}}{1 + \sum_k \frac{P_k(z)(\alpha_k + g_k)}{h\nu_k\xi}}
+	\frac{\bar{n}_2}{\bar{n}_t} = \frac{\sum_k \frac{P_k(z)\alpha_k}{h\nu_k\xi}}{1 + \sum_k \frac{P_k(z)(\alpha_k + g_k)}{h\nu_k\xi}}
 \end{equation}
 
 \begin{table}[h]
@@ -61,10 +193,67 @@ where
 
 The parameter $\xi$ is defined as $\xi = \pi b_{eff}^2\bar{n}_t/\tau$ i.e., the ratio of the linear density (m$^{-1}$) of ions to the metastable lifetime. It can be determined from measurement of the fiber saturation power 
 \begin{equation}
-\xi = P^{sat}_k\frac{\alpha_k+g_k}{h\nu_k}
+	\xi = P^{sat}_k\frac{\alpha_k+g_k}{h\nu_k}
 \end{equation}
 
 In \cite{Giles1991}, $\xi = 1.5\times10^{15}~\mathrm{m}^{-1}$ or  $\xi = 4.2\times10^{15}~\mathrm{m}^{-1}$.
+
+\section{Optimization process}
+
+The amplifier parameters are divided into two categories: amplifier configuration and amplifier attributes. The parameters that belong to the amplifier configuration are assumed fixed, while the amplifier attributes are optimized.
+
+\noindent\textbf{Amplifier configuration}
+\begin{itemize}
+	\item Fiber doping
+	\item Pumping scheme, pump propagation direction, pump wavelength
+	\item Amplification stages
+	\item Gain flattening device
+\end{itemize}
+
+
+\noindent\textbf{Amplifier attributes}
+\begin{itemize}
+	\item Pump power
+	\item EDF length
+\end{itemize}
+
+The function amplifier can be defined as follows
+\begin{equation}
+	A(P_p(\lambda), L, P_s(\lambda); C) \to g(\lambda), n(\lambda)
+\end{equation}
+where $P_p(\lambda)$ is the pump power at wavelength $\lambda$,  $P_s(\lambda)$ is the signal power, $L$ is the EDF length, and $C$ determines the amplifier configuration. The function returns the gain $g(\lambda)$ and the noise PSD $n(\lambda)$.
+
+After a chain of $N = L/l$ amplifiers, we have the following equivalent gain
+\begin{align}
+	g_{eq}(\lambda) &= (g(\lambda)e^{-\alpha(\lambda)l})^N \\
+	n_{eq}(\lambda) &= n(\lambda)\Big((g(\lambda)e^{-\alpha(\lambda)l})^{N-1}+\ldots+1\Big)
+\end{align}
+By defining $r(\lambda) = g(\lambda)e^{-\alpha(\lambda)l}$, we can write it more compactly:
+\begin{align}
+g_{eq}(\lambda) &= r^N(\lambda) \\
+n_{eq}(\lambda) &= n(\lambda)\Big(\frac{1-r^{N-1}(\lambda)}{1-r(\lambda)}\Big), \quad r(\lambda)\neq 1
+\end{align}
+
+Ideally, the amplifier gain would be equal to the span attenuation $g(\lambda) = e^{-\alpha(\lambda)l}\implies r(\lambda)=1$, which would result in $g_{eq}(\lambda) = 1$, and $n_{eq}(\lambda) = (N-1)n(\lambda)$.
+
+Considering $K$ wavelengths $\lambda_1, \ldots, \lambda_{K}$ spaced by $\Delta\lambda\Longleftrightarrow\Delta f$, the capacity of the system in the liner regime would be
+\begin{align}
+	C &= \sum_{k = 1}^{K} \Delta f\log_2\Big(1 + SNR(\lambda_k)\Big)\\
+	&= \sum_{k = 1}^{K} \Delta f\log_2\Bigg(1 + \frac{P_kr^N(\lambda_k)}{\Delta fn(\lambda_k)\Big(\frac{1-r^{N-1}(\lambda_k)}{1-r(\lambda_k)}\Big)}\Bigg)
+\end{align}
+where $P_k$ is the power launched on the $k$th wavelength. The last equation assumes that the noise PSD $n(\lambda_k)$ is flat over $\Delta\lambda\Longleftrightarrow\Delta f$ for all wavelengths.
+
+Problems
+\begin{enumerate}
+	\item Constant launched power for all wavelengths and no gain flattening
+	\item Variable launched power and no gain flattening	
+	\item Variable launched power and ideal gain flattening
+\end{enumerate}
+
+
+\subsection{Linear regime}
+
+
 
 \bibliographystyle{plain}
 \bibliography{bib}
