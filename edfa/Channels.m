@@ -24,7 +24,7 @@ classdef Channels
             end
         end
         
-        % Get methods
+        % Get/Set methods
         function N = get.N(self)
             %% number of channels
             N = length(self.P);

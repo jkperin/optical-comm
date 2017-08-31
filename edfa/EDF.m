@@ -7,7 +7,7 @@ classdef EDF
     % 1. Pump, signal, and ASE propagate in the fiber fundamental mode
     % 2. The gain medium is homogeneously broadened
     % 3. ASE is generated in both polarizations
-    % 4. The Er-doping is confined in core, which permits analytical 
+    % 4. The Er-doping is confined to the fiber core, which permits analytical 
     % solution of the transversal intergrals. This last assumption is what
     % differentiates the SCD model from the more general model presented in [2, Chap. 1]
     
@@ -36,8 +36,6 @@ classdef EDF
     
     properties (Dependent)
         param % physical parameters from fiber (loaded from edf_selection.m)
-        Gamma % overlap between mode and doping region
-        confinement_factor % ratio between doping radius and optical mode radius
     end
     
     properties (Constant, Hidden)
@@ -62,9 +60,9 @@ classdef EDF
             param = edf_selection(self.type);
         end
                        
-        %% Analytical models
-        function [GaindB, Psignal_out, Ppump_out] = analytical_gain(self, Pump, Signal)
-            %% Calculate gain by solving analytical equations (24) and (25) of [1]
+        %% Semi-analytical models
+        function [GaindB, Psignal_out, Ppump_out] = semi_analytical_gain(self, Pump, Signal)
+            %% Calculate gain by solving implicit equation (25) of [1]
             % This model assumes
             % 1. Gamma (ovelap integral) is constant
             % 2. amplifier is not saturated by ASE
@@ -72,12 +70,8 @@ classdef EDF
             % This model does not depend on the direction of propagation
             % between pump and signal
             % Inputs:
-            % - Pump: struct containing the following fields
-            %   - P: vector of pump powers
-            %   - wavelength: vector of pump wavelengths
-            % - Signal: struct containing the following fields
-            %   - P: vector of signal powers
-            %   - wavelength: vector of signal wavelengths            
+            % - Pump: instance of class Channels representing the pump
+            % - Signal: instance of class Channels representing the signals           
             Qpump = Pump.P./self.Ephoton(Pump.wavelength);
             Qsignal = Signal.P./self.Ephoton(Signal.wavelength);
             
@@ -107,6 +101,21 @@ classdef EDF
             
             GaindB = 10*log10(Psignal_out./Signal.P);
         end 
+        
+        %% Analytical model
+        function GaindB = analytical_gain(self, Pump, Signal)
+            %% Calculate gain assuming that fiber is uniformly inverted. Does not depend on pump power
+            alphap = self.absorption_coeff(Pump.wavelength);
+            gp = self.gain_coeff(Pump.wavelength);
+            
+            alphas = self.absorption_coeff(Signal.wavelength);
+            gs = self.gain_coeff(Signal.wavelength);
+            
+            % ln(Gain)
+            g = self.L*((alphas+gs)*alphap/(alphap+gp) - alphas);
+            
+            GaindB = 10*log10(exp(g));
+        end
            
         function nsp = analytical_excess_noise(self, Pump, Signal)
             %% Analytical expression for excess noise [1, eq. (31)]
@@ -127,10 +136,8 @@ classdef EDF
         end
         
         function Lopt = optimal_length(self, Pump, Signal)
-            %% Optimize amplifier length to achieve maximum gain at a particular signal wavelength
-            % This function uses the analytical_gain() to obtain the gain
-            % Length is set to maximize the gain at the first signal
-            % channel
+            %% Optimize EDF length to maximize mean gain for signals with non-zero power
+            % This function uses the semi_analytical_gain() to obtain the gain
             Temp = self;
             [Lopt, ~, exitflag] = fminbnd(@(L) objective(Temp, L), 0, self.maxL);
            
@@ -140,14 +147,18 @@ classdef EDF
             
             function y = objective(Temp, L)
                 Temp.L = L;
-                GaindB = Temp.analytical_gain(Pump, Signal); 
-                y = -GaindB(1); % objective is to maximize gain at first wavelength
+                GaindB = Temp.semi_analytical_gain(Pump, Signal); 
+                y = -mean(10.^(GaindB(Signal.P ~= 0)/10)); % objective is to maximize mean gain over channels with non-zero power 
             end
         end
         
         %% Numerical models 
         function [GaindB, Ppump_out, Psignal_out, Pase, sol]...
                 = two_level_system(self, Pump, Signal, ASEf, ASEb, BWref, Nsteps)
+            %% Calculate Gain and noise PSD by solving coupled nonlinear first-order differential equations that follow from the SCD model
+            % This assumes that amplifier is pumped as a two-level system.
+            % This is true for pump near wavelength 1480 nm and an
+            % approximation for pump near 980 nm. 
                                               
             lamb = [Pump.wavelength, Signal.wavelength, ASEf.wavelength, ASEb.wavelength].'; % wavelength
             u = [Pump.u, Signal.u, ASEf.u, ASEb.u].'; % propation direction
@@ -202,7 +213,7 @@ classdef EDF
             end
             
             function res = bcfun(P0, PL, Pump, Signal, ASEf, ASEb)
-                %% Calculate residual at boundary conditions
+                %% Calculate residual at boundaries
                 
                 % Boundary conditions for pump
                 res = zeros(size(P0));
@@ -224,6 +235,34 @@ classdef EDF
                 idx = idx + Signal.N; % index backward ASE
                 res(idx) = PL(idx) - ASEb.P.'; % For single-stage, P(z = L) = 0
             end
+        end
+        
+        function [n2, z] = metastable_level_population(self, sol, Signal, Pump, ASE, verbose)
+            %% Normalized metastable level population along the fiber (n2/nt)
+            lamb = [Pump.wavelength, Signal.wavelength, ASE.wavelength, ASE.wavelength].'; % wavelength
+            g = self.gain_coeff(lamb); % Gain coefficient
+            alpha = self.absorption_coeff(lamb); % Absorption coefficient
+                       
+            % Photon energy times saturation parameter
+            h_nu_xi = self.Ephoton(lamb).*self.sat_param(lamb); % h*nu*xi
+                  
+            z = sol.x;
+            n2 = zeros(size(z));
+            n2_approx = n2;
+            for k = 1:size(sol.y, 2)
+                P = sol.y(:, k);
+                n2(k) = sum(P.*alpha./h_nu_xi)./(1 + sum(P.*(alpha + g)./h_nu_xi)); % population of metastable level normalized by rho0
+                n2_approx(k) = alpha(1)/(alpha(1) + g(1)); % considering full inversion
+            end
+            
+            if exist('verbose', 'var') && verbose
+                figure(103), box on, hold on
+                plot(z, n2, 'DisplayName', 'Numerical')
+                plot(z, n2_approx, 'DisplayName', 'Full inversion approximation')
+                xlabel('Distance (m)')
+                ylabel('Normalized metastable level population')
+                legend('-DynamicLegend')
+            end  
         end
                 
         %% EDF properties
@@ -399,7 +438,6 @@ classdef EDF
                 xlabel('Wavelength (nm)')
                 ylabel('Mode radius (\mu m)')
             end
-            
         end
     end
 end
