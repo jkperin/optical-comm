@@ -33,3 +33,4 @@ coherent/results/
 *.bbl
 *.blg
 figs/*.tex
+!edfa/data/*.mat
