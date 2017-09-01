@@ -2,7 +2,7 @@ classdef EDF
     %% Single-mode Erbium-doped fiber
     % EDF parameters are loaded from function edf_selection.m
       
-    %% Numerical modeling of EDF physics assumes the standard confined (SCD) model [1], [2, Chap. 1], [3, Chap. 1]
+    %% Numerical modeling of EDF physics assumes the standard confined doping (SCD) model [1], [2, Chap. 1], [3, Chap. 1]
     % This model makes the following assumptions
     % 1. Pump, signal, and ASE propagate in the fiber fundamental mode
     % 2. The gain medium is homogeneously broadened
@@ -39,7 +39,7 @@ classdef EDF
     end
     
     properties (Constant, Hidden)
-        maxL = 100; % maximum fiber length. Used to limit simulation
+        maxL = 30; % maximum fiber length. Used to limit simulation
         h = 6.62606957e-34; % Planck
         q = 1.60217657e-19; % electron charge
         c = 299792458;      % speed of light
@@ -131,7 +131,7 @@ classdef EDF
         function Pase = analytical_ASE_PSD(self, Pump, Signal)
             %% Analytical expression for ASE PSD [1, eq. (32)]
             nsp = analytical_excess_noise(self, Pump, Signal);
-            GdB = analytical_gain(self, Pump, Signal);
+            GdB = semi_analytical_gain(self, Pump, Signal);
             Pase = 2*nsp.*(10.^(GdB/10)-1).*self.Ephoton(Signal.wavelength);
         end
         
@@ -173,11 +173,12 @@ classdef EDF
             h_nu_xi = self.Ephoton(lamb).*self.sat_param(lamb); % h*nu*xi
             
             % Solver
+            options = bvpset('Vectorized', 'on');
             z = linspace(0, self.L, Nsteps).';
             solinit = bvpinit(z, [Pump.P Signal.P ASEf.P ASEb.P].'); % initial guess
             sol = bvp4c(@(z, P) odefun(z, P, self, lamb, h_nu_xi, u, g, alpha, BWref),... % differential equation
                 @(P0, PL) bcfun(P0, PL, Pump, Signal, ASEf, ASEb),... % boundary conditions
-                solinit); % initial guess
+                solinit, options); % initial guess
             
             if any(sol.y < 0)
                 warning('EDF/two_level_system: solution contains negative power')
@@ -204,7 +205,9 @@ classdef EDF
                 % - g: gain coefficient at wavelengths given in lamb
                 % - alpha: absorption coefficient at wavelengths given in lamb
                 % - BWref: bandwidth over which to measure ASE
-                 
+                
+                P(P < 0) = 0; % non-negative constraint
+                
                 n2 = sum(P.*alpha./h_nu_xi)./(1 + sum(P.*(alpha + g)./h_nu_xi)); % population of metastable level normalized by rho0
                                
                 dP = u.*(alpha + g).*n2.*P... % medium gain

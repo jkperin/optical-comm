@@ -5,8 +5,8 @@ clear, clc, close all
 E = EDF(7, 'principles_type2');
 % E.plot('all');
 
-Pump = Channels(1480e-9, 100e-3, 'forward');
-Signal = Channels(linspace(1530, 1565, 50)*1e-9, 1e-4, 'forward');
+Pump = Channels(1480e-9, 30e-3, 'forward');
+Signal = Channels(linspace(1530, 1565, 50)*1e-9, 1e-5, 'forward');
 ASEf = Channels(Signal.wavelength, 0, 'forward');
 ASEb = Channels(Signal.wavelength, 0, 'backward');
 % E.plot('coefficients', Signal.wavelength)
