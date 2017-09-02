@@ -1,4 +1,4 @@
-function [Lopt, Signal] = optimize_edf_length(E, Pump, Signal, Pon, SpanAttdB, verbose)
+function [Lopt, Signal] = optimize_edf_length(E, Pump, Signal, Pon, SpanAttdB, method, verbose)
 %% Optimize EDF length to maximize number of channels for which the EDF gain is larger than the span attenuation
 % Inputs
 % - E: isntance of class EDF
@@ -11,14 +11,35 @@ function [Lopt, Signal] = optimize_edf_length(E, Pump, Signal, Pon, SpanAttdB, v
 % - Signal: instance of class Channels corresponding to signals. The 
 
 % Optimization
-[Lopt, ~, exitflag] = fminbnd(@(L) -sum(objective(L, E, Pump, Signal, Pon, SpanAttdB)), 0, E.maxL);
+if strcmpi(method, 'fminbnd') % find optimal using Matlab's fminbnd function (Doesn't work consistently)
+    [Lopt, ~, exitflag] = fminbnd(@(L) -sum(max_channels_on(L, E, Pump, Signal, Pon, SpanAttdB)), 0, E.maxL);
 
-if exitflag ~= 1
-    warning('optimize_edf_length: optmization exited with exitflag %d\n', exitflag)
+    if exitflag ~= 1
+        warning('optimize_edf_length: optmization exited with exitflag %d\n', exitflag)
+    end
+elseif strcmpi(method, 'interp') % find optimal by interpolation
+    Nsteps = 40;
+    Ledf = linspace(1, E.maxL, Nsteps); % EDF is at least a meter long
+    BW = zeros(size(Ledf));
+    parfor k = 1:Nsteps
+        BW(k) = sum(max_channels_on(Ledf(k), E, Pump, Signal, Pon, SpanAttdB));
+    end
+    
+    Lfit = linspace(1, E.maxL, 1e3);
+    [~, idx] = max(spline(Ledf, BW, Lfit));
+    Lopt = Lfit(idx);
+    
+    if exist('verbose', 'var') && verbose
+        figure(202), clf, hold on, box on
+        stem(Ledf, BW)
+        plot(Lopt, max(BW), 'or')
+        xlabel('EDF length (m)')
+        ylabel('Numer of channels On')
+    end
 end
 
 % Evaluate objective at optimal EDF length
-onChs = objective(Lopt, E, Pump, Signal, Pon, SpanAttdB);
+onChs = max_channels_on(Lopt, E, Pump, Signal, Pon, SpanAttdB);
 Signal.P = 0;
 Signal.P(onChs) = Pon;
 
@@ -46,46 +67,4 @@ if exist('verbose', 'var') && verbose
 end
     
 
-function onChs = objective(L, E, Pump, Signal, Pon, SpanAttdB)
-    %% For a given EDF length L, determine maximum number of channels that can be on while satisfying GaindB >= SpanAttdB
-    % Definitions
-    maxIteration = 100;
-    Poff = eps;
-    
-    % EDF fiber length
-    E.L = L;
-    
-    % Start by setting all channels to a small power level
-    Signal.P = Poff;
-        
-    GaindB = E.semi_analytical_gain(Pump, Signal);
-    if all(GaindB < SpanAttdB) % no channel had gain higher than span attenuation
-        onChs = 0;
-        return;
-    else % at least one channel has gain higher than span attenuation
-        % Turn on channels that had gain above span attenuation
-        onChs = (GaindB >= SpanAttdB);
-        Signal.P(onChs) = Pon;
-        n = 1;
-        while n < maxIteration
-            GaindB = E.semi_analytical_gain(Pump, Signal);
-            onChsNew = (GaindB >= SpanAttdB);
-            if not(isempty(onChsNew)) && all(onChs == onChsNew) % nothing changed
-                return
-            elseif not(isempty(onChsNew)) && all((onChs - onChsNew) < 0) 
-                % 
-                return 
-            else
-                % Turn off channel with smallest gain
-                minGaindB = min(GaindB(onChs));
-                Signal.P(GaindB == minGaindB) = Poff; % not a problem if more than one is turned off
-                onChs(GaindB == minGaindB) = 0;
-            end
-        end
-        
-        if n == maxIteration
-            warning('optimize_edf_length: optimization exceed maximum number of iterations')
-        end       
-    end
-end
 end
