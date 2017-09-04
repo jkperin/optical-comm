@@ -71,13 +71,13 @@ switch lower(method)
         Signal.P(onChs) = Pon;
         
     case 'particle swarm'
-        [E, Signal] = optimize_power_load_and_edf_length('interp', E, Pump, Signal, problem, false);
-        M = [E.L Signal.P;... % optimized by interp
-        	 E.L Pon*ones(1, Signal.N);... % Pon
-             E.L 1e-6*Pon*ones(1, Signal.N)]; %Poff
+%         [E, Signal] = optimize_power_load_and_edf_length('interp', E, Pump, Signal, problem, false);
+%         M = [E.L Signal.P;... % optimized by interp
+%         	 E.L Pon*ones(1, Signal.N);... % Pon
+%              E.L 1e-6*Pon*ones(1, Signal.N)]; %Poff
         
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
-            'MaxStallTime', 30, 'MaxStallIterations', 50, 'InitialSwarmMatrix', M);
+            'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', min(200, 10*(Signal.N+1));
         la = zeros(1, Signal.N+1); % lower bound
         lb = [E.maxL Pon*ones(1, Signal.N)]; % upper bound
         X = particleswarm(@(X) -capacity_linear_regime(X, E, Pump, Signal, spanAttdB, Namp, df), Signal.N+1, la, lb, options);
