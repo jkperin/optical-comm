@@ -1,8 +1,8 @@
-function C = capacity_qsub(edf_type, totalPump, totalLengthKm, spanLengthKm)
+function C = optimize_power_load_and_edf_length_qsub(edf_type, totalPump, totalLengthKm, spanLengthKm)
 
 addpath ../f/
 
-verbose = true;
+verbose = false;
 
 filename = sprintf('results/capacity_%s_totalPump=%sW_Ltotal=%s_Lspan=%skm.mat',...
         edf_type, totalPump, totalLengthKm, spanLengthKm);
@@ -52,7 +52,7 @@ SignalOn = Channels(Signal.wavelength(Signal.P ~= 0), Signal.P(Signal.P ~= 0), '
 ASEf = Channels(SignalOn.wavelength, 0, 'forward');
 ASEb = Channels(SignalOn.wavelength, 0, 'backward');
 GaindB_semi_analytical = E.semi_analytical_gain(Pump, SignalOn);
-[GaindB, ~, ~, Pase] = E.two_level_system(Pump, SignalOn, ASEf, ASEb, df, 50);
+[GaindB, ~, ~, Pase, sol] = E.two_level_system(Pump, SignalOn, ASEf, ASEb, df, 50);
   
 % Pase is ASE power in a bandwidth df
 Gain = 10.^(GaindB/10); 
@@ -68,3 +68,6 @@ if verbose
     ylabel('Gain (dB)')
     legend('-DynamicLegend', 'Location', 'SouthEast')
 end
+
+% Save to file
+save(filename)
