@@ -1,9 +1,12 @@
-%% Optimize capacity
-clear, clc, close all
+function capacity_vs_span_length_qsub(edf_type, TotalPump, Lspan)
 
 addpath ../f/
 
-E = EDF(10, 'principles_type3');
+if not(isnumeric([TotalPump Lspan]))
+    
+end
+
+E = EDF(10, edf_type);
 
 df = 50e9;
 dlamb = df2dlamb(df);
@@ -15,6 +18,10 @@ Pon = 1e-4;
 Signal = Channels(lamb, Pon, 'forward');
 Pump = Channels(1480e-9, 30e-3, 'forward');
 
+problem.Pon = Pon;
+problem.df = df;
+
+
 TotalPump = 6:10;
 % Ppump = (20:5:60)*1e-3;
 Lspan = 30:5:80;
@@ -23,17 +30,19 @@ for p = 1:length(TotalPump)
         SMF.L = Lspan(l)*1e3;
         N = L/SMF.L; % number of amplifiers in chain
         [~, spanAttdB] = SMF.link_attenuation(Signal.wavelength);
+        problem.spanAttdB = spanAttdB;
+        problem.Namp = N;
         
         % Pump power for each span
         Pump.P = TotalPump(p)/N;
         fprintf('Lspan = %d km, Pump.P = %.2f mW\n', Lspan(l), Pump.P*1e3);
         
-        [Lopt(p, l), Signal] = optimize_edf_length(E, Pump, Signal, Pon, spanAttdB, 'interp', true);
-        fprintf('- Optimal EDF length = %.2f\n', Lopt(p, l))
-        
+        [E, Signal] = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
+        Lopt(p, l) = E.L;
+                
         % Capacity calculation using numerical model
         E.L = Lopt(p, l);
-        SignalOn = Channels(Signal.wavelength(Signal.P ~= 0), Pon, 'forward');
+        SignalOn = Channels(Signal.wavelength(Signal.P ~= 0), Signal.P(Signal.P ~= 0), 'forward');
         ASEf = Channels(SignalOn.wavelength, 0, 'forward');
         ASEb = Channels(SignalOn.wavelength, 0, 'backward');
         GaindB_semi_analytical = E.semi_analytical_gain(Pump, SignalOn);
