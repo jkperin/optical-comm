@@ -39,6 +39,10 @@ classdef EDF
     end
     
     properties (Constant, Hidden)
+        abs_cs980nm = 2.7e-25 % absorption cross section near 980 nm (m^2). 
+        % Value obtainend from [4, pg 154]. Cross section curves in edf_select.m are only valid near 1550 nm
+        % Emission cross-section is assumed 0, so that two-level system can
+        % be used
         maxL = 30; % maximum fiber length. Used to limit simulation
         h = 6.62606957e-34; % Planck
         q = 1.60217657e-19; % electron charge
@@ -101,6 +105,40 @@ classdef EDF
             
             GaindB = 10*log10(Psignal_out./Signal.P);
         end 
+        
+        % Pump dominant (incomplete!)
+        function [GaindB, Psignal_out, Ppump_out] = gain_approx(self, Pump, Signal)        
+            Qin_p = Pump.P./self.Ephoton(Pump.wavelength);
+            Qin_k = Signal.P./self.Ephoton(Signal.wavelength);
+            
+            Qin = Qin_p;        % pump is much larger than signals
+            
+            % Absorption and gain coefficients
+            alphap = self.absorption_coeff(Pump.wavelength);
+            gp = self.gain_coeff(Pump.wavelength);
+            xip = self.sat_param(Pump.wavelength);
+            alpha = self.absorption_coeff(Signal.wavelength); % (1/m)
+            g = self.gain_coeff(Signal.wavelength); % (1/m)
+            xi = self.sat_param(Signal.wavelength);
+                       
+            % Solve implicit equation (25) of [1] for the total output flux Qout
+            Qout0 = Qin; % starting point
+            [Qout, ~, exitflag] = fzero(@(Qout) Qout - Qin_p.*exp((alphap + gp)*(Qin - Qout)./xip - alphap*self.L), Qout0);
+            
+            if exitflag ~= 1
+                warning('EDF/analytical_gain: could not solve for Qout. Simulation exited with exitflag = %d\n', exitflag)
+            end
+            
+            % Calculate the output flux for each individual signal & pump
+            % using equation (24) of [1]
+            Qout_k = Qin_k.*exp((alpha + g).*(Qin - Qout)./xi - alpha*self.L);
+            
+            Ppump_out = Qout.*self.Ephoton(Pump.wavelength);
+            Psignal_out = Qout_k.*self.Ephoton(Signal.wavelength);
+            
+            GaindB = 10*log10(Psignal_out./Signal.P);
+        end        
+        
         
         %% Analytical model
         function GaindB = analytical_gain(self, Pump, Signal)
@@ -325,6 +363,7 @@ classdef EDF
             %% Absorption coefficient in 1/m and in dB/m
             if isfield(self.param, 'absorption_coeff_fun')
                 alphadB = self.param.absorption_coeff_fun(lamb*1e9); % converts lamb to nm before calling function
+                alphadB(lamb >= 970e-9 & lamb <= 990e-9) = 10/log(10)*self.cross_sec2coeff(self.abs_cs980nm, 980e-9); % assign cross-section for 980 nm directly, since absorption_coeff_fun is obtained around 1550nm
                 if size(alphadB, 1) ~= size(lamb, 1)
                     alphadB = alphadB.'; % ensures that dimensions are consistent
                 end
@@ -332,13 +371,14 @@ classdef EDF
             else % if absorption coefficient is not given in param, it must be calculated from absorption cross section
                 alpha = self.cross_sec2coeff(self.absorption_cross_sec(lamb), lamb); 
                 alphadB = 10*alpha/log(10); % convert from 1/m to dB/m
-            end
+            end            
         end
         
         function [g, gdB] = gain_coeff(self, lamb) 
             %% Stimulated gain coefficient in 1/m and in dB/m
             if isfield(self.param, 'gain_coeff_fun')
                 gdB = self.param.gain_coeff_fun(lamb*1e9); % converts lamb to nm before calling function
+                gdB(lamb >= 970e-9 & lamb <= 990e-9) = 0; % gain coefficient near 980nm is assumed zero, so that two-level system can be used
                 if size(gdB, 1) ~= size(lamb, 1)
                     gdB = gdB.'; % ensures that dimensions are consistent
                 end
@@ -350,18 +390,20 @@ classdef EDF
         end
              
         function acs = absorption_cross_sec(self, lamb)
-            %% Absorption cross section evaluate at wavelength lamb
+            %% Absorption cross section (m^2) evaluated at wavelength lamb
             if isfield(self.param, 'abs_cross_sec')
                 acs = self.Gaussian_fit(lamb, self.param.abs_cross_sec);
+                acs(lamb >= 970e-9 & lamb <= 990e-9) = self.abs_cs980nm; % assign cross-section for 980 nm directly, since cross-section curves in edf_selection.m are valid near 1550 nm only
             else % if abs_cross_sec not in parameters, absorption_cross_sec is not calculated
                 acs = self.coeff2cross_sec(self.absorption_coeff(lamb), lamb);
             end
         end
         
         function ecs = emission_cross_sec(self, lamb)
-            %% Emission cross section evaluate at wavelength lamb
+            %% Emission cross section (m^2) evaluated at wavelength lamb
             if isfield(self.param, 'ems_cross_sec')
                 ecs = self.Gaussian_fit(lamb, self.param.ems_cross_sec);
+                ecs(lamb >= 970e-9 & lamb <= 990e-9) = 0; % emission cross-section near 980nm is assumed zero, so that two-level system can be used
             else % if ems_cross_sec not in parameters, calculate cross section from gain coefficient
                 ecs = self.coeff2cross_sec(self.gain_coeff(lamb), lamb);
             end

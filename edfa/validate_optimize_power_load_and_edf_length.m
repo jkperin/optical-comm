@@ -1,5 +1,5 @@
 %% Validate max_channels_on.m
-clear, clc, close all
+clear
 
 addpath ../f/
 
@@ -14,7 +14,7 @@ Namp = round(L/SMF.L);
 
 Pon = 1e-4;
 Signal = Channels(lamb, Pon, 'forward');
-Pump = Channels(1480e-9, 50e-3, 'forward');
+Pump = Channels(1480e-9, 60e-3, 'forward');
 
 [~, spanAttdB] = SMF.link_attenuation(Signal.wavelength);
 spanAttdB = spanAttdB*ones(size(Signal.wavelength));
@@ -28,6 +28,6 @@ problem.Namp = Namp;
  
 [Eopt_interp, SignalOn_interp] = optimize_power_load_and_edf_length('interp', E, Pump, Signal, problem, true);
 
-[Eopt_pswarm, SignalOn_pswarm] = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
+% [Eopt_pswarm, SignalOn_pswarm] = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
 
 % [Eopt_genetic, SignalOn_genetic] = optimize_power_load_and_edf_length('genetic', E, Pump, Signal, problem, true);
