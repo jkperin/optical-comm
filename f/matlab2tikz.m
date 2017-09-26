@@ -166,7 +166,7 @@ classdef matlab2tikz < handle
             end
             
             if ~strcmp(type, 'just axis')
-                children = get(h, 'Children');
+                children = allchild(h);
                 for k = 1:length(children)
                     if strcmp(get(children(k), 'type'), 'line')
                         if self.zplot && strcmpi(get(children(k), 'LineStyle'), ':')

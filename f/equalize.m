@@ -1,4 +1,4 @@
-function [yd, eq] = equalize(eq, yt, Hch, mpam, sim, verbose)
+function [yd, eq] = equalize(eq, yt, Hch, ModFormat, sim, verbose)
 %% Design equalizer and equalize yt
 % If yt is empty only designs equalizer
 % Inputs: 
@@ -15,7 +15,7 @@ function [yd, eq] = equalize(eq, yt, Hch, mpam, sim, verbose)
 %       - MSE (if adaptive): mean square error
 % - yt: input signal
 % - Hch (required if fixed equalizer): channel frequency response including pulse shape
-% - mpam: mpam class
+% - ModFormat: class of modulation format. Either PAM, QAM, DPSK
 % - sim: simulation parameters struct
 % - verbose (optional, default = false): whether to plot results
 % Outputs:
@@ -74,7 +74,7 @@ switch lower(eq.type)
         ros = eq.ros;
         Ntrain = eq.Ntrain;
         mu = eq.mu;
-        trainingSymbols = mpam.mod(eq.trainSeq);
+        trainingSymbols = ModFormat.mod(eq.trainSeq);
         
         % Number of filters
         [Nsamp, Nfilters]  = rat(ros);
@@ -99,16 +99,18 @@ switch lower(eq.type)
             if n < Ntrain % Training
                 e(n) = yd(n) - trainingSymbols(n);
             else % decision directed
-                e(n) = yd(n) - mpam.mod(mpam.demod(yd(n)));
+                e(n) = yd(n) - ModFormat.mod(ModFormat.demod(yd(n)));
             end
 
-            W(:, filt) = W(:, filt) - 2*mu*e(n)*z;
+            W(:, filt) = W(:, filt) - 2*mu*e(n)*conj(z);
             Wdc(filt) = Wdc(filt) - 2*mu*e(n)*1;
             
             filt = mod(filt, Nfilters) + 1;
             
-            % ensures that the center of the window of samples remains 
+            % Controls how we run over the index k (whether to increment by 1 or 2)
+            % This ensures that the center of the window of samples remains 
             % close to the nth symbol
+            % this is periodic: e.g., ros = 5/4 -> ..., 1, 1, 2, 1,...
             if abs((k+1)/ros - n-1) > 0.5
                 k = k + 2;
             else
@@ -146,10 +148,10 @@ switch lower(eq.type)
                 
                 Hw = freqz(W(:, k), 1, 2*pi*fnorm);
                 subplot(223), hold on, box on
-                plot(mpam.Rs*eq.ros*fnorm/1e9, abs(Hw).^2)
+                plot(ModFormat.Rs*eq.ros*fnorm/1e9, abs(Hw).^2)
 
                 subplot(224), hold on, box on
-                plot(mpam.Rs*eq.ros*fnorm/1e9, unwrap(angle(Hw)))
+                plot(ModFormat.Rs*eq.ros*fnorm/1e9, unwrap(angle(Hw)))
             end
             subplot(222)   
             xlabel('n')
@@ -159,13 +161,13 @@ switch lower(eq.type)
             
             subplot(223)
             a = axis;
-            axis([-mpam.Rs*eq.ros/2e9 mpam.Rs*eq.ros/2e9 a(3:4)]);
+            axis([-ModFormat.Rs*eq.ros/2e9 ModFormat.Rs*eq.ros/2e9 a(3:4)]);
             xlabel('Frequency (GHz)')
             ylabel('|H_W(f)|^2')
 
             subplot(224)
             a = axis;
-            axis([-mpam.Rs*eq.ros/2e9 mpam.Rs*eq.ros/2e9 a(3:4)]);
+            axis([-ModFormat.Rs*eq.ros/2e9 ModFormat.Rs*eq.ros/2e9 a(3:4)]);
             xlabel('Frequency (GHz)')
             ylabel('arg(H_W(f))')
             drawnow
@@ -239,9 +241,9 @@ switch lower(eq.type)
             subplot(212), box on
             fnorm = linspace(-0.5, 0.5);
             Hw = freqz(W, 1, 2*pi*fnorm);
-            plot(fnorm*mpam.Rs*eq.ros/1e9, abs(Hw).^2)
+            plot(fnorm*ModFormat.Rs*eq.ros/1e9, abs(Hw).^2)
             a = axis;
-            axis([-mpam.Rs*eq.ros/2e9 mpam.Rs*eq.ros/2e9 a(3:4)]);
+            axis([-ModFormat.Rs*eq.ros/2e9 ModFormat.Rs*eq.ros/2e9 a(3:4)]);
             xlabel('Frequency (GHz)')
             ylabel('|H_W(f)|^2')
             title('Equalizer frequency response')
