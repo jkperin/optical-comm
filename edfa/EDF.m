@@ -166,27 +166,49 @@ classdef EDF
             nsp = 1./(1 - gp*alphas./(alphap*gs));
         end
         
+        function NFdB = noise_figure(self, Pump, Signal, verbose)
+            %% Amplifier noise figure in dB
+            nsp = analytical_excess_noise(self, Pump, Signal);
+            GdB = semi_analytical_gain(self, Pump, Signal);
+            G = 10.^(GdB/10);
+            
+            NF = 2*nsp.*(G-1)./G; % By definition. Note that for high gain, NF is approximately 2nsp
+            NFdB = 10*log10(NF);
+            
+            if exist('verbose', 'var') && verbose
+               figure(401), box on, hold on
+               plot(Signal.wavelength*1e9, NFdB, 'DisplayName', 'Noise figure')
+               plot(Signal.wavelength*1e9, 10*log10(nsp), 'DisplayName', 'Excess noise')
+               xlabel('Wavelength (nm)')
+               ylabel('Noise figure (dB)')
+               legend('-DynamicLegend')
+            end
+        end
+        
         function Pase = analytical_ASE_PSD(self, Pump, Signal)
             %% Analytical expression for ASE PSD [1, eq. (32)]
             nsp = analytical_excess_noise(self, Pump, Signal);
             GdB = semi_analytical_gain(self, Pump, Signal);
             Pase = 2*nsp.*(10.^(GdB/10)-1).*self.Ephoton(Signal.wavelength);
         end
-        
-        function Lopt = optimal_length(self, Pump, Signal)
-            %% Optimize EDF length to maximize mean gain for signals with non-zero power
+               
+        function Lopt = optimal_length(self, Pump, Signal, spanAttdB)
+            %% Optimize EDF length to maximize number of channels that have gain above spanAttdB
             % This function uses the semi_analytical_gain() to obtain the gain
+            if length(spanAttdB) == 1
+                spanAttdB = spanAttdB*ones(size(Signal.P));
+            end
             Temp = self;
-            [Lopt, ~, exitflag] = fminbnd(@(L) objective(Temp, L), 0, self.maxL);
+            [Lopt, ~, exitflag] = fminbnd(@(L) objective(Temp, L, spanAttdB), 0, self.maxL);
            
             if exitflag ~= 1
                 warning('EDFA/optimal_length: could not solve for Qout. Simulation exited with exitflag = %d\n', exitflag)
             end
             
-            function y = objective(Temp, L)
+            function y = objective(Temp, L, spanAttdB)
                 Temp.L = L;
                 GaindB = Temp.semi_analytical_gain(Pump, Signal); 
-                y = -mean(10.^(GaindB(Signal.P ~= 0)/10)); % objective is to maximize mean gain over channels with non-zero power 
+                y = -sum(GaindB(Signal.P ~= 0) >= spanAttdB(Signal.P ~= 0)); % objective is to maximize mean gain over channels with non-zero power 
             end
         end
         

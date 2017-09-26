@@ -36,7 +36,7 @@ switch lower(method)
 
         % Evaluate objective at optimal EDF length
         onChs = max_channels_on(Lopt, E, Pump, Signal, Pon, spanAttdB);
-        Signal.P = 0;
+        Signal.P = zeros(1, Signal.N);
         Signal.P(onChs) = Pon;
 
     case 'interp'
@@ -67,39 +67,36 @@ switch lower(method)
         
         % Evaluate objective at optimal EDF length
         onChs = max_channels_on(Lopt, E, Pump, Signal, Pon, spanAttdB);
-        Signal.P = 0;
+        Signal.P = zeros(1, Signal.N);
         Signal.P(onChs) = Pon;
         
     case 'particle swarm'
-%         [E, Signal] = optimize_power_load_and_edf_length('interp', E, Pump, Signal, problem, false);
-%         M = [E.L Signal.P;... % optimized by interp
-%         	 E.L Pon*ones(1, Signal.N);... % Pon
-%              E.L 1e-6*Pon*ones(1, Signal.N)]; %Poff
+        [E, Signal] = optimize_power_load_and_edf_length('interp', E, Pump, Signal, problem, false);
+        SwarmSize = min(200, 10*(Signal.N+1));
+        M = Pon*rand(SwarmSize, Signal.N);
+        M(:, Signal.P == 0) = 0;
         
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
-            'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', min(200, 10*(Signal.N+1)));
-        la = zeros(1, Signal.N+1); % lower bound
-        lb = [E.maxL Pon*ones(1, Signal.N)]; % upper bound
-        X = particleswarm(@(X) -capacity_linear_regime(X, E, Pump, Signal, spanAttdB, Namp, df), Signal.N+1, la, lb, options);
+            'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize,...
+            'InitialSwarmMatrix', M);
+        la = zeros(1, Signal.N); % lower bound
+        lb = Pon*ones(1, Signal.N); % upper bound
+        X = particleswarm(@(X) -capacity_linear_regime(X, E, Pump, Signal, spanAttdB, Namp, df), Signal.N, la, lb, options);
         
-        Lopt = X(1);
-        Signal.P = X(2:end);
-        
-        E.L = Lopt;
+        Signal.P = X;
+        E.L = E.optimal_length(Pump, Signal, spanAttdB);
         GaindB = E.semi_analytical_gain(Pump, Signal);
         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet the gain requirement
         
         ploading = true;
     case 'genetic'
-        options = optimoptions('ga', 'Display', 'iter', 'UseParallel', true, 'MaxStallTime', 60, 'MaxStallIterations', 100);
-        la = zeros(1, Signal.N+1); % lower bound
-        lb = [E.maxL Pon*ones(1, Signal.N)]; % upper bound
-        X = ga(@(X) -capacity_linear_regime(X, E, Pump, Signal, spanAttdB, Namp, df), Signal.N+1, [], [], [], [], la, lb, [], options);
+        options = optimoptions('ga', 'Display', 'iter', 'UseParallel', true, 'MaxStallTime', 60);
+        la = zeros(1, Signal.N); % lower bound
+        lb = Pon*ones(1, Signal.N); % upper bound
+        X = ga(@(X) -capacity_linear_regime(X, E, Pump, Signal, spanAttdB, Namp, df), Signal.N, [], [], [], [], la, lb, [], options);
         
-        Lopt = X(1);
-        Signal.P = X(2:end);
-        
-        E.L = Lopt;
+        Signal.P = X;
+        E.L = E.optimal_length(Pump, Signal, spanAttdB);
         GaindB = E.semi_analytical_gain(Pump, Signal);
         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet the gain requirement
         

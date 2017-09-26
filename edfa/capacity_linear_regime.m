@@ -14,8 +14,12 @@ function SE = capacity_linear_regime(X, E, Pump, Signal, spanAttdB, Namp, df)
 % Output:
 % - SE: spectral efficiency i.e., capacity normalized by bandwidth
 
-E.L = X(1);
-Signal.P = X(2:end);
+% Including EDF length in optimization
+% E.L = X(1);
+% Signal.P = X(2:end);
+
+Signal.P = X;
+E.L = E.optimal_length(Pump, Signal, spanAttdB); % pick EDF length to maximize number of channels with gain greater than spanAttdB 
 
 GaindB = E.semi_analytical_gain(Pump, Signal);
 Pase = (Namp-1)*analytical_ASE_PSD(E, Pump, Signal)*df;   

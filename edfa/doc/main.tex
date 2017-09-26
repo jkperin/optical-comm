@@ -165,17 +165,17 @@ In some special cases the differential equation \eqref{eq:scd} can be solved ana
 	\item excess loss is negligible
 \end{enumerate}
 
-\begin{equation} \label{eq:analytical_gain}
-	Q^{out}_k = Q^{in}_k\exp\Big(\frac{\alpha_k + g_k}{\xi_k}(Q^{in} - Q^{out}) - \alpha_kL)\Big)
+\begin{equation} \label{eq:semi_analytical_gain}
+	Q^{out}_k = Q^{in}_k\exp\Big(\frac{\alpha_k + g_k}{\xi_k}(Q^{in} - Q^{out}) - \alpha_kL\Big)
 \end{equation}
 where
 \begin{equation}
 	Q^{in}_k = \frac{P_k}{h\nu_k}\qquad Q^{in} = \sum_k Q^{in}_k \qquad Q^{out} = \sum_k Q^{out}_k
 \end{equation}
 
-By summing \eqref{eq:analytical_gain} over $k$:
+By summing \eqref{eq:semi_analytical_gain} over $k$:
 \begin{equation}
-Q^{out} = \sum_kQ^{in}_k\exp\Big(\frac{\alpha_k + g_k}{\xi_k}(Q^{in} - Q^{out}) - \alpha_kL)\Big)
+Q^{out} = \sum_kQ^{in}_k\exp\Big(\frac{\alpha_k + g_k}{\xi_k}(Q^{in} - Q^{out}) - \alpha_kL\Big)
 \end{equation}
 This is an implicit equation for $Q^{out}$, which can be solved numerically. 
 
@@ -265,6 +265,29 @@ From this we can simplify \eqref{eq:capacity}:
 The equivalent ASE PSD is also affected by the gain flattening filter. According to the analytical model of the amplifier, the ASE PSD of a single amplifier $n(\lambda_k)$ is proportional to $g(\lambda_k)-1$. Hence, in the high gain regime, the capacity would only depend on the signal power and on the excess noise spectrum.
 
 Although  \eqref{eq:simple_capacity} is a simple equation, the gain shape $g(\lambda_k)$ and the noise PSD $n(\lambda_k)$ depend on the signal power $P(\lambda_k)$.
+
+Assuming that the noise PSD is such that:
+\begin{equation}
+	n(\lambda_k) = 2n_{sp}(\lambda_k)(g(\lambda_k) - 1)h\nu_k,
+\end{equation}
+where $n_{sp}(\lambda_k)$ is the excess-noise factor given by
+\begin{equation} \label{eq:excess_noise}
+	n_{sp}(\lambda_k) = \frac{1}{1 - \frac{g_p\alpha_k}{\alpha_pg_k}},
+\end{equation}
+where $\alpha_p$ and $g_p$ denote the absorption and gain coefficients at the pump wavelength, while  $\alpha_k$ and $g_k$ denote the absorption and gain coefficients at the signal wavelengths. 
+
+Although \eqref{eq:excess_noise} is obtained from the analytical assumption that the fiber is uniformly inverted, it is a good approximation for the actual ASE PSD provided that the gain $g(\lambda_k)$ is obtained from the semi-analytical \eqref{eq:semi_analytical_gain} or numerical \eqref{eq:scd} models. 
+
+The amplifier noise figure is defined as
+\begin{equation} \label{eq:NF}
+	\mathrm{NF}(\lambda_k) = 2n_{sp}(\lambda_k)\frac{g(\lambda_k)-1}{g(\lambda_k)}
+\end{equation}
+Hence the capacity formulation could be written in terms of the noise figure:
+
+\begin{align}\label{eq:capacity_NF}
+C =\sum_{k = 1}^{K} \Delta f\log_2\bigg(1 + \frac{P_k}{(N-1)\Delta f\mathrm{NF}(\lambda_k)h\nu_k}\bigg) 
+\end{align}
+
 
 \newpage
 \section{Notes on amplifier physics}
