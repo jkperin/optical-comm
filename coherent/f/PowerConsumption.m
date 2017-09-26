@@ -1,6 +1,6 @@
 classdef PowerConsumption
     %% Power consumption of long-haul coherent sub-systems
-    % Based on Pillai, B. S. G., Sedighi, B., Guan, K., Anthapadmanabhan, 
+    % Based on [1] Pillai, B. S. G., Sedighi, B., Guan, K., Anthapadmanabhan, 
     % N. P., Shieh, W., Hinton, K. J., & Tucker, R. S. (2014). 
     % End-to-end energy modeling and analysis of long-haul coherent 
     % transmission systems. Journal of Lightwave Technology, 32(18), 3093–3111. 
@@ -9,12 +9,12 @@ classdef PowerConsumption
         Rb % bit rate
         M % constellation size (default: 4)
         nb % number of bits in DSP (default: 8 bits)
-        process % CMOS process (default: 40 nm)
+        process % CMOS process in m (default: 40 nm)
         V % voltage of CMOS (default: 1 V)
     end
     
     properties (Dependent)
-        % Energy per operation
+        % Average energy per operation in J
         Egate % gate
         Eread % write/read
         Erom % ROM
@@ -41,7 +41,7 @@ classdef PowerConsumption
             if exist('nb', 'var')
                 PowerConsumption.nb = nb;
             else
-                PowerConsumption.nb = 8;
+                PowerConsumption.nb = 6;
             end
             
              if exist('V', 'var')
@@ -74,6 +74,7 @@ classdef PowerConsumption
             
         function E = Elas(self)
             %% Laser
+            % 2.5 J according to [1]
             E = 2.5/self.Rb;
         end
         
@@ -90,7 +91,7 @@ classdef PowerConsumption
             % Fd: DAC figure of merit (1.56 ×10?12 J/conv-step [45])
             % nd: is the DAC resolution
             % Fs: sampling frequency 
-            E = 4*Fd*nd*Fs/self.Rb;
+            E = 4*Fd*nd.*Fs/self.Rb;
         end
         
         function E = Epd(self, R, Vbias, Prec)
@@ -116,7 +117,7 @@ classdef PowerConsumption
             % Power consumption of such ADCs scale approximately in proportion
             % to the ADC bit resolution (unlike full flash ADCs that scale 
             % according to 2^nac) and the sampling rate [62]"
-            E = 4*Fa*nadc*Fs/self.Rb;
+            E = 4*Fa*nadc.*Fs/self.Rb;
         end
         
         function E = Ecd(self, Ncd, ros, Nfft)
@@ -166,7 +167,7 @@ classdef PowerConsumption
                 self.nb*(16*Btr + 6),...
                 4.5*self.nb*Btr,...
                 28*Btr+1,...
-                7*Btr+1];
+                7*Btr+2];
             
             E = 2*sum(Nop.*Eop)/(Btr*log2(self.M)); % energy per information bit
             % Note: factor of 2 is to account for two polarizations.
