@@ -324,7 +324,12 @@ classdef PAM
                 
                 log10_ber = log10(ber);
             end
-        end        
+        end
+        
+        function P = Ppam(self)
+            %% Compute average power of PAM symbols
+            P = mean(abs(self.mod(0:self.M-1)).^2);
+        end
     end
     
     methods

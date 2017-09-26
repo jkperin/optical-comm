@@ -33,6 +33,8 @@ for k = 1:Nrealizations
 
     Mstar = inv(M);
     
+    S(:, k) = svd(M);
+        
     P(k, :) = diag(Mstar*Mstar.');
 end
 

@@ -70,6 +70,11 @@ classdef QAM
             xt = filter(self.pulse_shape.h, 1, ximp, [], 2);             
         end
         
+        function P = Pqam(self)
+            %% Average constellation power. Typically used for normalization
+            P = mean(abs(self.mod(0:self.M-1)).^2);
+        end
+        
         function delay = pulse_shape_grpdelay(self)
             %% Calculate group delay of pulse shaping operation;
             delay = (length(self.pulse_shape.h)-1)/2;
