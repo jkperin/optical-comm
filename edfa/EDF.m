@@ -64,7 +64,7 @@ classdef EDF
             param = edf_selection(self.type);
         end
                        
-        %% Semi-analytical models
+        %% Semi-analytical model
         function [GaindB, Psignal_out, Ppump_out] = semi_analytical_gain(self, Pump, Signal)
             %% Calculate gain by solving implicit equation (25) of [1]
             % This model assumes
@@ -105,41 +105,7 @@ classdef EDF
             
             GaindB = 10*log10(Psignal_out./Signal.P);
         end 
-        
-        % Pump dominant (incomplete!)
-        function [GaindB, Psignal_out, Ppump_out] = gain_approx(self, Pump, Signal)        
-            Qin_p = Pump.P./self.Ephoton(Pump.wavelength);
-            Qin_k = Signal.P./self.Ephoton(Signal.wavelength);
-            
-            Qin = Qin_p;        % pump is much larger than signals
-            
-            % Absorption and gain coefficients
-            alphap = self.absorption_coeff(Pump.wavelength);
-            gp = self.gain_coeff(Pump.wavelength);
-            xip = self.sat_param(Pump.wavelength);
-            alpha = self.absorption_coeff(Signal.wavelength); % (1/m)
-            g = self.gain_coeff(Signal.wavelength); % (1/m)
-            xi = self.sat_param(Signal.wavelength);
-                       
-            % Solve implicit equation (25) of [1] for the total output flux Qout
-            Qout0 = Qin; % starting point
-            [Qout, ~, exitflag] = fzero(@(Qout) Qout - Qin_p.*exp((alphap + gp)*(Qin - Qout)./xip - alphap*self.L), Qout0);
-            
-            if exitflag ~= 1
-                warning('EDF/analytical_gain: could not solve for Qout. Simulation exited with exitflag = %d\n', exitflag)
-            end
-            
-            % Calculate the output flux for each individual signal & pump
-            % using equation (24) of [1]
-            Qout_k = Qin_k.*exp((alpha + g).*(Qin - Qout)./xi - alpha*self.L);
-            
-            Ppump_out = Qout.*self.Ephoton(Pump.wavelength);
-            Psignal_out = Qout_k.*self.Ephoton(Signal.wavelength);
-            
-            GaindB = 10*log10(Psignal_out./Signal.P);
-        end        
-        
-        
+          
         %% Analytical model
         function GaindB = analytical_gain(self, Pump, Signal)
             %% Calculate gain assuming that fiber is uniformly inverted. Does not depend on pump power
@@ -157,11 +123,11 @@ classdef EDF
            
         function nsp = analytical_excess_noise(self, Pump, Signal)
             %% Analytical expression for excess noise [1, eq. (31)]
-            [~, gp] = self.gain_coeff(Pump.wavelength);
-            [~, alphap] = self.absorption_coeff(Pump.wavelength);
+            gp = self.gain_coeff(Pump.wavelength);
+            alphap = self.absorption_coeff(Pump.wavelength);
             
-            [~, gs] = self.gain_coeff(Signal.wavelength);
-            [~, alphas] = self.absorption_coeff(Signal.wavelength);
+            gs = self.gain_coeff(Signal.wavelength);
+            alphas = self.absorption_coeff(Signal.wavelength);
             
             nsp = 1./(1 - gp*alphas./(alphap*gs));
         end
@@ -189,11 +155,12 @@ classdef EDF
             %% Analytical expression for ASE PSD [1, eq. (32)]
             nsp = analytical_excess_noise(self, Pump, Signal);
             GdB = semi_analytical_gain(self, Pump, Signal);
-            Pase = 2*nsp.*(10.^(GdB/10)-1).*self.Ephoton(Signal.wavelength);
+            Pase = 2*nsp.*(10.^(GdB/10)-1).*Signal.Ephoton;
+            Pase = max(Pase, 0); % non-negativity constraint
         end
                
         function Lopt = optimal_length(self, Pump, Signal, spanAttdB)
-            %% Optimize EDF length to maximize number of channels that have gain above spanAttdB
+            %% Optimize EDF length to maximize number of channels with non-zero power that have gain above spanAttdB
             % This function uses the semi_analytical_gain() to obtain the gain
             if length(spanAttdB) == 1
                 spanAttdB = spanAttdB*ones(size(Signal.P));
@@ -208,7 +175,7 @@ classdef EDF
             function y = objective(Temp, L, spanAttdB)
                 Temp.L = L;
                 GaindB = Temp.semi_analytical_gain(Pump, Signal); 
-                y = -sum(GaindB(Signal.P ~= 0) >= spanAttdB(Signal.P ~= 0)); % objective is to maximize mean gain over channels with non-zero power 
+                y = -sum(GaindB(Signal.P ~= 0) >= spanAttdB(Signal.P ~= 0)); 
             end
         end
         

@@ -1,6 +1,7 @@
 %% Optimize capacity
 clear, clc, close all
 
+addpath f/
 addpath ../f/
 
 E = EDF(10, 'principles_type3');

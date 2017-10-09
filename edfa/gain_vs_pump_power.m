@@ -1,6 +1,8 @@
 %% Gain vs pump power
 clear, clc, close all
 
+addpath f/
+
 Ppump = (0:10:80)*1e-3;
 
 Pump = Channels(1480e-9, 50e-3, 'forward');

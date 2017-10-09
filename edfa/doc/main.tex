@@ -244,10 +244,10 @@ Gain flattening can be modeled by modifying the variable $r(\lambda)$:
 \end{equation}
 where $0\leq f(\lambda_k) \leq 1$. 
 
-Assuming ideal gain flattening, $f(\lambda_k)$ can only compensate for channels where $g(\lambda_k) \geq e^{-\alpha_{SMF}(\lambda_k)l}$. Hence, the signal power should only on channels satisfying $g(\lambda_k) \geq e^{-\alpha_{SMF}(\lambda_k)l}$:
+Assuming ideal gain flattening, $f(\lambda_k)$ can only compensate for channels where $g(\lambda_k) \geq e^{-\alpha_{SMF}(\lambda_k)l}$. Hence, only the channels satisfying $g(\lambda_k) \geq e^{-\alpha_{SMF}(\lambda_k)l}$ should have non-zero power:
 
 \begin{equation}
-	P_k \neq 0 \quad\text{only if}\quad g(\lambda_k) \geq e^{-\alpha_{SMF}(\lambda_k)l}
+	P_k \neq 0 \quad\text{only if}\quad g(\lambda_k) \geq e^{\alpha_{SMF}(\lambda_k)l}
 \end{equation}
 
 This way the gain flattening filter can be chosen such that
@@ -276,7 +276,7 @@ where $n_{sp}(\lambda_k)$ is the excess-noise factor given by
 \end{equation}
 where $\alpha_p$ and $g_p$ denote the absorption and gain coefficients at the pump wavelength, while  $\alpha_k$ and $g_k$ denote the absorption and gain coefficients at the signal wavelengths. 
 
-Although \eqref{eq:excess_noise} is obtained from the analytical assumption that the fiber is uniformly inverted, it is a good approximation for the actual ASE PSD provided that the gain $g(\lambda_k)$ is obtained from the semi-analytical \eqref{eq:semi_analytical_gain} or numerical \eqref{eq:scd} models. 
+Although \eqref{eq:excess_noise} is obtained from the analytical assumption that the fiber is uniformly inverted, it is a relatively good approximation for the actual ASE PSD provided that the gain $g(\lambda_k)$ is obtained from the semi-analytical \eqref{eq:semi_analytical_gain} or numerical \eqref{eq:scd} models. 
 
 The amplifier noise figure is defined as
 \begin{equation} \label{eq:NF}
@@ -288,6 +288,23 @@ Hence the capacity formulation could be written in terms of the noise figure:
 C =\sum_{k = 1}^{K} \Delta f\log_2\bigg(1 + \frac{P_k}{(N-1)\Delta f\mathrm{NF}(\lambda_k)h\nu_k}\bigg) 
 \end{align}
 
+For the ON channels the gain is relatively high, since $g(\lambda_k) \geq e^{\alpha_{SMF}(\lambda_k)l}$. Thus, we can use the approximation $\frac{g(\lambda_k)}{g(\lambda_k)-1} \approx 1$, which results in 
+\begin{equation}
+	C =\sum_{k = 1}^{K} \Delta f\log_2\bigg(1 + \frac{P_k}{2(N-1)\Delta fn_{sp}(\lambda_k)h\nu_k}\bigg) 
+\end{equation}
+
+The summation is performed over the channels that have gain higher than the span attenuation:
+
+\begin{equation}
+SE =\sum_{k} \bm{1}\{g(\lambda_k) \geq e^{\alpha_{SMF}(\lambda_k)l}\}\log_2\bigg(1 + \frac{P_k}{2(N-1)\Delta fn_{sp}(\lambda_k)h\nu_k}\bigg) 
+\end{equation}
+
+For simulations, the indicator is approximated by a differentiable function
+
+\begin{equation}
+	\bm{1}\{x \geq 0\} \approx 0.5(\tanh(Dx) + 1)
+\end{equation}
+where $D$ controls the smoothness.
 
 \newpage
 \section{Notes on amplifier physics}

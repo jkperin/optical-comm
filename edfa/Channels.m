@@ -11,6 +11,12 @@ classdef Channels
         PdBm % Power in dBm
     end
     
+    properties (Constant, Hidden)
+        h = 6.62606957e-34; % Planck
+        q = 1.60217657e-19; % electron charge
+        c = 299792458;      % speed of light
+    end
+    
     methods
         function obj = Channels(varargin)
             %% Constructor
@@ -41,6 +47,11 @@ classdef Channels
         function PdBm = get.PdBm(self)
             %% Power in dBm
             PdBm = 10*log10(self.P/1e-3);
+        end
+        
+        function E = Ephoton(self)
+            %% Photon energy
+            E = self.h*self.c./self.wavelength;
         end
     end
 end

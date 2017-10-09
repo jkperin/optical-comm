@@ -1,5 +1,6 @@
 function capacity_vs_span_length_qsub(edf_type, TotalPump, Lspan)
 
+addpath f/
 addpath ../f/
 
 if not(isnumeric([TotalPump Lspan]))

@@ -1,5 +1,6 @@
 function C = optimize_power_load_and_edf_length_qsub(edf_type, totalPump, totalLengthKm, spanLengthKm)
 
+addpath f/
 addpath ../f/
 
 verbose = false;

@@ -1,4 +1,4 @@
-function SE = capacity_linear_regime(X, E, Pump, Signal, spanAttdB, Namp, df)
+function SE = capacity_linear_regime_relaxed(X, E, Pump, Signal, spanAttdB, Namp, df)
 %% Compute system capacity in linear regime for a particular EDF length and power loading specificied in vector X
 % X(1) is the EDF length, and X(2:end) has the signal power ate each
 % wavelength. Simulations assume ideal gain flatenning, resulting in the
@@ -18,12 +18,20 @@ function SE = capacity_linear_regime(X, E, Pump, Signal, spanAttdB, Namp, df)
 % E.L = X(1);
 % Signal.P = X(2:end);
 
-Signal.P = X;
-E.L = E.optimal_length(Pump, Signal, spanAttdB); % pick EDF length to maximize number of channels with gain greater than spanAttdB 
+E.L = X(1);
+Signal.P = X(2:end);
+% E.L = E.optimal_length(Pump, Signal, spanAttdB); % pick EDF length to maximize number of channels with gain greater than spanAttdB 
 
 GaindB = E.semi_analytical_gain(Pump, Signal);
-Pase = (Namp-1)*analytical_ASE_PSD(E, Pump, Signal)*df;   
+% Pase = (Namp-1)*analytical_ASE_PSD(E, Pump, Signal)*df;   
+% 
+% Gain = 10.^(GaindB/10);
+% SNR = Gain.*Signal.P./Pase;
+% SE = sum(log2(1 + SNR(GaindB >= spanAttdB)));  
 
-Gain = 10.^(GaindB/10);
-SNR = Gain.*Signal.P./Pase;
-SE = sum(log2(1 + SNR(GaindB >= spanAttdB)));  
+%% Relaxations: (i) NF is gain independent, (ii) step function approximation
+D = 0.5;
+step_approx = @(x) 0.5*(tanh(D*x) + 1);
+NF = 2*E.analytical_excess_noise(Pump, Signal);
+SNR = Signal.P./((Namp-1)*df*NF.*Signal.Ephoton);
+SE = sum(log2(1 + SNR).*step_approx(GaindB - spanAttdB));
