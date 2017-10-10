@@ -73,7 +73,7 @@ switch lower(method)
         
     case 'particle swarm'
         [E, Signal] = optimize_power_load_and_edf_length('interp', E, Pump, Signal, problem, false);
-        SwarmSize = min(200, 20*(Signal.N+1));
+        SwarmSize = min(200, 30*(Signal.N+1));
         
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
             'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize);
@@ -83,9 +83,8 @@ switch lower(method)
         
         E.L = X(1);
         Signal.P = X(2:end);
-%         E.L = E.optimal_length(Pump, Signal, spanAttdB);
         GaindB = E.semi_analytical_gain(Pump, Signal);
-        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet the gain requirement
+        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
         
         ploading = true;
     case 'genetic'

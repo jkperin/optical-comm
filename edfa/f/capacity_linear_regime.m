@@ -1,4 +1,4 @@
-function [SEnum, SEapprox] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df)
+function [SEnum, SEapprox, num, approx] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df)
 %% Compute system capacity in linear regime for a particular EDF length and power loading
 % Inputs:
 % - E: instance of class EDF
@@ -20,6 +20,11 @@ Gain = 10.^(GaindB/10);
 SNR = Gain.*Signal.P./Pase;
 SEnum = (GaindB >= spanAttdB).*log2(1 + SNR); 
 
+num.SE = SEnum;
+num.GaindB = GaindB;
+num.Pase = Pase;
+num.SNRdB = 10*log10(SNR);
+
 %% Semi-analytical solution
 GaindB = E.semi_analytical_gain(Pump, Signal);
 Pase = (Namp-1)*analytical_ASE_PSD(E, Pump, Signal)*df;   
@@ -27,3 +32,7 @@ Gain = 10.^(GaindB/10);
 SNR = Gain.*Signal.P./Pase;
 SEapprox = (GaindB >= spanAttdB).*log2(1 + SNR);   
 
+approx.SE = SEapprox;
+approx.GaindB = GaindB;
+approx.Pase = Pase;
+approx.SNRdB = 10*log10(SNR);

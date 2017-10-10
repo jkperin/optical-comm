@@ -12,6 +12,16 @@
 \usepackage{tikz}
 \usepackage{pgfplots}
 \usepackage{bm}
+\usetikzlibrary{calc}
+\usetikzlibrary{pgfplots.fillbetween, backgrounds}
+\usetikzlibrary{positioning}
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{pgfplots.groupplots}
+\usetikzlibrary{plotmarks}
+\usetikzlibrary{calc}
+
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=newest} 
 
 \DeclareGraphicsExtensions{.eps,.pdf,.png,.tikz}
 \graphicspath{{figs/}}
@@ -217,6 +227,11 @@ The function amplifier can be defined as follows
 \end{equation}
 where $P_p(\lambda)$ is the pump power at wavelength $\lambda$,  $P_s(\lambda)$ is the signal power, $L$ is the EDF length, and $C$ determines the amplifier configuration. The function returns the gain $g(\lambda)$ and the ASE PSD $n(\lambda)$.
 
+\begin{figure}
+	\resizebox{\textwidth}{!}{\input{amp_diagram.tex}}
+	\caption{Amplifier chain block diagram}
+\end{figure}
+
 After a chain of $N = L/l$ amplifiers, we have the following equivalent gain and noise PSD
 \begin{align}
 	g_{eq}(\lambda) &= (g(\lambda)e^{-\alpha_{SMF}(\lambda)l})^N \\
@@ -288,15 +303,15 @@ Hence the capacity formulation could be written in terms of the noise figure:
 C =\sum_{k = 1}^{K} \Delta f\log_2\bigg(1 + \frac{P_k}{(N-1)\Delta f\mathrm{NF}(\lambda_k)h\nu_k}\bigg) 
 \end{align}
 
-For the ON channels the gain is relatively high, since $g(\lambda_k) \geq e^{\alpha_{SMF}(\lambda_k)l}$. Thus, we can use the approximation $\frac{g(\lambda_k)}{g(\lambda_k)-1} \approx 1$, which results in 
+For the ON channels the gain is relatively high, since $g(\lambda_k) \geq e^{\alpha_{SMF}(\lambda_k)l}$. Thus, we can use the approximation $\frac{g(\lambda_k)}{g(\lambda_k)-1} \approx \frac{A}{A-1} \equiv a$, where $A = e^{j\alpha_kl}$ is the span attenuation. Hence, if $A = 10$, $a = 1.11$. This results in
 \begin{equation}
-	C =\sum_{k = 1}^{K} \Delta f\log_2\bigg(1 + \frac{P_k}{2(N-1)\Delta fn_{sp}(\lambda_k)h\nu_k}\bigg) 
+	C =\sum_{k = 1}^{K} \Delta f\log_2\bigg(1 + \frac{P_k}{2a(N-1)\Delta fn_{sp}(\lambda_k)h\nu_k}\bigg) 
 \end{equation}
 
 The summation is performed over the channels that have gain higher than the span attenuation:
 
 \begin{equation}
-SE =\sum_{k} \bm{1}\{g(\lambda_k) \geq e^{\alpha_{SMF}(\lambda_k)l}\}\log_2\bigg(1 + \frac{P_k}{2(N-1)\Delta fn_{sp}(\lambda_k)h\nu_k}\bigg) 
+SE =\sum_{k} \bm{1}\{g(\lambda_k) \geq e^{\alpha_{SMF}(\lambda_k)l}\}\log_2\bigg(1 + \frac{P_k}{2a(N-1)\Delta fn_{sp}(\lambda_k)h\nu_k}\bigg) 
 \end{equation}
 
 For simulations, the indicator is approximated by a differentiable function

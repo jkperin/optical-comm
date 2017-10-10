@@ -1,0 +1,48 @@
+\tikzset{
+	ncbar angle/.initial=90,
+	ncbar/.style={
+		to path=(\tikztostart)
+		-- ($(\tikztostart)!#1!\pgfkeysvalueof{/tikz/ncbar angle}:(\tikztotarget)$)
+		-- ($(\tikztotarget)!($(\tikztostart)!#1!\pgfkeysvalueof{/tikz/ncbar angle}:(\tikztotarget)$)!\pgfkeysvalueof{/tikz/ncbar angle}:(\tikztostart)$)
+		-- (\tikztotarget)
+	},
+	ncbar/.default=0.5cm,
+}
+
+\tikzset{square left brace/.style={ncbar=0.5cm}}
+\tikzset{square right brace/.style={ncbar=-0.5cm}}
+
+\tikzset{round left paren/.style={ncbar=0.5cm,out=120,in=-120}}
+\tikzset{round right paren/.style={ncbar=0.5cm,out=60,in=-60}}
+
+\begin{tikzpicture}[->, >=stealth, shorten >= 0pt, draw=black!50, node distance=2cm, font=\sffamily, triangle/.style = {regular polygon, regular polygon sides=3 },
+node rotated/.style = {rotate=0},
+border rotated/.style = {shape border rotate=0}]
+    \tikzstyle{node}=[circle,fill=black,minimum size=2pt,inner sep=0pt]
+    \tikzstyle{block}=[draw=black,rectangle,fill=none,minimum size=1cm, inner sep=0pt]
+    \tikzstyle{amp}=[draw=black,triangle,fill=none,minimum size=1cm, inner sep=0pt]
+    \tikzstyle{annot} = []
+
+	\node[node] (xc) at (0, 0) {};
+    \node[amp, rotate=-90, above of=xc] (AMP) {};
+    \node[block, right=5cm of xc, align=center, text width=2cm] (f) {Gain flattening}; 
+	\coordinate[right of=f] (yc) {};    
+	
+	\draw (xc) -- (AMP);
+	\draw (AMP) -- (f);
+	\draw (f) -- (yc);
+	
+	\draw[black] ($(AMP)!0.45!(f.west) + (0, 0.3cm)$) circle(0.3cm); 
+	\draw[black] ($(AMP)!0.5!(f.west) + (0, 0.3cm)$) circle(0.3cm);
+	\draw[black] ($(AMP)!0.55!(f.west) + (0, 0.3cm)$) circle(0.3cm);
+	
+	\node[below, scale=0.75] at ($(AMP) + (1mm, -5mm)$) {$g_k, n_k$};
+	\node[below, scale=0.75] at ($(AMP)!0.5!(f.west)$) {$e^{-\alpha_{SMF, k}l}$};
+	\node[below, scale=0.75] at (f.south) {$f(\lambda_k) = \displaystyle\frac{1}{g_ke^{-\alpha_{SMF, k}l}}$};
+	
+	\draw [-, black, thick] ($(xc)!0.5!(AMP)-(0,1cm)$) to [round left paren ] ($(xc)!0.5!(AMP)+(0,1cm)$);
+	\draw [-, black, thick] ($(f)!0.7!(yc)-(0,1cm)$) to [round right paren ] ($(f)!0.7!(yc)+(0,1cm)$);
+	\node[right] at ($(f)!0.7!(yc)-(0,1cm)$) {$\times N$};
+	
+	\node[above] at (xc) {$P_k$};
+\end{tikzpicture}

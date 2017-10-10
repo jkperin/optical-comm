@@ -32,6 +32,8 @@ GaindB = E.semi_analytical_gain(Pump, Signal);
 %% Relaxations: (i) NF is gain independent, (ii) step function approximation
 D = 0.5;
 step_approx = @(x) 0.5*(tanh(D*x) + 1);
-NF = 2*E.analytical_excess_noise(Pump, Signal);
+A = 10^(spanAttdB/10);
+a = A/(A-1);
+NF = 2*a*E.analytical_excess_noise(Pump, Signal);
 SNR = Signal.P./((Namp-1)*df*NF.*Signal.Ephoton);
 SE = sum(log2(1 + SNR).*step_approx(GaindB - spanAttdB));
