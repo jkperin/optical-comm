@@ -1,16 +1,19 @@
-function [E, Signal] = optimize_power_load_and_edf_length(method, E, Pump, Signal, problem, verbose)
+function [E, Signal, exitflag] = optimize_power_load_and_edf_length(method, E, Pump, Signal, problem, verbose)
 %% Optimize power loading and EDF length
 % Inputs
 % - method: optimization method. 
 % Assuming that channels can be either on or off: method = 'interp' or 'fminbnd'
-% Assuming that channels power is upper bounded by Pon: method = 'particle swarm', or 'genetic'
+% Assuming that channels power is upper bounded by Pon: method = 'particle swarm'
 % - E: isntance of class EDF
 % - Pump: instance of class Channels corresponding to pump
 % - Signal: instance of class Channels corresponding to signals
 % - problem: struct with problem parameters: Pon, Namp, spanAttdB, and df
 % Outputs:
 % - Lopt: optimal EDF length
-% - Signal: instance of class Channels corresponding to signals. The 
+% - Signal: instance of class Channels corresponding to signals.
+% - exitflag: reason optimizatoin ended. Meaning depends on each algorithm. 
+% exitflag = 1 usually means that relative changed in objective function
+% was smaller than tolerance
 
 % Unpack problem parameters
 Pon = problem.Pon;
@@ -20,7 +23,6 @@ spanAttdB = problem.spanAttdB;
 df = problem.df;
 
 %% Optimization
-ploading = false;
 switch lower(method)
     case 'fminbnd'
         %% Find EDF length that maximizes the number of ON channels
@@ -70,35 +72,25 @@ switch lower(method)
         onChs = max_channels_on(Lopt, E, Pump, Signal, Pon, spanAttdB);
         Signal.P = zeros(1, Signal.N);
         Signal.P(onChs) = Pon;
-        
+        exitflag = 1;
     case 'particle swarm'
-        [E, Signal] = optimize_power_load_and_edf_length('interp', E, Pump, Signal, problem, false);
-        SwarmSize = min(200, 30*(Signal.N+1));
+        if isfield(problem, 'SwarmSize')
+            SwarmSize = problem.SwarmSize;
+        else
+            SwarmSize = min(200, 20*(Signal.N+1));
+        end
         
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
             'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize);
         la = [0 Poff]; % lower bound
         lb = [E.maxL Pon*ones(1, Signal.N)]; % upper bound
-        X = particleswarm(@(X) -capacity_linear_regime_relaxed(X, E, Pump, Signal, spanAttdB, Namp, df), Signal.N+1, la, lb, options);
+        [X, ~, exitflag] = particleswarm(@(X) -capacity_linear_regime_relaxed(X, E, Pump, Signal, spanAttdB, Namp, df), Signal.N+1, la, lb, options);
         
         E.L = X(1);
         Signal.P = X(2:end);
         GaindB = E.semi_analytical_gain(Pump, Signal);
         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
-        
-        ploading = true;
-    case 'genetic'
-        options = optimoptions('ga', 'Display', 'iter', 'UseParallel', true, 'MaxStallTime', 60);
-        la = zeros(1, Signal.N); % lower bound
-        lb = Pon*ones(1, Signal.N); % upper bound
-        X = ga(@(X) -capacity_linear_regime(X, E, Pump, Signal, spanAttdB, Namp, df), Signal.N, [], [], [], [], la, lb, [], options);
-        
-        Signal.P = X;
-        E.L = E.optimal_length(Pump, Signal, spanAttdB);
-        GaindB = E.semi_analytical_gain(Pump, Signal);
-        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet the gain requirement
-        
-        ploading = true;
+      
     otherwise
         error('optimize_power_load_and_edf_length: invalid method')
 end
@@ -109,34 +101,29 @@ if exist('verbose', 'var') && verbose
     fprintf('- Optimal EDF length = %.2f\n', E.L)
     fprintf('- Number of channels ON = %d\n', sum(Signal.P ~= 0))
     
-    % Calculate optimal gain
+    
+    % Compute capacity using numerical and semi-analytical (approx) methods 
     offChs = (Signal.P == 0);
-    Signal.P(offChs) = eps; % small power just to measure gain
-    GdB = E.semi_analytical_gain(Pump, Signal);   
-    Pase = E.analytical_ASE_PSD(Pump, Signal)*df;
-    
-    % Numerical solution
-    ASEf = Channels(Signal.wavelength, 0, 'forward');
-    ASEb = Channels(Signal.wavelength, 0, 'backward');
-    [GdBnum, ~, ~, Pase_num] = E.two_level_system(Pump, Signal, ASEf, ASEb, df, 40);
-    
+    [num, approx] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df);
+        
     % SE calculations
-    [SEnum, SEapprox] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df);
-    fprintf('- Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',  sum(SEnum), sum(SEnum)/sum(SEnum ~= 0))
-    
-    Signal.P(offChs) = 0; % turn off again
-    
+    fprintf('- Numerical: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',  sum(num.SE), sum(num.SE)/sum(num.SE ~= 0))
+    fprintf('- Approximated: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',  sum(approx.SE), sum(approx.SE)/sum(approx.SE ~= 0))
+    fprintf('- Relaxed objective: Total Capacity = %.3f (bits/s/Hz)\n',  capacity_linear_regime_relaxed([E.L Signal.P], E, Pump, Signal, spanAttdB, Namp, df))
+        
     if length(spanAttdB) == 1
         spanAttdB = spanAttdB*ones(size(Signal.wavelength));
     end
     
+    % Plot Results
+    lnm = Signal.wavelength*1e9;
     figure(203), hold on, box on
-    plot(Signal.wavelength*1e9, GdB, 'DisplayName', 'Gain (semi-analytical)')
-    plot(Signal.wavelength*1e9, GdBnum, '--', 'DisplayName', 'Gain (numerical)')
-    plot(Signal.wavelength(not(offChs))*1e9, GdB(not(offChs)), 'ob', 'DisplayName', 'Channels on')
-    plot(Signal.wavelength(offChs)*1e9, GdB(offChs), 'xr', 'DisplayName', 'Channels off')
-    plot(Signal.wavelength*1e9, spanAttdB, 'k', 'DisplayName', 'Span attenuation')
-    axis([Signal.wavelength([1 end])*1e9, 0, 20])
+    hplot = plot(lnm, approx.GaindB, 'DisplayName', 'Approximated');
+    plot(lnm, num.GaindB, '--', 'Color', get(hplot, 'Color'),'DisplayName', 'Numerical')
+    plot(lnm(not(offChs)), approx.GaindB(not(offChs)), 'ob', 'DisplayName', 'Channels on')
+    plot(lnm(offChs), approx.GaindB(offChs), 'xr', 'DisplayName', 'Channels off')
+    plot(lnm, spanAttdB, 'k', 'DisplayName', 'Span attenuation')
+    axis([lnm([1 end]), 0, 20])
     xlabel('Wavelength (nm)')
     ylabel('Gain (dB)')
     if isempty(legend(gca))
@@ -145,34 +132,41 @@ if exist('verbose', 'var') && verbose
     title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
     
     figure(204), hold on, box on
-    hplot = plot(Signal.wavelength*1e9, 10*log10(Pase/1e-3), 'DisplayName', 'ASE (semi-analytical)');
-    plot(Signal.wavelength*1e9, 10*log10(Pase_num/1e-3), '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'ASE (numerical)')
+    hplot = plot(lnm, Watt2dBm(approx.Pase), 'DisplayName', 'Approximated');
+    plot(lnm, Watt2dBm(num.Pase), '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Numerical')
     xlabel('Wavelength (nm)')
-    ylabel('ASE PSD (dB)')
+    ylabel('ASE (dBm)')
     if isempty(legend(gca))
         legend('-DynamicLegend', 'Location', 'SouthEast')
     end
     title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
     
     figure(205), hold on, box on
-    hplot = plot(Signal.wavelength*1e9, SEnum, 'DisplayName', sprintf('Numerical (%d ON)', sum(SEnum ~= 0)));
-    plot(Signal.wavelength*1e9, SEapprox, '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Approximated')
+    hplot = plot(lnm, approx.SNRdB, 'DisplayName', 'Approx');
+    plot(lnm, num.SNRdB, '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Numerical')
+    xlabel('Wavelength (nm)')
+    ylabel('SNR (dB)')
+    legend('-DynamicLegend', 'Location', 'SouthEast')
+    title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
+    axis([lnm(1) lnm(end) 0 25])
+    
+    figure(206), hold on, box on
+    hplot = plot(lnm, approx.SE, 'DisplayName', sprintf('Approx (%d ON)', sum(approx.SE ~= 0)));
+    plot(lnm, num.SE, '--', 'Color', get(hplot, 'Color'), 'DisplayName', sprintf('Numerical (%d ON)', sum(num.SE ~= 0)))
     xlabel('Wavelength (nm)')
     ylabel('Capacity (bits/s/Hz)')
     legend('-DynamicLegend', 'Location', 'SouthEast')
     title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
-    
-    if ploading
-        figure(206), 
-        subplot(211), box on, hold on
-        plot(Signal.wavelength*1e9, Signal.PdBm)
-        xlabel('Wavelength (nm)')
-        ylabel('Power loading (dBm)')
-                
-        subplot(212), box on, hold on
-        plot(Signal.wavelength*1e9, Signal.PdBm + GdB)
-        xlabel('Wavelength (nm)')
-        ylabel('Output power (dBm)')
-    end
+       
+    figure(207), 
+    subplot(211), box on, hold on
+    plot(lnm, Signal.PdBm)
+    xlabel('Wavelength (nm)')
+    ylabel('Power loading (dBm)')
+
+    subplot(212), box on, hold on
+    plot(lnm, Signal.PdBm + approx.GaindB)
+    xlabel('Wavelength (nm)')
+    ylabel('Output power (dBm)')
     drawnow
 end

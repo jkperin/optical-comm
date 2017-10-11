@@ -1,4 +1,4 @@
-function [SEnum, SEapprox, num, approx] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df)
+function [num, approx] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df)
 %% Compute system capacity in linear regime for a particular EDF length and power loading
 % Inputs:
 % - E: instance of class EDF
@@ -8,7 +8,14 @@ function [SEnum, SEapprox, num, approx] = capacity_linear_regime(E, Pump, Signal
 % - Namp: number of amplifiers in the chain
 % - df: frequency spacing used for computing ASE power
 % Output:
-% - SE: spectral efficiency i.e., capacity normalized by bandwidth
+% - num: struct containing the spectral efficiency, gain in dB, ASE power
+% in W, and SNR in dB calculated using the numerical method
+% - approx: struct similar to num, but calculated using semi-analytical
+% methods
+
+% Set channels with zero power with small power for gain/noise calculation
+offChs = (Signal.P == 0);
+Signal.P(offChs) = eps; 
 
 %% Numerical solution
 ASEf = Channels(Signal.wavelength, 0, 'forward');

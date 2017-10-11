@@ -42,17 +42,26 @@ problem.spanAttdB = spanAttdB;
 problem.Namp = Nspans;
 problem.Pon = Pon;
 problem.df = df;
+problem.SwarmSize = min(300, 20*(Signal.N+1));
                
 % Optimize power load and EDF length
-[E, Signal] = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, verbose);
-                        
-% Capacity calculation using numerical model
-offChs = (Signal.P == 0);
-Signal.P(offChs) = eps; % assign small power just for gain/noise calculations
-[SE_numerical, SE_approx, num, approx] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df);
-Signal.P(offChs) = 0; % return to 0
+[E, Signal, exitflag] = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, verbose);
 
-fprintf('Total spectrum efficiency = %.2f bits/s/Hz\n', sum(SE_numerical));
+% Check results with flat power allocation
+Pon_vec = [1e-5 1e-4 mean(Signal.P(Signal.P ~= 0))];
+for k = 1:length(Pon_vec)
+    problem.Pon = Pon_vec(k);
+    [flat_fminbnd(k).E, flat_fminbnd(k).Signal, flat_fminbnd(k).exitflag] = optimize_power_load_and_edf_length('fminbnd', E, Pump, Signal, problem, verbose);
+    [flat_fminbnd(k).num, flat_fminbnd(k).approx] = capacity_linear_regime(flat_fminbnd(k).E, Pump, flat_fminbnd(k).Signal, spanAttdB, Namp, df);
+    
+    [flat_Einterp(k).E, flat_interp(k).Signal, flat_interp(k).exitflag] = optimize_power_load_and_edf_length('interp', E, Pump, Signal, problem, verbose);
+    [flat_interp(k).num, flat_interp(k).approx] = capacity_linear_regime(flat_Einterp(k).E, Pump, flat_interp(k).Signal, spanAttdB, Namp, df);
+end
+
+% Capacity calculation using numerical model
+[num, approx] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df);
+
+fprintf('Total spectrum efficiency = %.2f bits/s/Hz\n', sum(num.SE));
 
 if verbose
     figure(108)

@@ -1,6 +1,6 @@
 function SE = capacity_linear_regime_relaxed(X, E, Pump, Signal, spanAttdB, Namp, df)
 %% Compute system capacity in linear regime for a particular EDF length and power loading specificied in vector X
-% X(1) is the EDF length, and X(2:end) has the signal power ate each
+% X(1) is the EDF length, and X(2:end) has the signal power at each
 % wavelength. Simulations assume ideal gain flatenning, resulting in the
 % simplified capacity formula
 % Inputs:
@@ -12,7 +12,7 @@ function SE = capacity_linear_regime_relaxed(X, E, Pump, Signal, spanAttdB, Namp
 % - Namp: number of amplifiers in the chain
 % - df: frequency spacing used for computing ASE power
 % Output:
-% - SE: spectral efficiency i.e., capacity normalized by bandwidth
+% - SE: spectral efficiency in bits/s/Hz i.e., capacity normalized by bandwidth
 
 % Including EDF length in optimization
 % E.L = X(1);
@@ -30,9 +30,9 @@ GaindB = E.semi_analytical_gain(Pump, Signal);
 % SE = sum(log2(1 + SNR(GaindB >= spanAttdB)));  
 
 %% Relaxations: (i) NF is gain independent, (ii) step function approximation
-D = 0.5;
+D = 2;
 step_approx = @(x) 0.5*(tanh(D*x) + 1);
-A = 10^(spanAttdB/10);
+A = 10^(mean(spanAttdB)/10);
 a = A/(A-1);
 NF = 2*a*E.analytical_excess_noise(Pump, Signal);
 SNR = Signal.P./((Namp-1)*df*NF.*Signal.Ephoton);
