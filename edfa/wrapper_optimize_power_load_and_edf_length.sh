@@ -1,8 +1,6 @@
 #!/bin/bash
 
 ########## 
-qsub -v edf_type="principles_type3",pumpWavelengthnm="1480",pumpPowermW="10",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
-qsub -v edf_type="principles_type3",pumpWavelengthnm="1480",pumpPowermW="15",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type3",pumpWavelengthnm="1480",pumpPowermW="20",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type3",pumpWavelengthnm="1480",pumpPowermW="25",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type3",pumpWavelengthnm="1480",pumpPowermW="30",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
@@ -21,8 +19,6 @@ qsub -v edf_type="principles_type3",pumpWavelengthnm="1480",pumpPowermW="90",Nsp
 qsub -v edf_type="principles_type3",pumpWavelengthnm="1480",pumpPowermW="95",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type3",pumpWavelengthnm="1480",pumpPowermW="100",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 
-qsub -v edf_type="principles_type3",pumpWavelengthnm="980",pumpPowermW="10",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
-qsub -v edf_type="principles_type3",pumpWavelengthnm="980",pumpPowermW="15",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type3",pumpWavelengthnm="980",pumpPowermW="20",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type3",pumpWavelengthnm="980",pumpPowermW="25",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type3",pumpWavelengthnm="980",pumpPowermW="30",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
@@ -41,8 +37,6 @@ qsub -v edf_type="principles_type3",pumpWavelengthnm="980",pumpPowermW="90",Nspa
 qsub -v edf_type="principles_type3",pumpWavelengthnm="980",pumpPowermW="95",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type3",pumpWavelengthnm="980",pumpPowermW="100",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 
-qsub -v edf_type="principles_type2",pumpWavelengthnm="1480",pumpPowermW="10",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
-qsub -v edf_type="principles_type2",pumpWavelengthnm="1480",pumpPowermW="15",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type2",pumpWavelengthnm="1480",pumpPowermW="20",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type2",pumpWavelengthnm="1480",pumpPowermW="25",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type2",pumpWavelengthnm="1480",pumpPowermW="30",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
@@ -61,8 +55,6 @@ qsub -v edf_type="principles_type2",pumpWavelengthnm="1480",pumpPowermW="90",Nsp
 qsub -v edf_type="principles_type2",pumpWavelengthnm="1480",pumpPowermW="95",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type2",pumpWavelengthnm="1480",pumpPowermW="100",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 
-qsub -v edf_type="principles_type2",pumpWavelengthnm="980",pumpPowermW="10",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
-qsub -v edf_type="principles_type2",pumpWavelengthnm="980",pumpPowermW="15",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type2",pumpWavelengthnm="980",pumpPowermW="20",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type2",pumpWavelengthnm="980",pumpPowermW="25",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh
 qsub -v edf_type="principles_type2",pumpWavelengthnm="980",pumpPowermW="30",Nspans="280",spanLengthKm="50" capacity_vs_pump_power_qsub.sh

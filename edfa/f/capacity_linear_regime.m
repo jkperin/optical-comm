@@ -25,7 +25,7 @@ ASEb = Channels(Signal.wavelength, 0, 'backward');
 Pase = (Namp-1)*Pase;
 Gain = 10.^(GaindB/10);
 SNR = Gain.*Signal.P./Pase;
-SEnum = (GaindB >= spanAttdB).*log2(1 + SNR); 
+SEnum = 2*(GaindB >= spanAttdB).*log2(1 + SNR); 
 
 num.SE = SEnum;
 num.GaindB = GaindB;
@@ -37,7 +37,7 @@ GaindB = E.semi_analytical_gain(Pump, Signal);
 Pase = (Namp-1)*analytical_ASE_PSD(E, Pump, Signal)*df;   
 Gain = 10.^(GaindB/10);
 SNR = Gain.*Signal.P./Pase;
-SEapprox = (GaindB >= spanAttdB).*log2(1 + SNR);   
+SEapprox = 2*(GaindB >= spanAttdB).*log2(1 + SNR);   
 
 approx.SE = SEapprox;
 approx.GaindB = GaindB;

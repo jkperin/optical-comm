@@ -36,4 +36,4 @@ A = 10^(mean(spanAttdB)/10);
 a = A/(A-1);
 NF = 2*a*E.analytical_excess_noise(Pump, Signal);
 SNR = Signal.P./((Namp-1)*df*NF.*Signal.Ephoton);
-SE = sum(log2(1 + SNR).*step_approx(GaindB - spanAttdB));
+SE = 2*sum(log2(1 + SNR).*step_approx(GaindB - spanAttdB));
