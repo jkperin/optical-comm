@@ -107,6 +107,7 @@ classdef OSA
             if isempty(idx1) || isempty(idx2)
                 warning('OSA/estimate_osnr: it was not possible to find noise floor')
                 OSNRdB = [];
+                OSNRdB01nm = [];
                 return;
             end
 

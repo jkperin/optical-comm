@@ -1,13 +1,11 @@
-function BER = QPSK_DSP_BER_qsub(fiberLengthKm, wavelengthnm, ModBWGHz, EqNtaps, CPRAlgorithm, PhaseEstimation, CPRtaps, linewidthKHz, ros, ENOB)
+function BER = QPSK_DSP_BER_qsub(fiberLengthKm, wavelengthnm, ModBWGHz, Amplified, EqNtaps, linewidthKHz, ros, ENOB)
 %% Simulation of DSP-based coherent detection system using QPSK
 % - fiberLength: fiber length in km
 % - wavelengthnm: wavelength of transmitter and LO in nm
-% - ModBW: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
+% - ModBWGHz: modulator bandwidth in GHz. Only used when Modulator == 'Linear'
+% - Amplified: weather link is amplified
 % - EqNtaps: number of taps of adaptive equalizer
-% - CPRAlgorithm: carrier phase recovery (CPR) algorithm. Either 'DPLL' or
-% 'feedforward'
-% - CPRtaps: Number of taps in CPR algorithm. Only used if CPRAlgorithm == 'feedforward'
-% - linewidth: transmitter and LO laser linewidth in kHz
+% - linewidthKHz: transmitter and LO laser linewidth in kHz
 % - ros: oversampling ratio of DSP
 % - ENOB: effective number of bits
 
@@ -17,50 +15,49 @@ addpath ../f/
 addpath ../apd/
 
 ros = eval(ros);
-filename = sprintf('results/QPSK_DSP_BER_L=%skm_lamb=%snm_ModBW=%sGHz_Ntaps=%staps_%s-%s_%staps_nu=%skHz_ros=%d_ENOB=%s.mat',...
-        fiberLengthKm, wavelengthnm, ModBWGHz, EqNtaps, CPRAlgorithm, PhaseEstimation, CPRtaps, linewidthKHz, round(100*ros), ENOB)
+filename = sprintf('results/QPSK_DSP_BER_L=%skm_lamb=%snm_Amplified=%s_ModBW=%sGHz_Ntaps=%staps_nu=%skHz_ros=%d_ENOB=%s.mat',...
+        fiberLengthKm, wavelengthnm, ModBWGHz, Amplified, EqNtaps, linewidthKHz, round(100*ros), ENOB)
 
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([fiberLengthKm wavelengthnm ModBWGHz EqNtaps CPRtaps linewidthKHz ENOB]))
+if ~all(isnumeric([fiberLengthKm, wavelengthnm, ModBWGHz, Amplified, EqNtaps, linewidthKHz, ENOB]))
     fiberLength = 1e3*str2double(fiberLengthKm);
     wavelength = 1e-9*str2double(wavelengthnm);
     ModBW = 1e9*str2double(ModBWGHz);
     EqNtaps = round(str2double(EqNtaps));
-    CPRtaps = round(str2double(CPRtaps));
+    Amplified = logical(str2double(Amplified));
     linewidth = 1e3*str2double(linewidthKHz);
     ENOB = round(str2double(ENOB));
 end
 
 %% Simulation launched power swipe
-Tx.PlaunchdBm = -38:0.5:-10;
+Tx.PlaunchdBm = -36:0.5:-30;
 % Tx.PlaunchdBm = -28;
 
 %% ======================== Simulation parameters =========================
-sim.Nsymb = 2^17; % Number of symbols in montecarlo simulation
+sim.Nsymb = 2^16; % Number of symbols in montecarlo simulation
 sim.Mct = 9;    % Oversampling ratio to simulate continuous time 
 sim.ros.rxDSP = ros;
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 0.5e4; % number of symbols to be discarded from the begining and end of the sequence 
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
 sim.Rb = 2*112e9; % Bit rate
-sim.Npol = 2;                                                              % number of polarizations
-sim.Modulator = 'SiPhotonics';                                             % Modulator bandwidth limitation: {'MZM': limited by loss and velocity mismatch, 'SiPhotonics' : limited by parasitics (2nd-order response)}
-sim.pulse_shape = select_pulse_shape('rect', sim.Mct);                     % pulse shape
-sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);                  % M-QAM modulation format
+sim.Npol = 2;                 % number of polarizations
+sim.pulse_shape = select_pulse_shape('rect', sim.Mct);   % pulse shape
+sim.ModFormat = QAM(4, sim.Rb/sim.Npol, sim.pulse_shape);  % M-QAM modulation format
 sim.save = true;
-sim.Realizations = 4;
+sim.Realizations = 1;
 
 % Simulation control
 sim.RIN = true; 
 sim.PMD = true;
 sim.phase_noise = (linewidth ~= 0);
-sim.preAmp = false;  % currently ignored
+sim.preAmp = Amplified;  
 sim.quantiz = not(isinf(ENOB));
 sim.stopWhenBERreaches0 = true;                                            % whether to stop simulation after counter BER reaches 0
 
 %% Plots
 Plots = containers.Map();                                                   % List of figures 
-Plots('BER')                  = 0; 
+Plots('BER')                  = 1; 
 Plots('Equalizer')            = 0;
 Plots('Eye diagram') = 0;
 Plots('DPLL phase error') = 0;
@@ -94,17 +91,15 @@ Tx.Dely  = 0;                                                               % De
 Tx.Laser = laser(wavelength, 0, -150, linewidth, 0);
 
 %% ============================= Modulator ================================
-if strcmpi(sim.Modulator, 'MZM') 
-    %% Mach-Zehnder (limited by velocity mismatch and loss)
-    % Mod = mzm_frequency_response(ratio : velocity mismatch, L : iteractive length in m, f: frequency vector, verbose: whether to plot results)
-    Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
-elseif strcmpi(sim.Modulator, 'SiPhotonics') 
-    %% Si Photonics (limited by parasitics, 2nd-order response)
-    Tx.Mod.BW = ModBW;
-    Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
-    Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
-    Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)
-end                                                            % optical modulator
+%% LiNbO3 Mach-Zehnder (limited by velocity mismatch and loss)
+% Mod = mzm_frequency_response(ratio : velocity mismatch, L : iteractive length in m, f: frequency vector, verbose: whether to plot results)
+% Tx.Mod = mzm_frequency_response(0.98, 0.05, sim.f, true);
+
+%% Si Photonics (limited by parasitics, 2nd-order response)
+Tx.Mod.BW = ModBW;
+Tx.Mod.fc = Tx.Mod.BW/sqrt(sqrt(2)-1); % converts to relaxation frequency
+Tx.Mod.grpdelay = 2/(2*pi*Tx.Mod.fc);  % group delay of second-order filter in seconds
+Tx.Mod.H = exp(1j*2*pi*sim.f*Tx.Mod.grpdelay)./(1 + 2*1j*sim.f/Tx.Mod.fc - (sim.f/Tx.Mod.fc).^2);  % laser freq. resp. (unitless) f is frequency vector (Hz)                                                            % optical modulator
 
 %% =============================== Fiber ==================================
 % Constructor: fiber(L, att(lamb) (optional), D(lamb) (optional)) 
@@ -185,15 +180,15 @@ Rx.AdEq.ros = sim.ros.rxDSP;                                                    
 
 %% Carrrier phase recovery
 % Only used if sim.ModFormat = 'QAM'
-Rx.CPR.type = CPRAlgorithm;                                                % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
-Rx.CPR.phaseEstimation = PhaseEstimation;                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
+Rx.CPR.type = 'Feedforward';                                                % Carrier phase recovery: 'DPLL' (digital phase-locked loop) or 'feedforward'
+Rx.CPR.phaseEstimation = 'NDA';                                             % Phase estimation method: 'dd' = decision-directed for either DPLL or feedfoward; 'nd' = non-data-aided (only for feedforward); '4th power' (only for DPLL)
 Rx.CPR.Delay = 0;                                                       % Delay in number of symbols due to pipelining and parallelization
 Rx.CPR.Ntrain = 1;                                                     % Number of symbols used for training. This training starts when equalization training is done
 % Carrier phase recovery parameters for 'feedforward'
 Rx.CPR.Filter = 'Averaging';                                               % {'Wiener': Wiener filter, 'Averaging': samples are averaged rather than filtered by Wiener filter}
 Rx.CPR.FilterType = 'FIR';                                                 % Filter type: 'FIR' or 'IIR'
 Rx.CPR.structure = '2 filters';                                            % structure of feedforward employing DD and FIR filter: {'1 filter', '2 filter'}
-Rx.CPR.Ntaps = CPRtaps;                                                    % Number of taps of filter 
+Rx.CPR.Ntaps = 10;                                                       % Number of taps of filter 
 Rx.CPR.NDAorder = 'reverse';                                               % Order of phase estimation (PE) and filtering in NDA FF:{'direct': PE followed by filtering, 'reverse': filtering followed by PE}
 % Carrier phase recovery parameters for 'DPLL'
 Rx.CPR.CT2DT = 'bilinear';                                                 % method for converting continuous-time loop filter to discrete time: {'bilinear', 'impinvar'}
@@ -210,8 +205,8 @@ Rx.FreqRec.Ntrain = 1e4;
 %% Generate summary
 coherent_simulation_summary(sim, Tx, Fiber, Rx);
 
-parfor k = 1:sim.Realizations
-    BER(k) = ber_coherent_dsp(Tx, Fiber, Rx, sim)
+for k = 1:sim.Realizations
+    [BER(k), SNRdBtheory{k}, OSRNdBtheory{k}] = ber_coherent_dsp(Tx, Fiber, Rx, sim);
 end
 
 if sim.save   

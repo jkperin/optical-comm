@@ -1,8 +1,9 @@
-function BER = DQPSK_DSP_BER_qsub(fiberLengthKm, wavelengthnm, ModBWGHz, EqNtaps, linewidthKHz, ros, ENOB)
+function BER = DQPSK_DSP_BER_qsub(fiberLengthKm, wavelengthnm, ModBWGHz, Amplified, EqNtaps, linewidthKHz, ros, ENOB)
 %% Simulation of DSP-based coherent detection system using DQPSK
 % - fiberLength: fiber length in km
 % - wavelengthnm: wavelength of transmitter and LO in nm
-% - ModBW: modulator bandwidth in GHz. Only used when Modulator == 'SiPhotonics'
+% - Amplified: weather link is amplified
+% - ModBW: modulator bandwidth in GHz
 % - EqNtaps: number of taps of adaptive equalizer
 % - linewidth: transmitter and LO laser linewidth in kHz
 % - ros: oversampling ratio of DSP. Must be passed as a fraction e.g., 5/4
@@ -14,13 +15,14 @@ addpath ../f/
 addpath ../apd/
 
 ros = eval(ros);
-filename = sprintf('results/DQPSK_DSP_BER_L=%skm_lamb=%snm_ModBW=%sGHz_Ntaps=%staps_nu=%skHz_ros=%d_ENOB=%s.mat',...
-        fiberLengthKm, wavelengthnm, ModBWGHz, EqNtaps, linewidthKHz, round(100*ros), ENOB)
+filename = sprintf('results/DQPSK_DSP_BER_L=%skm_lamb=%snm_Amplified=%s_ModBW=%sGHz_Ntaps=%staps_nu=%skHz_ros=%d_ENOB=%s.mat',...
+        fiberLengthKm, wavelengthnm, Amplified, ModBWGHz, EqNtaps, linewidthKHz, round(100*ros), ENOB)
 
 % convert inputs to double (on cluster inputs are passed as strings)
-if ~all(isnumeric([fiberLengthKm wavelengthnm ModBWGHz EqNtaps linewidthKHz ENOB]))
+if ~all(isnumeric([fiberLengthKm wavelengthnm Amplified ModBWGHz EqNtaps linewidthKHz ENOB]))
     fiberLength = 1e3*str2double(fiberLengthKm);
     wavelength = 1e-9*str2double(wavelengthnm);
+    Amplified = logical(str2double(Amplified));
     ModBW = 1e9*str2double(ModBWGHz);
     EqNtaps = round(str2double(EqNtaps));
     linewidth = 1e3*str2double(linewidthKHz);

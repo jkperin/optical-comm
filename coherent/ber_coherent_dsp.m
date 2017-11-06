@@ -1,10 +1,10 @@
-function ber = ber_coherent_dsp(Tx, Fiber, Rx, sim)
+function [ber, SNRdBtheory, OSNRdBtheory] = ber_coherent_dsp(Tx, Fiber, Rx, sim)
 %% Calculate BER of coherent system with DSP-based receiver for values of launched power specified Tx.PlaunchdB
 
 ModFormat = sim.ModFormat;
 
 % Ensures that modulation format is QPSK or DQPSK
-assert(ModFormat.M == 4, 'ber_coherent_dsp: Modulation format must be quarternary')
+% assert(ModFormat.M == 4, 'ber_coherent_dsp: Modulation format must be quarternary')
 
 %% Generate transmitted symbols
 % Note 1: this implement assumes that no DAC is being used so ModFormat.signal
@@ -38,6 +38,7 @@ Vout(2, :)= real(ifft(fft(real(Vin(2, :))).*Htx)) + 1j*real(ifft(fft(imag(Vin(2,
 ber.count = zeros(size(Tx.PlaunchdBm));
 M = ModFormat.M;
 Enorm = mean(abs(pammod(0:log2(M)-1, log2(M))).^2);
+OSNRdBtheory = Inf + zeros(size(Tx.PlaunchdBm)); % only meaningful if system is amplified
 for k = 1:length(Tx.PlaunchdBm)
     fprintf('-- Launch power: %.2f dBm\n', Tx.PlaunchdBm(k));
     Nvalid = 1; % when the window to measure BER starts
@@ -55,13 +56,15 @@ for k = 1:length(Tx.PlaunchdBm)
     
     if isfield(sim, 'preAmp') && sim.preAmp % only included if sim.preAmp is true
         disp('- IMPORTANT: Simulation including optical amplifier!')
-        [Erec, OSNRdBtheory] = Rx.OptAmp.amp(Erec, sim.fs);
-
+        [Erec, OSNRdBtheory(k)] = Rx.OptAmp.amp(Erec, sim.fs);
+        Rx.OptAmp.GaindB
         % Measure OSNR
-        Osa = OSA(0.1); % optical spectrum analyser with resolution 0.1nm
-        OSNRdBmeasured = Osa.estimate_osnr(Erec, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
+        Osa = OSA(0.4); % optical spectrum analyser with resolution 0.4nm
+        % Uses resolution high enough to capture all signal power, then
+        % convert OSNR to 0.1nm
+        [~, OSNRdBmeasured] = Osa.estimate_osnr(Erec, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
 
-        fprintf('OSNR = %.2f dB (theory)\nOSNR = %.2f dB (measured)\n', OSNRdBtheory, OSNRdBmeasured)
+        fprintf('OSNR = %.2f dB (theory)\nOSNR = %.2f dB (measured)\n', OSNRdBtheory(k), OSNRdBmeasured)
                
         % check
 %         OSNRdBtheorycheck = 10*log10(dBm2Watt(Tx.PlaunchdBm(k))/(2*Rx.OptAmp.nsp*Rx.OptAmp.h*Rx.OptAmp.c/Tx.Laser.lambda*12.5e9))
@@ -224,11 +227,21 @@ if sim.shouldPlot('BER') && length(ber.count) > 1
     figure(100), box on, hold on
     [~, link_attdB] = Fiber.link_attenuation(Tx.Laser.lambda);
     Prx = Tx.PlaunchdBm - link_attdB;
-    hline(1) = plot(Prx, log10(ber.theory), '-');
-    hline(2) = plot(Prx, log10(ber.count), '-o');
-    legend(hline, {'Theory', 'Counted'})
+    plot(Prx, log10(ber.theory), '-', 'DisplayName', 'Theory');
+    plot(Prx, log10(ber.count), '-o', 'DisplayName', 'Count');
+    legend('-dynamiclegend')
     xlabel('Received Power (dBm)')
     ylabel('log_{10}(BER)')
     axis([Prx(1) Prx(end) -8 0])
+    
+    if sim.preAmp
+        figure(101), box on, hold on
+        plot(OSNRdBtheory, log10(ber.theory), '-', 'DisplayName', 'Theory');
+        plot(OSNRdBtheory, log10(ber.count), '-o', 'DisplayName', 'Count');
+        legend('-dynamiclegend')
+        xlabel('OSNR (dB)')
+        ylabel('log_{10}(BER)')
+        axis([floor(OSNRdBtheory(1)) ceil(OSNRdBtheory(end)) -8 0])
+    end
 end
     

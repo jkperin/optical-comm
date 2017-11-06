@@ -8,9 +8,11 @@ addpath ../coherent/f/
 wavelength = 1550e-9;
 alpha = 0;
 Fiber = fiber(4.7e3);
-Rb = 2*112e9;
+Rb = 112e9;
 
+% L = 4.7e3/2;
 L = 4.7e3;
+% L = 80e3;
 % L = (1:25)*1e3;
 
 P6 = PowerConsumption(112e9, 4, 28e-9, 6)
@@ -32,11 +34,12 @@ for l = 1:length(L)
     N3DStokesbit(l) = OPbit.N3DStokesbit;
     NQPSKbit(l) = OPbit.NQPSKbit;
     N16QAMbit(l) = OPbit.N16QAMbit;
-    NKK4PAMbit(l) = OPbit.NKK4PAMbit;
+    NKK4PAMbitTD(l) = OPbit.NKK4PAMbitTD;
+    NKK4PAMbitFD(l) = OPbit.NKK4PAMbitFD;
     
     
     figure, box on
-    y = [N4PAMbitTD(l) NOFDMbit(l) NSSBOFDMbit(l) NKK4PAMbit(l),...
+    y = [min(N4PAMbitTD(l), NKK4PAMbitFD(l)) NOFDMbit(l) NSSBOFDMbit(l) min(NKK4PAMbitTD(l), OPbit.NKK4PAMbitFD)...
         N2DStokesbit(l), N3DStokesbit(l),...
         NQPSKbit(l), N16QAMbit(l)];
     barh(1:length(y), y)
@@ -49,8 +52,11 @@ for l = 1:length(L)
     [0.626190476190476 0.156142857142857 0.256547619047619 0.106349206349206],...
     'LineStyle','none', 'String',{'Bit rate = 112 Gbit/s','D = 80 ps/nm'});
 
-
-    figure, box on
+    % Order
+    % 4-PAM, OFDM, SSB-OFDM, KK-PAM,...
+    % Stokes 2D, Stokes 3D,
+    % DP-QPSK, DP-16QAM    
+    
     Eavg = [Eavg6, Eavg7, Eavg7, Eavg7,...
         Eavg7, Eavg7,...
         Eavg6, Eavg7]; 
@@ -61,7 +67,7 @@ for l = 1:length(L)
     
     ResolutionDAC = [2 7 7 2,...
     2 2,...
-    1 2];
+    1 2]; % Only OFDM is assumed to need high-resolution DACs
     
     fs = [Fs.PAM4, Fs.DCOFDM, Fs.SSBOFDM, Fs.KKPAM4,...
         Fs.Stokes2D, Fs.Stokes3D,...
@@ -82,6 +88,7 @@ for l = 1:length(L)
         Padc;... % ADC
         Rb*Eavg.*y];
     
+    figure, box on
     barh(1:length(y), Pconsumption.', 'stacked')
     set(gca, 'yticklabel', c);
     xlabel('Power consumption in 28 nm CMOS (W)')
@@ -89,21 +96,8 @@ for l = 1:length(L)
     [0.626190476190476 0.156142857142857 0.256547619047619 0.106349206349206],...
     'LineStyle','none', 'String',{'Bit rate = 112 Gbit/s','D = 80 ps/nm'});
     legend('DAC', 'ADC', 'DSP')
+    xlim([0 40])
     
 end
 
-
-% IMDDval = 1:5;
-% 
-% figure, box on, hold on
-% plot(D(IMDDval), N4PAMbitTD(IMDDval), 'DisplayName', '4-PAM')
-% plot(D(IMDDval), NOFDMbit(IMDDval), 'DisplayName', '16-QAM DC-OFDM')
-% plot(D, NSSBOFDMbit, 'DisplayName', '16-QAM SSB-OFDM')
-% plot(D(IMDDval), N2DStokesbit(IMDDval), 'DisplayName', 'Stokes 2D: 2 x 4-PAM')
-% plot(D(IMDDval), N3DStokesbit(IMDDval), 'DisplayName', 'Stokes 3D: 2 x 4-PAM - 4 PM')
-% plot(D, NKK4PAMbit, 'DisplayName', 'Kramers-Kronig 4-PAM')
-% plot(D, NQPSKbit, 'DisplayName', 'DP-QPSK')
-% plot(D, N16QAMbit, 'DisplayName', 'DP-16QAM')
-% legend('-dynamiclegend', 'Location', 'SouthEast')
-% xlabel('Dispersion (ps/nm)')
-% ylabel('Number of real operations per bit')
+Pconsumption

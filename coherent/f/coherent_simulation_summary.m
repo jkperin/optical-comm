@@ -47,13 +47,13 @@ tx.Laser.summary()
 %% Transmitter paramaters
 disp('-- Transmitter parameters summary:')
 
-rows = {'Modulator type'; 'Modulator bandwidth'; 'Transmitter filter type';...
+rows = {'Modulator bandwidth'; 'Transmitter filter type';...
     'Transmitter filter order'; 'Transmitter filter bandwidth'};
 
-Variables = {'Mod'; 'Mod.BW'; 'filt.type'; 'filt.order'; 'filt.fcnorm'};
+Variables = {'Mod.BW'; 'filt.type'; 'filt.order'; 'filt.fcnorm'};
 
-Values = {sim.Modulator; tx.Mod.BW/1e9; tx.filt.type; tx.filt.order; tx.filt.fcnorm*sim.fs/1e9};
-Units = {''; 'GHz'; ''; ''; 'GHz'};
+Values = {tx.Mod.BW/1e9; tx.filt.type; tx.filt.order; tx.filt.fcnorm*sim.fs/1e9};
+Units = {'GHz'; ''; ''; 'GHz'};
 
 txTable = table(Variables, Values, Units, 'RowNames', rows)
 

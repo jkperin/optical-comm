@@ -6,7 +6,7 @@ classdef OpticalAmplifier < handle
         Wavelength % Wavelength of operation (m)
         Operation = 'ConstantOutputPower' % Amplifier operation mode = {'ConstantOutputPower', 'ConstantGain'}
         outputPower % output power in dBm. Must be set if Operation = 'ConstantOutputPower'
-        maxGaindB = 30 % maximum gain (dB)
+        maxGaindB = 40 % maximum gain (dB)
     end
     properties (Dependent)
         GaindB % Gain in dB
@@ -116,6 +116,7 @@ classdef OpticalAmplifier < handle
                 end
                 PoutdBm = self.outputPower;
                 self.GaindB = PoutdBm - PindBm;
+                
                 if self.GaindB < 7
                     warning('OpticalAmplifier: Amplifier gain is %.2f dB. This may lead to innacuraceis since (G-1)/G is no longer approximately 1.', self.GaindB)
                 elseif self.GaindB > self.maxGaindB
