@@ -4,13 +4,13 @@ clear, clc, close all
 addpath ../
 addpath ../f/
 
-% E = EDF(10, 'giles_ge:silicate');
-E = EDF(12, 'principles_type3');
-% E.plot('all');
+E = EDF(8, 'giles_ge:silicate');
+% E = EDF(8, 'principles_type1');
+E.plot('all');
 
 spanAttdB = 9;
 Pon = 5e-5;
-Pump = Channels(1480e-9, 50e-3, 'forward');
+Pump = Channels(980e-9, 50e-3, 'forward');
 Signal = Channels(linspace(1530, 1565, 88)*1e-9, Pon, 'forward');
 ASEf = Channels(Signal.wavelength, 0, 'forward');
 ASEb = Channels(Signal.wavelength, 0, 'backward');

@@ -181,7 +181,7 @@ classdef EDF
         
         %% Numerical models 
         function [GaindB, Ppump_out, Psignal_out, Pase, sol]...
-                = two_level_system(self, Pump, Signal, ASEf, ASEb, BWref, Nsteps)
+                = two_level_system(self, Pump, Signal, ASEf, ASEb, BWref, Nsteps, Nmesh)
             %% Calculate Gain and noise PSD by solving coupled nonlinear first-order differential equations that follow from the SCD model
             % This assumes that amplifier is pumped as a two-level system.
             % This is true for pump near wavelength 1480 nm and an
@@ -200,7 +200,12 @@ classdef EDF
             h_nu_xi = self.Ephoton(lamb).*self.sat_param(lamb); % h*nu*xi
             
             % Solver
-            options = bvpset('Vectorized', 'on');
+            if not(exist('Nmesh', 'var'))
+                Nmesh = floor(10e3/length(lamb));
+                % Maximum number of mesh points allowed when solving the BVP
+            end
+                
+            options = bvpset('Vectorized', 'on', 'NMax', Nmesh);
             z = linspace(0, self.L, Nsteps).';
             solinit = bvpinit(z, [Pump.P Signal.P ASEf.P ASEb.P].'); % initial guess
             sol = bvp4c(@(z, P) odefun(z, P, self, lamb, h_nu_xi, u, g, alpha, BWref),... % differential equation

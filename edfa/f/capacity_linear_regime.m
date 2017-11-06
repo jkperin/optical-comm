@@ -22,7 +22,7 @@ ASEf = Channels(Signal.wavelength, 0, 'forward');
 ASEb = Channels(Signal.wavelength, 0, 'backward');
 [GaindB, ~, ~, Pase] = E.two_level_system(Pump, Signal, ASEf, ASEb, df, 50);
 
-Pase = (Namp-1)*Pase;
+Pase = Namp*Pase;
 Gain = 10.^(GaindB/10);
 SNR = Gain.*Signal.P./Pase;
 SEnum = 2*(GaindB >= spanAttdB).*log2(1 + SNR); 
@@ -34,7 +34,7 @@ num.SNRdB = 10*log10(SNR);
 
 %% Semi-analytical solution
 GaindB = E.semi_analytical_gain(Pump, Signal);
-Pase = (Namp-1)*analytical_ASE_PSD(E, Pump, Signal)*df;   
+Pase = Namp*analytical_ASE_PSD(E, Pump, Signal)*df;   
 Gain = 10.^(GaindB/10);
 SNR = Gain.*Signal.P./Pase;
 SEapprox = 2*(GaindB >= spanAttdB).*log2(1 + SNR);   
