@@ -9,7 +9,7 @@ This project contains codes for analyses and simulations of optical communicatio
 4. M. Sharif, J. K. Perin, and J. M. Kahn, “Modulation Schemes for Single-Wavelength 100 Gbits/s Links: Single-Carrier,” J. of Lightwave Technol., vol.33, no.20, pp.4268-4277, Oct. 15, 2015. [PDF](http://ee.stanford.edu/~jmk/pubs/100.G.single-laser.single-carrier.JLT.15.pdf)
 
 ## Folders description
--edfa/: analysis and simulations of erbium-doped fiber amplifiers for electrical-power-limited submarine links. EDFAs are modeling using the Standard Confined-Doping (SCD) model and capacity optimization is performed using the particle swarm optimization algorithm.
+- edfa/: analysis and simulations of erbium-doped fiber amplifiers for electrical-power-limited submarine links. EDFAs are modeling using the Standard Confined-Doping (SCD) model and capacity optimization is performed using the particle swarm optimization algorithm.
 
 - coherent/: analysis and simulations of coherent and differentially coherent receivers. This includes DSP-based systems as well as systems based on analog signal processing
   - coherent/analog/: functions and classes for modeling building blocks in the coherent receiver based on analog signal process
