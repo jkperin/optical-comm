@@ -1,4 +1,21 @@
-function [E, Signal, num, approx] = capacity_vs_pump_power_qsub(edf_type, pumpWavelengthnm, pumpPowermW, Nspans, spanLengthKm)
+function [Eopt, Sopt, num, approx] = capacity_vs_pump_power_qsub(edf_type, pumpWavelengthnm, pumpPowermW, Nspans, spanLengthKm)
+%% Compute maximum capacity for given pump power
+% Power loading and EDF length are optimized
+% Inputs:
+% - edf_type: % which fiber to use. 
+    % Fibers available:  
+    % > {'giles_ge:silicate' (default), 'giles_al:ge:silicate'}
+    % > {'principles_type1', 'principles_type2', 'principles_type3'}.
+% - pumpWavelengthnm: pump wavelength in nm
+% - pumpPowermW: pump power in mW
+% - Nspans: number of spans
+% - spanLengthKm: span length in km
+% - PmaxdBm: maximum power for each signal channel in dBm
+% Outputs:
+% - Eopt: instance of EDF class with optimized length
+% - Sopt: instance of class Channels for the signals with optimized power
+% - num: numerical solution
+% - approx: approximated solutions
 
 addpath f/
 addpath ../f/
@@ -8,9 +25,7 @@ verbose = false;
 % Filename
 filename = sprintf('results/capacity_vs_pump_power_EDF=%s_pump=%smW_%snm_L=%s_x_%skm.mat',...
         edf_type, pumpPowermW, pumpWavelengthnm, Nspans, spanLengthKm);
-  
-filename = check_filename(filename) % verify if already exists and rename it if it does
-
+filename = check_filename(filename); % verify if already exists and rename it if it does
 disp(filename) 
 
 % convert inputs to double (on cluster inputs are passed as strings)
@@ -27,9 +42,8 @@ E = EDF(10, edf_type);
 % Pump & Signal
 df = 50e9;
 dlamb = df2dlamb(df);
-lamb = 1530e-9:dlamb:1565e-9;
-Pon = 1e-4;
-Signal = Channels(lamb, Pon, 'forward');
+lamb = 1522e-9:dlamb:1582e-9;
+Signal = Channels(lamb, 0, 'forward');
 Pump = Channels(pumpWavelength, pumpPower, 'forward');
 
 % SMF fiber
@@ -37,64 +51,38 @@ SMF = fiber(spanLength, @(lamb) 0.18, @(lamb) 0);
 [~, spanAttdB] = SMF.link_attenuation(Signal.wavelength);
 
 % Problem variables
-Namp = Nspans;
 problem.spanAttdB = spanAttdB;
 problem.Namp = Nspans;
-problem.Pon = Pon;
 problem.df = df;
-problem.SwarmSize = min(300, 20*(Signal.N+1));
-               
-% Optimize power load and EDF length
-[E, Signal, exitflag] = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, verbose);
+problem.excess_noise = 1.5; 
+problem.SwarmSize = min(500, 20*(Signal.N+1));
+problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
 
-% Check results with flat power allocation
-Pon_vec = [1e-5 1e-4 mean(Signal.P(Signal.P ~= 0))];
-for k = 1:length(Pon_vec)
-    problem.Pon = Pon_vec(k);
-    [flat_fminbnd(k).E, flat_fminbnd(k).Signal, flat_fminbnd(k).exitflag] = optimize_power_load_and_edf_length('fminbnd', E, Pump, Signal, problem, verbose);
-    [flat_fminbnd(k).num, flat_fminbnd(k).approx] = capacity_linear_regime(flat_fminbnd(k).E, Pump, flat_fminbnd(k).Signal, spanAttdB, Namp, df);
-    
-    [flat_Einterp(k).E, flat_interp(k).Signal, flat_interp(k).exitflag] = optimize_power_load_and_edf_length('interp', E, Pump, Signal, problem, verbose);
-    [flat_interp(k).num, flat_interp(k).approx] = capacity_linear_regime(flat_Einterp(k).E, Pump, flat_interp(k).Signal, spanAttdB, Namp, df);
+% Select range of maximum signal power based on pump power
+if Pump.P < 100e-3 
+    PonVec = [3e-5 6e-5 1e-4];
+else
+    PonVec = [6e-5 1e-4 6e-4];
 end
 
-% Capacity calculation using numerical model
-[num, approx] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df);
-
-fprintf('Total spectrum efficiency = %.2f bits/s/Hz\n', sum(num.SE));
-
-if verbose
-    figure(108)
-    subplot(221), hold on, box on
-    plot(Signal.wavelength*1e9, Signal.PdBm)
-    xlabel('Wavelength (nm)')
-    ylabel('Power (dBm)')
-    xlim(Signal.wavelength([1 end])*1e9)
+for k = 1:length(PonVec)
+    problem.Pon = PonVec(k);
+    Signal.P(1:end) = PonVec(k);
     
-    subplot(222), hold on, box on
-    hplot = plot(Signal.wavelength*1e9, num.GaindB, 'DisplayName', 'Numerical');
-    plot(Signal.wavelength*1e9, approx.GaindB, '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Approximated')
-    xlabel('Wavelength (nm)')
-    ylabel('Gain (dB)')
-    legend('-dynamicLegend', 'Location', 'Best')
-    xlim(Signal.wavelength([1 end])*1e9)
-    
-    subplot(223), hold on, box on
-    hplot = plot(Signal.wavelength*1e9, Watt2dBm(num.Pase), 'DisplayName', 'Numerical');
-    plot(Signal.wavelength*1e9, Watt2dBm(approx.Pase), '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Approximated')
-    xlabel('Wavelength (nm)')
-    ylabel('ASE (dBm)')
-    legend('-dynamicLegend', 'Location', 'Best')
-    xlim(Signal.wavelength([1 end])*1e9)
-    
-    subplot(224), hold on, box on
-    hplot = plot(Signal.wavelength*1e9, num.SE, 'DisplayName', 'Numerical');
-    plot(Signal.wavelength*1e9, approx.SE, '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Approximated')
-    xlabel('Wavelength (nm)')
-    ylabel('Spectral efficiency (bits/s/Hz)')
-    legend('-dynamicLegend', 'Location', 'Best')
-    axis([Signal.wavelength([1 end])*1e9 0 ceil(max([num.SE approx.SE]))])
+    % Optimize power load and EDF length
+    try
+        [Eopt{k}, Sopt{k}, exitflag{k}, num{k}, approx{k}] =...
+            optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, verbose);
+        
+        SE(k) =  sum(num{k}.SE);
+    catch e
+        warning(e.message)
+        Eopt{k} = NaN; Sopt{k} = NaN; exitflag{k} = NaN; num{k} = NaN; approx{k} = NaN;
+        SE(k) = NaN;
+    end
 end
+
+[~, kopt] = max(SE);
 
 % Save to file
 save(filename)
