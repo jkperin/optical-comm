@@ -1,22 +1,25 @@
 %% Validate max_channels_on.m
-clear
+clear, close all
 
 addpath ../
 addpath ../f/
 addpath ../../f/
 
 E = EDF(10, 'principles_type3');
+% E.plot('all')
 
 df = 50e9;
 dlamb = df2dlamb(df);
-lamb = 1530e-9:dlamb:1565e-9;
-L = 14e6;
+lamb = 1522e-9:dlamb:1582e-9;
+L = 14.3e6;
 SMF = fiber(50e3, @(lamb) 0.18, @(lamb) 0);
 Namp = round(L/SMF.L);
 
-Pon = 2e-05;
+% Pon = 6e-4; % for 1W pump
+% Pon = 1e-4; % for 100mW pump
+Pon = 3e-5; % for < 100mW pump
 Signal = Channels(lamb, Pon, 'forward');
-Pump = Channels(1480e-9, 50e-3, 'forward');
+Pump = Channels(980e-9, 30e-3, 'forward');
 
 [~, spanAttdB] = SMF.link_attenuation(Signal.wavelength);
 
@@ -24,12 +27,15 @@ problem.Pon = Pon;
 problem.spanAttdB = spanAttdB;
 problem.df = df;
 problem.Namp = Namp;
+problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
+problem.excess_noise = 1.5; % 1.2 for 980nm, 1.6 for 1480nm
+problem.SwarmSize = min(300, 20*(Signal.N+1));
 
-[Eopt_fmin, SignalOn_fmin] = optimize_power_load_and_edf_length('fminbnd', E, Pump, Signal, problem, true);
-Lopt2 = E.optimal_length(Pump, SignalOn_fmin, spanAttdB)
-GaindB = E.semi_analytical_gain(Pump, SignalOn_fmin);
-plot(Signal.wavelength*1e9, GaindB)
-drawnow
+% [Eopt_fmin, SignalOn_fmin] = optimize_power_load_and_edf_length('fminbnd', E, Pump, Signal, problem, true);
+% Lopt2 = E.optimal_length(Pump, SignalOn_fmin, spanAttdB)
+% GaindB = E.semi_analytical_gain(Pump, SignalOn_fmin);
+% plot(Signal.wavelength*1e9, GaindB)
+% drawnow
 
 % [SEnum_fmin, SEapprox_fmin] = capacity_linear_regime(Eopt_fmin, Pump, SignalOn_fmin, spanAttdB, Namp, df)
 
@@ -39,6 +45,7 @@ drawnow
 % % plot(Signal.wavelength*1e9, GaindB)
 % % drawnow
 
-problem.Pon = 5e-4;
+[Eopt_pswarm, SignalOn_pswarm, exitflab, num, approx] = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
 
-[Eopt_pswarm, SignalOn_pswarm] = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
+% SE = capacity_linear_regime_relaxed([Eopt_pswarm.L SignalOn_pswarm.P], E, Pump, Signal, problem)
+% [num, approx] = capacity_linear_regime(Eopt_pswarm, Pump, SignalOn_pswarm, problem)

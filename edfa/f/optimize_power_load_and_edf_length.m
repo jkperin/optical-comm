@@ -1,4 +1,4 @@
-function [E, Signal, exitflag] = optimize_power_load_and_edf_length(method, E, Pump, Signal, problem, verbose)
+function [E, Signal, exitflag, num, approx] = optimize_power_load_and_edf_length(method, E, Pump, Signal, problem, verbose)
 %% Optimize power loading and EDF length
 % Inputs
 % - method: optimization method. 
@@ -14,13 +14,14 @@ function [E, Signal, exitflag] = optimize_power_load_and_edf_length(method, E, P
 % - exitflag: reason optimizatoin ended. Meaning depends on each algorithm. 
 % exitflag = 1 usually means that relative changed in objective function
 % was smaller than tolerance
+% - num: struct containing {GaindB, Pase, SE, SNRdB} calculated numerically
+% - approx: struct containing {GaindB, Pase, SE, SNRdB} calculated
+% analytically 
 
 % Unpack problem parameters
 Pon = problem.Pon;
-Poff = 1e-12*ones(1, Signal.N);
-Namp = problem.Namp;
+Poff = 1e-8;
 spanAttdB = problem.spanAttdB;
-df = problem.df;
 
 %% Optimization
 switch lower(method)
@@ -80,11 +81,19 @@ switch lower(method)
             SwarmSize = min(200, 20*(Signal.N+1));
         end
         
+        % excess noise
+        if not(isfield(problem, 'excess_noise'))
+            % Calculated analytically assuming that the fiber is fully
+            % inverted
+            problem.excess_noise = E.analytical_excess_noise(Pump, Signal);
+        end
+        
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
             'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize);
-        la = [0 Poff]; % lower bound
+        la = [0 Poff*ones(1, Signal.N)]; % lower bound
         lb = [E.maxL Pon*ones(1, Signal.N)]; % upper bound
-        [X, ~, exitflag] = particleswarm(@(X) -capacity_linear_regime_relaxed(X, E, Pump, Signal, spanAttdB, Namp, df), Signal.N+1, la, lb, options);
+        [X, ~, exitflag] = particleswarm(@(X) -capacity_linear_regime_relaxed(X, E, Pump, Signal, problem),...
+            Signal.N+1, la, lb, options);
         
         E.L = X(1);
         Signal.P = X(2:end);
@@ -95,22 +104,27 @@ switch lower(method)
         error('optimize_power_load_and_edf_length: invalid method')
 end
 
-% Plot
-if exist('verbose', 'var') && verbose    
-    fprintf('Optimization method = %s\n', method)
-    fprintf('- Optimal EDF length = %.2f\n', E.L)
-    fprintf('- Number of channels ON = %d\n', sum(Signal.P ~= 0))
-    
-    
-    % Compute capacity using numerical and semi-analytical (approx) methods 
-    offChs = (Signal.P == 0);
-    [num, approx] = capacity_linear_regime(E, Pump, Signal, spanAttdB, Namp, df);
+% Compute capacity using numerical and semi-analytical (approx) methods 
+[num, approx] = capacity_linear_regime(E, Pump, Signal, problem);
+
+fprintf('Optimization method = %s\n', method)
+fprintf('- Optimal EDF length = %.2f\n', E.L)
+fprintf('- Number of channels ON = %d\n', sum(Signal.P ~= 0))
+            
+% SE calculations
+fprintf('- Numerical: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',...
+    sum(num.SE), sum(num.SE)/sum(num.SE ~= 0))
+fprintf('- Approximated: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',...
+    sum(approx.SE), sum(approx.SE)/sum(approx.SE ~= 0))
+
+offChs = (Signal.P == 0);
+Signal.P(offChs) = Poff; % assign small power for gain computation
+fprintf('- Relaxed objective: Total Capacity = %.3f (bits/s/Hz)\n',...
+    capacity_linear_regime_relaxed([E.L Signal.P], E, Pump, Signal, problem))
+Signal.P(offChs) = 0; % return power to 0
         
-    % SE calculations
-    fprintf('- Numerical: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',  sum(num.SE), sum(num.SE)/sum(num.SE ~= 0))
-    fprintf('- Approximated: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',  sum(approx.SE), sum(approx.SE)/sum(approx.SE ~= 0))
-    fprintf('- Relaxed objective: Total Capacity = %.3f (bits/s/Hz)\n',  capacity_linear_regime_relaxed([E.L Signal.P], E, Pump, Signal, spanAttdB, Namp, df))
-        
+% Plot    
+if exist('verbose', 'var') && verbose   
     if length(spanAttdB) == 1
         spanAttdB = spanAttdB*ones(size(Signal.wavelength));
     end

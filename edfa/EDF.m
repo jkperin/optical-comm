@@ -39,16 +39,19 @@ classdef EDF
     end
     
     properties (Constant, Hidden)
+        ems_cs980nm = 0; % Emission cross-section is assumed 0, so that two-level system can be used
         abs_cs980nm = 2.7e-25 % absorption cross section near 980 nm (m^2). 
         % Value obtainend from [4, pg 154]. Cross section curves in edf_select.m are only valid near 1550 nm
-        % Emission cross-section is assumed 0, so that two-level system can
-        % be used
         maxL = 20; % maximum fiber length. Used to limit simulation
         h = 6.62606957e-34; % Planck
         q = 1.60217657e-19; % electron charge
         c = 299792458;      % speed of light
     end
-        
+          
+    properties(Hidden)
+        fixed_excess_noise = 1.2 % excess noise used by default 
+    end
+    
     methods
         function obj = EDF(L, type)
             %% Constructor
@@ -58,12 +61,12 @@ classdef EDF
             end
         end
         
-        %% Get methods
+        %% Get/Set methods
         function param = get.param(self)
             %% Load EDF parameters
             param = edf_selection(self.type);
         end
-                       
+                                      
         %% Semi-analytical model
         function [GaindB, Psignal_out, Ppump_out] = semi_analytical_gain(self, Pump, Signal)
             %% Calculate gain by solving implicit equation (25) of [1]
@@ -90,15 +93,17 @@ classdef EDF
                        
             % Solve implicit equation (25) of [1] for the total output flux Qout
             Qout0 = Qin; % starting point
-            [Qout, ~, exitflag] = fzero(@(Qout) Qout - sum(Qin_k.*exp((alpha + g)*(Qin - Qout)./xi - alpha*self.L)), Qout0);
+            a = (alpha + g)./xi;
+            b = alpha*self.L;
+            [Qout, ~, exitflag] = fzero(@(Qout) Qout - sum(Qin_k.*exp(a*(Qin - Qout) - b)), Qout0);
             
             if exitflag ~= 1
-                warning('EDF/analytical_gain: could not solve for Qout. Simulation exited with exitflag = %d\n', exitflag)
+                warning('EDF/semi_analytical_gain: simulation exited with exitflag = %d\n', exitflag)
             end
             
             % Calculate the output flux for each individual signal & pump
             % using equation (24) of [1]
-            Qout_k = Qin_k.*exp((alpha + g).*(Qin - Qout)./xi - alpha*self.L);
+            Qout_k = Qin_k.*exp(a*(Qin - Qout) - b);
             
             Ppump_out = Qout_k(1:Pump.N).*self.Ephoton(Pump.wavelength);
             Psignal_out = Qout_k(Pump.N+1:end).*self.Ephoton(Signal.wavelength);
@@ -122,7 +127,8 @@ classdef EDF
         end
            
         function nsp = analytical_excess_noise(self, Pump, Signal)
-            %% Analytical expression for excess noise [1, eq. (31)]
+            %% Analytical excess noise [1, eq. (31)]
+            % Assumes that the EDF is fully inverted
             gp = self.gain_coeff(Pump.wavelength);
             alphap = self.absorption_coeff(Pump.wavelength);
             
@@ -132,25 +138,14 @@ classdef EDF
             nsp = 1./(1 - gp*alphas./(alphap*gs));
         end
         
-        function NFdB = noise_figure(self, Pump, Signal, verbose)
-            %% Amplifier noise figure in dB
+        function NFdB = analytical_noise_figure(self, Pump, Signal)
+            %% Analytical noise figure in dB
             nsp = analytical_excess_noise(self, Pump, Signal);
             GdB = semi_analytical_gain(self, Pump, Signal);
             G = 10.^(GdB/10);
-            
-            NF = 2*nsp.*(G-1)./G; % By definition. Note that for high gain, NF is approximately 2nsp
-            NFdB = 10*log10(NF);
-            
-            if exist('verbose', 'var') && verbose
-               figure(401), box on, hold on
-               plot(Signal.wavelength*1e9, NFdB, 'DisplayName', 'Noise figure')
-               plot(Signal.wavelength*1e9, 10*log10(nsp), 'DisplayName', 'Excess noise')
-               xlabel('Wavelength (nm)')
-               ylabel('Noise figure (dB)')
-               legend('-DynamicLegend')
-            end
-        end
-        
+            NFdB = 10*log10(2*nsp.*(G-1)./G); % By definition. Note that for high gain, NF is approximately 2nsp
+        end   
+
         function Pase = analytical_ASE_PSD(self, Pump, Signal)
             %% Analytical expression for ASE PSD [1, eq. (32)]
             nsp = analytical_excess_noise(self, Pump, Signal);
@@ -181,7 +176,7 @@ classdef EDF
         
         %% Numerical models 
         function [GaindB, Ppump_out, Psignal_out, Pase, sol]...
-                = two_level_system(self, Pump, Signal, ASEf, ASEb, BWref, Nsteps, Nmesh)
+                = two_level_system(self, Pump, Signal, ASEf, ASEb, BWref, Nmesh, verbose)
             %% Calculate Gain and noise PSD by solving coupled nonlinear first-order differential equations that follow from the SCD model
             % This assumes that amplifier is pumped as a two-level system.
             % This is true for pump near wavelength 1480 nm and an
@@ -201,18 +196,19 @@ classdef EDF
             
             % Solver
             if not(exist('Nmesh', 'var'))
-                Nmesh = floor(10e3/length(lamb));
+                Nmesh = floor(50e3/length(lamb));
                 % Maximum number of mesh points allowed when solving the BVP
             end
                 
             options = bvpset('Vectorized', 'on', 'NMax', Nmesh);
-            z = linspace(0, self.L, Nsteps).';
-            solinit = bvpinit(z, [Pump.P Signal.P ASEf.P ASEb.P].'); % initial guess
+            z = [0, self.L];
+            P0 = [Pump.P Signal.P ASEf.P ASEb.P].';
+            solinit = bvpinit(z, P0); % initial guess
             sol = bvp4c(@(z, P) odefun(z, P, self, lamb, h_nu_xi, u, g, alpha, BWref),... % differential equation
                 @(P0, PL) bcfun(P0, PL, Pump, Signal, ASEf, ASEb),... % boundary conditions
                 solinit, options); % initial guess
-            
-            if any(sol.y < 0)
+           
+            if any(sol.y(:) < 0)
                 warning('EDF/two_level_system: solution contains negative power')
             end
  
@@ -224,7 +220,56 @@ classdef EDF
                 
             Psignal_out = sol.y(Pump.N + (1:Signal.N), end).';
             Pase = sol.y(Pump.N + Signal.N + (1:Signal.N), end).'; % only forward ASE
-            GaindB = 10*log10(Psignal_out./Signal.P);            
+            GaindB = 10*log10(Psignal_out./Signal.P); 
+            
+            if exist('verbose', 'var') && verbose
+                figure(243)
+                subplot(221), hold on, box on % pump evolution
+                plot(sol.x, 1e3*sol.y(1:Pump.N, :))
+                xlabel('z (m)')
+                ylabel('Pump power (mW)')
+                title('Pump evolution')
+                
+                subplot(222), hold on, box on % signal evolution
+                plot(sol.x, Watt2dBm(sol.y(Pump.N + (1:Signal.N), :)) - Signal.PdBm.') % broadcast
+                xlabel('z (m)')
+                ylabel('Signal gain (dB)')
+                title('Signal gain evolution')
+                
+                subplot(223), hold on, box on % ASEf evolution
+                plot(sol.x, Watt2dBm(sol.y(Pump.N + Signal.N + (1:Signal.N), :)))
+                xlabel('z (m)')
+                ylabel('ASE power (dBm)')
+                title('Forward ASE evolution')
+                
+                subplot(224), hold on, box on % ASEb evolution
+                plot(sol.x, Watt2dBm(sol.y(Pump.N + 2*Signal.N + (1:Signal.N), :)))
+                xlabel('z (m)')
+                ylabel('ASE power (dBm)')
+                title('Backward ASE evolution')
+                
+                %
+                figure(244)
+                subplot(311), hold on, box on % gain
+                plot(Signal.wavelength*1e9, GaindB)
+                xlabel('Wavelength (nm)')
+                ylabel('Gain (dB)')
+                title('Gain')
+                
+                subplot(312), hold on, box on % gain
+                PoutdBm = Signal.PdBm + GaindB;
+                plot(Signal.wavelength*1e9, PoutdBm)
+                xlabel('Wavelength (nm)')
+                ylabel('Output signal power (dB)')
+                title('Signal output')
+                ylim([floor(min(PoutdBm(PoutdBm > -50))) ceil(max(PoutdBm))])
+                
+                subplot(313), hold on, box on % gain
+                plot(Signal.wavelength*1e9, Watt2dBm(Pase))
+                xlabel('Wavelength (nm)')
+                ylabel('ASE (dBm)')
+                title('Forward ASE') 
+            end
             
             function dP = odefun(~, P, edf, lamb, h_nu_xi, u, g, alpha, BWref)
                 %% Build differential equations dP/dz = odefun(z, P)
@@ -271,7 +316,7 @@ classdef EDF
                 res(idx) = PL(idx) - ASEb.P.'; % For single-stage, P(z = L) = 0
             end
         end
-        
+                
         function [n2, z] = metastable_level_population(self, sol, Signal, Pump, ASE, verbose)
             %% Normalized metastable level population along the fiber (n2/nt)
             lamb = [Pump.wavelength, Signal.wavelength, ASE.wavelength, ASE.wavelength].'; % wavelength
@@ -298,6 +343,44 @@ classdef EDF
                 ylabel('Normalized metastable level population')
                 legend('-DynamicLegend')
             end  
+        end
+        
+        function [nsp, NFdB] = excess_noise(self, Pump, Signal, verbose)
+            %% Compute excess noise factor (nsp) numerically [Principles, eq 5.31]
+            % EDFA gain and forward ASE should be measured in a narrow
+            % linewidth (e.g., 1nm)
+            BWref_lamb = 0.1e-9;
+            BWref = 12.5e9; 
+            
+            ASEf = Channels(Signal.wavelength, 0, 'forward');
+            ASEb = Channels(Signal.wavelength, 0, 'backward');
+            Signal.P(Signal.P == 0) = 1e-8; % set channels with small power
+            [GaindB, ~, ~, Pase, ~] = self.two_level_system(Pump, Signal, ASEf, ASEb, BWref, 100, 100);
+            
+            % Compute excess noise
+            G = 10.^(GaindB/10);            
+            nsp = 1./(G-1).*Pase./(2*self.h*self.c^2*(BWref_lamb./Signal.wavelength.^3));
+            NFdB = 10*log10(2*nsp.*(G-1)./G); % [Principles, eq. 5.34]
+            
+            if exist('verbose', 'var') && verbose
+                nsp_analytical = self.analytical_excess_noise(Pump, Signal);
+                NFdB_analytical = self.analytical_noise_figure(Pump, Signal);
+                figure(187)
+                subplot(211), hold on, box on
+                plot(Signal.wavelength*1e9, nsp, 'DisplayName', 'Numerical')
+                plot(Signal.wavelength*1e9, nsp_analytical, 'DisplayName', 'Anlytical')
+                xlabel('Wavelength (nm)')
+                ylabel('Excess noise factor')
+                legend('-dynamiclegend')
+                
+                subplot(212), hold on, box on
+                plot(Signal.wavelength*1e9, NFdB, 'DisplayName', 'Numerical')
+                plot(Signal.wavelength*1e9, NFdB_analytical, 'DisplayName', 'Anlytical')
+                plot(Signal.wavelength*1e9, 10*log10(2*nsp_analytical.*(G-1)./G), '--', 'DisplayName', 'Anlytical2')
+                xlabel('Wavelength (nm)')
+                ylabel('Noise Figure (dB)')
+                legend('-dynamiclegend')
+            end
         end
                 
         %% EDF properties
@@ -372,7 +455,7 @@ classdef EDF
             %% Stimulated gain coefficient in 1/m and in dB/m
             if isfield(self.param, 'gain_coeff_fun')
                 gdB = self.param.gain_coeff_fun(lamb*1e9); % converts lamb to nm before calling function
-                gdB(lamb >= 970e-9 & lamb <= 990e-9) = 0; % gain coefficient near 980nm is assumed zero, so that two-level system can be used
+                gdB(lamb >= 970e-9 & lamb <= 990e-9) = 10/log(10)*self.cross_sec2coeff(self.ems_cs980nm, 980e-9); % assign cross-section for 980 nm directly
                 if size(gdB, 1) ~= size(lamb, 1)
                     gdB = gdB.'; % ensures that dimensions are consistent
                 end
@@ -397,7 +480,7 @@ classdef EDF
             %% Emission cross section (m^2) evaluated at wavelength lamb
             if isfield(self.param, 'ems_cross_sec')
                 ecs = self.Gaussian_fit(lamb, self.param.ems_cross_sec);
-                ecs(lamb >= 970e-9 & lamb <= 990e-9) = 0; % emission cross-section near 980nm is assumed zero, so that two-level system can be used
+                ecs(lamb >= 970e-9 & lamb <= 990e-9) = self.ems_cs980nm; % emission cross-section near 980nm is assumed zero, so that two-level system can be used
             else % if ems_cross_sec not in parameters, calculate cross section from gain coefficient
                 ecs = self.coeff2cross_sec(self.gain_coeff(lamb), lamb);
             end
