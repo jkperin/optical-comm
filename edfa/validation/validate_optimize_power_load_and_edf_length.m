@@ -16,10 +16,10 @@ SMF = fiber(50e3, @(lamb) 0.18, @(lamb) 0);
 Namp = round(L/SMF.L);
 
 % Pon = 6e-4; % for 1W pump
-% Pon = 1e-4; % for 100mW pump
-Pon = 3e-5; % for < 100mW pump
+Pon = 1e-4; % for 100mW pump
+% Pon = 6e-5; % for < 100mW pump
 Signal = Channels(lamb, Pon, 'forward');
-Pump = Channels(980e-9, 30e-3, 'forward');
+Pump = Channels(980e-9, 55e-3, 'forward');
 
 [~, spanAttdB] = SMF.link_attenuation(Signal.wavelength);
 
@@ -29,7 +29,7 @@ problem.df = df;
 problem.Namp = Namp;
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
 problem.excess_noise = 1.5; % 1.2 for 980nm, 1.6 for 1480nm
-problem.SwarmSize = min(300, 20*(Signal.N+1));
+problem.SwarmSize = min(100, 20*(Signal.N+1));
 
 % [Eopt_fmin, SignalOn_fmin] = optimize_power_load_and_edf_length('fminbnd', E, Pump, Signal, problem, true);
 % Lopt2 = E.optimal_length(Pump, SignalOn_fmin, spanAttdB)

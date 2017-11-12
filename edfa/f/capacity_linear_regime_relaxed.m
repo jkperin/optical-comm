@@ -32,7 +32,7 @@ step_approx = problem.step_approx;
 
 % Unpact optimization variables
 E.L = X(1);
-Signal.P = X(2:end);
+Signal.P = dBm2Watt(X(2:end));
 
 % Compute Gain using semi-analytical model
 GaindB = E.semi_analytical_gain(Pump, Signal);

@@ -60,9 +60,9 @@ problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
 
 % Select range of maximum signal power based on pump power
 if Pump.P < 100e-3 
-    PonVec = [3e-5 6e-5 1e-4];
+    PonVec = [5e-5 1e-4];
 else
-    PonVec = [6e-5 1e-4 6e-4];
+    PonVec = [1e-4 6e-4];
 end
 
 for k = 1:length(PonVec)

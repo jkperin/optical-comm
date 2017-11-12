@@ -87,16 +87,17 @@ switch lower(method)
             % inverted
             problem.excess_noise = E.analytical_excess_noise(Pump, Signal);
         end
-        
+               
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
-            'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize);
-        la = [0 Poff*ones(1, Signal.N)]; % lower bound
-        lb = [E.maxL Pon*ones(1, Signal.N)]; % upper bound
+            'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize,...
+            'InitialSwarmSpan', [20, 30*ones(1, Signal.N)]); % SwarmSpan for fiber length is 20m and 30 dB for signal power
+        la = [0 -Inf*ones(1, Signal.N)]; % lower bound
+        lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
         [X, ~, exitflag] = particleswarm(@(X) -capacity_linear_regime_relaxed(X, E, Pump, Signal, problem),...
             Signal.N+1, la, lb, options);
         
         E.L = X(1);
-        Signal.P = X(2:end);
+        Signal.P = dBm2Watt(X(2:end));
         GaindB = E.semi_analytical_gain(Pump, Signal);
         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
       
@@ -120,7 +121,7 @@ fprintf('- Approximated: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3
 offChs = (Signal.P == 0);
 Signal.P(offChs) = Poff; % assign small power for gain computation
 fprintf('- Relaxed objective: Total Capacity = %.3f (bits/s/Hz)\n',...
-    capacity_linear_regime_relaxed([E.L Signal.P], E, Pump, Signal, problem))
+    capacity_linear_regime_relaxed([E.L Signal.PdBm], E, Pump, Signal, problem))
 Signal.P(offChs) = 0; % return power to 0
         
 % Plot    
