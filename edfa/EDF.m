@@ -26,7 +26,7 @@ classdef EDF
         % - {'principles_type1', 'principles_type2', 'principles_type3'}. 3 types of Er3+ in alumino-germanosilicate glass. Figs. 4.20, 4.21, and 4.22 of [2]
         L % fiber length (m)
         excess_loss = 0 % (dB/m) excess loss due to splices for instance. 
-        core_radius = 1.4e-6 % Fiber core radius. e.g, 1.2 um in [1, Table 1], 1.4 um in [4, pg. 156]
+        core_radius = 1.2e-6 % Fiber core radius. e.g, 1.2 um in [1, Table 1], 1.4 um in [4, pg. 156]
         doping_radius = 1.2e-6 % Er3+ core radius. e.g., 1.2 um in [1, Table 1], 1.05um in [4, pg 156]
         rho0 = 0.7e19; % Er3+ concentraction (cm^3) [4, pg 156]
         NA = 0.28 % numerical aperture, value taken from [4, pg. 156]
@@ -220,6 +220,7 @@ classdef EDF
                 
             Psignal_out = sol.y(Pump.N + (1:Signal.N), end).';
             Pase = sol.y(Pump.N + Signal.N + (1:Signal.N), end).'; % only forward ASE
+            Pase_backward = sol.y(Pump.N + 2*Signal.N + (1:Signal.N), 1).';
             GaindB = 10*log10(Psignal_out./Signal.P); 
             
             if exist('verbose', 'var') && verbose
@@ -228,24 +229,28 @@ classdef EDF
                 plot(sol.x, 1e3*sol.y(1:Pump.N, :))
                 xlabel('z (m)')
                 ylabel('Pump power (mW)')
+                xlim([0 self.L])
                 title('Pump evolution')
                 
                 subplot(222), hold on, box on % signal evolution
                 plot(sol.x, Watt2dBm(sol.y(Pump.N + (1:Signal.N), :)) - Signal.PdBm.') % broadcast
                 xlabel('z (m)')
                 ylabel('Signal gain (dB)')
+                xlim([0 self.L])
                 title('Signal gain evolution')
                 
                 subplot(223), hold on, box on % ASEf evolution
                 plot(sol.x, Watt2dBm(sol.y(Pump.N + Signal.N + (1:Signal.N), :)))
                 xlabel('z (m)')
                 ylabel('ASE power (dBm)')
+                xlim([0 self.L])
                 title('Forward ASE evolution')
                 
                 subplot(224), hold on, box on % ASEb evolution
                 plot(sol.x, Watt2dBm(sol.y(Pump.N + 2*Signal.N + (1:Signal.N), :)))
                 xlabel('z (m)')
                 ylabel('ASE power (dBm)')
+                xlim([0 self.L])
                 title('Backward ASE evolution')
                 
                 %
@@ -256,7 +261,7 @@ classdef EDF
                 ylabel('Gain (dB)')
                 title('Gain')
                 
-                subplot(312), hold on, box on % gain
+                subplot(312), hold on, box on % Pout
                 PoutdBm = Signal.PdBm + GaindB;
                 plot(Signal.wavelength*1e9, PoutdBm)
                 xlabel('Wavelength (nm)')
@@ -264,11 +269,13 @@ classdef EDF
                 title('Signal output')
                 ylim([floor(min(PoutdBm(PoutdBm > -50))) ceil(max(PoutdBm))])
                 
-                subplot(313), hold on, box on % gain
-                plot(Signal.wavelength*1e9, Watt2dBm(Pase))
+                subplot(313), hold on, box on % ASE
+                plot(Signal.wavelength*1e9, Watt2dBm(Pase), 'DisplayName', 'Forward')
+                plot(Signal.wavelength*1e9, Watt2dBm(Pase_backward), 'DisplayName', 'Backward')
+                legend('-dynamiclegend', 'Location', 'Best')
                 xlabel('Wavelength (nm)')
                 ylabel('ASE (dBm)')
-                title('Forward ASE') 
+                title('ASE') 
             end
             
             function dP = odefun(~, P, edf, lamb, h_nu_xi, u, g, alpha, BWref)
@@ -382,6 +389,12 @@ classdef EDF
                 legend('-dynamiclegend')
             end
         end
+        
+        function [PCE, PCEmax] = power_conversion_efficiency(~, Pump, SignalIn, SignalOut)
+            %% Power conversion efficiency
+            PCE = sum(SignalOut.P - SignalIn.P)/Pump.P; % definition [Principles, eq. 5.22]
+            PCEmax = Pump.wavelength/min(SignalIn.wavelength(SignalIn.P ~= 0)); % theoretical maximum by conservation of energy [Principles, 5.23]
+        end
                 
         %% EDF properties
         function [Gamma, confinement_factor] = overlap(self, lamb)
@@ -395,8 +408,11 @@ classdef EDF
         
         function sat_param = sat_param(self, lamb)
             %% Saturation parameter as defined in [1, below eq. 20]
-            % Also equal to pi*(doping_radius)^2*(Erbium density)/tau
-            sat_param = self.Psat(lamb).*(self.absorption_coeff(lamb) + self.gain_coeff(lamb))./self.Ephoton(lamb);
+            sat_param = pi*(self.doping_radius)^2*(1e6*self.rho0)/self.tau;
+            % Below is another form of calculating sat_param when ignoring
+            % the transverse variation of the mode intensity across the
+            % doping profile
+%             sat_param = self.Psat(lamb).*(self.absorption_coeff(lamb) + self.gain_coeff(lamb))./self.Ephoton(lamb);
         end
                    
         function Psat = Psat(self, lamb)

@@ -17,6 +17,7 @@ function [Eopt, Sopt, num, approx] = capacity_vs_pump_power_qsub(edf_type, pumpW
 % - num: numerical solution
 % - approx: approximated solutions
 
+addpath data/
 addpath f/
 addpath ../f/
 
@@ -62,7 +63,7 @@ problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
 if Pump.P <= 100e-3 
     PonVec = [5e-5 1e-4];
 else
-    PonVec = [3e-4 6e-4];
+    PonVec = [5e-4 7e-4];
 end
 
 for k = 1:length(PonVec)

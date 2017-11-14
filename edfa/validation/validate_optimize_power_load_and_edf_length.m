@@ -1,6 +1,7 @@
 %% Validate max_channels_on.m
 clear, close all
 
+addpath ../data/
 addpath ../
 addpath ../f/
 addpath ../../f/
@@ -16,10 +17,10 @@ SMF = fiber(50e3, @(lamb) 0.18, @(lamb) 0);
 Namp = round(L/SMF.L);
 
 % Pon = 6e-4; % for 1W pump
-Pon = 1e-4; % for 100mW pump
-% Pon = 6e-5; % for < 100mW pump
+% Pon = 1e-4; % for 100mW pump
+Pon = 1e-4; % for < 100mW pump
 Signal = Channels(lamb, Pon, 'forward');
-Pump = Channels(980e-9, 55e-3, 'forward');
+Pump = Channels(980e-9, 65e-3, 'forward');
 
 [~, spanAttdB] = SMF.link_attenuation(Signal.wavelength);
 

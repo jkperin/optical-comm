@@ -4,8 +4,6 @@ clear, clc, close all
 E = EDF(8, 'principles_type3');
 % E = EDF(10, 'giles_ge:silicate');
 
-analytical_excess_noise
-
 PonVec = -20:-10;
 
 for k = 1:length(PonVec)
@@ -22,7 +20,7 @@ for k = 1:length(PonVec)
     GaindB_semi_analytical = E.semi_analytical_gain(Pump, Signal);
     Pase_analytical = E.analytical_ASE_PSD(Pump, Signal)*df; % ASE power
 
-    [GaindB, Ppump_out, Psignal_out, Pase, sol] = E.two_level_system(Pump, Signal, ASEf, ASEb, df, 40, 100);
+    [GaindB, Ppump_out, Psignal_out, Pase, sol] = E.two_level_system(Pump, Signal, ASEf, ASEb, df, 50, false);
         
     figure(1), hold on, box on
     hplot = plot(Signal.wavelength*1e9, GaindB);

@@ -123,6 +123,11 @@ Signal.P(offChs) = Poff; % assign small power for gain computation
 fprintf('- Relaxed objective: Total Capacity = %.3f (bits/s/Hz)\n',...
     capacity_linear_regime_relaxed([E.L Signal.PdBm], E, Pump, Signal, problem))
 Signal.P(offChs) = 0; % return power to 0
+
+SignalOut = Signal;
+SignalOut.P = dBm2Watt(Signal.PdBm + num.GaindB);
+[PCE, PCEmax] = E.power_conversion_efficiency(Pump, Signal, SignalOut);
+fprintf('- Power conversion efficiency = %.2f %% (max = %.2f %%)\n', 100*PCE, 100*PCEmax)
         
 % Plot    
 if exist('verbose', 'var') && verbose   

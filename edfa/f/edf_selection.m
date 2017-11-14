@@ -54,13 +54,21 @@ switch(lower(fiber_type))
     %% Gain and absorption coefficients extracted from "Modeling Erbium-doped fiber amplifiers" by Giles and Desurvire
     % Ge:silicate fiber. Fig. 2a
     case 'giles_ge:silicate'
-        load('data/giles_ge_silicate.mat')
+        try
+            load('giles_ge_silicate.mat')
+        catch
+            error('File giles_ge_silicate.mat not found. Add folder data/ to Matlab path.')
+        end
         edf_param.absorption_coeff_fun = fit_abs;
         edf_param.gain_coeff_fun = fit_gain;
     
     % Al:Ge:silicate fiber. Fig. 2b
     case 'giles_al:ge:silicate' 
-        load('data/giles_al_ge_silicate.mat')
+        try
+            load('giles_al_ge_silicate.mat')
+        catch
+            error('File giles_al_ge_silicate.mat not found. Add folder data/ to Matlab path.')
+        end
         edf_param.absorption_coeff_fun = fit_abs;
         edf_param.gain_coeff_fun = fit_gain;
     otherwise
