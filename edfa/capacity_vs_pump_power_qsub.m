@@ -60,26 +60,38 @@ problem.SwarmSize = min(500, 20*(Signal.N+1));
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
 
 % Select range of maximum signal power based on pump power
-if Pump.P <= 100e-3 
-    PonVec = [5e-5 1e-4];
-else
-    PonVec = [5e-4 7e-4];
-end
-
-for k = 1:length(PonVec)
+PonVec = 1/70*(Pump.wavelength/1550e-9)*(Pump.P/(10^(mean(spanAttdB)/10)-1)); % initial power cap
+prev_maxP = Inf;
+for k = 1:5 % at most 5 iterations
     problem.Pon = PonVec(k);
     Signal.P(1:end) = PonVec(k);
     
     % Optimize power load and EDF length
     try
+        fprintf('Power cap = %.5f mW (%.3f dBm)\n', 1e3*problem.Pon, Watt2dBm(problem.Pon));
         [Eopt{k}, Sopt{k}, exitflag{k}, num{k}, approx{k}] =...
             optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, verbose);
         
         SE(k) =  sum(num{k}.SE);
+        
+        maxP = max(Sopt{k}.P);
+        if maxP > 0.99*problem.Pon % clip
+            disp('Optimal power loading was clipped')
+            PonVec(k+1) = 2*problem.Pon; % double power cap if clipped            
+        elseif abs(Watt2dBm(maxP) - Watt2dBm(prev_maxP)) >= 0.5 
+            disp('Optimal power loading was different from previous iteration')
+            PonVec(k+1) = 1.5*maxP; % change power cap to maxP + ~2 dB
+        else
+            break
+        end
+        
+        prev_maxP = maxP;
+        
     catch e
         warning(e.message)
         Eopt{k} = NaN; Sopt{k} = NaN; exitflag{k} = NaN; num{k} = NaN; approx{k} = NaN;
         SE(k) = NaN;
+        break
     end
 end
 
