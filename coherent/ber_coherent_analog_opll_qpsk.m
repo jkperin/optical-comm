@@ -123,8 +123,10 @@ for k = 1:length(Tx.PlaunchdBm)
         [Erec, OSNRdBtheory] = Rx.OptAmp.amp(Erec, sim.fs);
         
         % Measure OSNR
-        Osa = OSA(0.1); % optical spectrum analyser with resolution 0.1nm
-        OSNRdBmeasured = Osa.estimate_osnr(Erec, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
+        Osa = OSA(0.3); % optical spectrum analyser with resolution 0.3nm
+        % Uses resolution high enough to capture all signal power, then
+        % convert OSNR to 0.1nm
+        [~, OSNRdBmeasured] = Osa.estimate_osnr(Erec, Tx.Laser.wavelength, sim.f, sim.shouldPlot('OSNR'));
 
         fprintf('OSNR = %.2f dB (theory)\nOSNR = %.2f dB (measured)\n', OSNRdBtheory, OSNRdBmeasured)
         

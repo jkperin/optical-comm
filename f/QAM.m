@@ -38,7 +38,7 @@ classdef QAM
             % Treats each row as an independent data stream
             x = zeros(size(dataTX));
             for k = 1:size(dataTX, 1)
-                x(k, :) = qammod(dataTX(k, :), self.M, 0, 'gray');
+                x(k, :) = qammod(dataTX(k, :), self.M, 'gray');
             end
         end
         
@@ -47,7 +47,7 @@ classdef QAM
             % Treats each row as an independent data stream
             dataRX = zeros(size(x));
             for k = 1:size(x, 1)
-                dataRX(k, :) = qamdemod(x(k, :), self.M, 0, 'gray');
+                dataRX(k, :) = qamdemod(x(k, :), self.M, 'gray');
             end
             
         end
