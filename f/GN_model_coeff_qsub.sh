@@ -18,4 +18,4 @@
 # 
 module load matlab
 
-matlab -nodesktop -singleCompThread -r "GN_model_coeff_qsub $spanLengthkm $Nspans $i_idx"
+matlab -nodesktop -singleCompThread -r "GN_model_coeff_qsub $spanLengthkm $l_idx"
