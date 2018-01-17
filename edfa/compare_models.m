@@ -1,6 +1,9 @@
 %% Model comparisons
 clear, clc, close all
 
+addpath f/
+addpath ../f/
+
 E = EDF(8, 'principles_type3');
 % E = EDF(10, 'giles_ge:silicate');
 

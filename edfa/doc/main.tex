@@ -320,6 +320,54 @@ For simulations, the indicator is approximated by a differentiable function
 \end{equation}
 where $D$ controls the smoothness.
 
+\section{Gaussian noise model}
+
+The nonlinear noise power spectrum $G_{NL}(f)$ is given by \cite{Poggiolini2012}
+\begin{equation}
+	G_{NL}(f) = \frac{16}{27}\gamma^2\int_{-\infty}^{\infty}\int_{-\infty}^{\infty}G(f_1)G(f_2)G(f_1+f_2-f)\rho(f_1, f_2, f)\chi(f_1, f_2, f)\partial f_1\partial f2,
+\end{equation}
+
+\begin{align}
+	\rho(f_1, f_2, f) &= \Bigg|\frac{1 - \exp\Big(-2\alpha L_s + j4\pi^2\beta_2L_2(f_1-f)(f_2-f)\Big)}{2\alpha - j4\pi^2\beta_2(f_1-f)(f_2-f)}\Bigg|^2 \\
+	\chi(f_1, f_2, f) &= \frac{\sin^2(N_s\theta)}{\sin^2(\theta)}, \quad \theta = 2\pi^2(f_1-f)(f_2-f)\beta_2L_s
+\end{align}
+
+\noindent where $\alpha$ is the span attenuation, $\gamma$ is the nonlinear coefficient, $\beta_2$ is the dispersion propagation constant, $L_s$ is the span length, and $N_s$ is the number of spans.
+
+Using the discretization presented in \cite{Roberts2016}, the nonlinear power in each of the $N$ channels can be expressed as a function of the signal power at channel $n$, $P_n$, is given by
+
+\begin{equation}
+	NL_n = \sum_{i = 1}^{N}\sum_{j = 1}^NP_iP_jP_{i+j-n}D(i, j, n), \quad n = 1, \ldots, N
+\end{equation}
+for $1 \leq i+j-n \leq N$. This equation only includes the dominant nonlinear terms and disregards the corner contributions ($l = \pm$ in \cite{Roberts2016}).
+
+The coefficient $D(i, j, n)$ is defined as
+\begin{align} \label{eq:Dcoeff-original}\nonumber 
+	D(i, j, n) &= \frac{16}{27}\int_{-\Delta f/2}^{\Delta f/2}\int_{-\Delta f/2}^{\Delta f/2}\int_{-\Delta f/2}^{\Delta f/2} \\ \nonumber
+	&\cdot\rho(x + i\Delta f, y + j\Delta f, z + n\Delta f)\chi(x + i\Delta f, y + j\Delta f, z + n\Delta f) \\
+	&\cdot g(x)g(y)g(z)g(x+y-z)R_s\partial x\partial y\partial z,
+\end{align}
+where $g(f)$ is the spectral shape of each channel, which has been normalized so that $\int g(f) = 1$. Assuming that the spectral shape is rectangular with width $\Delta f$, we would have
+\begin{equation}
+	g(f) = \begin{cases}
+	\frac{1}{\Delta f}, & |f| \leq \frac{\Delta f}{2} \\
+	0, & \text{otherwise}
+	\end{cases}
+\end{equation} 
+
+This assumption also implies that $\Delta f = R_s$.
+
+To avoid the nonlinearity introduced by the condition on $g(f)$, it is necessary to modified the integration limits so that the function $g(x+y-z)$ in the integrand of \eqref{eq:Dcoeff-original} is always nonzero. Therefore, \eqref{eq:Dcoeff-original} becomes
+
+\begin{align} \label{eq:Dcoeff}\nonumber 
+D(i, j, n) &= \frac{16}{27}\frac{1}{\Delta f^3}\int_{-\Delta f/2}^{\Delta f/2}\int_{\max\{-\Delta f/2, -x-\Delta f/2\}}^{\min\{\Delta f/2, -x+\Delta f/2\}}\int_{\max\{-\Delta f/2, x+y-\Delta f/2\}}^{\min\{\Delta f/2, x+y+\Delta f/2\}} \\
+&\cdot\rho(x + i\Delta f, y + j\Delta f, z + n\Delta f)\chi(x + i\Delta f, y + j\Delta f, z + n\Delta f)\partial z\partial y\partial x,
+\end{align}
+
+Given the oscillatory behavior of $\chi(f_1, f_2, f)$ it is also use the iterative integration method in \texttt{integral3}.
+
+The functions $\rho(f_1, f_2, f)$ and $\chi(f_1, f_2, f)$ in the integrand of $D(i, j, n)$ depend on the frequencies $f_1, f_2, f$ only as $(f_1-f)(f_2-f)$. As a result, we can represent $D(i, j, n)$ as a symmetric $2N-1\times 2N-1$ matrix, which reduces the number of total computed entries.
+
 \newpage
 \section{Notes on amplifier physics}
 
