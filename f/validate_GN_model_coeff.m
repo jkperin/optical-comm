@@ -11,7 +11,7 @@ Df = 50e9;
 Nspans = 100;
 
 %% Test GN model
-D = GN_model_coeff(lamb, Df, Fiber, 1);
+D = GN_model_coeff(lamb, Df, Fiber, 0);
 
 figure, imagesc(10*log10(D))
 

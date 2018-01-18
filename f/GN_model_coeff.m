@@ -13,7 +13,9 @@ function D = GN_model_coeff(lamb, Df, Fiber, l)
     % D(n1, n2, n). D(i, j) is indexed such that i = n1-n, j = n2-n.
 
     N = length(lamb); % Number of channels
-    a = log(10)/1e4*Fiber.att(mean(lamb)); % attenuation in linear units
+    a = log(10)/1e4*Fiber.att(mean(lamb)); % power attenuation in (1/m)
+    % Note: In Poggiolini's work, "alpha" denotes amplitude attenuation, 
+    % and not power attenuation. Hence, a = 2*alpha
     b2 = Fiber.beta2(mean(lamb)); % beta2
     L = Fiber.L; % fiber length in m
        
@@ -56,7 +58,7 @@ function D = Dfun(x, y, z, i, j, l, Df, a, b2, L)
     % fprod = (f1-f).*(f2-f);
     fprod = (i*Df + (x-z)).*(j*Df + (y-z));
 
-    rho = abs((1 - exp(-2*a*L + 1j*4*pi^2*b2*L*fprod))./(2*a - 1j*4*pi^2*b2*fprod)).^2;
+    rho = abs((1 - exp(-a*L + 1j*4*pi^2*b2*L*fprod))./(a - 1j*4*pi^2*b2*fprod)).^2;
     % chi = 1 for Nspans = 1
     
     D = rho*(1/Df^3);
@@ -67,7 +69,7 @@ end
 
 % function p = rho(fprod, a, b2, L)
 %     %% Coefficient rho
-%     p = abs((1 - exp(-2*a*L + 1j*4*pi^2*b2*L*fprod))./(2*a - 1j*4*pi^2*b2*fprod)).^2;
+%     p = abs((1 - exp(-a*L + 1j*4*pi^2*b2*L*fprod))./(a - 1j*4*pi^2*b2*fprod)).^2;
 % end
 % 
 % function x = chi(fprod, Nspans, b2, L)
