@@ -9,8 +9,8 @@ addpath ../f % general functions
 addpath ../apd % for PIN photodetectors
 
 %% Transmit power swipe
-% Tx.PtxdBm = -33:-25; % transmitter power range
-Tx.PtxdBm = -25:-10; % transmitter power range
+Tx.PtxdBm = -30:-25; % transmitter power range
+% Tx.PtxdBm = -20:-10; % transmitter power range
 
 %% Simulation parameters
 sim.Rb = 25e9;    % bit rate in bits/sec
@@ -22,13 +22,13 @@ sim.Mct = 2*5;      % Oversampling ratio to simulate continuous time. Must be in
 sim.BERtarget = 1.8e-4; 
 sim.Ndiscard = 512; % number of symbols to be discarded from the begning and end of the sequence
 sim.N = sim.Mct*sim.Nsymb; % number points in 'continuous-time' simulation
-sim.Modulator = 'DML'; % 'MZM' or 'DML'
+sim.Modulator = 'MZM'; % 'MZM' or 'DML'
  
 %% Simulation control
-sim.preAmp = false;        % optical amplifier
+sim.preAmp = true;        % optical amplifier
 sim.preemphasis = false; % preemphasis to compensate for transmitter bandwidth limitation
 sim.preemphRange = 25e9; % preemphasis range
-sim.mzm_predistortion = 'none'; % predistortion to compensate MZM nonlinearity {'none': no predistortion, 'levels': only PAM levels are predistorted, 'analog': analog waveform is predistorted (DEPRECATED)}
+sim.mzm_predistortion = 'levels'; % predistortion to compensate MZM nonlinearity {'none': no predistortion, 'levels': only PAM levels are predistorted, 'analog': analog waveform is predistorted (DEPRECATED)}
 sim.RIN = true; % include RIN noise in montecarlo simulation
 sim.phase_noise = true; % whether to simulate laser phase noise
 sim.PMD = false; % whether to simulate PMD
@@ -82,7 +82,7 @@ Tx.DAC.filt = design_filter('bessel', 5, 0.7*mpam.Rs/(sim.fs/2)); % DAC analog f
 % RIN : relative intensity noise (dB/Hz)
 % linewidth : laser linewidth (Hz)
 % freqOffset : frequency offset with respect to wavelength (Hz)
-Tx.Laser = laser(1550e-9, 0, -130, 0.2e6, 0);
+Tx.Laser = laser(1550e-9, 0, -150, 0.2e6, 0);
 Tx.Laser.alpha = 0;
 
 %% Modulator
@@ -101,7 +101,7 @@ Tx.Mod.alpha = 0;
 % fiber(Length in m, anonymous function for attenuation versus wavelength
 % (default: att(lamb) = 0 i.e., no attenuation), anonymous function for 
 % dispersion versus wavelength (default: SMF28 with lamb0 = 1310nm, S0 = 0.092 s/(nm^2.km))
-SMF = fiber(20e3); 
+SMF = fiber(55e3); 
 DCF = fiber(0, @(lamb) 0, @(lamb) -0.1*(lamb-1550e-9)*1e3 - 40e-6); 
 
 Fibers = [SMF DCF];
@@ -122,7 +122,8 @@ Rx.OptAmp = OpticalAmplifier('ConstantOutputPower', 0, 5, Tx.Laser.wavelength);
 %% ============================ Receiver ==================================
 %% Photodiodes
 % apd(GaindB, ka, BW, R, Id)
-Rx.PD = apd(10, 0.5, Inf, 1, 10e-9);
+% Rx.PD = apd(10, 0.5, Inf, 1, 10e-9);
+Rx.PD = pin(1, 10e-9, Inf);
 
 %% TIA-AGC
 % One-sided thermal noise PSD
@@ -132,7 +133,7 @@ Rx.N0 = (30e-12).^2;
 Rx.filtering = 'antialiasing'; % {'antialiasing' or 'matched'}
 
 %% ADC for direct detection case
-Rx.ADC.fs = 10e9;
+Rx.ADC.fs = sim.ros.rxDSP*mpam.Rs;
 Rx.ADC.ros = sim.ros.rxDSP;
 Rx.ADC.filt = design_filter('butter', 5, (Rx.ADC.fs/2)/(sim.fs/2)); % Antialiasing filter
 Rx.ADC.ENOB = 5; % effective number of bits. Quantization is only included if sim.quantiz = true and ENOB ~= Inf
@@ -191,7 +192,7 @@ if sim.shouldPlot('BER') && length(ber.count) > 1
         hline(2) = plot(PrxdBm, log10(ber.gauss), '-', 'Color', get(hline(1), 'Color'), 'LineWidth', 2, 'DisplayName', 'Gaussian Approximation');
         legend('-DynamicLegend')
         axis([PrxdBm(1) PrxdBm(end) -8 0])
-        xlabel('Received power (dB)', 'FontSize', 12)
+        xlabel('Received power (dBm)', 'FontSize', 12)
     end
 end
 ylabel('log_{10}(BER)', 'FontSize', 12)
