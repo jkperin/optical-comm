@@ -22,6 +22,7 @@ Namp = problem.Namp;
 df = problem.df;
 nsp = problem.excess_noise; 
 D = problem.nonlinear_coeff;
+epsilon = problem.epsilon;
 
 % Set channels with zero power with small power for gain/noise calculation
 offChs = (Signal.P == 0);
@@ -36,43 +37,12 @@ Gain = 10.^(GaindB/10);
 Pase = Namp*Pase./Gain;
 
 %% Nonlinear noise at the nth channel
-tic
 offChs = (GaindB < spanAttdB);
 P = Signal.P.*(10.^(spanAttdB/10)); % optical power after gain flattening
 P(offChs) = 0;
-NL = zeros(1, Signal.N);
-for n = 1:Signal.N
-    if P(n) == 0
-        continue
-    end
-    for n1 = 1:Signal.N
-        if P(n1) == 0
-            continue
-        end
-        for n2 = 1:Signal.N
-            for l = -1:1
-                idx = n1 + n2 - n + l;
-                if idx < 1 || idx > Signal.N
-                    continue
-                end                
-                if P(n2) == 0 || P(idx) == 0
-                    continue
-                end
-                
-                i = Signal.N - (n1 - n);
-                j = Signal.N + (n2 - n);
-                NL(n) = NL(n) + P(n1)*P(n2)*P(idx)*D{l+2}(i, j);
-            end
-        end
-    end
-end
-
-toc
+NL = GN_model_noise(P, D);
 
 % Scale NL noise to "Namp" spans
-epsilon = 0.05; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Model
-% of Non-Linear Propagation in Uncompensated Coherent Optical Systems,” 
-% J. Lightw. Technol., vol. 30, no. 24, pp. 3857–3879, 2012.
 NL = NL*Namp^(1+epsilon);
 
 % Compute capacity

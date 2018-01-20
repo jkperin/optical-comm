@@ -5,7 +5,7 @@ classdef fiber < handle
         att % attenuation function i.e., alpha = att(lambda) (dB/km)
         D % dispersion function i.e., Dispersion = D(lambda)
         PMD = false; % whether PMD is included in simulations
-        gamma = 1.4 % nonlinear coefficient in 1/(W*m)
+        gamma = 1.4e-3 % nonlinear coefficient in 1/(W*m)
         meanDGDps = 0.1; % mean DGD  (ps/sqrt(km))
         PMD_section_length = 1e3  % Section length for simulating PMD (m)
         PDL = 0 % polarization dependent loss (dB). Here, it indicates how much the y pol will be attenuated with respect to x pol

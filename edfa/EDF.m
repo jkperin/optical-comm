@@ -20,36 +20,34 @@ classdef EDF
     % [4] P.C. Becker, N.A. Olsson, and J.R. Simpson. "Erbium-doped fiber
     % amplifiers: fundamentals and technology," 1999
     properties
-        type='giles_ge:silicate' % which fiber to use. 
+        type='corning_edf' % which fiber to use. 
         % Fibers available:  
-        % - {'giles_ge:silicate' (default), 'giles_al:ge:silicate'}. Extracted from [1, Fig. 2].
+        % - 'corning_edf' (default): experimental data provided by corning
+        % - {'giles_ge:silicate', 'giles_al:ge:silicate'}. Extracted from [1, Fig. 2].
         % - {'principles_type1', 'principles_type2', 'principles_type3'}. 3 types of Er3+ in alumino-germanosilicate glass. Figs. 4.20, 4.21, and 4.22 of [2]
         L % fiber length (m)
         excess_loss = 0 % (dB/m) excess loss due to splices for instance. 
-        core_radius = 1.2e-6 % Fiber core radius. e.g, 1.2 um in [1, Table 1], 1.4 um in [4, pg. 156]
-        doping_radius = 1.2e-6 % Er3+ core radius. e.g., 1.2 um in [1, Table 1], 1.05um in [4, pg 156]
-        rho0 = 0.7e19; % Er3+ concentraction (cm^3) [4, pg 156]
-        NA = 0.28 % numerical aperture, value taken from [4, pg. 156]
+        % Default values assume 'corning_edf' fiber
+        core_radius = 1.64e-6 % Fiber core radius. e.g, 1.2 um in [1, Table 1], 1.4 um in [4, pg. 156]
+        doping_radius = 1.38e-6 % Er3+ core radius. e.g., 1.2 um in [1, Table 1], 1.05um in [4, pg 156]
+        rho0 = 5.51e18; % Er3+ concentraction (cm^3), e.g., 0.7e19 in [4, pg 156]
+        NA = 0.23 % numerical aperture, e.g., 0.28 in [4, pg. 156]
         tau = 10e-3; % metastable lifetime in s        
         Nmode = 2 % number of modes (default = 2 for two polarizations)
     end
-    
-    properties (Dependent)
-        param % physical parameters from fiber (loaded from edf_selection.m)
+         
+    properties (Access=private)
+        param % other physical parameters from fiber (loaded from edf_selection.m)
     end
-    
+        
     properties (Constant, Hidden)
-        ems_cs980nm = 0; % Emission cross-section is assumed 0, so that two-level system can be used
-        abs_cs980nm = 2.7e-25 % absorption cross section near 980 nm (m^2). 
+        gp_980nm = 0; % gain coefficient is assumed 0, so that two-level system can be used
+        alphap_980nm = 4.172 % absorption cross section near 980 nm (dB/m). 
         % Value obtainend from [4, pg 154]. Cross section curves in edf_select.m are only valid near 1550 nm
         maxL = 20; % maximum fiber length. Used to limit simulation
         h = 6.62606957e-34; % Planck
         q = 1.60217657e-19; % electron charge
         c = 299792458;      % speed of light
-    end
-          
-    properties(Hidden)
-        fixed_excess_noise = 1.2 % excess noise used by default 
     end
     
     methods
@@ -59,14 +57,15 @@ classdef EDF
             if exist('type', 'var')
                 obj.type = type;
             end
+            obj.param = edf_selection(type);
         end
         
-        %% Get/Set methods
-        function param = get.param(self)
-            %% Load EDF parameters
-            param = edf_selection(self.type);
+        % set methos
+        function self = set.type(self, t)
+            self.type = t;
+            self.param = edf_selection(t);
         end
-                                      
+        
         %% Semi-analytical model
         function [GaindB, Psignal_out, Ppump_out] = semi_analytical_gain(self, Pump, Signal)
             %% Calculate gain by solving implicit equation (25) of [1]
@@ -146,9 +145,19 @@ classdef EDF
             NFdB = 10*log10(2*nsp.*(G-1)./G); % By definition. Note that for high gain, NF is approximately 2nsp
         end   
 
-        function Pase = analytical_ASE_PSD(self, Pump, Signal)
+        function Pase = analytical_ASE_PSD(self, Pump, Signal, nsp_correction)
             %% Analytical expression for ASE PSD [1, eq. (32)]
-            nsp = analytical_excess_noise(self, Pump, Signal);
+            % The optional parameter nsp_correction is a multiplicative
+            % factor to correct the analytical nsp. The analytical nsp
+            % assumes that the EDF is uniformly inverted, which leads to
+            % more optimistic values of nsp
+            % Usually nsp_correction = 1.2 for 980nm and nsp_correction =
+            % 1.5 for 1480 nm leads to good results
+            if not(exist('nsp_correction', 'var'))
+                nsp_correction = 1;
+            end
+            
+            nsp = nsp_correction*analytical_excess_noise(self, Pump, Signal);
             GdB = semi_analytical_gain(self, Pump, Signal);
             Pase = 2*nsp.*(10.^(GdB/10)-1).*Signal.Ephoton;
             Pase = max(Pase, 0); % non-negativity constraint
@@ -293,7 +302,7 @@ classdef EDF
                 P(P < 0) = 0; % non-negative constraint
                 
                 n2 = sum(P.*alpha./h_nu_xi)./(1 + sum(P.*(alpha + g)./h_nu_xi)); % population of metastable level normalized by rho0
-                               
+                    
                 dP = u.*(alpha + g).*n2.*P... % medium gain
                     -u.*(alpha + edf.excess_loss*log(10)/10).*P... % attenuation
                     +ASEselect.*u.*g.*n2.*edf.Nmode*edf.h*edf.c./lamb*BWref; % ASE 
@@ -343,7 +352,7 @@ classdef EDF
             end
             
             if exist('verbose', 'var') && verbose
-                figure(103), box on, hold on
+                figure(203), box on, hold on
                 plot(z, n2, 'DisplayName', 'Numerical')
                 plot(z, n2_approx, 'DisplayName', 'Full inversion approximation')
                 xlabel('Distance (m)')
@@ -456,7 +465,7 @@ classdef EDF
             %% Absorption coefficient in 1/m and in dB/m
             if isfield(self.param, 'absorption_coeff_fun')
                 alphadB = self.param.absorption_coeff_fun(lamb*1e9); % converts lamb to nm before calling function
-                alphadB(lamb >= 970e-9 & lamb <= 990e-9) = 10/log(10)*self.cross_sec2coeff(self.abs_cs980nm, 980e-9); % assign cross-section for 980 nm directly, since absorption_coeff_fun is obtained around 1550nm
+                alphadB(lamb >= 970e-9 & lamb <= 990e-9) = self.alphap_980nm; % assign cross-section for 980 nm directly, since absorption_coeff_fun is obtained around 1550nm
                 if size(alphadB, 1) ~= size(lamb, 1)
                     alphadB = alphadB.'; % ensures that dimensions are consistent
                 end
@@ -471,7 +480,7 @@ classdef EDF
             %% Stimulated gain coefficient in 1/m and in dB/m
             if isfield(self.param, 'gain_coeff_fun')
                 gdB = self.param.gain_coeff_fun(lamb*1e9); % converts lamb to nm before calling function
-                gdB(lamb >= 970e-9 & lamb <= 990e-9) = 10/log(10)*self.cross_sec2coeff(self.ems_cs980nm, 980e-9); % assign cross-section for 980 nm directly
+                gdB(lamb >= 970e-9 & lamb <= 990e-9) = self.gp_980nm; % assign cross-section for 980 nm directly
                 if size(gdB, 1) ~= size(lamb, 1)
                     gdB = gdB.'; % ensures that dimensions are consistent
                 end
@@ -486,7 +495,7 @@ classdef EDF
             %% Absorption cross section (m^2) evaluated at wavelength lamb
             if isfield(self.param, 'abs_cross_sec')
                 acs = self.Gaussian_fit(lamb, self.param.abs_cross_sec);
-                acs(lamb >= 970e-9 & lamb <= 990e-9) = self.abs_cs980nm; % assign cross-section for 980 nm directly, since cross-section curves in edf_selection.m are valid near 1550 nm only
+                acs(lamb >= 970e-9 & lamb <= 990e-9) = self.coeff2cross_sec(log(10)/10*self.alphap_980nm, 980e-9); % assign cross-section for 980 nm directly, since cross-section curves in edf_selection.m are valid near 1550 nm only
             else % if abs_cross_sec not in parameters, absorption_cross_sec is not calculated
                 acs = self.coeff2cross_sec(self.absorption_coeff(lamb), lamb);
             end
@@ -496,7 +505,7 @@ classdef EDF
             %% Emission cross section (m^2) evaluated at wavelength lamb
             if isfield(self.param, 'ems_cross_sec')
                 ecs = self.Gaussian_fit(lamb, self.param.ems_cross_sec);
-                ecs(lamb >= 970e-9 & lamb <= 990e-9) = self.ems_cs980nm; % emission cross-section near 980nm is assumed zero, so that two-level system can be used
+                ecs(lamb >= 970e-9 & lamb <= 990e-9) = self.coeff2cross_sec(log(10)/10*self.gp_980nm, 980e-9); % emission cross-section near 980nm is assumed zero, so that two-level system can be used
             else % if ems_cross_sec not in parameters, calculate cross section from gain coefficient
                 ecs = self.coeff2cross_sec(self.gain_coeff(lamb), lamb);
             end
@@ -528,7 +537,7 @@ classdef EDF
             g = zeros(size(lamb));
             sig = d/2*sqrt(2*log(2)); % relation between variance and FWHM
             for k = 1:length(a)
-                g = g + a(k)*exp(-(lamb-l(k)).^2/sig(k)^2);
+                g = g + a(k)*exp(-((lamb-l(k))/sig(k)).^2);
             end
         end
         
@@ -561,16 +570,10 @@ classdef EDF
                 xlabel('Wavelength (nm)')
 %                 axis([1470 1570 0 5])
             end
-            if strcmpi(property, 'saturation param') || strcmpi(property, 'all')     
-                figure(103), box on
-                plot(lamb*1e9, self.sat_param(lamb))
-                ylabel('Saturation parameter')
-                xlabel('Wavelength (nm)')
-            end
             
             if strcmpi(property, 'mode radius')
                 [wBessel, wGauss] = mode_radius(self, lamb);
-                figure(104), box on, hold on
+                figure(103), box on, hold on
                 plot(lamb*1e9, wBessel*1e6, lamb*1e9, wGauss*1e6)
                 legend('Bessel solution', 'Gaussian approximation')
                 xlabel('Wavelength (nm)')

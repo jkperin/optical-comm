@@ -1,12 +1,12 @@
-%% Validate max_channels_on.m
-clear, close all
+%% Validate optimization of power load and EDF length using the particle swarm optimization
+clear
 
 addpath ../data/
 addpath ../
 addpath ../f/
 addpath ../../f/
 
-E = EDF(10, 'principles_type3');
+E = EDF(10, 'corning_edf');
 % E.plot('all')
 
 df = 50e9;
@@ -29,8 +29,14 @@ problem.spanAttdB = spanAttdB;
 problem.df = df;
 problem.Namp = Namp;
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
-problem.excess_noise = 1.5; % 1.2 for 980nm, 1.6 for 1480nm
+problem.excess_noise_correction = 1.2; % 1.2 for 980nm, 1.6 for 1480nm
 problem.SwarmSize = min(100, 20*(Signal.N+1));
+problem.nonlinearity = true;
+S = load('../../f/GN_model_coeff_spanLengthkm=50.mat');
+problem.nonlinear_coeff = S.nonlinear_coeff;
+problem.epsilon = 0.05; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Model
+% of Non-Linear Propagation in Uncompensated Coherent Optical Systems,” 
+% J. Lightw. Technol., vol. 30, no. 24, pp. 3857–3879, 2012.
 
 % [Eopt_fmin, SignalOn_fmin] = optimize_power_load_and_edf_length('fminbnd', E, Pump, Signal, problem, true);
 % Lopt2 = E.optimal_length(Pump, SignalOn_fmin, spanAttdB)
@@ -50,3 +56,26 @@ problem.SwarmSize = min(100, 20*(Signal.N+1));
 
 % SE = capacity_linear_regime_relaxed([Eopt_pswarm.L SignalOn_pswarm.P], E, Pump, Signal, problem)
 % [num, approx] = capacity_linear_regime(Eopt_pswarm, Pump, SignalOn_pswarm, problem)
+
+ASEf = Channels(Signal.wavelength, 0, 'forward');
+ASEb = Channels(Signal.wavelength, 0, 'backward');
+
+SignalOn_pswarm.P(SignalOn_pswarm.P == 0) = eps;
+
+GaindB_semi_analytical = Eopt_pswarm.semi_analytical_gain(Pump, SignalOn_pswarm);
+nsp_correction = 1.2; % factor to correct theoretical nsp
+Pase_analytical = Eopt_pswarm.analytical_ASE_PSD(Pump, SignalOn_pswarm, nsp_correction)*df; % ASE power
+
+[GaindB, ~, ~, Pase, sol] = Eopt_pswarm.two_level_system(Pump, SignalOn_pswarm, ASEf, ASEb, df, 100, false);
+
+figure, hold on, box on
+plot(Signal.wavelength*1e9, GaindB, 'DisplayName', 'Numerical')
+plot(Signal.wavelength*1e9, GaindB_semi_analytical, 'DisplayName', 'Semi-analytical')
+xlabel('Wavelength (nm)')
+ylabel('Gain (dB)')
+
+figure, hold on, box on
+plot(Signal.wavelength*1e9, Watt2dBm(Pase), 'DisplayName', 'Numerical')
+plot(Signal.wavelength*1e9, Watt2dBm(Pase_analytical), 'DisplayName', 'Semi-analytical')
+xlabel('Wavelength (nm)')
+ylabel('ASE power (dBm)')

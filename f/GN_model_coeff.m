@@ -25,7 +25,7 @@ function D = GN_model_coeff(lamb, Df, Fiber, l)
    
     % Compute coefficients of first quadrant of NL coefficients matrix
     D1 = zeros(N, N);
-    parfor jj = 1:N 
+    for jj = 1:N 
         for ii = 1:N % index ii is only to allow parfor 
             if ii > jj % only compute entries below main diag since D1 is symmetric
                 continue

@@ -2,6 +2,17 @@ function edf_param = edf_selection(fiber_type)
 %% Select EDF
 
 switch(lower(fiber_type))
+    %% Data provided by corning
+    case 'corning_edf' 
+        try
+            load('corning_edf.mat')
+        catch
+            error('File corning_edf.mat not found. Add folder data/ to Matlab path.')
+        end  
+               
+        edf_param.absorption_coeff_fun = fun_abs;
+        edf_param.gain_coeff_fun = fun_gain;
+
     %% Experimental absorption and emission cross section line shapes 
     % of 1.55um transition of Er3+ in alumino-germanosilicate glass.
     % These curves correspond to Figs. 4.20, 4.21, and 4.22 of
@@ -71,6 +82,7 @@ switch(lower(fiber_type))
         end
         edf_param.absorption_coeff_fun = fit_abs;
         edf_param.gain_coeff_fun = fit_gain;
+        
     otherwise
         error('EDF: invalid fiber type. Options are giles_ge:silicate, giles_al:ge:silicate, principles_type1, principles_type2 and principles_type3')
 end

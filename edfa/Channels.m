@@ -53,5 +53,21 @@ classdef Channels
             %% Photon energy
             E = self.h*self.c./self.wavelength;
         end
+        
+        function plot(self, h)
+            %% Plot channels power in dBm
+            if exist('h', 'var') % handle was passed
+                figure(h)
+            else
+                figure
+            end
+            
+            plot(self.wavelength*1e9, self.PdBm);
+            
+            if not(exist('h', 'var')) 
+                xlabel('Wavelength (nm)')
+                ylabel('Power (dBm)')
+            end
+        end
     end
 end
