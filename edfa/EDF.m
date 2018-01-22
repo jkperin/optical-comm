@@ -20,9 +20,9 @@ classdef EDF
     % [4] P.C. Becker, N.A. Olsson, and J.R. Simpson. "Erbium-doped fiber
     % amplifiers: fundamentals and technology," 1999
     properties
-        type='corning_edf' % which fiber to use. 
+        type='corning_type1' % which fiber to use. 
         % Fibers available:  
-        % - 'corning_edf' (default): experimental data provided by corning
+        % - 'corning_type1' (default): experimental data provided by corning
         % - {'giles_ge:silicate', 'giles_al:ge:silicate'}. Extracted from [1, Fig. 2].
         % - {'principles_type1', 'principles_type2', 'principles_type3'}. 3 types of Er3+ in alumino-germanosilicate glass. Figs. 4.20, 4.21, and 4.22 of [2]
         L % fiber length (m)

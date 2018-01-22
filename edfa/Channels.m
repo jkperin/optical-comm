@@ -9,6 +9,7 @@ classdef Channels
         N % number of channels
         u % direction of propagation u = 1, if direction = 'forward', u = -1, if direction = 'backward'
         PdBm % Power in dBm
+        lnm
     end
     
     properties (Constant, Hidden)
@@ -47,6 +48,11 @@ classdef Channels
         function PdBm = get.PdBm(self)
             %% Power in dBm
             PdBm = 10*log10(self.P/1e-3);
+        end
+        
+        function lnm = get.lnm(self)
+            %% wavelength in nm
+            lnm = self.wavelength*1e9;
         end
         
         function E = Ephoton(self)

@@ -20,10 +20,10 @@ function [E, Signal, exitflag, num, approx] = optimize_power_load_and_edf_length
 
 % Unpack problem parameters
 Pon = problem.Pon;
-Poff = 1e-8;
 spanAttdB = problem.spanAttdB;
 
 %% Optimization
+fprintf('Optimization method = %s\n', method)
 switch lower(method)
     case 'fminbnd'
         %% Find EDF length that maximizes the number of ON channels
@@ -102,10 +102,7 @@ switch lower(method)
             [X, relaxed_SE, exitflag] = particleswarm(@(X) -capacity_linear_regime_relaxed(X, E, Pump, Signal, problem),...
             Signal.N+1, la, lb, options);
         end
-
-        fprintf('Optimization method = %s\n', method)
-        fprintf('- Optimal EDF length = %.2f\n', E.L)
-        fprintf('- Number of channels ON = %d\n', sum(Signal.P ~= 0))
+        
         fprintf('- Relaxed objective: Total Capacity = %.3f (bits/s/Hz)\n', -relaxed_SE)
         
         E.L = X(1);
@@ -117,6 +114,10 @@ switch lower(method)
         error('optimize_power_load_and_edf_length: invalid method')
 end
 
+fprintf('- Optimal EDF length = %.2f\n', E.L)
+fprintf('- Number of channels ON = %d\n', sum(Signal.P ~= 0))
+
+% 
 offChs = (Signal.P == 0);
 Signal.P(offChs) = eps; % set to small power to calculate gain
 
@@ -202,5 +203,14 @@ if exist('verbose', 'var') && verbose
     plot(lnm, Signal.PdBm + approx.GaindB)
     xlabel('Wavelength (nm)')
     ylabel('Output power (dBm)')
+    
+    if isfield(problem, 'nonlinearity') && problem.nonlinearity
+        figure(208), hold on, box on
+        plot(lnm, Watt2dBm(num.NL), 'DisplayName', 'Nonlinear noise')
+        plot(lnm, Watt2dBm(num.Pase), 'DisplayName', 'ASE')
+        xlabel('Wavelength (nm)')
+        ylabel('Noise power (dBm)')
+        legend('-DynamicLegend', 'Location', 'SouthEast')
+    end
     drawnow
 end

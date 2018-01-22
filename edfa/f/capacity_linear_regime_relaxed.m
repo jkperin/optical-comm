@@ -12,9 +12,8 @@ function [SE, SElamb] = capacity_linear_regime_relaxed(X, E, Pump, Signal, probl
 % > .spanAttdB: span attenuation in dB at each signal wavelength
 % > .Namp: number of amplifiers in the chain
 % > .df: channel spacing. Use to compute noise power
-% > .nsp: excess noise. Either a fixed value or calculated analytically 
-% from fiber parameters (power independent)
-% > .step_approx: handle function to approximate step function using in
+% > .excess_noise: excess noise at each wavelength 
+% > .step_approx: handle function to approximate step function used in
 % selecting on/off channels
 % Output:
 % - SE: spectral efficiency in bits/s/Hz i.e., capacity normalized by bandwidth

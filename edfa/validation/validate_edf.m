@@ -7,7 +7,7 @@ addpath ../f/
 addpath ../../f/
 
 % E = EDF(25, 'giles_ge:silicate');
-E = EDF(15, 'corning_edf');
+E = EDF(15, 'corning_type1');
 E.plot('all');
 
 spanAttdB = 9;

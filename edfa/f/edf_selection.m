@@ -3,7 +3,7 @@ function edf_param = edf_selection(fiber_type)
 
 switch(lower(fiber_type))
     %% Data provided by corning
-    case 'corning_edf' 
+    case 'corning_type1' 
         try
             load('corning_edf.mat')
         catch

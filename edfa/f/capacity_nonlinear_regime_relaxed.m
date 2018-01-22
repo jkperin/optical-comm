@@ -12,10 +12,13 @@ function [SE, SElamb] = capacity_nonlinear_regime_relaxed(X, E, Pump, Signal, pr
 % > .spanAttdB: span attenuation in dB at each signal wavelength
 % > .Namp: number of amplifiers in the chain
 % > .df: channel spacing. Use to compute noise power
-% > .nsp: excess noise. Either a fixed value or calculated analytically 
-% from fiber parameters (power independent)
 % > .step_approx: handle function to approximate step function using in
 % selecting on/off channels
+% > .excess_noise: excess noise at each wavelength 
+% > .nonlinear_coeff: cell array of length 3 where D{l+2}, l = -1, 0, 1 is 
+% a square matrix of the GN model nonlinear coefficients
+% > .epsilon: factor to scale the nonlinear noise power from 1 span to
+% "Namp" spans. 
 % Output:
 % - SE: spectral efficiency in bits/s/Hz i.e., capacity normalized by bandwidth
 % - SElamb: spectral efficiency in bits/s/Hz in each wavelength 

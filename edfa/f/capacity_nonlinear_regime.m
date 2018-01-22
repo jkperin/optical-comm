@@ -8,8 +8,11 @@ function [num, approx] = capacity_nonlinear_regime(E, Pump, Signal, problem)
 % > .spanAttdB: span attenuation in dB at each signal wavelength
 % > .Namp: number of amplifiers in the chain
 % > .df: channel spacing. Use to compute noise power
-% > .nsp: excess noise. Either a fixed value or calculated analytically 
-% from fiber parameters (power independent)
+% > .excess_noise: excess noise at each wavelength 
+% > .nonlinear_coeff: cell array of length 3 where D{l+2}, l = -1, 0, 1 is 
+% a square matrix of the GN model nonlinear coefficients
+% > .epsilon: factor to scale the nonlinear noise power from 1 span to
+% "Namp" spans. 
 % Output:
 % - num: struct containing the spectral efficiency, gain in dB, ASE power
 % in W, and SNR in dB calculated using the numerical method

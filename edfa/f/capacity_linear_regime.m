@@ -8,8 +8,8 @@ function [num, approx] = capacity_linear_regime(E, Pump, Signal, problem)
 % > .spanAttdB: span attenuation in dB at each signal wavelength
 % > .Namp: number of amplifiers in the chain
 % > .df: channel spacing. Use to compute noise power
-% > .nsp: excess noise. Either a fixed value or calculated analytically 
-% from fiber parameters (power independent)
+% > .excess_noise: excess noise at each wavelength. This is only used for
+% the semi-analytical method
 % Output:
 % - num: struct containing the spectral efficiency, gain in dB, ASE power
 % in W, and SNR in dB calculated using the numerical method
