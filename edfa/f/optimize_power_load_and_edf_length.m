@@ -87,16 +87,23 @@ switch lower(method)
         if isfield(problem, 'excess_noise_correction')
             problem.excess_noise = problem.excess_noise*problem.excess_noise_correction;
         end
-               
-        options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
-            'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize,...
-            'InitialSwarmSpan', [20, 10*ones(1, Signal.N)]); % SwarmSpan for fiber length is 20m and 30 dB for signal power
+            
         la = [0 -Inf*ones(1, Signal.N)]; % lower bound
         lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
-        
+        options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
+                'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize,...
+                'InitialSwarmSpan', [20, 10*ones(1, Signal.N)]); % SwarmSpan for fiber length is 20m and 30 dB for signal power
+                
         if isfield(problem, 'nonlinearity') && problem.nonlinearity
             disp('IMPORTANT: optimization includes fiber nonlinearity')
-            [X, relaxed_SE, exitflag] = particleswarm(@(X) -capacity_nonlinear_regime_relaxed(X, E, Pump, Signal, problem),...
+            
+            % After particle swarm is done, fmincon starts local optimization            
+            local_options = optimoptions('fmincon', 'Display', 'iter', 'UseParallel', true,...
+                'CheckGradients', false, 'SpecifyObjectiveGradient', true, 'FiniteDifferenceType', 'central');
+            
+            options.HybridFcn = {@fmincon, local_options}; % switch to interior-point algorithm for local optimization once particle swarm is done
+
+            [X, relaxed_SE, exitflag] = particleswarm(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, Signal, problem),...
                 Signal.N+1, la, lb, options);
         else
             [X, relaxed_SE, exitflag] = particleswarm(@(X) -capacity_linear_regime_relaxed(X, E, Pump, Signal, problem),...
@@ -124,10 +131,10 @@ Signal.P(offChs) = eps; % set to small power to calculate gain
 % Compute capacity using numerical and semi-analytical (approx) methods 
 if isfield(problem, 'nonlinearity') && problem.nonlinearity
     [num, approx] = capacity_nonlinear_regime(E, Pump, Signal, problem);
-    [~, SElamb_relaxed] = capacity_nonlinear_regime_relaxed([E.L Signal.P], E, Pump, Signal, problem);
+%     [~, SElamb_relaxed] = capacity_nonlinear_regime_relaxed([E.L Signal.P], E, Pump, Signal, problem);
 else
     [num, approx] = capacity_linear_regime(E, Pump, Signal, problem);
-    [~, SElamb_relaxed] = capacity_linear_regime_relaxed([E.L Signal.P], E, Pump, Signal, problem);
+%     [~, SElamb_relaxed] = capacity_linear_regime_relaxed([E.L Signal.P], E, Pump, Signal, problem);
 end
 
 Signal.P(offChs) = 0;
@@ -186,7 +193,7 @@ if exist('verbose', 'var') && verbose
     
     figure(206), hold on, box on
     hplot = plot(lnm, approx.SE, 'DisplayName', sprintf('Approx (%d ON)', sum(approx.SE ~= 0)));
-    plot(lnm, SElamb_relaxed, ':', 'Color', get(hplot, 'Color'), 'DisplayName', sprintf('Relaxed (%d ON)', sum(SElamb_relaxed ~= 0)))
+%     plot(lnm, SElamb_relaxed, ':', 'Color', get(hplot, 'Color'), 'DisplayName', sprintf('Relaxed (%d ON)', sum(SElamb_relaxed ~= 0)))
     plot(lnm, num.SE, '--', 'Color', get(hplot, 'Color'), 'DisplayName', sprintf('Numerical (%d ON)', sum(num.SE ~= 0)))
     xlabel('Wavelength (nm)')
     ylabel('Capacity (bits/s/Hz)')

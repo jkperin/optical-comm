@@ -20,7 +20,8 @@ classdef Channels
     
     methods
         function obj = Channels(varargin)
-            %% Constructor
+            %% Constructor:
+            % Channels(wavelength, P, direction)
             if length(varargin) == 3 % Passed P, lamb, and direction
                 obj.wavelength = varargin{1};
                 obj.P = varargin{2};
@@ -58,6 +59,11 @@ classdef Channels
         function E = Ephoton(self)
             %% Photon energy
             E = self.h*self.c./self.wavelength;
+        end
+        
+        function S = sample(self, idx)
+            %% Create another class Channels with a subset of channels from the orignal class
+            S = Channels(self.wavelength(idx), self.P(idx), self.direction);
         end
         
         function plot(self, h)

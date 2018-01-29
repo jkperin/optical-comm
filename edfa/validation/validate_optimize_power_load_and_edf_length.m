@@ -29,9 +29,10 @@ problem.spanAttdB = spanAttdB;
 problem.df = df;
 problem.Namp = Namp;
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
-problem.excess_noise_correction = 1.3; % 1.2 for 980nm, 1.6 for 1480nm
+problem.diff_step_approx = @(x) sech(2*x).^2; % first derivative (used for computing gradient)
+problem.excess_noise_correction = 1.4; % 1.2 for 980nm, 1.6 for 1480nm
 problem.SwarmSize = min(200, 20*(Signal.N+1));
-problem.nonlinearity = false;
+problem.nonlinearity = true;
 S = load('../../f/GN_model_coeff_spanLengthkm=50.mat');
 problem.nonlinear_coeff = S.nonlinear_coeff;
 problem.epsilon = 0.05; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Model

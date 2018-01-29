@@ -102,12 +102,13 @@ classdef EDF
             
             % Calculate the output flux for each individual signal & pump
             % using equation (24) of [1]
-            Qout_k = Qin_k.*exp(a*(Qin - Qout) - b);
+            Gain = exp(a*(Qin - Qout) - b);
+            Qout_k = Qin_k.*Gain;
             
             Ppump_out = Qout_k(1:Pump.N).*self.Ephoton(Pump.wavelength);
             Psignal_out = Qout_k(Pump.N+1:end).*self.Ephoton(Signal.wavelength);
             
-            GaindB = 10*log10(Psignal_out./Signal.P);
+            GaindB = 10*log10(Gain(Pump.N+1:end));
         end 
           
         %% Analytical model
