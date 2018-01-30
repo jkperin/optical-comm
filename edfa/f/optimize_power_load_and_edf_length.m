@@ -97,10 +97,12 @@ switch lower(method)
         if isfield(problem, 'nonlinearity') && problem.nonlinearity
             disp('IMPORTANT: optimization includes fiber nonlinearity')
             
-            % After particle swarm is done, fmincon starts local optimization            
-            local_options = optimoptions('fmincon', 'Display', 'iter', 'UseParallel', true,...
-                'CheckGradients', false, 'SpecifyObjectiveGradient', true, 'FiniteDifferenceType', 'central');
-            
+            % After particle swarm is done, fmincon starts local optimization  
+            local_options = optimoptions('fmincon', 'Algorithm', 'trust-region-reflective',...
+                            'Display', 'iter', 'UseParallel', true,...
+                            'CheckGradients', true, 'SpecifyObjectiveGradient', true, 'FiniteDifferenceType', 'central',...
+                            'MaxFunctionEvaluations', 1e4);
+                       
             options.HybridFcn = {@fmincon, local_options}; % switch to interior-point algorithm for local optimization once particle swarm is done
 
             [X, relaxed_SE, exitflag] = particleswarm(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, Signal, problem),...

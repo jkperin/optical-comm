@@ -67,7 +67,7 @@ classdef EDF
         end
         
         %% Semi-analytical model
-        function [GaindB, Psignal_out, Ppump_out] = semi_analytical_gain(self, Pump, Signal)
+        function [GaindB, Psignal_out, Ppump_out, dGaindB, dGaindB_L] = semi_analytical_gain(self, Pump, Signal)
             %% Calculate gain by solving implicit equation (25) of [1]
             % This model assumes
             % 1. Gamma (ovelap integral) is constant
@@ -77,7 +77,16 @@ classdef EDF
             % between pump and signal
             % Inputs:
             % - Pump: instance of class Channels representing the pump
-            % - Signal: instance of class Channels representing the signals           
+            % - Signal: instance of class Channels representing the signals        
+            % Outputs:
+            % - GaindB: gain of each Signal channel in dB
+            % - Psignal_out: output power of each signal in W
+            % - Ppump_out: 
+            % - dGaindB: gradient of the gain in dB with respect to the signal power in W.
+            % dGaindB is a N x N matrix where dGain(i, j) = partial Gain_i /
+            % partial P_j
+            % - dGaindB_L: gradient of the gain in dB with respect to the
+            % EDF length
             Qpump = Pump.P./self.Ephoton(Pump.wavelength);
             Qsignal = Signal.P./self.Ephoton(Signal.wavelength);
             
@@ -109,6 +118,15 @@ classdef EDF
             Psignal_out = Qout_k(Pump.N+1:end).*self.Ephoton(Signal.wavelength);
             
             GaindB = 10*log10(Gain(Pump.N+1:end));
+            
+            if nargout >= 4 % gradient was requested
+                dGain = (a(Pump.N+1:end))/(1 + sum(Qout_k.*a)); % 1 x N vector 
+                dGain = dGain.*((1 - Gain(Pump.N+1:end))./self.Ephoton(Signal.wavelength)).'; % N X N matrix dGain(i,j) = partial Gain_i / partial P_j 
+                dGaindB = 10/log(10)*dGain; % gain cancelled out
+                
+                dQout_L = -sum(Qout_k.*alpha)/(1 + sum(Qout_k.*a));
+                dGaindB_L = -10/log(10)*(alpha(Pump.N+1:end) + a(Pump.N+1:end)*dQout_L).'; 
+            end
         end 
           
         %% Analytical model

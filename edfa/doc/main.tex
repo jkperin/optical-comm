@@ -386,11 +386,11 @@ For the local optimization, it is necessary to compute the gradient analytically
 Including nonlinearity, the objective function is given by
 
 \begin{equation} \label{eq:grad:SE}
-	SE = 2\sum_{k = 1}^N s(G_k - A)\log_2(1 +  SNR_k),
+	\mathrm{SE} = 2\sum_{k = 1}^N s(G_k - A)\log_2(1 +  SNR_k),
 \end{equation}
 where $s(x) = 0.5(\mathrm{tanh(Dx)}-1)$ is a function that approximates a step function and $D$ determines the sharpness of the step function approximation, $G_k$ is the gain of the $k$-th channel in dB, $A_k$ is the span attenuation in the $k$-th channel in dB, and $SNR_k$ is the SNR at the $k$-th channel, which is given by
 \begin{equation}
-	SNR_k = \frac{P_k}{P_{ASE, k} + \mathrm{NL}_k(P)}
+	\mathrm{SNR}_k = \frac{P_k}{P_{ASE, k} + \mathrm{NL}_k(P)}
 \end{equation}
 
 The ASE power $P_{ASE, k} = 2aNn_{sp}(\lambda_k)h\nu_k\Delta f$ does not depend on the signal power $P_k$, but the nonlinear noise power is a function of the power vector $\tilde{P}$ i.e., it depends on the launch power of all channels.
@@ -398,12 +398,12 @@ The ASE power $P_{ASE, k} = 2aNn_{sp}(\lambda_k)h\nu_k\Delta f$ does not depend 
 Deriving SE with respect to $P_m$ yields
 
 \begin{equation} \label{eq:partial_SE}
-	\frac{\partial SE}{\partial P_m} = \frac{2}{\log(2)}\sum_{k = 1}^N \bigg [
-	\frac{\partial G_k}{\partial P_m} \log(1 + SNR_k) s^{\prime}(G_k - A) + \frac{\partial SNR_k}{\partial P_m}\frac{ s(G_k - A)}{1 + SNR_k}
+	\frac{\partial\mathrm{SE}}{\partial P_m} = \frac{2}{\log(2)}\sum_{k = 1}^N \bigg [
+	\frac{\partial \mathcal{G}_k}{\partial P_m} \log(1 + \mathrm{SNR}_k) s^{\prime}(\mathcal{G}_k - A) + \frac{\partial \mathrm{SNR}_k}{\partial P_m}\frac{ s(\mathcal{G}_k - A)}{1 + \mathrm{SNR}_k}
 	\bigg]
 \end{equation}
 
-The equation above depends on the gradient of the SNR and on the gradient of the gain. These gradients will be calculated in the next subsections.
+The equation above depends on the gradient of the SNR and on the gradient of the gain. Note that the gain $\mathcal{G}$ is in dB in this expression, and therefore the gradient must be computed with respect to the gain in dB. These gradients will be calculated in the next subsections.
 
 \subsection{Gain Gradient}
 
@@ -419,50 +419,68 @@ where
 \end{equation}
 and 
 \begin{align}
-Q^{out} &= \sum_k\frac{P_k}{h\nu_k}G_k \\ \label{eq:partial_Qout}
-& \implies \frac{\partial Q^{out}}{\partial P_m} = \frac{1}{h\nu_m}G_m + \sum_k  \frac{P_k}{h\nu_k}\frac{\partial G_k}{\partial P_m}
+Q^{out} &= \frac{P_p}{h\nu_p}G_p + \sum_{i}\frac{P_i}{h\nu_i}G_i \\ \label{eq:partial_Qout}
+& \implies \frac{\partial Q^{out}}{\partial P_m} = \frac{1}{h\nu_m}G_m + \frac{P_p}{h\nu_p}\frac{\partial G_p}{\partial P_m} + \sum_{i}  \frac{P_i}{h\nu_i}\frac{\partial G_i}{\partial P_m} 
 \end{align}
+Note that this gradient includes the pump terms given by the subindex $p$.
+
 
 Substituting \eqref{eq:partial_Gk} in \eqref{eq:partial_Qout} and solving for $\frac{\partial Q^{out}}{\partial P_m}$ yields
 \begin{align} \nonumber
-\frac{\partial Q^{out}}{\partial P_m} = \frac{1}{h\nu_m}G_m + \sum_k  \frac{P_k}{h\nu_k}a_k\Big(\frac{1}{h\nu_m} - \frac{\partial Q^{out}}{\partial P_m}\Big)G_k \\ \nonumber
-\frac{\partial Q^{out}}{\partial P_m}\bigg(1 + \sum_k\frac{P_k}{h\nu_k}a_kG_k \bigg) = \frac{1}{h\nu_m}\bigg(G_m + \sum_k\frac{P_k}{h\nu_k}a_kG_k\bigg) \\
-\frac{\partial Q^{out}}{\partial P_m} = \frac{1}{h\nu_m}\frac{G_m + \sum_k\frac{P_k}{h\nu_k}a_kG_k}{1 + \sum_k\frac{P_k}{h\nu_k}a_kG_k}
+\frac{\partial Q^{out}}{\partial P_m} = \frac{1}{h\nu_m}G_m + \frac{P_p}{h\nu_p}a_p\Big(\frac{1}{h\nu_m} - &\frac{\partial Q^{out}}{\partial P_m}\Big)G_p + \sum_{i}  \frac{P_i}{h\nu_i}a_i\Big(\frac{1}{h\nu_m} - \frac{\partial Q^{out}}{\partial P_m}\Big)G_i \\ \nonumber
+\frac{\partial Q^{out}}{\partial P_m}\bigg(1 + \frac{P_p}{h\nu_p}a_pG_p  + \sum_{i}\frac{P_i}{h\nu_i}a_iG_i \bigg) &= \frac{1}{h\nu_m}\bigg(G_m + \frac{P_p}{h\nu_p}a_pG_p + \sum_{i}\frac{P_i}{h\nu_i}a_iG_i\bigg) \\
+\frac{\partial Q^{out}}{\partial P_m} &= \frac{1}{h\nu_m}\frac{G_m + \frac{P_p}{h\nu_p}a_pG_p + \sum_{i}\frac{P_i}{h\nu_i}a_iG_i}{1 + \frac{P_p}{h\nu_p}a_pG_p+\sum_{i}\frac{P_i}{h\nu_i}a_iG_i}
 \end{align}
 
 Now substituting back in \eqref{eq:partial_Gk}:
 
 \begin{align} \nonumber
-\frac{\partial G_k}{\partial P_m} &= \frac{a_k}{h\nu_m}\Bigg(1 - \frac{G_m + \sum_k\frac{P_k}{h\nu_k}a_kG_k}{1 + \sum_k\frac{P_k}{h\nu_k}a_kG_k}\Bigg)G_k \\
-& = \frac{a_k}{h\nu_m}\Bigg(\frac{1 - G_m}{1 + \sum_k\frac{P_k}{h\nu_k}a_kG_k }\Bigg)G_k 
+\frac{\partial G_k}{\partial P_m} &= \frac{a_k}{h\nu_m}\Bigg(1 - \frac{G_m + \frac{P_p}{h\nu_p}a_pG_p + \sum_{i}\frac{P_i}{h\nu_i}a_iG_i}{1 + \frac{P_p}{h\nu_p}a_pG_p+\sum_{i}\frac{P_i}{h\nu_i}a_iG_i}\Bigg)G_k \\ \nonumber
+& = \frac{a_i}{h\nu_m}\Bigg(\frac{1 - G_m}{1 + \frac{P_p}{h\nu_p}a_pG_p + \sum_i\frac{P_i}{h\nu_i}a_iG_i}\Bigg)G_k \\
+& = \frac{1 - G_m}{h\nu_m}\Bigg(\frac{a_kG_k}{1 + \frac{P_p}{h\nu_p}a_pG_p + \sum_i\frac{P_i}{h\nu_i}a_iG_i }\Bigg)
 \end{align}
 
-\subsection{SNR gradient}
-The SNR depends on the $m$th channel power through the power itself and through the nonlinear noise power. 
-
-Assuming that $\frac{\partial G_k}{\partial P_m} \approx 0$ i.e., near the optimal solution the gain does not vary with the power, we have
-
-\begin{equation} \label{eq:dSE_dP}
-\frac{\partial SE}{\partial P_m} \approx \frac{2}{\log(2)}\sum_{k = 1}^N \frac{\partial SNR_k}{\partial P_m}\bigg [
-\frac{s(G_k - A)}{1 + SNR_k}
-\bigg]
+To obtain the gradient of the gain in dB we have
+\begin{equation}
+	\frac{\partial\mathcal{G}_k}{\partial P_m} = \frac{10}{\log(10)}\frac{1}{G_k}\frac{\partial G_k}{\partial P_m}
 \end{equation}
 
-The derivative of the SNR is given by
+\subsubsection{Gain derivative with respect to EDF length}
 
-\begin{align}
-	\frac{\partial SNR_k}{\partial P_m} &= \begin{cases}
-	-\frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{P_k}{(P_{ASE, k} + \mathrm{NL}_k)^2}, & k \neq m \\
-	-\frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{P_k}{(P_{ASE, k} + \mathrm{NL}_k)^2} + \frac{1}{P_{ASE, k} + \mathrm{NL}_k}, & k = m
-	\end{cases} \\
-	&= \begin{cases}
-	-\frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{SNR_k^2}{P_k}, & k \neq m \\
-	-\frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{SNR_k^2}{P_k} + \frac{SNR_k}{P_k}, & k = m
-	\end{cases} \\
-	& = \mathds{1}\{k= m\}\frac{SNR_m}{P_m} - \frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{SNR_k^2}{P_k}
+It's also necessary to compute the gain gradient with respect to the EDF length.
+
+\begin{equation} \label{eq:partial_Gk_L}
+	\frac{\partial G_k}{\partial L} = -\Big(\alpha_k + a_k\frac{\partial Q^{out}}{\partial L}\Big)G_k,
+\end{equation}
+where
+\begin{align} \nonumber
+	\frac{\partial Q^{out}}{\partial L} &= \frac{P_p}{h\nu_p}\frac{\partial G_p}{\partial L} + \sum_{i}\frac{P_i}{h\nu_i}\frac{\partial G_i}{\partial L}  \\ \nonumber
+	&=-\frac{P_p}{h\nu_p}\Big(\alpha_p + a_p\frac{\partial Q^{out}}{\partial L}\Big)G_p - \sum_{i}\frac{P_i}{h\nu_i}\Big(\alpha_i + a_i\frac{\partial Q^{out}}{\partial L}\Big)G_i \\ \nonumber
+	&\frac{\partial Q^{out}}{\partial L}\bigg(1 + \frac{P_p}{h\nu_p}a_pG_p + \sum_{i}\frac{P_i}{h\nu_i}a_iG_i\bigg) = -\frac{P_p}{h\nu_p}\alpha_pG_p -  \sum_{k}\frac{P_i}{h\nu_i}\alpha_iG_i \\ 
+	&\frac{\partial Q^{out}}{\partial L} = -\frac{\frac{P_p}{h\nu_p}\alpha_pG_p +  \sum_{i}\frac{P_i}{h\nu_i}\alpha_iG_i }{1 + \frac{P_p}{h\nu_p}a_pG_p + \sum_{k}\frac{P_i}{h\nu_i}a_iG_i}
 \end{align}
 
-Note that this equation is written in terms of $SNR_k$ for convenience. In practice, it's easier to write out this equation as a function of the total noise in order to avoid divisions by the power $P_k$, which could go to zero during optimization. 
+Substituting in \eqref{eq:partial_Gk_L} yields
+\begin{equation} 
+\frac{\partial G_k}{\partial L} = -\bigg(\frac{\alpha_kG_k}{1 + \frac{P_p}{h\nu_p}a_pG_p + \sum_{i}\frac{P_k}{h\nu_i}a_iG_i}\bigg),
+\end{equation}
+
+\subsection{SNR gradient}
+The SNR depends on the $m$th channel power through the power itself and through the nonlinear noise power. The derivative of the SNR in the $k$th channel with respect to the power in the $m$th channel is given by
+
+\begin{align}
+	\frac{\partial\mathrm{SNR}_k}{\partial P_m} &= \begin{cases}
+	-\frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{P_k}{(P_{\text{ASE}, k} + \mathrm{NL}_k)^2}, & k \neq m \\
+	-\frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{P_k}{(P_{\text{ASE}, k} + \mathrm{NL}_k)^2} + \frac{1}{P_{\text{ASE}, k} + \mathrm{NL}_k}, & k = m
+	\end{cases} \\
+	&= \begin{cases}
+	-\frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{\mathrm{SNR}_k^2}{P_k}, & k \neq m \\
+	-\frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{\mathrm{SNR}_k^2}{P_k} + \frac{\mathrm{SNR}_k}{P_k}, & k = m
+	\end{cases} \\
+	& = \mathds{1}\{k= m\}\frac{\mathrm{SNR}_m}{P_m} - \frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{\mathrm{SNR}_k^2}{P_k}
+\end{align}
+
+Note that this equation is written in terms of $SNR_k$ for convenience. In practice, it's easier to write out this equation as a function of the total noise power in order to avoid divisions by the power $P_k$, which could go to zero during optimization. 
 
 For the nonlinear noise power, we have
 
@@ -475,7 +493,7 @@ where $\tilde{P}$ is the launch power into the fiber at each channel, so that
 \end{equation}
 since the gain flattening filter ideally makes the channel gain equal to the fiber attenuation. Therefore, once we know $\frac{\partial NL_k}{\partial\tilde{P}_m}$, we can obtain $\frac{\partial NL_k}{\partial P_m}$ from
 \begin{equation}
-	\frac{\partial NL_k}{\partial P_m} = e^{\alpha_{\text{SMF}, m}L}\frac{\partial NL_k}{\partial\tilde{P}_m}
+	\frac{\partial\mathrm{NL}_k}{\partial P_m} = e^{\alpha_{\text{SMF}, m}L}\frac{\partial\mathrm{NL}_k}{\partial\tilde{P}_m}
 \end{equation}
 
 \noindent (!! check) this may require $\alpha_{\text{SMF}, m}$ to be constant!
@@ -487,23 +505,36 @@ $\frac{\partial NL_k}{\partial\tilde{P}_m}$ can be computed by inspection of \eq
 Returning to \eqref{eq:partial_SE}
 
 \begin{equation}
-\frac{\partial SE}{\partial P_m} = \frac{2}{\log(2)}\sum_{k = 1}^N \bigg [
-\frac{\partial G_k}{\partial P_m} \log(1 + SNR_k) s^{\prime}(G_k - A) + \frac{\partial SNR_k}{\partial P_m}\frac{ s(G_k - A)}{1 + SNR_k}
-\bigg],
+\frac{\partial\mathrm{SE}}{\partial P_m} = \frac{2}{\log(2)}\sum_{k = 1}^N \bigg [
+\frac{\partial \mathcal{G}_k}{\partial P_m} \log(1 + \mathrm{SNR}_k) s^{\prime}(\mathcal{G}_k - A) + \frac{\partial \mathrm{SNR}_k}{\partial P_m}\frac{ s(\mathcal{G}_k - A)}{1 + \mathrm{SNR}_k}
+\bigg]
 \end{equation}
  
 we can now substitute
-\begin{align}
-	\frac{\partial G_k}{\partial P_m} &= \frac{a_k}{h\nu_m}\Bigg(\frac{1 - G_m}{1 + \sum_k\frac{P_k}{h\nu_k}a_kG_k }\Bigg)G_k \\
-	\frac{\partial SNR_k}{\partial P_m} &= \mathds{1}\{k= m\}\frac{SNR_m}{P_m} - \frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{SNR_k^2}{P_k}
-\end{align}
 
+\begin{align}
+	\frac{\partial\mathcal{G}_k}{\partial P_m} &= \frac{10}{\log(10)}\frac{1}{G_k}\frac{1 - G_m}{h\nu_m}\Bigg(\frac{a_kG_k}{1 + \frac{P_p}{h\nu_p}a_pG_p + \sum_i\frac{P_i}{h\nu_i}a_iG_i }\Bigg) \\
+	\frac{\partial\mathrm{SNR}_k}{\partial P_m} &= \mathds{1}\{k= m\}\frac{\mathrm{SNR}_m}{P_m} - \frac{\partial \mathrm{NL}_k}{\partial P_m}\frac{\mathrm{SNR}_k^2}{P_k}
+\end{align}
 
 Since the optimization is realized with power values in dBm ($\mathcal{P}$), it's necessary to change the differentiation variable:
 
-\begin{equation}
-\frac{\partial SE}{\partial P_m} = \frac{\partial SE}{\partial \mathcal{P}_m}\frac{\partial\mathcal{P}_m}{\partial P_m} \implies \frac{\partial SE}{\partial \mathcal{P}_m} =  \bigg(\frac{\partial\mathcal{P}_m}{\partial P_m}\bigg)^{-1}\frac{\partial SE}{\partial P_m} = \frac{P_m\log(10)}{10}\frac{\partial SE}{\partial P_m}
-\end{equation}
+\begin{align} \nonumber
+\frac{\partial SE}{\partial P_m} &= \frac{\partial SE}{\partial \mathcal{P}_m}\frac{\partial\mathcal{P}_m}{\partial P_m} \\
+&\implies \frac{\partial SE}{\partial \mathcal{P}_m} =  \bigg(\frac{\partial\mathcal{P}_m}{\partial P_m}\bigg)^{-1}\frac{\partial SE}{\partial P_m} = \frac{P_m\log(10)}{10}\frac{\partial SE}{\partial P_m}
+\end{align}
+
+\subsection{Spectral efficiency gradient derivative with respect to EDF length}
+
+\begin{align} 
+\frac{\partial \mathrm{SE}}{\partial L} &= 2\sum_k\frac{\partial \mathcal{G}_k}{\partial L}s^{\prime}(\mathcal{G}_k-A)\log_2(1 + \mathrm{SNR}_k),
+\end{align}
+where the gradient of the gain in dB with respect to the EDF length is given by
+
+\begin{align}
+\frac{\partial \mathcal{G}_k}{\partial L} &= -\frac{10}{\log(10)}\bigg(\frac{\alpha_kG_k}{1 + \frac{P_p}{h\nu_p}a_pG_p + \sum_{i}\frac{P_k}{h\nu_i}a_iG_i}\bigg)
+\end{align}
+
 
 %The final expression for the gradient is given by
 %

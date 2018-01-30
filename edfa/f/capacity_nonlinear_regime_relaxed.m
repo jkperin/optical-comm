@@ -38,7 +38,7 @@ E.L = X(1);
 Signal.P = dBm2Watt(X(2:end));
 
 % Compute Gain using semi-analytical model
-GaindB = E.semi_analytical_gain(Pump, Signal);
+[GaindB, ~, ~, dGaindB, dGaindB_L] = E.semi_analytical_gain(Pump, Signal);
 
 %% Nonlinear noise at the nth channel
 offChs = (GaindB < spanAttdB);
@@ -76,24 +76,15 @@ if nargout > 1 % gradient was requested
     dSNR = diag(Ninv) - dNL.*(Signal.P.*Ninv.^2); % SNR gradient
     % N x N matrix, where dSNR(i,j) = partial SNR_i / partial P_j
     
-    % Gain gradient (not accurate)
-    alpha = E.absorption_coeff(Signal.wavelength); % (1/m)
-    g = E.gain_coeff(Signal.wavelength); % (1/m)
-    xi = E.sat_param(Signal.wavelength);
-    a = (alpha + g)./xi;
-    hnu = E.Ephoton(Signal.wavelength);
-    Gain = 10.^(GaindB/10);
     diff_step_approx = problem.diff_step_approx;
-    
-    dGain = (a.*Gain)./(1 + sum(Signal.P./hnu.*a.*Gain)); % 1 x N vector
-    dGain = dGain.*((1 - Gain)./hnu).'; % N X N matrix dGain(i,j) = partial Gain_i / partial P_j   
         
-    % SE gradient with respect to power in dBm
+    % SE gradient with respect to EDF length
+    dSE_L = -2*sum(dGaindB_L.'.*diff_step_approx(GaindB - spanAttdB).*log2(1 + SNR));
     
-    % Uncomment one of the two lines
-    dSElin = -2/log(2)*sum(dSNR.*(S./(1 + SNR)), 2); % Considering dG/dP = 0
-%     dSElin = -2/log(2)*sum(dGain.*(log(1 + SNR).*diff_step_approx(GaindB - spanAttdB))  + dSNR.*(S./(1 + SNR)), 2); % Considering non-zero gain gradient
+    % SE gradient with respect to channel power
+    %     dSElin = -2/log(2)*sum(dSNR.*(S./(1 + SNR)), 2); % Considering dG/dP = 0
+    dSE_P = -2/log(2)*sum(dGaindB.*(log(1 + SNR).*diff_step_approx(GaindB - spanAttdB))  + dSNR.*(S./(1 + SNR)), 2); % Considering non-zero gain gradient
+    dSE_PdBm = (log(10)/10)*(Signal.P.'.*dSE_P); % converts to derivative with power in dBm
     
-    dSE = (log(10)/10)*(Signal.P.'.*dSElin); % converts to derivative with power in dBm
-    dSE = [0; dSE];
+    dSE = [dSE_L; dSE_PdBm];
 end
