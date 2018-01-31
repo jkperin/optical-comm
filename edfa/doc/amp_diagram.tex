@@ -52,5 +52,9 @@ border rotated/.style = {shape border rotate=0}]
 	\node[right] at ($(f)!0.7!(yc)-(0,1cm)$) {$\times N = \frac{L}{l}$};
 	
 	\node[above] at (xc) {$P_k$};
-	\node[above] at ($(yc)+(0.5cm, 0)$) {$\approx P_k + n_{eq, k}$};
+	\ifdefined\NONLINEAR
+		\node[above] at ($(yc)+(1cm, 0)$) {$\approx P_k + n_{eq, k} + \mathrm{NL}_k$};
+	\else
+		\node[above] at ($(yc)+(0.5cm, 0)$) {$\approx P_k + n_{eq, k}$};
+	\fi
 \end{tikzpicture}
