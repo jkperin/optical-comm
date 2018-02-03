@@ -6,7 +6,7 @@ addpath data/
 addpath f/
 addpath ../f/
 
-verbose = true;
+verbose = false;
 
 % Select task
 taskList = [30:5:150 200:100:500]; % Variable to be modified in different system calls
@@ -14,7 +14,7 @@ pumpPowermW = taskList(round(str2double(task)));
 pumpPower = 1e-3*pumpPowermW;
 
 % Other input parameters
-Nspans = 285;
+Nspans = 286;
 spanLengthKm = 50;
 
 % EDF fiber
@@ -67,6 +67,13 @@ try
     problem.nonlinearity = false;
     [lin.E, lin.S, lin.exitflag, lin.num, lin.approx] = ...
         optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, verbose);
+    
+    failed_lin = lin;   
+    if lin.exitflag ~= 1 % try one more time
+        fprintf('Optimization ended with exitflag = %d\n. Trying one more time...\n', lin.exitflag)
+        [lin.E, lin.S, lin.exitflag, lin.num, lin.approx] = ...
+            optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, verbose);
+    end
 catch e
     warning(e.message)
 end

@@ -38,3 +38,4 @@ edfa/doc/presentation_equations.tex
 edfa/doc/header.tex
 *.xls
 *.mexw64
+!f/GN_model_coeff_spanLengthkm=50km_Df=50GHz.mat
