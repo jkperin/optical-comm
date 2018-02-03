@@ -35,6 +35,7 @@ problem.diff_step_approx = @(x) sech(2*x).^2; % first derivative (used for compu
 problem.excess_noise_correction = 1.4; % 1.2 for 980nm, 1.6 for 1480nm
 problem.SwarmSize = min(200, 20*(Signal.N+1));
 problem.nonlinearity = true;
+problem.hybrid_opt = true; % whether to perform gradient-base optimization after particle swarm is done (only used when problem.nonlinearity = true)
 S = load('../../f/GN_model_coeff_spanLengthkm=50.mat');
 problem.nonlinear_coeff = S.nonlinear_coeff;
 problem.nonlinear_coeff{1} = (SMF.gamma/1.4e-3)^2*problem.nonlinear_coeff{1};
@@ -58,36 +59,10 @@ problem.epsilon = 0.05; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Mo
 % % plot(Signal.wavelength*1e9, GaindB)
 % % drawnow
 
-[Eopt_pswarm, SignalOn_pswarm, exitflab, num, approx] ... 
+[Eopt_pswarm, SignalOn_pswarm, exitflag_pswarm, num_pswarm, approx_pswarm] ... 
     = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
 
-% ASEf = Channels(Signal.wavelength, 0, 'forward');
-% ASEb = Channels(Signal.wavelength, 0, 'backward');
-% 
-% offChs = SignalOn_pswarm.P == 0;
-% SignalOn_pswarm.P(offChs) = eps;
-% 
-% GaindB_semi_analytical = Eopt_pswarm.semi_analytical_gain(Pump, SignalOn_pswarm);
-% Pase_analytical = Eopt_pswarm.analytical_ASE_PSD(Pump, SignalOn_pswarm, problem.excess_noise_correction )*df; % ASE power
-% 
-% [GaindB, ~, ~, Pase, sol] = Eopt_pswarm.two_level_system(Pump, SignalOn_pswarm, ASEf, ASEb, df, 150, false);
-% 
-% figure, hold on, box on
-% hplot = plot(Signal.wavelength*1e9, GaindB, 'DisplayName', 'Numerical');
-% plot(Signal.wavelength*1e9, GaindB_semi_analytical, '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Semi-analytical')
-% xlabel('Wavelength (nm)')
-% ylabel('Gain (dB)')
-% 
-% figure, hold on, box on
-% hplot = plot(Signal.wavelength*1e9, Watt2dBm(Pase), 'DisplayName', 'Numerical');
-% plot(Signal.wavelength*1e9, Watt2dBm(Pase_analytical), '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Analytical')
-% xlabel('Wavelength (nm)')
-% ylabel('ASE power (dBm)')
-% 
-% offChs = SignalOn_pswarm.P == eps;
-% figure, hold on, box on
-% hplot = plot(Signal.lnm, Watt2dBm(Pase), 'DisplayName', 'Numerical');
-% plot(Signal.lnm, Watt2dBm(Pase_analytical), '--', 'Color', get(hplot, 'Color'),'DisplayName', 'Analytical')
-% xlabel('Wavelength (nm)')
-% ylabel('Gain (dB)')
-% legend('-DynamicLegend', 'Location', 'SouthEast')
+% Performs a local gradient-based optimization after particle_swarm is done
+[Eopt_local, SignalOn_local, exitflag_local, num_local, approx_local] ... 
+    = optimize_power_load_and_edf_length('local', Eopt_pswarm, Pump, SignalOn_pswarm, problem, true);
+

@@ -14,13 +14,14 @@ function [SE, dSE, SElamb] = capacity_nonlinear_regime_relaxed(X, E, Pump, Signa
 % > .df: channel spacing. Use to compute noise power
 % > .step_approx: handle function to approximate step function using in
 % selecting on/off channels
+% > .diff_step_approx: first derivative of step approximation function
 % > .excess_noise: excess noise at each wavelength 
 % > .nonlinear_coeff: cell array of length 3 where D{l+2}, l = -1, 0, 1 is 
 % a square matrix of the GN model nonlinear coefficients
 % > .epsilon: factor to scale the nonlinear noise power from 1 span to
 % "Namp" spans. 
 % Output:
-% - SE: spectral efficiency in bits/s/Hz i.e., capacity normalized by bandwidth
+% - SE: negative spectral efficiency in bits/s/Hz i.e., capacity normalized by bandwidth
 % - dSE: gradient of spectral efficiency with respect to X (E.L and power
 % in dBm)
 
@@ -43,7 +44,7 @@ Signal.P = dBm2Watt(X(2:end));
 %% Nonlinear noise at the nth channel
 offChs = (GaindB < spanAttdB);
 P = Signal.P.*(10.^(spanAttdB/10)); % optical power after gain flattening
-P(offChs) = 0;
+P(offChs) = 0; % by assigning zero power, NL noise for off channels is not computed
 
 if nargout > 1 % gradient was requested
     [dNL, NL] = GN_model_noise_gradient(P, D);
