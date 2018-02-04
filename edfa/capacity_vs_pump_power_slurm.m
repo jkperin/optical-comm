@@ -34,7 +34,7 @@ SMF.gamma = 0.8e-3;
 
 % Filename
 filename = sprintf('results/capacity_vs_pump_power_EDF=%s_pump=%dmW_%dnm_L=%d_x_%dkm.mat',...
-        E.type, pumpPowermW, Pump.wavelength*1e9, Nspans, spanLengthKm);
+        E.type, pumpPowermW, round(Pump.wavelength*1e9), Nspans, spanLengthKm);
 filename = check_filename(filename); % verify if already exists and rename it if it does
 disp(filename) 
 

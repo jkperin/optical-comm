@@ -22,6 +22,12 @@ function [E, Signal, exitflag, num, approx] = optimize_power_load_and_edf_length
 Pon = problem.Pon;
 PoffdBm = Watt2dBm(eps); % assign small power to off channels
 spanAttdB = problem.spanAttdB;
+% Excess noise
+problem.excess_noise = E.analytical_excess_noise(Pump, Signal);
+if isfield(problem, 'excess_noise_correction')
+    problem.excess_noise = problem.excess_noise*problem.excess_noise_correction;
+end
+
 
 %% Optimization
 fprintf('Optimization method = %s\n', method)
@@ -82,13 +88,7 @@ switch lower(method)
         else
             SwarmSize = min(200, 20*(Signal.N+1));
         end
-                 
-        % Excess noise
-        problem.excess_noise = E.analytical_excess_noise(Pump, Signal);
-        if isfield(problem, 'excess_noise_correction')
-            problem.excess_noise = problem.excess_noise*problem.excess_noise_correction;
-        end
-            
+                            
         la = [0 -Inf*ones(1, Signal.N)]; % lower bound
         lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
@@ -114,12 +114,6 @@ switch lower(method)
       
     case 'local'
         %% Local optimizaiton using a gradient-based algorithm. Results from particle swarm optmization should be provided as starting point
-        % Excess noise
-        problem.excess_noise = E.analytical_excess_noise(Pump, Signal);
-        if isfield(problem, 'excess_noise_correction')
-            problem.excess_noise = problem.excess_noise*problem.excess_noise_correction;
-        end
-
         options = optimoptions('fmincon', 'Algorithm', 'trust-region-reflective',...
             'Display', 'iter', 'UseParallel', true,...
             'CheckGradients', true, 'SpecifyObjectiveGradient', true, 'FiniteDifferenceType', 'central',...
@@ -135,12 +129,17 @@ switch lower(method)
         Signal.P = dBm2Watt(X(2:end));
         GaindB = E.semi_analytical_gain(Pump, Signal);
         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
+    case 'none' % doesn't do anything. Just use this function for plotting
+        exitflag = 1;
+        GaindB = E.semi_analytical_gain(Pump, Signal);
+        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
     otherwise
         error('optimize_power_load_and_edf_length: invalid method')
 end
 
 fprintf('- Optimal EDF length = %.2f\n', E.L)
-fprintf('- Number of channels ON = %d\n', sum(Signal.P ~= 0))
+NChOn = sum(Signal.P ~= 0);
+fprintf('- Number of channels ON = %d\n', NChOn)
 
 % 
 offChs = (Signal.P == 0);
@@ -159,9 +158,9 @@ Signal.P(offChs) = 0;
 
 % 
 fprintf('- Numerical: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',...
-    sum(num.SE), sum(num.SE)/sum(num.SE ~= 0))
+    sum(num.SE), sum(num.SE)/NChOn)
 fprintf('- Approximated: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',...
-    sum(approx.SE), sum(approx.SE)/sum(approx.SE ~= 0))
+    sum(approx.SE), sum(approx.SE)/NChOn)
 
 SignalOut = Signal;
 SignalOut.P = dBm2Watt(Signal.PdBm + num.GaindB);
@@ -210,9 +209,9 @@ if exist('verbose', 'var') && verbose
     axis([lnm(1) lnm(end) 0 25])
     
     figure(206), hold on, box on
-    hplot = plot(lnm, approx.SE, 'DisplayName', sprintf('Approx (%d ON)', sum(approx.SE ~= 0)));
-    plot(lnm, SElamb_relaxed, ':', 'Color', get(hplot, 'Color'), 'DisplayName', sprintf('Relaxed (%d ON)', sum(SElamb_relaxed ~= 0)))
-    plot(lnm, num.SE, '--', 'Color', get(hplot, 'Color'), 'DisplayName', sprintf('Numerical (%d ON)', sum(num.SE ~= 0)))
+    hplot = plot(lnm, approx.SE, 'DisplayName', 'Approximated');
+    plot(lnm, SElamb_relaxed, ':', 'Color', get(hplot, 'Color'), 'DisplayName', 'Relaxed')
+    plot(lnm, num.SE, '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Numerical')
     xlabel('Wavelength (nm)')
     ylabel('Capacity (bits/s/Hz)')
     legend('-DynamicLegend', 'Location', 'SouthEast')

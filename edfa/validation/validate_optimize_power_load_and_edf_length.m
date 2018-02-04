@@ -35,8 +35,7 @@ problem.diff_step_approx = @(x) sech(2*x).^2; % first derivative (used for compu
 problem.excess_noise_correction = 1.4; % 1.2 for 980nm, 1.6 for 1480nm
 problem.SwarmSize = min(200, 20*(Signal.N+1));
 problem.nonlinearity = true;
-problem.hybrid_opt = true; % whether to perform gradient-base optimization after particle swarm is done (only used when problem.nonlinearity = true)
-S = load('../../f/GN_model_coeff_spanLengthkm=50.mat');
+S = load('../../f/GN_model_coeff_spanLengthkm=50km_Df=50GHz.mat');
 problem.nonlinear_coeff = S.nonlinear_coeff;
 problem.nonlinear_coeff{1} = (SMF.gamma/1.4e-3)^2*problem.nonlinear_coeff{1};
 problem.nonlinear_coeff{2} = (SMF.gamma/1.4e-3)^2*problem.nonlinear_coeff{2};
