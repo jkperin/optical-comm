@@ -35,7 +35,7 @@ switch lower(method)
     case 'fminbnd'
         %% Find EDF length that maximizes the number of ON channels
         % This uses Matlab's fminbnd function to search for the optimal fiber length
-        % (Doesn't produce very consisten results)
+        % (Doesn't produce very consistent results)
         
         [Lopt, ~, exitflag] = fminbnd(@(L) -sum(max_channels_on(L, E, Pump, Signal, Pon, spanAttdB)), 0, E.maxL);
 
@@ -54,7 +54,7 @@ switch lower(method)
         %% Find EDF length that maximizes the number of ON channels
         % Optimal EDF length is found by interpolation. Number of ON
         % channels is calculated for "Nsteps" points from EDF.L = 1 to
-        % EDF.Lmax. Optimal result is obtained by interpolatin
+        % EDF.Lmax. Optimal result is obtained by interpolation
         Nsteps = 40;
         Ledf = linspace(1, E.maxL, Nsteps); % EDF is at least a meter long
         BW = zeros(size(Ledf));
@@ -214,7 +214,9 @@ if exist('verbose', 'var') && verbose
     plot(lnm, num.SE, '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Numerical')
     xlabel('Wavelength (nm)')
     ylabel('Capacity (bits/s/Hz)')
-    legend('-DynamicLegend', 'Location', 'SouthEast')
+    if isempty(legend(gca))
+        legend('-DynamicLegend', 'Location', 'SouthEast')
+    end
     title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
        
     figure(207), 
