@@ -19,7 +19,6 @@
 \usetikzlibrary{shapes.geometric}
 \usetikzlibrary{pgfplots.groupplots}
 \usetikzlibrary{plotmarks}
-\usetikzlibrary{calc}
 
 
 \usepgfplotslibrary{groupplots}
@@ -363,7 +362,7 @@ D(n_1, n_2, n) &= \gamma^2\frac{16}{27}\frac{1}{\Delta f^3}\int_{-\Delta f/2}^{\
 &\cdot g(x+y-z+l\Delta f)\partial x\partial y\partial z,
 \end{align}
 
-To avoid the nonlinearity in the integrand introduced by $g(x+y-z+l\Delta f)$, we could modify the integration boundaries, but numerical methods don't seem to have a problem integrating with the nonlinearity in the integrad.
+To avoid the nonlinearity in the integrand introduced by $g(x+y-z+l\Delta f)$, we could modify the integration boundaries, but numerical methods don't seem to have a problem integrating with the nonlinearity in the integrand.
 
 The oscillatory behavior of $\chi(f_1, f_2, f)$ makes the integration above difficult. To circumvent this problem, we can use the $\epsilon$ power law for scaling the non-linear noise power $NL_n$ for 1 span to $N_s$ spans \cite{Poggiolini2012}:
 
