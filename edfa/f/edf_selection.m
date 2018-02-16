@@ -12,6 +12,16 @@ switch(lower(fiber_type))
                
         edf_param.absorption_coeff_fun = fun_abs;
         edf_param.gain_coeff_fun = fun_gain;
+        
+    case 'corning_type1 (NEW)' 
+        try
+            load('corning_edf_new.mat')
+        catch
+            error('File corning_edf_new.mat not found. Add folder data/ to Matlab path.')
+        end  
+               
+        edf_param.absorption_coeff_fun = fun_abs;
+        edf_param.gain_coeff_fun = fun_gain;
 
     %% Experimental absorption and emission cross section line shapes 
     % of 1.55um transition of Er3+ in alumino-germanosilicate glass.

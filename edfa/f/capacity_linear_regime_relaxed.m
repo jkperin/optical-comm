@@ -12,6 +12,7 @@ function [SE, SElamb] = capacity_linear_regime_relaxed(X, E, Pump, Signal, probl
 % > .spanAttdB: span attenuation in dB at each signal wavelength
 % > .Namp: number of amplifiers in the chain
 % > .df: channel spacing. Use to compute noise power
+% > .Gap: SNR gap to capacity in linear units
 % > .excess_noise: excess noise at each wavelength 
 % > .step_approx: handle function to approximate step function used in
 % selecting on/off channels
@@ -23,6 +24,7 @@ function [SE, SElamb] = capacity_linear_regime_relaxed(X, E, Pump, Signal, probl
 spanAttdB = problem.spanAttdB;
 Namp = problem.Namp;
 df = problem.df;
+Gap = problem.Gap;
 nsp = problem.excess_noise; 
 step_approx = problem.step_approx;
 
@@ -38,5 +40,5 @@ A = 10^(mean(spanAttdB)/10);
 a = (A-1)/A;
 NF = 2*a*nsp;
 SNR = Signal.P./(Namp*df*NF.*Signal.Ephoton);
-SElamb = 2*log2(1 + SNR).*step_approx(GaindB - spanAttdB);
+SElamb = 2*log2(1 + Gap*SNR).*step_approx(GaindB - spanAttdB);
 SE = sum(SElamb);

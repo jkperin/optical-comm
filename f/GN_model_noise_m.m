@@ -9,7 +9,7 @@ function NL = GN_model_noise_m(P, D)
 
 N = length(P);
 NL = zeros(size(P));
-
+Ncenter = (size(D{1}, 1)+1)/2;
 parfor n = 1:N
     if P(n) == 0
         continue
@@ -28,8 +28,8 @@ parfor n = 1:N
                     continue
                 end
                 
-                i = N - (n1 - n);
-                j = N + (n2 - n);
+                i = Ncenter - (n1 - n);
+                j = Ncenter + (n2 - n);
                 NL(n) = NL(n) + P(n1)*P(n2)*P(idx)*D{l+2}(i, j);
             end
         end

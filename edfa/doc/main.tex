@@ -309,7 +309,7 @@ C &= \sum_{k = 1}^{K} 2\Delta f\log_2\Bigg(1 + \frac{P_kG(\lambda_k)}{2Nn_{sp}(\
 The summation is performed over the channels that have gain higher than the span attenuation:
 
 \begin{equation}
-SE =\sum_{k} \mathds{1}\{G(\lambda_k) \geq e^{\alpha_{\text{SMF}}(\lambda_k)l}\}\log_2\bigg(1 + \frac{P_k}{2aNn_{sp}(\lambda_k)h\nu_k\Delta f}\bigg) 
+\mathrm{SE} =2\sum_{k} \mathds{1}\{G(\lambda_k) \geq e^{\alpha_{\text{SMF}}(\lambda_k)l}\}\log_2\bigg(1 + \frac{P_k}{2aNn_{sp}(\lambda_k)h\nu_k\Delta f}\bigg) 
 \end{equation}
 
 For simulations, the indicator is approximated by a differentiable function
@@ -385,7 +385,7 @@ For the local optimization, it is necessary to compute the gradient analytically
 Including nonlinearity, the objective function is given by
 
 \begin{equation} \label{eq:grad:SE}
-	\mathrm{SE} = 2\sum_{k = 1}^N s(G_k - A)\log_2(1 +  SNR_k),
+	\mathrm{SE} = 2\sum_{k = 1}^N s(G_k - A)\log_2(1 +  \mathrm{SNR}_k),
 \end{equation}
 where $s(x) = 0.5(\mathrm{tanh(Dx)}-1)$ is a function that approximates a step function and $D$ determines the sharpness of the step function approximation, $G_k$ is the gain of the $k$-th channel in dB, $A_k$ is the span attenuation in the $k$-th channel in dB, and $SNR_k$ is the SNR at the $k$-th channel, which is given by
 \begin{equation}

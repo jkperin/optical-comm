@@ -1,5 +1,5 @@
 %% Validate calculations of GN model coefficients
-clear, close all
+clear,% close all
 
 Fiber = fiber(50e3, @(l) 0.2);
 
@@ -19,8 +19,9 @@ Nspans = 100;
 df = 50e9;
 dlamb = df2dlamb(df);
 lamb = 1522e-9:dlamb:1582e-9;
+idx = 1:length(lamb)-10; % check if calculations work with just a subset of the channels
 
-S = load('GN_model_coeff_spanLengthkm=50.mat');
+S = load('GN_model_coeff_spanLengthkm=50km_Df=50GHz.mat');
 nonlinear_coeff = S.nonlinear_coeff;
 
 for n = 1:length(nonlinear_coeff)
@@ -32,9 +33,9 @@ end
 P = dBm2Watt(0.25 + 2*(rand(size(lamb))-0.5));
 
 tic
-NL = GN_model_noise(P, nonlinear_coeff);
+NL = GN_model_noise(P(idx), nonlinear_coeff);
 toc, tic
-NL_m = GN_model_noise_m(P, nonlinear_coeff);
+NL_m = GN_model_noise_m(P(idx), nonlinear_coeff);
 toc
 
 % Scale NL noise to "Namp" spans
@@ -46,5 +47,5 @@ NL_m = NL_m*40^(1+epsilon);
 
 
 figure, hold on
-plot(lamb*1e9, Watt2dBm(NL))
-plot(lamb*1e9, Watt2dBm(NL_m), '--')
+plot(lamb(idx)*1e9, Watt2dBm(NL))
+plot(lamb(idx)*1e9, Watt2dBm(NL_m), '--')

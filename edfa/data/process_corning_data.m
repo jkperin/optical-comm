@@ -2,7 +2,7 @@
 clear, clc, close all
 
 %% Corning EDF
-corning_edf_data
+corning_edf_data_new
 
 %% Fit absorption coefficient in the signal band
 ft = fittype( 'gauss4' );
@@ -74,4 +74,4 @@ plot(lambp, alphap, '.b')
 plot(lambp, fit_absp(lambp), '-b')
 
 % Save data
-save('corning_edf')
+save('corning_edf_new')

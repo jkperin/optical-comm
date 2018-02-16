@@ -8,6 +8,7 @@ function [num, approx] = capacity_linear_regime(E, Pump, Signal, problem)
 % > .spanAttdB: span attenuation in dB at each signal wavelength
 % > .Namp: number of amplifiers in the chain
 % > .df: channel spacing. Use to compute noise power
+% > .Gap: SNR gap to capacity in linear units
 % > .excess_noise: excess noise at each wavelength. This is only used for
 % the semi-analytical method
 % Output:
@@ -20,6 +21,7 @@ function [num, approx] = capacity_linear_regime(E, Pump, Signal, problem)
 spanAttdB = problem.spanAttdB;
 Namp = problem.Namp;
 df = problem.df;
+Gap = problem.Gap;
 nsp = problem.excess_noise; 
 
 % Set channels with zero power with small power for gain/noise calculation
@@ -34,7 +36,7 @@ ASEb = Channels(Signal.wavelength, 0, 'backward');
 Gain = 10.^(GaindB/10);
 Pase = Namp*Pase./Gain;
 SNR = Signal.P./Pase;
-SEnum = 2*(GaindB >= spanAttdB).*log2(1 + SNR); 
+SEnum = 2*(GaindB >= spanAttdB).*log2(1 + Gap*SNR); 
 
 num.SE = SEnum;
 num.GaindB = GaindB;
@@ -48,7 +50,7 @@ Pase = Namp*df*(2*nsp.*((Gain-1)./Gain).*Signal.Ephoton);
 Pase = max(Pase, 0); % non-negativity constraint           
 
 SNR = Signal.P./Pase;
-SEapprox = 2*(GaindB >= spanAttdB).*log2(1 + SNR);   
+SEapprox = 2*(GaindB >= spanAttdB).*log2(1 + Gap*SNR);   
 
 approx.SE = SEapprox;
 approx.GaindB = GaindB;

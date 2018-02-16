@@ -26,8 +26,9 @@ spanAttdB = problem.spanAttdB;
 problem.excess_noise = E.analytical_excess_noise(Pump, Signal);
 if isfield(problem, 'excess_noise_correction')
     problem.excess_noise = problem.excess_noise*problem.excess_noise_correction;
+else
+    problem.excess_noise_correction = 1;
 end
-
 
 %% Optimization
 fprintf('Optimization method = %s\n', method)
@@ -93,7 +94,7 @@ switch lower(method)
         lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
                 'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize,...
-                'InitialSwarmSpan', [20, 10*ones(1, Signal.N)]); % SwarmSpan for fiber length is 20m and 30 dB for signal power
+                'InitialSwarmSpan', [20, 10*ones(1, Signal.N)]); % SwarmSpan for fiber length is 20m and 10 dB for signal power
                 
         if isfield(problem, 'nonlinearity') && problem.nonlinearity
             disp('IMPORTANT: optimization includes fiber nonlinearity')
@@ -111,14 +112,13 @@ switch lower(method)
         Signal.P = dBm2Watt(X(2:end));
         GaindB = E.semi_analytical_gain(Pump, Signal);
         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
-      
-    case 'local'
-        %% Local optimizaiton using a gradient-based algorithm. Results from particle swarm optmization should be provided as starting point
+     
+    case 'local constrained' 
         options = optimoptions('fmincon', 'Algorithm', 'trust-region-reflective',...
             'Display', 'iter', 'UseParallel', true,...
             'CheckGradients', true, 'SpecifyObjectiveGradient', true, 'FiniteDifferenceType', 'central',...
-            'MaxFunctionEvaluations', 1e4);
-        
+            'MaxFunctionEvaluations', 1e4, 'StepTolerance', 1e-9);
+
         Signal.P(Signal.P == 0) = eps; % to respect the bounds
         la = [0 PoffdBm*ones(1, Signal.N)]; % lower bound
         lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
@@ -128,7 +128,52 @@ switch lower(method)
         E.L = X(1);
         Signal.P = dBm2Watt(X(2:end));
         GaindB = E.semi_analytical_gain(Pump, Signal);
+        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement   
+        
+    case 'local unconstrained'
+        %% Local optimizaiton using a gradient-based algorithm. Results from particle swarm optmization should be provided as starting point        
+        % This optimization only acts on the ON channels. OFF channels are
+        % ignored
+        options = optimoptions('fminunc', 'Algorithm', 'quasi-newton',...
+            'Display', 'iter', 'UseParallel', true,...
+            'CheckGradients', true, 'SpecifyObjectiveGradient', true, 'FiniteDifferenceType', 'central',...
+            'MaxFunctionEvaluations', 1e4, 'StepTolerance', 1e-6);
+        
+        onChs = Signal.P ~= 0; % index of ON channels
+        fprintf('Saddle-free Newton: optimization will only consider the %d ON channels\n', sum(onChs));
+        SigOn = Signal.sample(onChs); % select only ON channels
+        problem.excess_noise = problem.excess_noise_correction*E.analytical_excess_noise(Pump, SigOn); % Adjust coefficients to match current 
+                
+        [X, ~, exitflag] = fminunc(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, SigOn, problem), ...
+            [E.L SigOn.PdBm], options);
+
+        E.L = X(1);
+        Signal.P(onChs) = dBm2Watt(X(2:end));
+        GaindB = E.semi_analytical_gain(Pump, Signal);
         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
+        
+        if sum(onChs) ~= sum(Signal.P ~= 0) % warn if number of ON channels changed
+            warning('local unconstrained optimization: optimization started with %d ON channels and concluded with %d ON channels.\n', sum(onChs), sum(Signal.P ~= 0))
+        end
+    case 'saddle-free newton'
+        options = problem.saddle_free_newton.options;
+        
+        onChs = Signal.P ~= 0; % index of ON channels
+        fprintf('Saddle-free Newton: optimization will only consider the %d ON channels\n', sum(onChs));
+        SigOn = Signal.sample(onChs); % select only ON channels     
+        problem.excess_noise = problem.excess_noise_correction*E.analytical_excess_noise(Pump, SigOn); % Adjust coefficients to match current 
+               
+        [X, ~, exitflag] = saddle_free_newton(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, SigOn, problem), [E.L SigOn.PdBm], options);
+        
+        E.L = X(1);
+        Signal.P(onChs) = dBm2Watt(X(2:end));
+        GaindB = E.semi_analytical_gain(Pump, Signal);
+        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
+        
+        if sum(onChs) ~= sum(Signal.P ~= 0) % warn if number of ON channels changed
+            warning('Saddle-free Newton optimization: optimization started with %d ON channels and concluded with %d ON channels.\n', sum(onChs), sum(Signal.P ~= 0))
+        end
+        
     case 'none' % doesn't do anything. Just use this function for plotting
         exitflag = 1;
         GaindB = E.semi_analytical_gain(Pump, Signal);
@@ -136,6 +181,8 @@ switch lower(method)
     otherwise
         error('optimize_power_load_and_edf_length: invalid method')
 end
+% re-calculate excess noise
+problem.excess_noise = problem.excess_noise_correction*E.analytical_excess_noise(Pump, Signal);
 
 fprintf('- Optimal EDF length = %.2f\n', E.L)
 NChOn = sum(Signal.P ~= 0);
@@ -174,7 +221,17 @@ if exist('verbose', 'var') && verbose
     end
     
     % Plot Results
-    lnm = Signal.wavelength*1e9;
+    lnm = Signal.lnm;
+    figure(201), box on, hold on
+    plot(lnm, Signal.PdBm)
+    xlabel('Wavelength (nm)')
+    ylabel('Power allocation (dBm)')
+
+    figure(202), box on, hold on
+    plot(lnm, Signal.PdBm + spanAttdB)
+    xlabel('Wavelength (nm)')
+    ylabel('Launch power (dBm)')
+    
     figure(203), hold on, box on
     hplot = plot(lnm, approx.GaindB, 'DisplayName', 'Approximated');
     plot(lnm, num.GaindB, '--', 'Color', get(hplot, 'Color'),'DisplayName', 'Numerical')
@@ -190,14 +247,17 @@ if exist('verbose', 'var') && verbose
     title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
     
     figure(204), hold on, box on
-    hplot = plot(lnm, Watt2dBm(approx.Pase), 'DisplayName', 'Approximated');
-    plot(lnm, Watt2dBm(num.Pase), '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'Numerical')
+    hplot = plot(lnm, Watt2dBm(approx.Pase), 'DisplayName', 'ASE Approximated');
+    plot(lnm, Watt2dBm(num.Pase), '--', 'Color', get(hplot, 'Color'), 'DisplayName', 'ASE Numerical')
     xlabel('Wavelength (nm)')
     ylabel('ASE (dBm)')
+    title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
+    if isfield(problem, 'nonlinearity') && problem.nonlinearity
+        plot(lnm, Watt2dBm(num.NL), 'DisplayName', 'Nonlinear noise')
+    end
     if isempty(legend(gca))
         legend('-DynamicLegend', 'Location', 'SouthEast')
-    end
-    title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
+    end   
     
     figure(205), hold on, box on
     hplot = plot(lnm, approx.SNRdB, 'DisplayName', 'Approx');
@@ -206,7 +266,7 @@ if exist('verbose', 'var') && verbose
     ylabel('SNR (dB)')
     legend('-DynamicLegend', 'Location', 'SouthEast')
     title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
-    axis([lnm(1) lnm(end) 0 25])
+    axis([lnm(1) lnm(end) 0 15])
     
     figure(206), hold on, box on
     hplot = plot(lnm, approx.SE, 'DisplayName', 'Approximated');
@@ -218,25 +278,6 @@ if exist('verbose', 'var') && verbose
         legend('-DynamicLegend', 'Location', 'SouthEast')
     end
     title(sprintf('EDF %s, L = %.2f m', E.type, E.L), 'Interpreter', 'none')
-       
-    figure(207), 
-    subplot(211), box on, hold on
-    plot(lnm, Signal.PdBm)
-    xlabel('Wavelength (nm)')
-    ylabel('Power loading (dBm)')
-
-    subplot(212), box on, hold on
-    plot(lnm, Signal.PdBm + approx.GaindB)
-    xlabel('Wavelength (nm)')
-    ylabel('Output power (dBm)')
     
-    if isfield(problem, 'nonlinearity') && problem.nonlinearity
-        figure(208), hold on, box on
-        plot(lnm, Watt2dBm(num.NL), 'DisplayName', 'Nonlinear noise')
-        plot(lnm, Watt2dBm(num.Pase), 'DisplayName', 'ASE')
-        xlabel('Wavelength (nm)')
-        ylabel('Noise power (dBm)')
-        legend('-DynamicLegend', 'Location', 'SouthEast')
-    end
     drawnow
 end

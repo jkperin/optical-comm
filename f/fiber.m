@@ -95,7 +95,7 @@ classdef fiber < handle
             %% Calculate link attenuation in linear units
             % Input:
             % - lamb = wavelength (m)
-            link_att = 10^(-this.att(lamb)*this.L/1e4);
+            link_att = 10.^(-this.att(lamb)*this.L/1e4);
             link_attdB = this.L/1e3*this.att(lamb);
         end
         

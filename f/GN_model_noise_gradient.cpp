@@ -18,9 +18,10 @@
 #include "mex.h"
 #include "matrix.h"
 
-void GN_model_noise_gradient(double * dNL, double * NL, double * P, double * Dn, double * D0, double * Dp, int N)
+void GN_model_noise_gradient(double * dNL, double * NL, double * P, double * Dn, double * D0, double * Dp, int N, int M)
 {   
     int idx = 0, i = 0, j = 0, ij = 0;
+    int Ncenter = (M+1)/2; // index to the center of D matrices
     for(int n = 0; n < N; n++) {
         if (P[n] == 0) 
             continue;
@@ -32,9 +33,9 @@ void GN_model_noise_gradient(double * dNL, double * NL, double * P, double * Dn,
                 if (P[n2] == 0) 
                     continue;
 
-                i = N - (n1 - n) - 1;
-                j = N + (n2 - n) - 1;
-                ij = j*(2*N-1) + i; // indexing of multdimensional vector as a 1 x N dimensional vector 
+                i = Ncenter - (n1 - n) - 1;
+                j = Ncenter + (n2 - n) - 1;
+                ij = j*M + i; // indexing of multdimensional vector as a 1 x N dimensional vector 
                 // Note: MATLAB 2D matrix memory is arranged in column-order
                 // (like Fortran), but C 2D array memory is arranged in row-order. 
                 
@@ -127,6 +128,7 @@ void mexFunction(int nlhs,mxArray *plhs[],int nrhs,const mxArray *prhs[])
     double *P, *Dn, *D0, *Dp; // inputs
     double * dNL, * NL; // output
     int N; // number of channels N = length(P)
+    int M; // number of rows in nolinear coefficient matrix. M > 2*N-1
       
     if(nrhs != 2)
         mexErrMsgTxt("GN_model_noise takes exactly two arguments.");
@@ -151,9 +153,10 @@ void mexFunction(int nlhs,mxArray *plhs[],int nrhs,const mxArray *prhs[])
     if (mxGetN(mxDn) != mxGetM(mxDn) || mxGetN(mxD0) != mxGetM(mxD0) || mxGetN(mxDp) != mxGetM(mxDp))
         mexErrMsgTxt("Elements of cell array must be square matrices");
     
-    if (mxGetN(mxDn) != 2*N-1 || mxGetN(mxD0) != 2*N-1 || mxGetN(mxDp) != 2*N-1)
-        mexErrMsgTxt("P and D dimensions are not consistent");
+    if (mxGetN(mxDn) < 2*N-1 || mxGetN(mxD0) < 2*N-1 || mxGetN(mxDp) < 2*N-1)
+        mexErrMsgTxt("Matrices in cell array must be at least 2*N-1 x 2*N -1, where N is the length of the vector passed as first argument");
     
+    M = mxGetN(mxDn);
     Dn = mxGetPr(mxDn);
     D0 = mxGetPr(mxD0);
     Dp = mxGetPr(mxDp);
@@ -165,8 +168,8 @@ void mexFunction(int nlhs,mxArray *plhs[],int nrhs,const mxArray *prhs[])
     plhs[1] = mxCreateDoubleMatrix(1, N, mxREAL);
     NL = mxGetPr(plhs[1]);
     
-    // GN_model_noise_gradient(double * dNL, double * NL, double * P, double * Dn, double * D0, double * Dp, int N)
-    GN_model_noise_gradient(dNL, NL, P, Dn, D0, Dp, N);
+    // GN_model_noise_gradient(double * dNL, double * NL, double * P, double * Dn, double * D0, double * Dp, int N, int M)
+    GN_model_noise_gradient(dNL, NL, P, Dn, D0, Dp, N, M);
     
     return;
 }

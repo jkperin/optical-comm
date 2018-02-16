@@ -3,7 +3,7 @@
 #SBATCH --job-name=GN_coeff
 #SBATCH --output=GN_coeff_%A_%a.out
 #SBATCH --error=GN_coeff_%A_%a.err
-#SBATCH --array=1-7
+#SBATCH --array=1-6
 #SBATCH --time=10:00
 #SBATCH -p normal
 #SBATCH --ntasks=1

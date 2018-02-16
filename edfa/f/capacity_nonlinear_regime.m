@@ -8,6 +8,7 @@ function [num, approx] = capacity_nonlinear_regime(E, Pump, Signal, problem)
 % > .spanAttdB: span attenuation in dB at each signal wavelength
 % > .Namp: number of amplifiers in the chain
 % > .df: channel spacing. Use to compute noise power
+% > .Gap: SNR gap to capacity in linear units
 % > .excess_noise: excess noise at each wavelength 
 % > .nonlinear_coeff: cell array of length 3 where D{l+2}, l = -1, 0, 1 is 
 % a square matrix of the GN model nonlinear coefficients
@@ -23,6 +24,7 @@ function [num, approx] = capacity_nonlinear_regime(E, Pump, Signal, problem)
 spanAttdB = problem.spanAttdB;
 Namp = problem.Namp;
 df = problem.df;
+Gap = problem.Gap;
 nsp = problem.excess_noise; 
 D = problem.nonlinear_coeff;
 epsilon = problem.epsilon;
@@ -50,7 +52,7 @@ NL = NL*Namp^(1+epsilon);
 
 % Compute capacity
 SNR = Signal.P./(Pase + NL);
-SEnum = 2*(GaindB >= spanAttdB).*log2(1 + SNR); 
+SEnum = 2*(GaindB >= spanAttdB).*log2(1 + Gap*SNR); 
 
 %
 num.SE = SEnum;
@@ -66,7 +68,7 @@ Pase = Namp*df*(2*nsp.*(Gain-1).*Signal.Ephoton)./Gain;
 Pase = max(Pase, 0); % non-negativity constraint           
 
 SNR = Signal.P./(Pase + NL);
-SEapprox = 2*(GaindB >= spanAttdB).*log2(1 + SNR);   
+SEapprox = 2*(GaindB >= spanAttdB).*log2(1 + Gap*SNR);   
 
 approx.SE = SEapprox;
 approx.GaindB = GaindB;
