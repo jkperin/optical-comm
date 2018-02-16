@@ -25,7 +25,11 @@ while iteration < N && tol > AbsTol && stepSize > MinStep
         H(:, n) = (gradFh - gradF)/h; % Hessian estimate
     end
     
-    dx = -mu*(abs(H)\gradF); % absolute of Hessian characterizes saddle-free algorithm
+    % Diagonalize H
+    [V, D] = eig(H);
+    absHinv = V*diag(abs(1./diag(D)))*V.';
+    
+    dx = -mu*(absHinv*gradF); % absolute of Hessian characterizes saddle-free algorithm
    
     x = x + dx.';
     [F, gradF] = FUN(x);

@@ -1,5 +1,5 @@
 %% Validate optimization of power load and EDF length using the particle swarm optimization
-clear, close all
+clear, clc, close all
 
 addpath ../data/
 addpath ../
@@ -7,8 +7,12 @@ addpath ../f/
 addpath ../../f/
 
 % E = EDF(10, 'giles_ge:silicate');
-E = EDF(10, 'corning_type1');
+% E = EDF(10, 'corning_type1');
+E = EDF(10, 'corning (NEW)');
 % E.plot('all')
+E.core_radius = 1.19e-6;
+E.doping_radius = 0.98e-6;
+E.rho0 = 6.68e18;
 
 df = 50e9;  
 dlamb = df2dlamb(df);

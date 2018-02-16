@@ -13,7 +13,7 @@ switch(lower(fiber_type))
         edf_param.absorption_coeff_fun = fun_abs;
         edf_param.gain_coeff_fun = fun_gain;
         
-    case 'corning_type1 (NEW)' 
+    case 'corning (new)'
         try
             load('corning_edf_new.mat')
         catch
