@@ -45,12 +45,13 @@ end
 if tol <= AbsTol
     fprintf('saddle_free_newton: optimization stopped because change in objective function is smaller than absolute tolerance\n')
     exitflag = 0;
-end
-if stepSize <= MinStep
+elseif stepSize <= MinStep
     fprintf('saddle_free_newton: optimization stopped because step size is smaller than minimum allowed\n')
     exitflag = 1;
-end
-if iteration >= N
+elseif iteration >= N
     fprintf('saddle_free_newton: maximum number of iterations exceeded\n')
     exitflag = 2;
+else
+    fprintf('saddle_free_newton: optimizaton stopped for unknown reasons\n')
+    exitflag = 3;
 end

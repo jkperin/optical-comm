@@ -17,10 +17,10 @@ Fiber = fiber(spanLength, @(l) 0.165*ones(size(l)), @(l) 20.4e-6*ones(size(l)));
 Fiber.gamma = 0.8e-3;
 
 if spacing == 33
-    disp('Using channel spacing of 33.3 GHz')
-    Df = 33.3e9;
+    disp('Using channel spacing of 33 GHz')
+    Df = 33e9;
     dlamb = df2dlamb(Df);
-    lamb = 1525e-9:dlamb:1570e-9;
+    lamb = 1522e-9:dlamb:1575e-9;
 elseif spacing == 50
     disp('Using channel spacing of 50 GHz')
     Df = 50e9;

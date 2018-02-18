@@ -22,4 +22,6 @@ echo "SLURM_ARRAY_TASK_ID is " $SLURM_ARRAY_TASK_ID
 # Run your code based on the SLURM_ARRAY_TASK_ID
 module load matlab
 
-srun matlab -nodesktop -singleCompThread -r "capacity_vs_pump_power_slurm $SLURM_ARRAY_TASK_ID"
+srun matlab -nodesktop -singleCompThread -r "capacity_vs_pump_power_slurm 50 286 50 $SLURM_ARRAY_TASK_ID"
+
+srun matlab -nodesktop -singleCompThread -r "capacity_vs_pump_power_slurm 50 286 33 $SLURM_ARRAY_TASK_ID"

@@ -1,4 +1,4 @@
-function capacity_vs_pump_power_slurm(task)
+function capacity_vs_pump_power_slurm(spanLengthKm, Nspans, spacing, task)
 %% Optimize channel power and EDF length to maximize capacity for a given pump power
 % task is an integer (passed as string) that indexes the array taskList
 
@@ -14,27 +14,17 @@ pumpPowermW = taskList(round(str2double(task)));
 pumpPower = 1e-3*pumpPowermW;
 
 % Other input parameters
-spacing = 50;
-Nspans = 286;
-spanLengthKm = 50;
+spanLengthKm = round(str2double(spanLengthKm));
+Nspans = round(str2double(Nspans));
+spacing = round(str2double(spacing));
 
 % EDF fiber
 E = EDF(10, 'corning_type1');
 
 % Pump & Signal
-if spacing == 33
-    disp('Using channel spacing of 33.3 GHz')
-    df = 33.3e9;
-    dlamb = df2dlamb(df);
-    lamb = 1525e-9:dlamb:1570e-9;
-    coeff_file = '../f/GN_model_coeff_spanLengthkm=50km_Df=33GHz.mat';
-elseif spacing == 50
-    disp('Using channel spacing of 50 GHz')
-    df = 50e9;
-    dlamb = df2dlamb(df);
-    lamb = 1522e-9:dlamb:1582e-9;
-    coeff_file = '../f/GN_model_coeff_spanLengthkm=50km_Df=50GHz.mat';
-end
+nonlinear_coeff_file = sprintf('../f/GN_model_coeff_spanLengthkm=%dkm_Df=%dGHz.mat', spanLengthKm, spacing);
+NCOEFF = load(nonlinear_coeff_file);
+lamb = NCOEFF.lamb;
     
 Signal = Channels(lamb, 0, 'forward');
 Pump = Channels(980e-9, pumpPower, 'forward');
@@ -43,17 +33,17 @@ Pump = Channels(980e-9, pumpPower, 'forward');
 SMF = fiber(spanLengthKm*1e3, @(l) 0.165*ones(size(l)), @(l) 20.4e-6*ones(size(l)));
 SMF.gamma = 0.8e-3;
 [~, spanAttdB] = SMF.link_attenuation(1550e-9); % same attenuation for all wavelengths
-spanAttdB = spanAttdB + 1.5;
+spanAttdB = spanAttdB + 1.5; % adds 1.5 dB of margin
 
 % Filename
-filename = sprintf('results/capacity_vs_pump_power_EDF=%s_pump=%dmW_%dnm_L=%d_x_%dkm.mat',...
-        E.type, pumpPowermW, round(Pump.wavelength*1e9), Nspans, spanLengthKm);
+filename = sprintf('results/capacity_vs_pump_power_EDF=%s_pump=%dmW_%dnm_ChDf=%dGHz_L=%d_x_%dkm.mat',...
+        E.type, pumpPowermW, round(Pump.wavelength*1e9), spacing, Nspans, spanLengthKm);
 filename = check_filename(filename); % verify if already exists and rename it if it does
 disp(filename) 
 
 % Problem variables
 problem.spanAttdB = spanAttdB;
-problem.df = df;
+problem.df = spacing*1e9;
 problem.Gap = 10^(-1/10);
 problem.Namp = Nspans;
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
@@ -61,13 +51,16 @@ problem.diff_step_approx = @(x) sech(2*x).^2; % first derivative (used for compu
 problem.excess_noise_correction = 1.4; % 1.2 for 980nm, 1.6 for 1480nm
 problem.SwarmSize = min(300, 20*(Signal.N+1));
 problem.nonlinearity = true;
-S = load(coeff_file);
-problem.nonlinear_coeff = S.nonlinear_coeff;
+problem.nonlinear_coeff = NCOEFF.nonlinear_coeff;
 problem.epsilon = 0.05; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Model
 % of Non-Linear Propagation in Uncompensated Coherent Optical Systems,” 
 % J. Lightw. Technol., vol. 30, no. 24, pp. 3857–3879, 2012.
 
-options.AdaptationConstant = 0.1; 
+if spacing == 50
+    options.AdaptationConstant = 0.1; 
+else
+    options.AdaptationConstant = 0.01; 
+end
 options.FiniteDiffStepSize = 1e-6;
 options.MaxIterations = 50;
 options.AbsTol = 1e-3;
@@ -89,8 +82,8 @@ try
     [lin.E, lin.S, lin.exitflag, lin.num, lin.approx] = ...
         optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, verbose);
     
-    failed_lin = lin;   
     if lin.exitflag ~= 1 % try one more time
+        failed_lin = lin;   
         fprintf('Optimization ended with exitflag = %d\n. Trying one more time...\n', lin.exitflag)
         [lin.E, lin.S, lin.exitflag, lin.num, lin.approx] = ...
             optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, verbose);

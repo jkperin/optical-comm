@@ -5,7 +5,7 @@ addpath f/
 
 Ppump = (0:10:80)*1e-3;
 
-Pump = Channels(1480e-9, 50e-3, 'forward');
+Pump = Channels(980e-9, 50e-3, 'forward');
 Signal = Channels(linspace(1530, 1565, 50)*1e-9, 1e-3, 'forward');
 % Signal.P(1:15) = 0; % kills first and last 10 channels
 % Signal.P(end:-1:end-15+1) = 0;
@@ -14,7 +14,7 @@ ASEf = Channels(Signal.wavelength, 0, 'forward');
 ASEb = Channels(Signal.wavelength, 0, 'backward');
 
 % E = EDF(8, 'giles_ge:silicate');
-E = EDF(7, 'principles_type2');
+E = EDF(7, 'corning_type1');
 Lopt = E.optimal_length(Pump, Signal)
 % E.L = Lopt; 
 
