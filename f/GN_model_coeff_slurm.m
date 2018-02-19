@@ -33,5 +33,5 @@ tic
 D = GN_model_coeff(lamb, Df, Fiber, l_idx);
 toc
 
-filename = sprintf('GN_model_coeff_spanLengthkm=%s_Df=%dGHz_l=%d.mat', spanLengthkm, spacing, l_idx);
+filename = sprintf('GN_model_coeff_spanLengthkm=%skm_Df=%dGHz_l=%d.mat', spanLengthkm, spacing, l_idx);
 save(filename)

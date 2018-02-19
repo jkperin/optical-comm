@@ -52,9 +52,15 @@ problem.excess_noise_correction = 1.4; % 1.2 for 980nm, 1.6 for 1480nm
 problem.SwarmSize = min(300, 20*(Signal.N+1));
 problem.nonlinearity = true;
 problem.nonlinear_coeff = NCOEFF.nonlinear_coeff;
-problem.epsilon = 0.05; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Model
+problem.epsilon = 0.06; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Model
 % of Non-Linear Propagation in Uncompensated Coherent Optical Systems,” 
 % J. Lightw. Technol., vol. 30, no. 24, pp. 3857–3879, 2012.
+
+% Leff = SMF.effective_length(1550e-9);
+% BW = 110*problem.df; % about 100 channels
+% problem.epsilon = 0.3*log(1 + 6*Leff/(SMF.L*asinh(pi^2/2*abs(SMF.beta2(1550e-9))*Leff*BW^2))); % From Eq. 23 of P. Poggiolini and I. Paper, “The GN Model
+% % of Non-Linear Propagation in Uncompensated Coherent Optical Systems,” 
+% % J. Lightw. Technol., vol. 30, no. 24, pp. 3857–3879, 2012.
 
 if spacing == 50
     options.AdaptationConstant = 0.1; 

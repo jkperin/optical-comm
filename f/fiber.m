@@ -91,11 +91,16 @@ classdef fiber < handle
             b2 = -this.D(lamb).*(lamb.^2)/(2*pi*this.c); 
         end    
         
+        function Leff = effective_length(self, lamb)
+            alpha = log(10)*self.att(lamb)/1e4; % 1/m
+            Leff = (1 - exp(-alpha*self.L))/alpha;
+        end
+        
         function [link_att, link_attdB] = link_attenuation(this, lamb)
             %% Calculate link attenuation in linear units
             % Input:
             % - lamb = wavelength (m)
-            link_att = 10.^(-this.att(lamb)*this.L/1e4);
+            link_att = 10.^(-this.att(lamb)*this.L/1e4); % exp(-alpha*L)
             link_attdB = this.L/1e3*this.att(lamb);
         end
         
