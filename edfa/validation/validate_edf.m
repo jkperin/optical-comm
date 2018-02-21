@@ -28,7 +28,7 @@ nsp_correction = 1.2; % factor to correct theoretical nsp
 Pase_analytical = E.analytical_ASE_PSD(Pump, Signal, nsp_correction)*df; % ASE power
 
 SignalOut = Signal;
-[GaindB, Ppump_out, SignalOut.P, Pase, sol] = E.two_level_system(Pump, Signal, ASEf, ASEb, df, 100, true)
+[GaindB, Ppump_out, SignalOut.P, Pase, sol] = E.two_level_system(Pump, Signal, ASEf, ASEb, df, 100, true);
 
 [n2, z] = E.metastable_level_population(sol, Signal, Pump, ASEf, true);
 

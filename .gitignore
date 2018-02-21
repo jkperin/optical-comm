@@ -44,3 +44,4 @@ edfa/doc/header.tex
 *.snm
 *.nav
 *.toc
+*.dat
