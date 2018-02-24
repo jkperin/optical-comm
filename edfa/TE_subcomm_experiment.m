@@ -10,7 +10,7 @@ E = EDF(7, 'corning_type1');
 df = 33.3e9;  
 dlamb = df2dlamb(df);
 lamb = 1525e-9:dlamb:1570e-9;
-L = 14.3e6;
+L = 14.35e6;
 SMF = fiber(46e3, @(lamb) 0.211, @(lamb) 0);
 SMF.gamma = 0.8e-3;
 Namp = round(L/SMF.L);
@@ -23,6 +23,7 @@ Pump = Channels(980e-9, 60e-3, 'forward');
 problem.Pon = 2*(1/Signal.N)*Pump.wavelength*Pump.P/(min(Signal.wavelength)*(10^(spanAttdB/10)-1));
 problem.spanAttdB = spanAttdB;
 problem.df = df;
+problem.Gap = 10^(-1/10);
 problem.Namp = Namp;
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
 problem.diff_step_approx = @(x) sech(2*x).^2; % first derivative (used for computing gradient)
@@ -46,9 +47,9 @@ Signal.P(Signal.wavelength > 1539e-9 & Signal.wavelength < 1561e-9) = dBm2Watt(1
     = optimize_power_load_and_edf_length('none', E, Pump, Signal, problem, true);
 
 % Power optimization
-[Eopt_pswarm, SignalOn_pswarm, exitflag_pswarm, num_pswarm, approx_pswarm] ... 
-    = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, false);
-
-[Eopt_local, SignalOn_local, exitflag_local, num_local, approx_local] ... 
-    = optimize_power_load_and_edf_length('local', Eopt_pswarm, Pump, SignalOn_pswarm, problem, true);
+% [Eopt_pswarm, SignalOn_pswarm, exitflag_pswarm, num_pswarm, approx_pswarm] ... 
+%     = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, false);
+% 
+% [Eopt_local, SignalOn_local, exitflag_local, num_local, approx_local] ... 
+%     = optimize_power_load_and_edf_length('local', Eopt_pswarm, Pump, SignalOn_pswarm, problem, true);
 
