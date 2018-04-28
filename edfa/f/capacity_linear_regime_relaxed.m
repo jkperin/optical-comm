@@ -32,8 +32,16 @@ step_approx = problem.step_approx;
 E.L = X(1);
 Signal.P = dBm2Watt(X(2:end));
 
+% Add accumulated ASE at the last amplifier to the signal power
+S_and_ASE = Signal;
+A = 10^(mean(spanAttdB)/10);
+a = (A-1)/A;
+NF = 2*a*nsp;
+Acc_ASE = (Namp-1)*df*NF.*Signal.Ephoton;
+S_and_ASE.P = S_and_ASE.P + Acc_ASE;
+
 % Compute Gain using semi-analytical model
-GaindB = E.semi_analytical_gain(Pump, Signal);
+GaindB = E.semi_analytical_gain(Pump, S_and_ASE);
 
 %% Relaxations: (i) NF is gain independent, (ii) step function approximation
 A = 10^(mean(spanAttdB)/10);

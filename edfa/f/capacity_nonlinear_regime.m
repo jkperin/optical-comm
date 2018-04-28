@@ -36,7 +36,14 @@ Signal.P(offChs) = eps;
 %% Numerical solution
 ASEf = Channels(Signal.wavelength, 0, 'forward');
 ASEb = Channels(Signal.wavelength, 0, 'backward');
-[GaindB, ~, ~, Pase] = E.two_level_system(Pump, Signal, ASEf, ASEb, df);
+
+S_and_ASE = Signal;
+A = 10^(mean(spanAttdB)/10);
+a = (A-1)/A;
+NF = 2*a*nsp;
+Acc_ASE = (Namp-1)*df*NF.*Signal.Ephoton;
+S_and_ASE.P = S_and_ASE.P + Acc_ASE;
+[GaindB, ~, ~, Pase] = E.propagate(Pump, S_and_ASE, ASEf, ASEb, df, 'two-level');
 
 Gain = 10.^(GaindB/10);
 Pase = Namp*Pase./Gain;
@@ -62,7 +69,7 @@ num.SNRdB = 10*log10(SNR);
 num.NL = NL;
 
 %% Semi-analytical solution
-GaindB = E.semi_analytical_gain(Pump, Signal);
+GaindB = E.semi_analytical_gain(Pump, S_and_ASE);
 Gain = 10.^(GaindB/10);
 Pase = Namp*df*(2*nsp.*(Gain-1).*Signal.Ephoton)./Gain;
 Pase = max(Pase, 0); % non-negativity constraint           

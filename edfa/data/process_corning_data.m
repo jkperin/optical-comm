@@ -74,4 +74,4 @@ plot(lambp, alphap, '.b')
 plot(lambp, fit_absp(lambp), '-b')
 
 % Save data
-save('corning_edf_new')
+% save('corning_edf_new')

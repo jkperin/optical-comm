@@ -110,8 +110,8 @@ switch lower(method)
         
         E.L = X(1);
         Signal.P = dBm2Watt(X(2:end));
-        GaindB = E.semi_analytical_gain(Pump, Signal);
-        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
+%         GaindB = E.semi_analytical_gain(Pump, Signal);
+%         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
      
     case 'local constrained' 
         options = optimoptions('fmincon', 'Algorithm', 'trust-region-reflective',...
@@ -127,8 +127,8 @@ switch lower(method)
 
         E.L = X(1);
         Signal.P = dBm2Watt(X(2:end));
-        GaindB = E.semi_analytical_gain(Pump, Signal);
-        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement   
+%         GaindB = E.semi_analytical_gain(Pump, Signal);
+%         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement   
         
     case 'local unconstrained'
         %% Local optimizaiton using a gradient-based algorithm. Results from particle swarm optmization should be provided as starting point        
@@ -149,8 +149,8 @@ switch lower(method)
 
         E.L = X(1);
         Signal.P(onChs) = dBm2Watt(X(2:end));
-        GaindB = E.semi_analytical_gain(Pump, Signal);
-        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
+%         GaindB = E.semi_analytical_gain(Pump, Signal);
+%         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
         
         if sum(onChs) ~= sum(Signal.P ~= 0) % warn if number of ON channels changed
             warning('local unconstrained optimization: optimization started with %d ON channels and concluded with %d ON channels.\n', sum(onChs), sum(Signal.P ~= 0))
@@ -167,8 +167,8 @@ switch lower(method)
         
         E.L = X(1);
         Signal.P(onChs) = dBm2Watt(X(2:end));
-        GaindB = E.semi_analytical_gain(Pump, Signal);
-        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
+%         GaindB = E.semi_analytical_gain(Pump, Signal);
+%         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
         
         if sum(onChs) ~= sum(Signal.P ~= 0) % warn if number of ON channels changed
             warning('Saddle-free Newton optimization: optimization started with %d ON channels and concluded with %d ON channels.\n', sum(onChs), sum(Signal.P ~= 0))
@@ -176,32 +176,30 @@ switch lower(method)
         
     case 'none' % doesn't do anything. Just use this function for plotting
         exitflag = 1;
-        GaindB = E.semi_analytical_gain(Pump, Signal);
-        Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
+%         GaindB = E.semi_analytical_gain(Pump, Signal);
+%         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
     otherwise
         error('optimize_power_load_and_edf_length: invalid method')
 end
 % re-calculate excess noise
 problem.excess_noise = problem.excess_noise_correction*E.analytical_excess_noise(Pump, Signal);
 
-fprintf('- Optimal EDF length = %.2f\n', E.L)
-NChOn = sum(Signal.P ~= 0);
-fprintf('- Number of channels ON = %d\n', NChOn)
-
-% 
-offChs = (Signal.P == 0);
-Signal.P(offChs) = eps; % set to small power to calculate gain
-
 % Compute capacity using numerical and semi-analytical (approx) methods 
 if isfield(problem, 'nonlinearity') && problem.nonlinearity
     [num, approx] = capacity_nonlinear_regime(E, Pump, Signal, problem);
-    [~, ~, SElamb_relaxed] = capacity_nonlinear_regime_relaxed([E.L Signal.P], E, Pump, Signal, problem);
+    [~, ~, SElamb_relaxed] = capacity_nonlinear_regime_relaxed([E.L Signal.PdBm], E, Pump, Signal, problem);
 else
     [num, approx] = capacity_linear_regime(E, Pump, Signal, problem);
-    [~, SElamb_relaxed] = capacity_linear_regime_relaxed([E.L Signal.P], E, Pump, Signal, problem);
+    [~, SElamb_relaxed] = capacity_linear_regime_relaxed([E.L Signal.PdBm], E, Pump, Signal, problem);
 end
 
-Signal.P(offChs) = 0;
+offChs = num.GaindB <= spanAttdB;
+Signal.P(offChs) = 0; % turn off channels that don't meet gain requirement
+NChOn = sum(Signal.P ~= 0);
+
+% Print results
+fprintf('- Optimal EDF length = %.2f\n', E.L)
+fprintf('- Number of channels ON = %d\n', NChOn)
 
 % 
 fprintf('- Numerical: Total Capacity = %.3f (bits/s/Hz) | Avg. Capacity = %.3f (bits/s/Hz)\n',...

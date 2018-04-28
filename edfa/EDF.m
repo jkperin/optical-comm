@@ -28,12 +28,15 @@ classdef EDF
         L % fiber length (m)
         excess_loss = 0 % (dB/m) excess loss due to splices for instance. 
         % Default values assume 'corning_edf' fiber
+        gp_980nm = 0; % gain coefficient is assumed 0, so that two-level system can be used
+        alphap_980nm = 4.272 % absorption cross section near 980 nm (dB/m). 
         core_radius = 1.64e-6 % Fiber core radius. e.g, 1.2 um in [1, Table 1], 1.4 um in [4, pg. 156]
         doping_radius = 1.38e-6 % Er3+ core radius. e.g., 1.2 um in [1, Table 1], 1.05um in [4, pg 156]
         rho0 = 5.51e18; % Er3+ concentraction (cm^3), e.g., 0.7e19 in [4, pg 156]
         NA = 0.23 % numerical aperture, e.g., 0.28 in [4, pg. 156]
         tau = 10e-3; % metastable lifetime in s        
         Nmode = 2 % number of modes (default = 2 for two polarizations)
+        correlation_fit_file = 'corr_fun_fit.mat' % file containg fit of correlation function Gamma. Only used when modeling spectral hole burning
     end
          
     properties (Access=private)
@@ -41,8 +44,7 @@ classdef EDF
     end
         
     properties (Constant, Hidden)
-        gp_980nm = 0; % gain coefficient is assumed 0, so that two-level system can be used
-        alphap_980nm = 4.172 % absorption cross section near 980 nm (dB/m). 
+        
         % Value obtainend from [4, pg 154]. Cross section curves in edf_select.m are only valid near 1550 nm
         maxL = 20; % maximum fiber length. Used to limit simulation
         h = 6.62606957e-34; % Planck
@@ -57,7 +59,7 @@ classdef EDF
             if exist('type', 'var')
                 obj.type = type;
             end
-            obj.param = edf_selection(type);
+            obj.param = edf_selection(obj.type);
         end
         
         % set methos
@@ -118,6 +120,7 @@ classdef EDF
             Psignal_out = Qout_k(Pump.N+1:end).*self.Ephoton(Signal.wavelength);
             
             GaindB = 10*log10(Gain(Pump.N+1:end));
+            GaindB = GaindB - self.L*self.excess_loss; % acounts for excess loss
             
             if nargout >= 4 % gradient was requested
                 dGain = (a(Pump.N+1:end))/(1 + sum(Qout_k.*a)); % 1 x N vector 
@@ -203,24 +206,44 @@ classdef EDF
         end
         
         %% Numerical models 
+        function Gamma = calc_corr_fun(self, lamb, x)
+            %% Compute correlation function at wavelenghts lamb
+            lamb = lamb*1e9;
+            [X, Y] = meshgrid(lamb, lamb);
+
+            CorrFun = load(self.correlation_fit_file);
+            Gamma = -5*CorrFun.Gamma_fit(X, Y);
+%             Gamma = Gamma*x(1) + x(2);
+            Gamma(:, 1) = 0;
+            Gamma(1, :) = 0; % erase pump correlation coefficients i.e., pump does not induce SHB of the signal
+        end
+        
         function [GaindB, Ppump_out, Psignal_out, Pase, sol]...
-                = two_level_system(self, Pump, Signal, ASEf, ASEb, BWref, Nmesh, verbose)
-            %% Calculate Gain and noise PSD by solving coupled nonlinear first-order differential equations that follow from the SCD model
-            % This assumes that amplifier is pumped as a two-level system.
-            % This is true for pump near wavelength 1480 nm and an
-            % approximation for pump near 980 nm. 
-                                              
+                = propagate(self, Pump, Signal, ASEf, ASEb, BWref, model, Nmesh, verbose)
+            %% Calculate Gain and noise PSD by solving coupled nonlinear first-order differential equations that follow from the SCD model                                             
+            % Inputs:
+            % - Pump: instance of class Channels corresponding to Pump
+            % - Signal: instance of class Channels corresponding to Signal
+            % - ASEf: instance of class Channels corresponding to forward ASE
+            % - ASEb: instance of class Channels corresponding to backward ASE
+            % - BWref: reference bandwidth for computing ASE power
+            % - system (optional, default='two-level'): laser system to simulate either 'two-level' or 'three-level'
+            % - Nmesh (optional, default=50e3/length(lamb)): number of mesh points to use when solving BVP
+            % - verbose (optiona, default=false): whether to plot results
+            
             lamb = [Pump.wavelength, Signal.wavelength, ASEf.wavelength, ASEb.wavelength].'; % wavelength
             u = [Pump.u, Signal.u, ASEf.u, ASEb.u].'; % propation direction
             g = self.gain_coeff(lamb); % Gain coefficient
             alpha = self.absorption_coeff(lamb); % Absorption coefficient
             
             % ASE term is only included in the forward and backward ASE channels
-            ASEselect = ones(size(lamb));
-            ASEselect(1:(Pump.N+Signal.N)) = 0;
+            ASEselect = ones(3*Signal.N, 1);
+            ASEselect(1:Signal.N) = 0;
+            ASEselect = logical(ASEselect);
             
             % Photon energy times saturation parameter
-            h_nu_xi = self.Ephoton(lamb).*self.sat_param(lamb); % h*nu*xi
+            xi = self.sat_param(lamb);
+            h_nu_xi = self.Ephoton(lamb).*xi; % h*nu*xi
             
             % Solver
             if not(exist('Nmesh', 'var'))
@@ -228,16 +251,43 @@ classdef EDF
                 % Maximum number of mesh points allowed when solving the BVP
             end
                 
-            options = bvpset('Vectorized', 'on', 'NMax', Nmesh);
             z = [0, self.L];
             P0 = [Pump.P Signal.P ASEf.P ASEb.P].';
             solinit = bvpinit(z, P0); % initial guess
-            sol = bvp4c(@(z, P) odefun(z, P, self, lamb, h_nu_xi, u, g, alpha, BWref),... % differential equation
-                @(P0, PL) bcfun(P0, PL, Pump, Signal, ASEf, ASEb),... % boundary conditions
-                solinit, options); % initial guess
-           
+            
+            if not(exist('model', 'var'))
+                model = 'two-level';
+            end
+            
+            switch lower(model)
+                case 'three-level' % three-level system
+                    options = bvpset('Vectorized', 'off', 'NMax', Nmesh);
+                    sol = bvp4c(@(z, P) three_level_system(z, P, self, lamb, h_nu_xi, u, g, alpha, BWref),... % differential equation
+                        @(P0, PL) bcfun(P0, PL, Pump, Signal, ASEf, ASEb),... % boundary conditions
+                        solinit, options); % initial guess
+                case 'two-level' % two-level system
+                    options = bvpset('Vectorized', 'on', 'NMax', Nmesh);
+                    sol = bvp4c(@(z, P) two_level_system(z, P, self, lamb, h_nu_xi, u, g, alpha, BWref),... % differential equation
+                        @(P0, PL) bcfun(P0, PL, Pump, Signal, ASEf, ASEb),... % boundary conditions
+                        solinit, options); % initial guess
+                case 'three-level+shb' % three-level system including spectral hole burning
+                    Gamma = self.calc_corr_fun(lamb);
+                    options = bvpset('Vectorized', 'off', 'NMax', Nmesh);
+                    sol = bvp4c(@(z, P) three_level_system_SHB(z, P, self, lamb, h_nu_xi, u, g, alpha, BWref),... % differential equation
+                        @(P0, PL) bcfun(P0, PL, Pump, Signal, ASEf, ASEb),... % boundary conditions
+                        solinit, options); % initial guess
+                case 'two-level+shb' % two-level system including spectral hole burning
+                    Gamma = self.calc_corr_fun(lamb);
+                    options = bvpset('Vectorized', 'off', 'NMax', Nmesh);
+                    sol = bvp4c(@(z, P) two_level_system_SHB(z, P, self, lamb, h_nu_xi, u, g, alpha, BWref),... % differential equation
+                        @(P0, PL) bcfun(P0, PL, Pump, Signal, ASEf, ASEb),... % boundary conditions
+                        solinit, options); % initial guess
+                otherwise
+                    error('edf.propagate: unknown model type')
+            end
+                
             if any(sol.y(:) < 0)
-                warning('EDF/two_level_system: solution contains negative power')
+                warning('EDF/propagate: solution contains negative power')
             end
  
             if strcmpi(Pump.direction, 'forward')
@@ -306,7 +356,57 @@ classdef EDF
                 title('ASE') 
             end
             
-            function dP = odefun(~, P, edf, lamb, h_nu_xi, u, g, alpha, BWref)
+            function dP = three_level_system(~, P, edf, lamb, h_nu_xi, u, g, alpha, BWref)
+                %% Build differential equations dP/dz = odefun(z, P)
+                % Inputs:
+                % - z (not used): distance (m)
+                % - P: power, including pump, signal, forward ASE, and backward ASE (W)
+                % - lamb: wavelengths, including pump, signal, forward ASE, and backward ASE (W)
+                % - h_nu_xi: photon energy times saturation parameter
+                % - u: propgation direction (+1 if forward, -1 if backward)
+                % - g: gain coefficient at wavelengths given in lamb
+                % - alpha: absorption coefficient at wavelengths given in lamb
+                % - BWref: bandwidth over which to measure ASE
+
+                P(P < 0) = 0; % non-negative constraint
+                p = 1; % pump
+                s = 2:length(lamb); % signal & ASE
+                Ephoton = edf.h*edf.c./lamb(s);
+
+                ap = alpha(p)*(1 + sum(P(s).*g(s)./h_nu_xi(s)))./(1 + sum(P.*(alpha + g)./h_nu_xi));
+                ep = 0;
+                es = g(s).*(P(p)*(alpha(p) + g(p))/h_nu_xi(p) + sum(alpha(s).*P(s)./h_nu_xi(s)))./(1 + sum(P.*(alpha + g)./h_nu_xi));
+                as = alpha(s).*(1 + sum(g(s).*P(s)./h_nu_xi(s)))./(1 + sum(P.*(alpha + g)./h_nu_xi));
+
+                dPp = u(p)*(ep - ap - edf.excess_loss*log(10)/10)*P(p); % Pump
+                dPs = u(s).*(es - as - edf.excess_loss*log(10)/10).*P(s); % Signal
+                dPs(ASEselect) = dPs(ASEselect) + 2*u(s(ASEselect)).*es(ASEselect).*(BWref*Ephoton(ASEselect)); % Include ASE term in ASE channels
+
+                dP = [dPp; dPs];
+            end
+
+            function dP = two_level_system(~, P, edf, lamb, h_nu_xi, u, g, alpha, BWref)
+                %% Build differential equations dP/dz = odefun(z, P)
+                % Inputs:
+                % - z (not used): distance (m)
+                % - P: power, including pump, signal, forward ASE, and backward ASE (W)
+                % - lamb: wavelengths, including pump, signal, forward ASE, and backward ASE (W)
+                % - h_nu_xi: photon energy times saturation parameter
+                % - u: propgation direction (+1 if forward, -1 if backward)
+                % - g: gain coefficient at wavelengths given in lamb
+                % - alpha: absorption coefficient at wavelengths given in lamb
+                % - BWref: bandwidth over which to measure ASE
+
+                P(P < 0) = 0; % non-negative constraint
+
+                n2 = sum(P.*alpha./h_nu_xi)./(1 + sum(P.*(alpha + g)./h_nu_xi)); % population of metastable level normalized by rho0
+
+                dP = u.*(alpha + g).*n2.*P... % medium gain
+                    -u.*(alpha + edf.excess_loss*log(10)/10).*P... % attenuation
+                    +double([0; ASEselect]).*u.*g.*n2.*edf.Nmode*edf.h*edf.c./lamb*BWref; % ASE 
+            end
+           
+            function dP = three_level_system_SHB(~, P, edf, lamb, h_nu_xi, u, g, alpha, BWref)
                 %% Build differential equations dP/dz = odefun(z, P)
                 % Inputs:
                 % - z (not used): distance (m)
@@ -319,37 +419,97 @@ classdef EDF
                 % - BWref: bandwidth over which to measure ASE
                 
                 P(P < 0) = 0; % non-negative constraint
+                               
+                Rup = sum(alpha.*P);
+                Rdown = sum(g.*P + xi.*edf.h*edf.c./lamb);
+                Rup_prime = Gamma*(alpha.*P);
+                Rdown_prime = Gamma*(g.*P);
                 
-                n2 = sum(P.*alpha./h_nu_xi)./(1 + sum(P.*(alpha + g)./h_nu_xi)); % population of metastable level normalized by rho0
-                    
-                dP = u.*(alpha + g).*n2.*P... % medium gain
-                    -u.*(alpha + edf.excess_loss*log(10)/10).*P... % attenuation
-                    +ASEselect.*u.*g.*n2.*edf.Nmode*edf.h*edf.c./lamb*BWref; % ASE 
-            end
+                at = alpha.*(1 + (Rup*Rdown_prime - Rdown*Rup_prime)./(Rdown*(Rup+Rdown)));
+                gt = g.*(1 - (Rup*Rdown_prime - Rdown*Rup_prime)./(Rup*(Rup+Rdown)));
+                
+                %
+                p = 1; % pump
+                s = 2:length(lamb); % signal & ASE
+                Ephoton = edf.h*edf.c./lamb(s);
+                                
+                ap = at(p)*(1 + sum(P(s).*gt(s)./h_nu_xi(s)))./(1 + sum(P.*(at + gt)./h_nu_xi));
+                ep = 0;
+                es = gt(s).*(P(p)*(at(p) + gt(p))/h_nu_xi(p) + sum(at(s).*P(s)./h_nu_xi(s)))./(1 + sum(P.*(at + gt)./h_nu_xi));
+                as = at(s).*(1 + sum(gt(s).*P(s)./h_nu_xi(s)))./(1 + sum(P.*(at + gt)./h_nu_xi));
+                                    
+                dPp = u(p)*(ep - ap - edf.excess_loss*log(10)/10)*P(p); % Pump
+                dPs = u(s).*(es - as - edf.excess_loss*log(10)/10).*P(s); % Signal
+                dPs(ASEselect) = dPs(ASEselect) + 2*u(s(ASEselect)).*es(ASEselect).*(BWref*Ephoton(ASEselect)); % Include ASE term in ASE channels
+                
+                dP = [dPp; dPs];
+           end
             
+           function dP = two_level_system_SHB(~, P, edf, lamb, h_nu_xi, u, g, alpha, BWref)
+                %% Build differential equations dP/dz = odefun(z, P)
+                % Inputs:
+                % - z (not used): distance (m)
+                % - P: power, including pump, signal, forward ASE, and backward ASE (W)
+                % - lamb: wavelengths, including pump, signal, forward ASE, and backward ASE (W)
+                % - h_nu_xi: photon energy times saturation parameter
+                % - u: propgation direction (+1 if forward, -1 if backward)
+                % - g: gain coefficient at wavelengths given in lamb
+                % - alpha: absorption coefficient at wavelengths given in lamb
+                % - BWref: bandwidth over which to measure ASE
+                
+                P(P < 0) = 0; % non-negative constraint
+                               
+                Rup = sum(alpha.*P);
+                Rdown = sum(g.*P + xi.*edf.h*edf.c./lamb);
+                Rup_prime = Gamma*(alpha.*P);
+                Rdown_prime = Gamma*(g.*P);
+                
+                at = alpha.*(1 + (Rup*Rdown_prime - Rdown*Rup_prime)./(Rdown*(Rup+Rdown)));
+                gt = g.*(1 - (Rup*Rdown_prime - Rdown*Rup_prime)./(Rup*(Rup+Rdown)));
+                
+                n2 = sum(P.*at./h_nu_xi)./(1 + sum(P.*(at + gt)./h_nu_xi)); % population of metastable level normalized by rho0
+                    
+                dP = u.*(at + gt).*n2.*P... % medium gain
+                    -u.*(at + edf.excess_loss*log(10)/10).*P... % attenuation
+                    +double([0; ASEselect]).*u.*gt.*n2.*edf.Nmode*edf.h*edf.c./lamb*BWref; % ASE 
+            end
             function res = bcfun(P0, PL, Pump, Signal, ASEf, ASEb)
                 %% Calculate residual at boundaries
-                
+
                 % Boundary conditions for pump
                 res = zeros(size(P0));
                 if strcmpi(Pump.direction, 'forward')
-                    res(1:Pump.N) = P0(1:Pump.N) - Pump.P.'; % P(z = 0) = Ppump
+                res(1:Pump.N) = P0(1:Pump.N) - Pump.P.'; % P(z = 0) = Ppump
                 else
-                    res(1:Pump.N) = PL(1:Pump.N) - Pump.P.'; % P(z = L) = Ppump
+                res(1:Pump.N) = PL(1:Pump.N) - Pump.P.'; % P(z = L) = Ppump
                 end
-                
+
                 % Boundary conditions for signal (always forward)
                 idx = Pump.N + (1:Signal.N); % index signal
                 res(idx) = P0(idx) - Signal.P.'; % P(z = 0) = Psignal
-                
+
                 % Forward ASE
                 idx = idx + Signal.N; % index forward ASE
                 res(idx) = P0(idx) - ASEf.P.'; % For single-stage, P(z = 0) = 0
-                
+
                 % Backward ASE
                 idx = idx + Signal.N; % index backward ASE
                 res(idx) = PL(idx) - ASEb.P.'; % For single-stage, P(z = L) = 0
             end
+        end    
+           
+        function [GaindB, Ppump_out, Psignal_out, Pase, sol]...
+                = two_level_system(varargin)
+            %[GaindB, Ppump_out, Psignal_out, Pase, sol] = two_level_system(self, Pump, Signal, ASEf, ASEb, BWref, Nmesh, verbose)
+            %% Legacy; use method "propagate" instead
+            
+            if nargin > 6
+                v = [varargin(1:6), 'two-level', varargin(7:nargin)];
+            else
+                v = [varargin(1:6) 'two-level'];
+            end
+            1;
+            [GaindB, Ppump_out, Psignal_out, Pase, sol] = propagate(v{:});
         end
                 
         function [n2, z] = metastable_level_population(self, sol, Signal, Pump, ASE, verbose)
@@ -390,7 +550,7 @@ classdef EDF
             ASEf = Channels(Signal.wavelength, 0, 'forward');
             ASEb = Channels(Signal.wavelength, 0, 'backward');
             Signal.P(Signal.P == 0) = 1e-8; % set channels with small power
-            [GaindB, ~, ~, Pase, ~] = self.two_level_system(Pump, Signal, ASEf, ASEb, BWref, 100, 100);
+            [GaindB, ~, ~, Pase, ~] = self.two_level_system(Pump, Signal, ASEf, ASEb, BWref, 100, verbose);
             
             % Compute excess noise
             G = 10.^(GaindB/10);            
@@ -437,6 +597,8 @@ classdef EDF
         function sat_param = sat_param(self, lamb)
             %% Saturation parameter as defined in [1, below eq. 20]
             sat_param = pi*(self.doping_radius)^2*(1e6*self.rho0)/self.tau;
+%             sat_param = 3.5e15; % experimental value for Corning fiber
+%             "Corning (NEW)"
             % Below is another form of calculating sat_param when ignoring
             % the transverse variation of the mode intensity across the
             % doping profile

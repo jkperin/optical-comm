@@ -1,5 +1,5 @@
 classdef OpticalAmplifier < handle
-    %% Semiconductor Optical Amplifier
+    %% Optical Amplifier
     properties
         Gain % Gain in linear units (same gain is assumed for both polarizations)
         Fn   % noise figure (dB)

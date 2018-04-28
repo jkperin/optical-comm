@@ -40,8 +40,15 @@ epsilon = problem.epsilon;
 E.L = X(1);
 Signal.P = dBm2Watt(X(2:end));
 
+S_and_ASE = Signal;
+A = 10^(mean(spanAttdB)/10);
+a = (A-1)/A;
+NF = 2*a*nsp;
+Acc_ASE = (Namp-1)*df*NF.*Signal.Ephoton;
+S_and_ASE.P = S_and_ASE.P + Acc_ASE;
+
 % Compute Gain using semi-analytical model
-[GaindB, ~, ~, dGaindB, dGaindB_L] = E.semi_analytical_gain(Pump, Signal);
+[GaindB, ~, ~, dGaindB, dGaindB_L] = E.semi_analytical_gain(Pump, S_and_ASE);
 
 %% Nonlinear noise at the nth channel
 offChs = (GaindB < spanAttdB);

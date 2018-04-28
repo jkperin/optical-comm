@@ -28,10 +28,18 @@ nsp = problem.excess_noise;
 offChs = (Signal.P == 0);
 Signal.P(offChs) = eps; 
 
+% Add accumulated ASE at the last amplifier to the signal power
+S_and_ASE = Signal;
+A = 10^(mean(spanAttdB)/10);
+a = (A-1)/A;
+NF = 2*a*nsp;
+Acc_ASE = (Namp-1)*df*NF.*Signal.Ephoton;
+S_and_ASE.P = S_and_ASE.P + Acc_ASE;
+
 %% Numerical solution
 ASEf = Channels(Signal.wavelength, 0, 'forward');
 ASEb = Channels(Signal.wavelength, 0, 'backward');
-[GaindB, ~, ~, Pase] = E.two_level_system(Pump, Signal, ASEf, ASEb, df);
+[GaindB, ~, ~, Pase] = E.propagate(Pump, S_and_ASE, ASEf, ASEb, df, 'two-level');
 
 Gain = 10.^(GaindB/10);
 Pase = Namp*Pase./Gain;
@@ -44,7 +52,7 @@ num.Pase = Pase;
 num.SNRdB = 10*log10(SNR);
 
 %% Semi-analytical solution
-GaindB = E.semi_analytical_gain(Pump, Signal);
+GaindB = E.semi_analytical_gain(Pump, S_and_ASE);
 Gain = 10.^(GaindB/10);
 Pase = Namp*df*(2*nsp.*((Gain-1)./Gain).*Signal.Ephoton);
 Pase = max(Pase, 0); % non-negativity constraint           

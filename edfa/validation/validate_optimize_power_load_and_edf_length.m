@@ -7,17 +7,25 @@ addpath ../f/
 addpath ../../f/
 
 % E = EDF(10, 'giles_ge:silicate');
-% E = EDF(10, 'corning_type1');
-E = EDF(10, 'corning (NEW)');
+E = EDF(10, 'corning_type1');
+% E = EDF(10, 'corning (NEW)');
 % E.plot('all')
-E.core_radius = 1.19e-6;
-E.doping_radius = 0.98e-6;
-E.rho0 = 6.68e18;
+
+% Corning experimental data
+% E = EDF(8, 'Corning (NEW)');
+% E.core_radius = 1.19e-6;
+% E.doping_radius = 0.98e-6; % Er3+ core radius. e.g., 1.2 um in [1, Table 1], 1.05um in [4, pg 156]
+% E.rho0 = 6.68e18; % Er3+ concentraction (cm^3), e.g., 0.7e19 in [4, pg 156]
+% E.NA = 0.23; % numerical aperture, e.g., 0.28 in [4, pg. 156]
+% E.tau = 10e-3; % metastable lifetime in s        
+% E.excess_loss = 0.28;
 
 df = 50e9;  
 dlamb = df2dlamb(df);
 lamb = 1522e-9:dlamb:1582e-9;
-L = 14.3e6;
+% lamb = lamb(39:end); % > 1537 nm
+% lamb = lamb(10:end); % > 15XX nm
+L = 14.35e6;
 SMF = fiber(50e3, @(l) 0.165*ones(size(l)), @(l) 20.4e-6*ones(size(l)));
 SMF.gamma = 0.8e-3;
 Namp = round(L/SMF.L);
@@ -72,6 +80,6 @@ problem.saddle_free_newton.options = options;
     = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
 
 % Performs a local gradient-based optimization after particle_swarm is done
-[Eopt_local, SignalOn_local, exitflag_local, num_local, approx_local] ... 
-    = optimize_power_load_and_edf_length('saddle-free newton', Eopt_pswarm, Pump, SignalOn_pswarm, problem, true);
+% [Eopt_local, SignalOn_local, exitflag_local, num_local, approx_local] ... 
+%     = optimize_power_load_and_edf_length('saddle-free newton', Eopt_pswarm, Pump, SignalOn_pswarm, problem, true);
 

@@ -7,7 +7,7 @@ addpath ../f/
 addpath ../../f/
 
 % E = EDF(25, 'giles_ge:silicate');
-E = EDF(15, 'corning_type1');
+E = EDF(6, 'corning_type1');
 E.plot('all');
 
 spanAttdB = 9;
@@ -37,10 +37,12 @@ plot(Signal.wavelength*1e9, GaindB, 'DisplayName', 'Numerical')
 plot(Signal.wavelength*1e9, GaindB_semi_analytical, 'DisplayName', 'Semi-analytical')
 xlabel('Wavelength (nm)')
 ylabel('Gain (dB)')
+legend('-dynamiclegend')
 
 figure, hold on, box on
 plot(Signal.wavelength*1e9, Watt2dBm(Pase), 'DisplayName', 'Numerical')
-plot(Signal.wavelength*1e9, Watt2dBm(Pase_analytical), 'DisplayName', 'Semi-analytical')
+plot(Signal.wavelength*1e9, Watt2dBm(Pase_analytical), 'DisplayName', 'Analytical')
 xlabel('Wavelength (nm)')
 ylabel('ASE power (dBm)')
+legend('-dynamiclegend')
 
