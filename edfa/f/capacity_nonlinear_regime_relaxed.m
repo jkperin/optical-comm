@@ -71,9 +71,6 @@ end
 NL = NL*Namp^(1+epsilon);
 
 %% Relaxations: (i) NF is gain independent, (ii) step function approximation
-A = 10^(mean(spanAttdB)/10);
-a = (A-1)/A;
-NF = 2*a*nsp;
 SNR = Signal.P./(Namp*df*NF.*Signal.Ephoton + NL);
 SElamb = 2*log2(1 + Gap*SNR).*step_approx(GaindB - spanAttdB);
 SE = -sum(SElamb);

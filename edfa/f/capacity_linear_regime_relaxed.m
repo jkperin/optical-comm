@@ -44,9 +44,6 @@ S_and_ASE.P = S_and_ASE.P + Acc_ASE;
 GaindB = E.semi_analytical_gain(Pump, S_and_ASE);
 
 %% Relaxations: (i) NF is gain independent, (ii) step function approximation
-A = 10^(mean(spanAttdB)/10);
-a = (A-1)/A;
-NF = 2*a*nsp;
 SNR = Signal.P./(Namp*df*NF.*Signal.Ephoton);
 SElamb = 2*log2(1 + Gap*SNR).*step_approx(GaindB - spanAttdB);
 SE = sum(SElamb);

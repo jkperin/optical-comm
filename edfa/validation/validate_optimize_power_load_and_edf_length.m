@@ -34,7 +34,7 @@ Namp = round(L/SMF.L);
 % Pon = 1e-4; % for 100mW pump
 Pon =0.7e-4; % for < 100mW pump
 Signal = Channels(lamb, Pon, 'forward');
-Pump = Channels(980e-9, 60e-3, 'forward');
+Pump = Channels(980e-9, 30e-3, 'forward');
 
 [~, spanAttdB] = SMF.link_attenuation(1550e-9); % same attenuation for all channels
 spanAttdB = spanAttdB + 1.5;
@@ -46,12 +46,12 @@ problem.Gap = 10^(-1/10);
 problem.Namp = Namp;
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
 problem.diff_step_approx = @(x) sech(2*x).^2; % first derivative (used for computing gradient)
-problem.excess_noise_correction = 1.4; % 1.2 for 980nm, 1.6 for 1480nm
+problem.excess_noise_correction = 1.6; %
 problem.SwarmSize = min(100, 20*(Signal.N+1));
 problem.nonlinearity = true;
 S = load('../../f/GN_model_coeff_spanLengthkm=50km_Df=50GHz.mat');
 problem.nonlinear_coeff = S.nonlinear_coeff;
-problem.epsilon = 0.05; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Model
+problem.epsilon = 0.06; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Model
 % of Non-Linear Propagation in Uncompensated Coherent Optical Systems,” 
 % J. Lightw. Technol., vol. 30, no. 24, pp. 3857–3879, 2012.
 

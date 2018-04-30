@@ -48,7 +48,7 @@ problem.Gap = 10^(-1/10);
 problem.Namp = Nspans;
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
 problem.diff_step_approx = @(x) sech(2*x).^2; % first derivative (used for computing gradient)
-problem.excess_noise_correction = 1.4; % 1.2 for 980nm, 1.6 for 1480nm
+problem.excess_noise_correction = 1.4; 
 problem.SwarmSize = min(300, 20*(Signal.N+1));
 problem.nonlinearity = true;
 problem.nonlinear_coeff = NCOEFF.nonlinear_coeff;
