@@ -51,6 +51,10 @@ classdef Channels
             PdBm = 10*log10(self.P/1e-3);
         end
         
+        function obj = set.PdBm(obj, PdBm)
+            obj.P = dBm2Watt(PdBm);
+        end
+        
         function lnm = get.lnm(self)
             %% wavelength in nm
             lnm = self.wavelength*1e9;

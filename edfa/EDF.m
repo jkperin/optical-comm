@@ -206,7 +206,7 @@ classdef EDF
         end
         
         %% Numerical models 
-        function Gamma = calc_corr_fun(self, lamb, x)
+        function Gamma = calc_corr_fun(self, lamb)
             %% Compute correlation function at wavelenghts lamb
             lamb = lamb*1e9;
             [X, Y] = meshgrid(lamb, lamb);
@@ -266,7 +266,7 @@ classdef EDF
                         @(P0, PL) bcfun(P0, PL, Pump, Signal, ASEf, ASEb),... % boundary conditions
                         solinit, options); % initial guess
                 case 'two-level' % two-level system
-                    options = bvpset('Vectorized', 'on', 'NMax', Nmesh);
+                    options = bvpset('Vectorized', 'off', 'NMax', Nmesh);
                     sol = bvp4c(@(z, P) two_level_system(z, P, self, lamb, h_nu_xi, u, g, alpha, BWref),... % differential equation
                         @(P0, PL) bcfun(P0, PL, Pump, Signal, ASEf, ASEb),... % boundary conditions
                         solinit, options); % initial guess
@@ -403,7 +403,9 @@ classdef EDF
 
                 dP = u.*(alpha + g).*n2.*P... % medium gain
                     -u.*(alpha + edf.excess_loss*log(10)/10).*P... % attenuation
-                    +double([0; ASEselect]).*u.*g.*n2.*edf.Nmode*edf.h*edf.c./lamb*BWref; % ASE 
+                    +double([zeros(Pump.N, 1); ASEselect]).*u.*g.*n2.*edf.Nmode*edf.h*edf.c./lamb*BWref; % ASE 
+                
+                1;
             end
            
             function dP = three_level_system_SHB(~, P, edf, lamb, h_nu_xi, u, g, alpha, BWref)
@@ -579,11 +581,11 @@ classdef EDF
         end
         
         function [PCE, PCEmax] = power_conversion_efficiency(~, Pump, SignalIn, SignalOut)
-            %% Power conversion efficiency
+            %% Power conversion efficiency            
             PCE = sum(SignalOut.P - SignalIn.P)/Pump.P; % definition [Principles, eq. 5.22]
             PCEmax = Pump.wavelength/min(SignalIn.wavelength(SignalIn.P ~= 0)); % theoretical maximum by conservation of energy [Principles, 5.23]
         end
-                
+                        
         %% EDF properties
         function [Gamma, confinement_factor] = overlap(self, lamb)
             %% Mode/doping-region overlap integral
@@ -646,7 +648,11 @@ classdef EDF
             %% Absorption coefficient in 1/m and in dB/m
             if isfield(self.param, 'absorption_coeff_fun')
                 alphadB = self.param.absorption_coeff_fun(lamb*1e9); % converts lamb to nm before calling function
-                alphadB(lamb >= 970e-9 & lamb <= 990e-9) = self.alphap_980nm; % assign cross-section for 980 nm directly, since absorption_coeff_fun is obtained around 1550nm
+                if isfield(self.param, 'pump_absorption_coeff_fun')
+                    alphadB(lamb <= 990e-9) = self.param.pump_absorption_coeff_fun(1e9*lamb(lamb <= 990e-9)); % converts lamb to nm before calling function
+                else
+                    alphadB(lamb <= 990e-9) = self.alphap_980nm; % assign cross-section for 980 nm directly, since absorption_coeff_fun is obtained around 1550nm
+                end
                 if size(alphadB, 1) ~= size(lamb, 1)
                     alphadB = alphadB.'; % ensures that dimensions are consistent
                 end
@@ -661,7 +667,12 @@ classdef EDF
             %% Stimulated gain coefficient in 1/m and in dB/m
             if isfield(self.param, 'gain_coeff_fun')
                 gdB = self.param.gain_coeff_fun(lamb*1e9); % converts lamb to nm before calling function
-                gdB(lamb >= 970e-9 & lamb <= 990e-9) = self.gp_980nm; % assign cross-section for 980 nm directly
+                if isfield(self.param, 'pump_gain_coeff_fun')
+                    gdB(lamb <= 990e-9) = self.param.pump_gain_coeff_fun(1e9*lamb(lamb <= 990e-9)); % converts lamb to nm before calling function
+                else
+                    gdB(lamb <= 990e-9) = self.gp_980nm; % assign cross-section for 980 nm directly
+                end
+                
                 if size(gdB, 1) ~= size(lamb, 1)
                     gdB = gdB.'; % ensures that dimensions are consistent
                 end
