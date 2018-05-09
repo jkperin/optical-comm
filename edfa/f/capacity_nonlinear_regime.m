@@ -55,7 +55,7 @@ P(offChs) = 0;
 NL = GN_model_noise(P, D);
 
 % Scale NL noise to "Namp" spans
-NL = NL*Namp^(1+epsilon);
+NL = (10.^(-spanAttdB/10)).*NL*(Namp^(1+epsilon));
 
 % Compute capacity
 SNR = Signal.P./(Pase + NL);

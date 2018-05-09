@@ -62,13 +62,13 @@ if nargout > 1 % gradient was requested
     % Multiply by gain, since dNL is originally computed with respect to 
     % the launch power, while the optimzation is done with the input power
     % to the amplifier
-    dNL = dNL.*(10.^(spanAttdB/10)); 
+%     dNL = dNL.*(10.^(spanAttdB/10)); 
 else
     NL = GN_model_noise(P, D);
 end
 
 % Scale NL noise to "Namp" spans
-NL = NL*Namp^(1+epsilon);
+NL = (10.^(-spanAttdB/10)).*NL*(Namp^(1+epsilon));
 
 %% Relaxations: (i) NF is gain independent, (ii) step function approximation
 SNR = Signal.P./(Namp*df*NF.*Signal.Ephoton + NL);
