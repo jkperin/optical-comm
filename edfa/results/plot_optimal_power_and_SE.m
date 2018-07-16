@@ -5,10 +5,12 @@ addpath ../
 addpath ../f/
 addpath ../../f/
 
-folder = 'capacity_vs_pump_power';
+% folder = 'capacity_vs_pump_power_new';
+% folder = 'capacity_vs_pump_NL_correct_NF_correct';
+folder = 'capacity_vs_pump_power_NL_correct';
 edf_type = 'corning_type1';
 pumpWavelengthnm = 980;
-pumpPowermW = [30:30:120]; 
+pumpPowermW = [30 60 120 180]; 
 Nspans = 287; 
 ChDf = 50;
 spanLengthKm = 50; % 
@@ -39,6 +41,7 @@ for p = 1:length(pumpPowermW)
         legend('Numerical', 'Approximated')   
 
         %% Nonlinear regime
+%         nlin = S.nlin_unc;
         nlin = S.nlin_sfn;
         
         % Optimized power loading
@@ -54,6 +57,11 @@ for p = 1:length(pumpPowermW)
         xlabel('Wavelength (nm)')
         ylabel('Spectral efficiency (bit/s/Hz)')
         legend('Numerical', 'Approximated')
+        
+        
+%         nlin.E.excess_loss = 0.2;
+% %         nlin.E.L = nlin.E.L*1.08;
+        [nsp, NFdB] = nlin.E.excess_noise(S.Pump, nlin.S, true);
   
         drawnow
     catch e

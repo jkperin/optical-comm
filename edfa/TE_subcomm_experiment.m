@@ -1,5 +1,5 @@
 %% TE subcomm experiment
-clear, clc
+clear, clc, close all
 
 addpath data/
 addpath f/
@@ -42,9 +42,57 @@ problem.epsilon = 0.05; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Mo
 % Span attenuation = 9.7, so gain is about 10 dB in average
 Signal.P(Signal.wavelength > 1539e-9 & Signal.wavelength < 1561e-9) = dBm2Watt(12)/(82*10);
 
+ASEf = Channels(Signal.wavelength, 0, 'forward');
+ASEb = Channels(Signal.wavelength, 0, 'backward'); 
+
+[GaindB, Pump_out, Psignal_out, Pase, sol] = E.propagate(Pump, Signal, ASEf, ASEb, problem.df, 'two-level', 50, false);
+
+figure(1), hold on, box on
+plot(Signal.lnm, GaindB, '-');
+xlabel('Wavelength (nm)', 'FontSize', 12)
+ylabel('Gain (dB)', 'FontSize', 12)
+set(gca, 'FontSize', 12)
+xlim([1538 1563])
+
+figure(2), hold on, box on
+plot(Signal.lnm, Signal.PdBm, '-');
+xlabel('Wavelength (nm)', 'FontSize', 12)
+ylabel('Input signal power (dBm)', 'FontSize', 12)
+set(gca, 'FontSize', 12)
+xlim([1538 1563])
+
+figure(3), hold on, box on
+plot(Signal.lnm, Signal.PdBm + 9.7, '-');
+xlabel('Wavelength (nm)', 'FontSize', 12)
+ylabel('Launched power (dBm)', 'FontSize', 12)
+set(gca, 'FontSize', 12)
+xlim([1538 1563])
+
+figure(4), hold on, box on
+plot(Signal.lnm, GaindB-min(GaindB), '-');
+xlabel('Wavelength (nm)', 'FontSize', 12)
+ylabel('Gain shape (dB)', 'FontSize', 12)
+set(gca, 'FontSize', 12)
+xlim([1538 1563])
+
 % Flat power allocation
 [E, Signal, ~, num, approx] ... 
     = optimize_power_load_and_edf_length('none', E, Pump, Signal, problem, true);
+
+% Compute PCE
+SignalOut = Signal;
+SignalOut.PdBm = SignalOut.PdBm + num.GaindB;
+[PCE, PCEmax] = E.power_conversion_efficiency(Pump, Signal, SignalOut)
+
+% 
+folder = 'results/capacity_vs_pump_power_new';
+filename = sprintf('%s/capacity_vs_pump_power_EDF=%s_pump=%dmW_%dnm_ChDf=%dGHz_L=%d_x_%dkm.mat',...
+                folder, 'corning_type1', 60, 980, 50, 287, 50);
+Sol = load(filename);
+
+Sout = Sol.nlin_sfn.S;
+Sout.PdBm = Sout.PdBm + Sol.nlin_sfn.num.GaindB;
+[PCE2, PCEmax2] = Sol.nlin_sfn.E.power_conversion_efficiency(Sol.Pump, Sol.nlin_sfn.S, Sout)
 
 % Power optimization
 % [Eopt_pswarm, SignalOn_pswarm, exitflag_pswarm, num_pswarm, approx_pswarm] ... 

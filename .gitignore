@@ -45,3 +45,5 @@ edfa/doc/header.tex
 *.nav
 *.toc
 *.dat
+*.gif
+*.docx

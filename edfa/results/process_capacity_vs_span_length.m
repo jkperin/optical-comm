@@ -5,7 +5,7 @@ addpath ../
 addpath ../f/
 addpath ../../f/
 
-folder = 'capacity_vs_span_length';
+folder = 'capacity_vs_span_length_NL_correct';
 edf_type = 'corning_type1';
 ChDf = 50;
 pumpWavelengthnm = 980;
@@ -126,5 +126,5 @@ xlabel('Span length (km)', 'FontSize', 12)
 ylabel('Capacity per fiber (Tb/s)', 'FontSize', 12)
 set(gca, 'FontSize', 12)
 
-% m = matlab2tikz(gca);
-% m.write_tables('capacity_vs_span_length', 'same x');
+m = matlab2tikz(gca);
+m.write_tables('capacity_vs_span_length', 'same x');

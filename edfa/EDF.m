@@ -1,6 +1,6 @@
 classdef EDF
     %% Single-mode Erbium-doped fiber
-    % EDF parameters are loaded from function edf_selection.m
+    % EDF parameters are loaded from file using function load_parameters.m
       
     %% Numerical modeling of EDF physics assumes the standard confined doping (SCD) model [1], [2, Chap. 1], [3, Chap. 1]
     % This model makes the following assumptions
@@ -39,8 +39,8 @@ classdef EDF
         correlation_fit_file = 'corr_fun_fit.mat' % file containg fit of correlation function Gamma. Only used when modeling spectral hole burning
     end
          
-    properties (Access=private)
-        param % other physical parameters from fiber (loaded from edf_selection.m)
+    properties
+        param % other physical parameters from fiber (loaded from load_parameters.m)
     end
         
     properties (Constant, Hidden)
@@ -55,19 +55,20 @@ classdef EDF
     methods
         function obj = EDF(L, type)
             %% Constructor
+            %       
             obj.L = L;
             if exist('type', 'var')
                 obj.type = type;
             end
-            obj.param = edf_selection(obj.type);
+            obj = load_parameters(obj);
         end
         
         % set methos
         function self = set.type(self, t)
             self.type = t;
-            self.param = edf_selection(t);
+            self = load_parameters(self);
         end
-        
+                
         %% Semi-analytical model
         function [GaindB, Psignal_out, Ppump_out, dGaindB, dGaindB_L] = semi_analytical_gain(self, Pump, Signal)
             %% Calculate gain by solving implicit equation (25) of [1]
@@ -546,17 +547,17 @@ classdef EDF
             %% Compute excess noise factor (nsp) numerically [Principles, eq 5.31]
             % EDFA gain and forward ASE should be measured in a narrow
             % linewidth (e.g., 1nm)
-            BWref_lamb = 0.1e-9;
-            BWref = 12.5e9; 
+            BWref = 50e9; 
             
+            Signal.P(Signal.P == 0) = 1e-8; % set channels with small power
             ASEf = Channels(Signal.wavelength, 0, 'forward');
             ASEb = Channels(Signal.wavelength, 0, 'backward');
-            Signal.P(Signal.P == 0) = 1e-8; % set channels with small power
-            [GaindB, ~, ~, Pase, ~] = self.two_level_system(Pump, Signal, ASEf, ASEb, BWref, 100, verbose);
-            
+%             
+            [GaindB, ~, ~, Pase] = self.propagate(Pump, Signal, ASEf, ASEb, BWref, 'three-level', 100, verbose);
+                        
             % Compute excess noise
             G = 10.^(GaindB/10);            
-            nsp = 1./(G-1).*Pase./(2*self.h*self.c^2*(BWref_lamb./Signal.wavelength.^3));
+            nsp = 1./(G-1).*Pase./(2*BWref*self.h*self.c./Signal.wavelength);
             NFdB = 10*log10(2*nsp.*(G-1)./G); % [Principles, eq. 5.34]
             
             if exist('verbose', 'var') && verbose
@@ -564,16 +565,15 @@ classdef EDF
                 NFdB_analytical = self.analytical_noise_figure(Pump, Signal);
                 figure(187)
                 subplot(211), hold on, box on
-                plot(Signal.wavelength*1e9, nsp, 'DisplayName', 'Numerical')
-                plot(Signal.wavelength*1e9, nsp_analytical, 'DisplayName', 'Anlytical')
+                plot(Signal.lnm, nsp, 'DisplayName', 'Numerical')
+                plot(Signal.lnm, nsp_analytical, 'DisplayName', 'Anlytical')
                 xlabel('Wavelength (nm)')
                 ylabel('Excess noise factor')
                 legend('-dynamiclegend')
                 
                 subplot(212), hold on, box on
-                plot(Signal.wavelength*1e9, NFdB, 'DisplayName', 'Numerical')
-                plot(Signal.wavelength*1e9, NFdB_analytical, 'DisplayName', 'Anlytical')
-                plot(Signal.wavelength*1e9, 10*log10(2*nsp_analytical.*(G-1)./G), '--', 'DisplayName', 'Anlytical2')
+                plot(Signal.lnm, NFdB, 'DisplayName', 'Numerical')
+                plot(Signal.lnm, NFdB_analytical, 'DisplayName', 'Anlytical')
                 xlabel('Wavelength (nm)')
                 ylabel('Noise Figure (dB)')
                 legend('-dynamiclegend')
@@ -646,6 +646,9 @@ classdef EDF
         
         function [alpha, alphadB] = absorption_coeff(self, lamb) 
             %% Absorption coefficient in 1/m and in dB/m
+            if any(lamb > 1570)
+                warnig('Abosorption and gain coefficients can only be calculated confidently for wavelengths below 1570 nm.')
+            end
             if isfield(self.param, 'absorption_coeff_fun')
                 alphadB = self.param.absorption_coeff_fun(lamb*1e9); % converts lamb to nm before calling function
                 if isfield(self.param, 'pump_absorption_coeff_fun')
@@ -665,6 +668,9 @@ classdef EDF
         
         function [g, gdB] = gain_coeff(self, lamb) 
             %% Stimulated gain coefficient in 1/m and in dB/m
+            if any(lamb > 1570)
+                warnig('Abosorption and gain coefficients can only be calculated confidently for wavelengths below 1570 nm.')
+            end
             if isfield(self.param, 'gain_coeff_fun')
                 gdB = self.param.gain_coeff_fun(lamb*1e9); % converts lamb to nm before calling function
                 if isfield(self.param, 'pump_gain_coeff_fun')
@@ -737,9 +743,9 @@ classdef EDF
             %% Plot |property| for wavelengths given in lamb
             % Input: 
             % - property: what to plot = 'cross_sections', 'coefficients'
-            % - lamb (optional, default = 1.4um to 1.6um): wavelength
+            % - lamb (optional, default = 1.47um to 1.57um): wavelength
             if not(exist('lamb', 'var'))
-                lamb = 1e-6*linspace(1.47, 1.58);
+                lamb = 1e-6*linspace(1.47, 1.57);
             end
             
             % Plot

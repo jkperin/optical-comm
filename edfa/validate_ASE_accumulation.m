@@ -5,7 +5,8 @@ addpath results/
 addpath f/
 addpath ../f/
 
-folder = 'results/capacity_vs_pump_power_new';
+% folder = 'results/capacity_vs_pump_power_new';
+folder = 'results/capacity_vs_pump_power_NL_correct';
 filename = sprintf('%s/capacity_vs_pump_power_EDF=%s_pump=%dmW_%dnm_ChDf=%dGHz_L=%d_x_%dkm.mat',...
                 folder, 'corning_type1', 30, 980, 50, 287, 50);
 disp(filename)
@@ -26,11 +27,11 @@ for n = 1:S.Nspans
     fprintf('n = %d\n', n);
     ASEb = Channels(Signal.wavelength, 0, 'backward'); % zero backward ASE at every iteration
     
-%     figure(1), hold on, box on
-%     plot(Signal.lnm, Signal.PdBm)
-%     xlabel('Wavelength (nm)')
-%     ylabel('Input signal power (dBm)')
-%     xlim([1520 1580])
+    figure(1), hold on, box on
+    plot(Signal.lnm, Signal.PdBm)
+    xlabel('Wavelength (nm)')
+    ylabel('Input signal power (dBm)')
+    xlim([1520 1580])
     
     [GaindB, Ppump_out, Psignal_out, Pase, sol] = E.propagate(Pump, Signal, ASEf, ASEb, df, 'two-level', 50, false);
     
