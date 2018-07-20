@@ -1,4 +1,4 @@
-%% Compare high-NA EDF with regular Corning EDFs
+    %% Compare high-NA EDF with regular Corning EDFs
 clear, clc, close all
 
 addpath data
@@ -49,22 +49,22 @@ options.MinStep = 1e-4;
 problem.saddle_free_newton.options = options;
 
 %% Regular EDF
-E = EDF(10, 'corning (NEW)');
-E.excess_loss = 0.3;
+E1 = EDF(10, 'corning (NEW)');
+E1.excess_loss = 0.3;
 
 [Eopt_pswarm, SignalOn_pswarm, exitflag_pswarm, num_pswarm, approx_pswarm] ... 
-    = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
+    = optimize_power_load_and_edf_length('particle swarm', E1, Pump, Signal, problem, true);
 
 % Performs a local gradient-based optimization after particle_swarm is done
 % [Eopt_local, SignalOn_local, exitflag_local, num_local, approx_local] ... 
 %     = optimize_power_load_and_edf_length('saddle-free newton', Eopt_pswarm, Pump, SignalOn_pswarm, problem, true);
 
 %% Higher-NA fiber
-E = EDF(10, 'corning high NA');
-E.excess_loss = 0.3;
+E2 = EDF(10, 'corning high NA');
+E2.excess_loss = 0.3;
 
 [highNA_Eopt_pswarm, highNA_SignalOn_pswarm, highNA_exitflag_pswarm, highNA_num_pswarm, highNA_approx_pswarm] ... 
-    = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
+    = optimize_power_load_and_edf_length('particle swarm', E2, Pump, Signal, problem, true);
 
 % Performs a local gradient-based optimization after particle_swarm is done
 % [highNA_Eopt_local, highNA_SignalOn_local, highNA_exitflag_local, highNA_num_local, highNA_approx_local] ... 
