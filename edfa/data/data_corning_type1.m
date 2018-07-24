@@ -1,5 +1,5 @@
 %% Corning EDF # 122-2650-103 (corning_type1)
-clear, clc, close all
+clear
 param.type = 'corning_type1';
 param.core_radius = 1.64e-6; % m
 param.Er_radius	= 1.38e-6; % m

@@ -1,5 +1,5 @@
 %% Corning EDF # 123-6239-201.2 (corning_new)
-clear, clc, close all
+clear
 param.type = 'corning_new';
 param.core_radius = 1.19e-6; % m
 param.Er_radius	= 0.98e-6; % m

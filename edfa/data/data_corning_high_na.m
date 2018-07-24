@@ -1,5 +1,5 @@
 %% Corning EDF # 121-5138-201.3 (corning_high_NA)
-clear, clc, close all
+clear
 param.type = 'corning_high_NA';
 param.core_radius = 0.89e-6; % m
 param.Er_radius	= 0.73e-6; % m
