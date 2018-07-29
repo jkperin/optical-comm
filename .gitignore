@@ -33,7 +33,6 @@ coherent/results/
 *.bbl
 *.blg
 figs/*.tex
-!edfa/data/*.mat
 edfa/doc/presentation_equations.tex
 edfa/doc/header.tex
 *.xls

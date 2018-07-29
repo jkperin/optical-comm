@@ -21,7 +21,7 @@ switch(lower(E.type))
         E.tau = param.metastable_lifetime; % metastable lifetime in s        
         E.param = param;
 
-    case 'corning (new)'
+    case 'corning_exp'
         try
             param = load('data_corning_new.mat');
         catch

@@ -1,4 +1,4 @@
-function capacity_vs_pump_power_slurm(spanLengthKm, Nspans, spacing, task)
+function capacity_vs_pump_power_slurm(spanLengthKm, Nspans, task)
 %% Optimize channel power and EDF length to maximize capacity for a given pump power
 % task is an integer (passed as string) that indexes the array taskList
 
@@ -16,16 +16,17 @@ pumpPower = 1e-3*pumpPowermW;
 % Other input parameters
 spanLengthKm = round(str2double(spanLengthKm));
 Nspans = round(str2double(Nspans));
-spacing = round(str2double(spacing));
+freqSpacingGHz = 50;
 
 % EDF fiber
-E = EDF(10, 'corning_type1');
+E = EDF(10, 'corning high NA');
 
 % Pump & Signal
-nonlinear_coeff_file = sprintf('../f/GN_model_coeff_spanLengthkm=%dkm_Df=%dGHz.mat', spanLengthKm, spacing);
+nonlinear_coeff_file = sprintf('../f/GN_model_coeff_spanLengthkm=%dkm_Df=%dGHz.mat', spanLengthKm, freqSpacingGHz);
 NCOEFF = load(nonlinear_coeff_file);
 lamb = NCOEFF.lamb;
-    
+lamb = lamb(lamb <= 1571e-9); % limit wavelengths according to fiber data
+
 Signal = Channels(lamb, 0, 'forward');
 Pump = Channels(980e-9, pumpPower, 'forward');
 
@@ -33,17 +34,17 @@ Pump = Channels(980e-9, pumpPower, 'forward');
 SMF = fiber(spanLengthKm*1e3, @(l) 0.165*ones(size(l)), @(l) 20.4e-6*ones(size(l)));
 SMF.gamma = 0.8e-3;
 [~, spanAttdB] = SMF.link_attenuation(1550e-9); % same attenuation for all wavelengths
-spanAttdB = spanAttdB + 1.5; % adds 1.5 dB of margin
+spanAttdB = spanAttdB + 1.4; % adds 1.5 dB of margin
 
 % Filename
 filename = sprintf('results/capacity_vs_pump_power_EDF=%s_pump=%dmW_%dnm_ChDf=%dGHz_L=%d_x_%dkm.mat',...
-        E.type, pumpPowermW, round(Pump.wavelength*1e9), spacing, Nspans, spanLengthKm);
+        E.type, pumpPowermW, round(Pump.wavelength*1e9), freqSpacingGHz, Nspans, spanLengthKm);
 filename = check_filename(filename); % verify if already exists and rename it if it does
 disp(filename) 
 
 % Problem variables
 problem.spanAttdB = spanAttdB;
-problem.df = spacing*1e9;
+problem.df = freqSpacingGHz*1e9;
 problem.Gap = 10^(-1/10);
 problem.Namp = Nspans;
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
@@ -62,7 +63,7 @@ problem.epsilon = 0.07; % From Fig. 17 of P. Poggiolini and I. Paper, “The GN Mo
 % % of Non-Linear Propagation in Uncompensated Coherent Optical Systems,” 
 % % J. Lightw. Technol., vol. 30, no. 24, pp. 3857–3879, 2012.
 
-if spacing == 50
+if freqSpacingGHz == 50
     options.AdaptationConstant = 0.1; 
 else
     options.AdaptationConstant = 0.01; 
