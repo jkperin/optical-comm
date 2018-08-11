@@ -2,15 +2,16 @@
 clear, clc, close all
 
 addpath ../
+addpath ../data
 addpath ../f/
 addpath ../../f/
 
 % folder = 'capacity_vs_pump_power_new';
 % folder = 'capacity_vs_pump_NL_correct_NF_correct';
-folder = 'capacity_vs_pump_power_NL_correct';
-edf_type = 'corning_type1';
+folder = 'capacity_vs_pump_power_high_na';
+edf_type = 'corning high NA';
 pumpWavelengthnm = 980;
-pumpPowermW = [30 60 120 180]; 
+pumpPowermW = [30 60 120 150]; 
 Nspans = 287; 
 ChDf = 50;
 spanLengthKm = 50; % 

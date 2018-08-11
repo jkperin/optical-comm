@@ -7,11 +7,12 @@ addpath ../../f/
 
 % folder = 'capacity_vs_pump_power_new';
 % folder = 'capacity_vs_pump_NL_correct_NF_correct';
-folder = 'capacity_vs_pump_power_NL_correct';
-edf_type = 'corning_type1';
+folder =  'capacity_vs_pump_power_high_na';
+edf_type = 'corning high NA';
 ChDf = 50;
 pumpWavelengthnm = 980;
-pumpPowermW = [20:5:150 160:10:200 250:50:500]; %%[30:5:100 150:50:250 275:25:400 450:50:1000];
+pumpPowermW = [25:5:150 200:100:200];
+% pumpPowermW = [20:5:150 160:10:200 250:50:500]; %%[30:5:100 150:50:250 275:25:400 450:50:1000];
 % pumpPowermW = [50 150];
 Nspans = 287; % 317
 spanLengthKm = 50; % 

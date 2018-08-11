@@ -45,3 +45,4 @@ edfa/doc/header.tex
 *.dat
 *.gif
 *.docx
+*.mexw64
