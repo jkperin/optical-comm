@@ -20,7 +20,7 @@ S = load(filename);
 % Other input parameters
 GFF_period = round(str2double(GFF_period));
 if exist('partial_GFF', 'var') % currently not used
-    GFF_P1 = load('sim_ase_acc_Ppump=60mW_GFF_period=1.mat');
+    GFF_P1 = load('sim_ase_acc_Ppump=60mW_GFF_period=1_partial_GFF=0.mat');
     partial_GFF = round(str2double(partial_GFF));
     disp('Using last GFF as default GFF filter')
 else 

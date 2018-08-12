@@ -9,7 +9,7 @@ addpath ../f/
 verbose = false;
 
 % Select task
-taskList = [20:5:150 200:100:500]; % Variable to be modified in different system calls
+taskList = [20:5:200 225:25:400]; % Variable to be modified in different system calls
 pumpPowermW = taskList(round(str2double(task)));
 pumpPower = 1e-3*pumpPowermW;
 
@@ -25,7 +25,7 @@ E = EDF(10, 'corning high NA');
 nonlinear_coeff_file = sprintf('../f/GN_model_coeff_spanLengthkm=%dkm_Df=%dGHz.mat', spanLengthKm, freqSpacingGHz);
 NCOEFF = load(nonlinear_coeff_file);
 lamb = NCOEFF.lamb;
-lamb = lamb(lamb <= 1571e-9); % limit wavelengths according to fiber data
+lamb = lamb(lamb <= 1570e-9); % limit wavelengths according to fiber data
 
 Signal = Channels(lamb, 0, 'forward');
 Pump = Channels(980e-9, pumpPower, 'forward');
@@ -34,7 +34,7 @@ Pump = Channels(980e-9, pumpPower, 'forward');
 SMF = fiber(spanLengthKm*1e3, @(l) 0.165*ones(size(l)), @(l) 20.4e-6*ones(size(l)));
 SMF.gamma = 0.8e-3;
 [~, spanAttdB] = SMF.link_attenuation(1550e-9); % same attenuation for all wavelengths
-spanAttdB = spanAttdB + 1.4; % adds 1.5 dB of margin
+spanAttdB = spanAttdB + 1.5; % adds 1.5 dB of margin
 
 % Filename
 filename = sprintf('results/capacity_vs_pump_power_EDF=%s_pump=%dmW_%dnm_ChDf=%dGHz_L=%d_x_%dkm.mat',...
@@ -76,7 +76,7 @@ problem.saddle_free_newton.options = options;
 
 % Define power cap according to conservation of energy and add 3 dB as
 % safety margin (multiplication by 2)
-problem.Pon = 2*(1/Signal.N)*Pump.wavelength*Pump.P/(min(Signal.wavelength)*(10^(spanAttdB/10)-1));
+problem.Pon = (1/(0.8*Signal.N))*Pump.wavelength*Pump.P/(min(Signal.wavelength)*(10^(spanAttdB/10)-1));
 Signal.P(1:end) = problem.Pon;
 
 fprintf('Power cap = %.5f mW (%.3f dBm)\n', 1e3*problem.Pon, Watt2dBm(problem.Pon));

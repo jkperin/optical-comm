@@ -48,7 +48,7 @@ classdef EDF
     properties (Constant, Hidden)
         
         % Value obtainend from [4, pg 154]. Cross section curves in edf_select.m are only valid near 1550 nm
-        maxL = 20; % maximum fiber length. Used to limit simulation
+        maxL = 10; % maximum fiber length. Used to limit simulation
         h = 6.62606957e-34; % Planck
         q = 1.60217657e-19; % electron charge
         c = 299792458;      % speed of light

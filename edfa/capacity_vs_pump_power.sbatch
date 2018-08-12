@@ -3,8 +3,8 @@
 #SBATCH --job-name=capacity_vs_Ppump
 #SBATCH --output=capacity_vs_Ppump_%A_%a.out
 #SBATCH --error=capacity_vs_Ppump_%A_%a.err
-#SBATCH --array=1-31
-#SBATCH --time=1-0
+#SBATCH --array=1-45
+#SBATCH --time=03:00:00
 #SBATCH --partition=normal
 #SBATCH --ntasks=1
 #SBATCH --mem-per-cpu=4000

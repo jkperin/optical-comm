@@ -90,7 +90,7 @@ switch lower(method)
             SwarmSize = min(200, 20*(Signal.N+1));
         end
                             
-        la = [0 -Inf*ones(1, Signal.N)]; % lower bound
+        la = [3 -Inf*ones(1, Signal.N)]; % lower bound
         lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
                 'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize,...
