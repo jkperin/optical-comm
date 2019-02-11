@@ -6,7 +6,7 @@ addpath data/
 addpath f/
 addpath ../f/
 
-verbose = false;
+verbose = true;
 
 % Select task
 taskList = [20:5:200 225:25:400]; % Variable to be modified in different system calls
@@ -19,13 +19,21 @@ Nspans = round(str2double(Nspans));
 freqSpacingGHz = 50;
 
 % EDF fiber
-E = EDF(10, 'corning high NA');
+E = EDF(6, 'corning high NA');
+E.excess_loss = 0.4011; % extracted from experiments with high-NA fiber
 
 % Pump & Signal
 nonlinear_coeff_file = sprintf('../f/GN_model_coeff_spanLengthkm=%dkm_Df=%dGHz.mat', spanLengthKm, freqSpacingGHz);
 NCOEFF = load(nonlinear_coeff_file);
 lamb = NCOEFF.lamb;
-lamb = lamb(lamb <= 1570e-9); % limit wavelengths according to fiber data
+
+% Limit wavelength range according to Corning's experimental capabilities
+% lamb = lamb(lamb <= 1570e-9); % limit wavelengths according to fiber data
+first_wavelength = 1530.34e-9;
+laast_wavelength = 1562.06e-9; % 1561.82e-9;
+lamb = lamb(lamb >= first_wavelength & lamb <= laast_wavelength); 
+
+assert(length(lamb) == 80, 'Number of valid wavelengths is not equal to 80');
 
 Signal = Channels(lamb, 0, 'forward');
 Pump = Channels(980e-9, pumpPower, 'forward');
@@ -34,7 +42,7 @@ Pump = Channels(980e-9, pumpPower, 'forward');
 SMF = fiber(spanLengthKm*1e3, @(l) 0.165*ones(size(l)), @(l) 20.4e-6*ones(size(l)));
 SMF.gamma = 0.8e-3;
 [~, spanAttdB] = SMF.link_attenuation(1550e-9); % same attenuation for all wavelengths
-spanAttdB = spanAttdB + 1.5; % adds 1.5 dB of margin
+spanAttdB = spanAttdB + 2; % adds 1.5 dB of margin
 
 % Filename
 filename = sprintf('results/capacity_vs_pump_power_EDF=%s_pump=%dmW_%dnm_ChDf=%dGHz_L=%d_x_%dkm.mat',...
@@ -43,13 +51,14 @@ filename = check_filename(filename); % verify if already exists and rename it if
 disp(filename) 
 
 % Problem variables
+problem.EDF_length = 6; % comment to optimize fiber length 
 problem.spanAttdB = spanAttdB;
 problem.df = freqSpacingGHz*1e9;
 problem.Gap = 10^(-1/10);
 problem.Namp = Nspans;
 problem.step_approx = @(x) 0.5*(tanh(2*x) + 1); % Smoothing factor = 2
 problem.diff_step_approx = @(x) sech(2*x).^2; % first derivative (used for computing gradient)
-problem.excess_noise_correction = 1.55; 
+problem.excess_noise_correction = 1.3494; 
 problem.SwarmSize = min(300, 20*(Signal.N+1));
 problem.nonlinearity = true;
 problem.nonlinear_coeff = NCOEFF.nonlinear_coeff;

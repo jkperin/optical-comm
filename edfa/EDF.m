@@ -131,7 +131,7 @@ classdef EDF
                 dGaindB = 10/log(10)*dGain; % gain cancelled out
                 
                 dQout_L = -sum(Qout_k.*alpha)/(1 + sum(Qout_k.*a));
-                dGaindB_L = -10/log(10)*(alpha(Pump.N+1:end) + a(Pump.N+1:end)*dQout_L).'; 
+                dGaindB_L = -10/log(10)*(alpha(Pump.N+1:end) + a(Pump.N+1:end)*dQout_L).' - self.excess_loss; 
             end
         end 
           

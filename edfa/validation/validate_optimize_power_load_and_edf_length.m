@@ -6,10 +6,8 @@ addpath ../
 addpath ../f/
 addpath ../../f/
 
-% E = EDF(10, 'giles_ge:silicate');
-% E = EDF(10, 'corning high NA');
-E = EDF(10, 'corning (NEW)');
-% E.plot('all')
+E = EDF(10, 'corning high NA');
+E.excess_loss = 0.2;
 
 df = 50e9;  
 dlamb = df2dlamb(df);
@@ -30,6 +28,7 @@ Pump = Channels(980e-9, 60e-3, 'forward');
 spanAttdB = spanAttdB + 1.5;
 
 problem.Pon = Pon;
+problem.EDF_length = 6; % comment to optimize fiber length 
 problem.spanAttdB = spanAttdB;
 problem.df = df;
 problem.Gap = 10^(-1/10);
@@ -53,7 +52,7 @@ options.MinStep = 1e-4;
 problem.saddle_free_newton.options = options;
 
 [Eopt_pswarm, SignalOn_pswarm, exitflag_pswarm, num_pswarm, approx_pswarm] ... 
-    = optimize_power_load_and_edf_length('particle swarm', E, Pump, Signal, problem, true);
+    = optimize_power_load_and_edf_length('saddle-free newton', E, Pump, Signal, problem, true);
 
 % Performs a local gradient-based optimization after particle_swarm is done
 % [Eopt_local, SignalOn_local, exitflag_local, num_local, approx_local] ... 

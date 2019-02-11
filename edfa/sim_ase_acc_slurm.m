@@ -12,7 +12,7 @@ addpath f/
 addpath data/
 addpath ../f/
 
-verbose = false;
+verbose = true;
 
 disp(filename)
 S = load(filename);
@@ -21,14 +21,14 @@ S = load(filename);
 GFF_period = round(str2double(GFF_period));
 if exist('partial_GFF', 'var') % currently not used
     GFF_P1 = load('sim_ase_acc_Ppump=60mW_GFF_period=1_partial_GFF=0.mat');
-    partial_GFF = round(str2double(partial_GFF));
+    partial_GFF = round(double(partial_GFF));
     disp('Using last GFF as default GFF filter')
 else 
     partial_GFF = 0;
 end
 fprintf('========= GFF_period = %d =============\n', GFF_period)
 
-spanAttdB = S.spanAttdB;
+spanAttdB = S.spanAttdB - 2;
 OffPower = 1e-12; % power set for OFF channels
 df = S.problem.df;  
 E = S.nlin_sfn.E;
@@ -44,6 +44,8 @@ num_gffs = ceil(S.Nspans/GFF_period);
 nGFF = zeros(SignalIn.N, num_gffs);
 nASE = zeros(SignalIn.N, S.Nspans); % matrix of signal power at the end of each span 
 
+lamb_lim = 1e9 * SignalIn.wavelength([1 end]);
+
 gff_cnt = 1;
 for n = 1:S.Nspans
     fprintf('n = %d\n', n);
@@ -53,7 +55,7 @@ for n = 1:S.Nspans
     plot(nSignal(n).lnm, nSignal(n).PdBm)
     xlabel('Wavelength (nm)')
     ylabel('Input signal power (dBm)')
-    axis([1520 1580 -30 -10])
+    axis([lamb_lim -30 -10])
     
     [GaindB, ~, Psignal_out, Pase, sol] = E.propagate(Pump, nSignal(n), ASEf, ASEb, df, 'two-level', 50, false);
     nSignal(n+1) = nSignal(n);
@@ -64,17 +66,17 @@ for n = 1:S.Nspans
     end
     
     if mod(n, GFF_period) == 0 || n == S.Nspans 
-        FdB = min(SignalIn.PdBm - Watt2dBm(Psignal_out) + spanAttdB, 0);
+        FdB = min(SignalIn.PdBm - Watt2dBm(Psignal_out) + spanAttdB, 0); % ideal GFF
         nGFF(:, gff_cnt) = FdB.';
         gff_cnt = gff_cnt + 1;
     elseif partial_GFF > 0
-        gff_idx = min(partial_GFF*ceil(n/partial_GFF), 287);
-        FdB = GFF_P1.nGFF(:, gff_idx).';
+        FdB = GFF_P1.nGFF(:, end).';
     else
         FdB = zeros(size(GaindB));
     end
+    
     % turn off channels with gain below attenuation
-    % nSignal(n+1).P(GaindB < spanAttdB + 0.1) = OffPower;
+    % nSignal(n+1).P(GaindB < spanAttdB) = OffPower;
     fprintf('Number of ON channels = %d / %d\n',  sum(GaindB > spanAttdB), sum(SignalIn.P ~= OffPower))
 
     nGaindB(:, n) = GaindB.';
@@ -91,25 +93,25 @@ for n = 1:S.Nspans
         plot(SignalIn.lnm, GaindB - spanAttdB)
         xlabel('Wavelength (nm)')
         ylabel('Gain - Span att. (dB)')
-        xlim([1520 1580])
+        xlim(lamb_lim)
 
         figure(3), hold on, box on
         plot(SignalIn.lnm, FdB)
         xlabel('Wavelength (nm)')
         ylabel('GFF (dB)')
-        xlim([1520 1580])
+        xlim(lamb_lim)
 
         figure(4), hold on, box on
         plot(SignalIn.lnm, Watt2dBm(Psignal_out))
         xlabel('Wavelength (nm)')
         ylabel('Output signal power (dBm)')
-        axis([1520 1580 -20 0])
+        axis([lamb_lim -20 0])
 
         figure(5), hold on, box on
         plot(SignalIn.lnm, ASEf.PdBm)
         xlabel('Wavelength (nm)')
         ylabel('ASE power (dBm)')
-        xlim([1520 1580])
+        xlim(lamb_lim)
         
         drawnow
     end

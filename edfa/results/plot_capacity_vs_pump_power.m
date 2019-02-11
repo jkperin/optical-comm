@@ -5,16 +5,18 @@ addpath ../
 addpath ../f/
 addpath ../../f/
 
-% folder = 'capacity_vs_pump_power_new';
-% folder = 'capacity_vs_pump_NL_correct_NF_correct';
-folder =  'capacity_vs_pump_power_high_na';
+% paper results
+% folder =  'capacity_vs_pump_power_highNA_final';
+% pumpPowermW = [25:5:200 225:25:400];
+% Nspans = 287; % 317
+
+folder = 'edf_6m_1dB_margin';
+pumpPowermW = [40 60 80];
+Nspans = 220;
+
 edf_type = 'corning high NA';
 ChDf = 50;
 pumpWavelengthnm = 980;
-pumpPowermW = [25:5:150 200:100:200];
-% pumpPowermW = [20:5:150 160:10:200 250:50:500]; %%[30:5:100 150:50:250 275:25:400 450:50:1000];
-% pumpPowermW = [50 150];
-Nspans = 287; % 317
 spanLengthKm = 50; % 
 
 for p = 1:length(pumpPowermW)
@@ -59,7 +61,18 @@ for p = 1:length(pumpPowermW)
         LaunchedPower(p) = Watt2dBm(sum(S.nlin_sfn.S.P)) + S.problem.spanAttdB;
         NLpower(p) = sum(S.nlin_sfn.num.NL(S.nlin_sfn.S.P ~= 0));
         ASEpower(p) = sum(S.nlin_sfn.num.Pase(S.nlin_sfn.S.P ~= 0));
-           
+        
+        SignalOut = S.lin.S;
+        SignalOut.PdBm = SignalOut.PdBm + S.lin.num.GaindB;
+        PCElin(p) = S.lin.E.power_conversion_efficiency(S.Pump, S.lin.S, SignalOut);  
+        
+        SignalOut = S.nlin_sfn.S;
+        SignalOut.PdBm = SignalOut.PdBm + S.nlin_sfn.num.GaindB;
+        PCEnlin(p) = S.nlin_sfn.E.power_conversion_efficiency(S.Pump, S.nlin_sfn.S, SignalOut);
+        
+        maxSignalP(p) = max(S.nlin_sfn.S.P);
+        Pcap(p) = S.problem.Pon;
+        
     catch e
         warning(e.message)
     end
@@ -76,13 +89,6 @@ legend('-dynamiclegend')
 set(gca, 'FontSize', 12)
 
 figure(2), hold on, box on
-Cnum = S.problem.df*nlin_sfn.SEnum/1e12;
-fo = fitoptions('Method','NonlinearLeastSquares',...
-           'Lower',[0,0,-Inf],...
-           'Upper',[Inf,Inf, Inf],...
-           'StartPoint',[1 1 0]);
-ft = fittype('a*log2(1 + b*x) + c','options',fo);
-Cfit = fit(pumpPowermW.', Cnum.', ft);
 hplot(1) = plot(pumpPowermW, S.problem.df*lin.SEnum/1e12, 'LineWidth', 2, 'DisplayName', 'Linear regime');
 hplot(2) = plot(pumpPowermW, S.problem.df*nlin.SEnum/1e12, 'LineWidth', 2, 'DisplayName', 'Noninear regime');
 hplot(3) = plot(pumpPowermW, S.problem.df*nlin_unc.SEnum/1e12, 'LineWidth', 2, 'DisplayName', 'Nonlinear regime: PSO + Quasi-Newton');
@@ -91,7 +97,6 @@ plot(pumpPowermW, S.problem.df*lin.SEapprox/1e12, '--', 'Color', get(hplot(1), '
 plot(pumpPowermW, S.problem.df*nlin.SEapprox/1e12, '--', 'Color', get(hplot(2), 'Color'), 'LineWidth', 2);
 plot(pumpPowermW, S.problem.df*nlin_unc.SEapprox/1e12, '--', 'Color', get(hplot(3), 'Color'), 'LineWidth', 2);
 plot(pumpPowermW, S.problem.df*nlin_sfn.SEapprox/1e12, '--', 'Color', get(hplot(4), 'Color'), 'LineWidth', 2);
-hplt = plot(pumpPowermW, Cnum, ':', 'LineWidth', 2);
 legend('Linear regime', 'Nonlinear regime', 'Nonlinear regime: PSO + Quasi-Newton', 'Nonlinear regime: PSO + SFN')
 xlabel('Pump power (mW)', 'FontSize', 12)
 ylabel('Capacity per fiber (Tb/s)', 'FontSize', 12)
@@ -111,6 +116,16 @@ set(gca, 'FontSize', 12)
 m = matlab2tikz(gca);
 m.write_tables('ASE_vs_NL', 'same x')
     
+%% PCE
+figure(4), hold on, box on
+plot(pumpPowermW, 100*PCElin, 'LineWidth', 2)
+plot(pumpPowermW, 100*PCEnlin, 'LineWidth', 2)
+xlabel('Pump power (mW)', 'FontSize', 12)
+ylabel('Power conversion efficiency (%)', 'FontSize', 12)
+set(gca, 'FontSize', 12)
+legend('Linear', 'Nonlinear')
+m = matlab2tikz(gca);
+m.write_tables('PCE_vs_Ppump', 'same x')
 
 %% Launched power
 figure, hold on, box on
@@ -121,7 +136,21 @@ ylabel('Power (dBm)', 'FontSize', 12)
 legend('Input', 'Launched')
 set(gca, 'FontSize', 12)
 
+m = matlab2tikz(gca);
+m.write_tables('optical_power_vs_pump', 'same x')
+
 %%
+Cnum = S.problem.df*nlin_sfn.SEnum/1e12;
+fo = fitoptions('Method','NonlinearLeastSquares',...
+           'Lower',[0,1, -Inf -10],...
+           'Upper',[Inf,Inf, Inf Inf],...
+           'StartPoint',[1 1 1 0]);
+ft = fittype('a*log2(d + b*x) + c','options',fo);
+Cfit = fit(pumpPowermW.', Cnum.', ft);
+pp = linspace(pumpPowermW(1), pumpPowermW(end));
+figure, hold on
+plot(pumpPowermW, S.problem.df*nlin_sfn.SEnum/1e12)
+hplt = plot(pp, Cfit(pp), ':k', 'LineWidth', 2);
 
 V = 12e3;
 Nspans = 287;

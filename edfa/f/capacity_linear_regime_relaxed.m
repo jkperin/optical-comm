@@ -28,9 +28,14 @@ Gap = problem.Gap;
 nsp = problem.excess_noise; 
 step_approx = problem.step_approx;
 
-% Unpact optimization variables
-E.L = X(1);
-Signal.P = dBm2Watt(X(2:end));
+% Unpack optimization variables
+% If EDF length is specified, optimization is done only over signal power
+if isfield(problem, 'EDF_length')
+    Signal.PdBm = X;
+else
+    E.L = X(1);
+    Signal.PdBm = X(2:end);
+end
 
 % Add accumulated ASE at the last amplifier to the signal power
 S_and_ASE = Signal;

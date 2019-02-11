@@ -8,7 +8,7 @@ addpath ../f/
 experiment = 'Pin=-13dBm'; % which power values to load
 experiment_April_6_18 % load appropriate power values
 
-E = EDF(8, 'Corning (NEW)');
+E = EDF(8.64, 'corning_exp');
 E.core_radius = 1.19e-6;
 E.doping_radius = 0.98e-6; % Er3+ core radius. e.g., 1.2 um in [1, Table 1], 1.05um in [4, pg 156]
 E.rho0 = 6.68e18; % Er3+ concentraction (cm^3), e.g., 0.7e19 in [4, pg 156]

@@ -30,6 +30,14 @@ else
     problem.excess_noise_correction = 1;
 end
 
+if isfield(problem, 'EDF_length')
+    E.L = problem.EDF_length;
+    fprintf('Optimization assumes fixed EDF length equal to %.2f m\n', E.L);
+    optimize_EDF_length = false;
+else
+    optimize_EDF_length = true;
+end
+
 %% Optimization
 fprintf('Optimization method = %s\n', method)
 switch lower(method)
@@ -82,6 +90,7 @@ switch lower(method)
         Signal.P = zeros(1, Signal.N);
         Signal.P(onChs) = Pon;
         exitflag = 1;
+        
     case 'particle swarm'
         %% Optimize EDF length and power allocation jointly
         if isfield(problem, 'SwarmSize')
@@ -89,30 +98,42 @@ switch lower(method)
         else
             SwarmSize = min(200, 20*(Signal.N+1));
         end
-                            
-        la = [3 -Inf*ones(1, Signal.N)]; % lower bound
-        lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
+        
+        if optimize_EDF_length
+            la = [3 -Inf*ones(1, Signal.N)]; % lower bound
+            lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
+            num_variables = Signal.N + 1;
+            InitialSwarmSpan = [20, 10*ones(1, Signal.N)]; % SwarmSpan for fiber length is 20m and 10 dB for signal power
+        else % Assume fix EDF length
+            la = -Inf*ones(1, Signal.N); % lower bound
+            lb = Watt2dBm(Pon)*ones(1, Signal.N); % upper bound
+            num_variables = Signal.N;
+            InitialSwarmSpan = 10*ones(1, Signal.N); % SwarmSpan is 10 dB for signal power
+        end
+        
         options = optimoptions('particleswarm', 'Display', 'iter', 'UseParallel', true,...
                 'MaxStallTime', 60, 'MaxStallIterations', 100, 'SwarmSize', SwarmSize,...
-                'InitialSwarmSpan', [20, 10*ones(1, Signal.N)]); % SwarmSpan for fiber length is 20m and 10 dB for signal power
-                
+                'InitialSwarmSpan', InitialSwarmSpan); 
+            
         if isfield(problem, 'nonlinearity') && problem.nonlinearity
             disp('IMPORTANT: optimization includes fiber nonlinearity')
 
             [X, relaxed_SE, exitflag] = particleswarm(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, Signal, problem),...
-                Signal.N+1, la, lb, options);
+                num_variables, la, lb, options);
         else
             [X, relaxed_SE, exitflag] = particleswarm(@(X) -capacity_linear_regime_relaxed(X, E, Pump, Signal, problem),...
-            Signal.N+1, la, lb, options);
+                num_variables, la, lb, options);
+        end
+        
+        if optimize_EDF_length 
+            E.L = X(1);
+            Signal.PdBm = X(2:end);
+        else % Assume fix EDF length
+            Signal.PdBm = X;
         end
         
         fprintf('- Relaxed objective: Total Capacity = %.3f (bits/s/Hz)\n', -relaxed_SE)
         
-        E.L = X(1);
-        Signal.P = dBm2Watt(X(2:end));
-%         GaindB = E.semi_analytical_gain(Pump, Signal);
-%         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
-     
     case 'local constrained' 
         options = optimoptions('fmincon', 'Algorithm', 'trust-region-reflective',...
             'Display', 'iter', 'UseParallel', true,...
@@ -120,16 +141,27 @@ switch lower(method)
             'MaxFunctionEvaluations', 1e4, 'StepTolerance', 1e-9);
 
         Signal.P(Signal.P == 0) = eps; % to respect the bounds
-        la = [0 PoffdBm*ones(1, Signal.N)]; % lower bound
-        lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
-        [X, ~, exitflag] = fmincon(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, Signal, problem), ...
-            [E.L Signal.PdBm], [], [], [], [], la, lb, [], options);
-
-        E.L = X(1);
-        Signal.P = dBm2Watt(X(2:end));
-%         GaindB = E.semi_analytical_gain(Pump, Signal);
-%         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement   
         
+        if optimize_EDF_length
+            la = [0 PoffdBm*ones(1, Signal.N)]; % lower bound
+            lb = [E.maxL Watt2dBm(Pon)*ones(1, Signal.N)]; % upper bound
+            initial_guess = [E.L Signal.PdBm];
+        else
+            la = PoffdBm*ones(1, Signal.N); % lower bound
+            lb = Watt2dBm(Pon)*ones(1, Signal.N); % upper bound
+            initial_guess = Signal.PdBm;
+        end
+        
+        [X, ~, exitflag] = fmincon(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, Signal, problem),...
+                initial_guess, [], [], [], [], la, lb, [], options);
+
+        if optimize_EDF_length
+            E.L = X(1);
+            Signal.PdBm = X(2:end);
+        else
+            Signal.PdBm = X;
+        end
+            
     case 'local unconstrained'
         %% Local optimizaiton using a gradient-based algorithm. Results from particle swarm optmization should be provided as starting point        
         % This optimization only acts on the ON channels. OFF channels are
@@ -140,18 +172,28 @@ switch lower(method)
             'MaxFunctionEvaluations', 1e4, 'StepTolerance', 1e-6);
         
         onChs = Signal.P ~= 0; % index of ON channels
-        fprintf('Saddle-free Newton: optimization will only consider the %d ON channels\n', sum(onChs));
+        fprintf('Local unconstrained: optimization will only consider the %d ON channels\n', sum(onChs));
         SigOn = Signal.sample(onChs); % select only ON channels
-        problem.excess_noise = problem.excess_noise_correction*E.analytical_excess_noise(Pump, SigOn); % Adjust coefficients to match current 
-                
-        [X, ~, exitflag] = fminunc(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, SigOn, problem), ...
-            [E.L SigOn.PdBm], options);
-
-        E.L = X(1);
-        Signal.P(onChs) = dBm2Watt(X(2:end));
-%         GaindB = E.semi_analytical_gain(Pump, Signal);
-%         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
         
+        % Recalculate excess noise for the new signal configuration
+        problem.excess_noise = problem.excess_noise_correction*E.analytical_excess_noise(Pump, SigOn);
+                          
+        if optimize_EDF_length
+            initial_guess = [E.L SigOn.PdBm];
+        else
+            initial_guess = SigOn.PdBm;
+        end
+        
+        [X, ~, exitflag] = fminunc(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, SigOn, problem), ...
+                initial_guess, options);
+            
+        if optimize_EDF_length
+            E.L = X(1);
+            Signal.P(onChs) = dBm2Watt(X(2:end));
+        else
+            Signal.P(onChs) = dBm2Watt(X);
+        end
+            
         if sum(onChs) ~= sum(Signal.P ~= 0) % warn if number of ON channels changed
             warning('local unconstrained optimization: optimization started with %d ON channels and concluded with %d ON channels.\n', sum(onChs), sum(Signal.P ~= 0))
         end
@@ -161,15 +203,26 @@ switch lower(method)
         onChs = Signal.P ~= 0; % index of ON channels
         fprintf('Saddle-free Newton: optimization will only consider the %d ON channels\n', sum(onChs));
         SigOn = Signal.sample(onChs); % select only ON channels     
-        problem.excess_noise = problem.excess_noise_correction*E.analytical_excess_noise(Pump, SigOn); % Adjust coefficients to match current 
-               
-        [X, ~, exitflag] = saddle_free_newton(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, SigOn, problem), [E.L SigOn.PdBm], options);
         
-        E.L = X(1);
-        Signal.P(onChs) = dBm2Watt(X(2:end));
-%         GaindB = E.semi_analytical_gain(Pump, Signal);
-%         Signal.P(GaindB <= spanAttdB) = 0; % turn off channels that don't meet gain requirement
+        % Recalculate excess noise for the new signal configuration
+        problem.excess_noise = problem.excess_noise_correction*E.analytical_excess_noise(Pump, SigOn);
+              
+        if optimize_EDF_length
+            initial_guess = [E.L SigOn.PdBm];
+        else
+            initial_guess = SigOn.PdBm;
+        end
         
+        [X, ~, exitflag] = saddle_free_newton(@(X) capacity_nonlinear_regime_relaxed(X, E, Pump, SigOn, problem),...
+                initial_guess, options);
+        
+        if optimize_EDF_length
+            E.L = X(1);
+            Signal.P(onChs) = dBm2Watt(X(2:end));
+        else
+            Signal.P(onChs) = dBm2Watt(X);
+        end
+
         if sum(onChs) ~= sum(Signal.P ~= 0) % warn if number of ON channels changed
             warning('Saddle-free Newton optimization: optimization started with %d ON channels and concluded with %d ON channels.\n', sum(onChs), sum(Signal.P ~= 0))
         end
@@ -184,13 +237,19 @@ end
 % re-calculate excess noise
 problem.excess_noise = problem.excess_noise_correction*E.analytical_excess_noise(Pump, Signal);
 
+if optimize_EDF_length
+    X = [E.L Signal.PdBm];
+else
+    X = Signal.PdBm;
+end
+
 % Compute capacity using numerical and semi-analytical (approx) methods 
 if isfield(problem, 'nonlinearity') && problem.nonlinearity
     [num, approx] = capacity_nonlinear_regime(E, Pump, Signal, problem);
-    [~, ~, SElamb_relaxed] = capacity_nonlinear_regime_relaxed([E.L Signal.PdBm], E, Pump, Signal, problem);
+    [~, ~, SElamb_relaxed] = capacity_nonlinear_regime_relaxed(X, E, Pump, Signal, problem);
 else
     [num, approx] = capacity_linear_regime(E, Pump, Signal, problem);
-    [~, SElamb_relaxed] = capacity_linear_regime_relaxed([E.L Signal.PdBm], E, Pump, Signal, problem);
+    [~, SElamb_relaxed] = capacity_linear_regime_relaxed(X, E, Pump, Signal, problem);
 end
 
 offChs = num.GaindB <= spanAttdB;
