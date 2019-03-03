@@ -13,6 +13,7 @@ addpath data/
 addpath ../f/
 
 verbose = true;
+comment = '';
 
 disp(filename)
 S = load(filename);
@@ -28,7 +29,7 @@ else
 end
 fprintf('========= GFF_period = %d =============\n', GFF_period)
 
-spanAttdB = S.spanAttdB - 2;
+spanAttdB = S.spanAttdB;
 OffPower = 1e-12; % power set for OFF channels
 df = S.problem.df;  
 E = S.nlin_sfn.E;
@@ -135,8 +136,11 @@ if verbose
     legend('Simulation', 'Predicted', 'Predicted approx')
 
 end
-
-output_filename = sprintf('sim_ase_acc_Ppump=%dmW_GFF_period=%d_partial_GFF=%d', round(Pump.P*1e3), GFF_period, partial_GFF);
+if comment == ''
+    output_filename = sprintf('results/sim_ase_acc_Ppump=%dmW_GFF_period=%d', round(Pump.P*1e3), GFF_period);
+else
+    output_filename = sprintf('results/sim_ase_acc_Ppump=%dmW_GFF_period=%d_%s', round(Pump.P*1e3), GFF_period, comment);
+end
 disp(output_filename)
 save(output_filename)
   

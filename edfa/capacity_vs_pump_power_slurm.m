@@ -42,7 +42,7 @@ Pump = Channels(980e-9, pumpPower, 'forward');
 SMF = fiber(spanLengthKm*1e3, @(l) 0.165*ones(size(l)), @(l) 20.4e-6*ones(size(l)));
 SMF.gamma = 0.8e-3;
 [~, spanAttdB] = SMF.link_attenuation(1550e-9); % same attenuation for all wavelengths
-spanAttdB = spanAttdB + 2; % adds 1.5 dB of margin
+spanAttdB = spanAttdB + 1; % adds 1 dB of margin
 
 % Filename
 filename = sprintf('results/capacity_vs_pump_power_EDF=%s_pump=%dmW_%dnm_ChDf=%dGHz_L=%d_x_%dkm.mat',...

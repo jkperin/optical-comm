@@ -3,6 +3,7 @@ classdef Channels
         wavelength % wavelength
         P % power
         direction % direction of propgation: {'forward', 'backward'}
+        df % frequency spacing
     end
     
     properties(Dependent)
